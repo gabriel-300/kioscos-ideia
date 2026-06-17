@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"c:\\\\claude-proyecto\" 2>&1)",
+      "Read(//c/claude-proyecto/**)",
+      "WebSearch"
+    ]
+  }
+}
