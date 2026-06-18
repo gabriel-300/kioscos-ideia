@@ -69,10 +69,10 @@ export async function ajustarPrecios({
   if (!products || products.length === 0) return { actualizados: 0 };
 
   const updates = products.map((p) => {
-    const patch: { id: string } & Partial<Record<typeof campos[number], number | null>> = { id: p.id };
+    const patch: { id: string } & Partial<Record<typeof campos[number], number>> = { id: p.id };
     for (const campo of campos) {
       const val = p[campo];
-      patch[campo] = val != null ? Math.round(val * factor) : null;
+      if (val != null) patch[campo] = Math.round(val * factor);
     }
     return patch;
   });
@@ -80,7 +80,7 @@ export async function ajustarPrecios({
   const errors = (
     await Promise.all(
       updates.map(({ id, ...fields }) =>
-        supabase.from("products").update(fields).eq("id", id)
+        supabase.from("products").update(fields as Update).eq("id", id)
       )
     )
   ).filter((r) => r.error);

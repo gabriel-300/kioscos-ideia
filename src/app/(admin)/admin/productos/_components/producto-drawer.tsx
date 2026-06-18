@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea, Select } from "@/components/ui";
@@ -15,7 +15,7 @@ type Category = Database["public"]["Tables"]["categories"]["Row"];
 const nPos = z.preprocess(
   (v) => (v === "" || v == null ? null : Number(v)),
   z.number().positive().nullable()
-);
+) as z.ZodType<number | null>;
 
 const schema = z.object({
   sku:               z.string().min(1, "Requerido"),
@@ -52,7 +52,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
   const [pending, startTransition] = useTransition();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
@@ -94,6 +94,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       costo:             values.costo,
       precio_dist:       values.precio_dist,
       price_b2c:         values.precio_publico ?? 0,
+      price_b2b:         values.precio_dist ?? 0,
       pkg_unitario:      values.pkg_unitario,
     };
 

@@ -8,7 +8,7 @@ import { eliminarMovimiento } from "../actions";
 import { Button, Badge } from "@/components/ui";
 import type { Database } from "@/types/database";
 
-type Sucursal = Database["public"]["Tables"]["sucursales"]["Row"];
+type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 
 type MovimientoRow = Database["public"]["Tables"]["movimientos"]["Row"] & {

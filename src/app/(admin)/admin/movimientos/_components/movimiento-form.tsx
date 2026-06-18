@@ -5,7 +5,7 @@ import { Button, Input, Select, Textarea } from "@/components/ui";
 import { crearMovimiento, type ItemInput } from "../actions";
 import type { Database } from "@/types/database";
 
-type Sucursal = Database["public"]["Tables"]["sucursales"]["Row"];
+type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
