@@ -10,6 +10,43 @@ type Category = { id: string; name: string };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
+type PayMethod = "efectivo" | "mp" | "tarjeta" | "transferencia";
+
+const PAY_METHODS: { id: PayMethod; label: string; short: string; icon: React.ReactNode }[] = [
+  {
+    id: "efectivo", label: "Efectivo", short: "Efec.",
+    icon: (
+      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
+      </svg>
+    ),
+  },
+  {
+    id: "mp", label: "Mercado Pago", short: "MP",
+    icon: (
+      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3" />
+      </svg>
+    ),
+  },
+  {
+    id: "tarjeta", label: "Tarjeta", short: "Tarj.",
+    icon: (
+      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+      </svg>
+    ),
+  },
+  {
+    id: "transferencia", label: "Transferencia", short: "Trans.",
+    icon: (
+      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+      </svg>
+    ),
+  },
+];
+
 interface Props {
   open:        boolean;
   onClose:     () => void;
@@ -20,15 +57,15 @@ interface Props {
 }
 
 export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap, categories }: Props) {
-  const [cantidades, setCantidades] = useState<Record<string, number>>({});
-  const [fecha,      setFecha]      = useState(() => new Date().toISOString().slice(0, 10));
-  const [notas,      setNotas]      = useState("");
-  const [catFilter,  setCatFilter]  = useState("all");
-  const [search,     setSearch]     = useState("");
-  const [efectivo,   setEfectivo]   = useState("");
-  const [mp,         setMp]         = useState("");
-  const [pending, startTransition]  = useTransition();
-  const [error,   setError]         = useState<string | null>(null);
+  const [cantidades,   setCantidades]  = useState<Record<string, number>>({});
+  const [fecha,        setFecha]       = useState(() => new Date().toISOString().slice(0, 10));
+  const [notas,        setNotas]       = useState("");
+  const [catFilter,    setCatFilter]   = useState("all");
+  const [search,       setSearch]      = useState("");
+  const [activeMethods, setActiveMethods] = useState<Set<PayMethod>>(new Set<PayMethod>(["efectivo"]));
+  const [montos,       setMontos]      = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+  const [pending, startTransition]     = useTransition();
+  const [error,   setError]            = useState<string | null>(null);
 
   const catsConProductos = useMemo(() => {
     if (!categories?.length) return [];
@@ -56,21 +93,56 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
   }, 0);
   const totalUnidades = seleccionados.reduce((s, [, qty]) => s + qty, 0);
 
-  const montoEfectivo  = parseFloat(efectivo) || 0;
-  const montoMP        = parseFloat(mp) || 0;
-  const totalRecibido  = montoEfectivo + montoMP;
-  const cambio         = totalRecibido > 0 ? totalRecibido - totalPrecio : null;
+  const totalRecibido = Array.from(activeMethods).reduce((s, m) => s + (parseFloat(montos[m]) || 0), 0);
+  const montoEfectivo = parseFloat(montos.efectivo) || 0;
+  const cambio = activeMethods.has("efectivo") && totalRecibido > 0 ? totalRecibido - totalPrecio : null;
 
   function set(id: string, value: number) {
     setCantidades((prev) => ({ ...prev, [id]: Math.max(0, value) }));
   }
 
+  function toggleMethod(m: PayMethod) {
+    setActiveMethods((prev) => {
+      const next = new Set(prev);
+      if (next.has(m)) {
+        if (next.size > 1) next.delete(m);
+      } else {
+        next.add(m);
+      }
+      return next;
+    });
+  }
+
+  function setMonto(m: PayMethod, val: string) {
+    setMontos((prev) => ({ ...prev, [m]: val }));
+  }
+
+  function fillJusto(m: PayMethod) {
+    const alreadyPaid = Array.from(activeMethods)
+      .filter((x) => x !== m)
+      .reduce((s, x) => s + (parseFloat(montos[x]) || 0), 0);
+    const resta = Math.max(0, totalPrecio - alreadyPaid);
+    setMontos((prev) => ({ ...prev, [m]: String(resta) }));
+  }
+
   function handleClose() {
     setCantidades({});
     setFecha(new Date().toISOString().slice(0, 10));
-    setNotas(""); setSearch(""); setEfectivo(""); setMp(""); setError(null);
+    setNotas(""); setSearch(""); setError(null);
     setCatFilter("all");
+    setActiveMethods(new Set<PayMethod>(["efectivo"]));
+    setMontos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     onClose();
+  }
+
+  function buildNotasConMedios(): string | null {
+    const partes: string[] = [];
+    for (const m of activeMethods) {
+      const val = parseFloat(montos[m]) || 0;
+      if (val > 0) partes.push(`${PAY_METHODS.find((x) => x.id === m)!.short} ${AR.format(val)}`);
+    }
+    const medioStr = partes.length ? `[Cobro: ${partes.join(" + ")}]` : null;
+    return [medioStr, notas || null].filter(Boolean).join(" — ") || null;
   }
 
   function handleSubmit() {
@@ -81,7 +153,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
           sucursal_id: sucursalId,
           fecha,
           tipo:  "venta",
-          notas: notas || null,
+          notas: buildNotasConMedios(),
           items: seleccionados.map(([product_id, cantidad]) => ({
             product_id,
             cantidad,
@@ -105,7 +177,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
         className="relative z-10 bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-5xl h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── HEADER ── */}
+        {/* HEADER */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-neutral-200 shrink-0">
           <h2 className="text-sm font-semibold font-display text-neutral-900 shrink-0">Registrar venta</h2>
 
@@ -140,10 +212,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
           </button>
         </div>
 
-        {/* ── BODY ── */}
+        {/* BODY */}
         <div className="flex flex-1 min-h-0">
 
-          {/* ── PANEL IZQUIERDO: productos ── */}
+          {/* PANEL IZQUIERDO: productos */}
           <div className="flex flex-col flex-1 min-w-0 border-r border-neutral-200">
 
             {/* Tabs de categoría */}
@@ -191,7 +263,6 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
                             : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
                         }`}
                       >
-                        {/* Zona imagen — click = +1 */}
                         <div
                           onClick={() => set(prod.id, qty + 1)}
                           className={`relative aspect-square overflow-hidden ${sinStock ? "" : "cursor-pointer"}`}
@@ -217,7 +288,6 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
                           )}
                         </div>
 
-                        {/* Info */}
                         <div className="p-2">
                           <p
                             onClick={() => set(prod.id, qty + 1)}
@@ -256,7 +326,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
             </div>
           </div>
 
-          {/* ── PANEL DERECHO: carrito + cobro ── */}
+          {/* PANEL DERECHO: carrito + cobro */}
           <div className="w-72 shrink-0 flex flex-col bg-neutral-50/50">
 
             {/* Lista del carrito */}
@@ -312,62 +382,64 @@ export function VentaRapidaForm({ open, onClose, sucursalId, products, stockMap,
                 </span>
               </div>
 
-              {/* Medios de pago */}
-              <div className="space-y-2">
-                {/* Efectivo */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-500 w-14 shrink-0">Efectivo</span>
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
-                    <input
-                      type="number"
-                      value={efectivo}
-                      onChange={(e) => setEfectivo(e.target.value)}
-                      placeholder="0"
-                      min={0}
-                      className="w-full h-8 pl-5 pr-2 rounded-lg border border-neutral-200 text-xs font-semibold tabular-nums bg-white focus:outline-none focus:border-tierra-700 transition-colors"
-                    />
-                  </div>
-                  <button
-                    onClick={() => { setEfectivo(String(totalPrecio)); setMp(""); }}
-                    disabled={totalPrecio === 0}
-                    className="shrink-0 h-8 px-2 rounded-lg border border-neutral-200 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 transition-colors"
-                  >
-                    Justo
-                  </button>
-                </div>
-
-                {/* Mercado Pago */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-500 w-14 shrink-0">MP</span>
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
-                    <input
-                      type="number"
-                      value={mp}
-                      onChange={(e) => setMp(e.target.value)}
-                      placeholder="0"
-                      min={0}
-                      className="w-full h-8 pl-5 pr-2 rounded-lg border border-neutral-200 text-xs font-semibold tabular-nums bg-white focus:outline-none focus:border-tierra-700 transition-colors"
-                    />
-                  </div>
-                  <button
-                    onClick={() => { setMp(String(totalPrecio)); setEfectivo(""); }}
-                    disabled={totalPrecio === 0}
-                    className="shrink-0 h-8 px-2 rounded-lg border border-neutral-200 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 transition-colors"
-                  >
-                    Justo
-                  </button>
+              {/* Medios de pago — toggle chips */}
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">Medio de pago</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {PAY_METHODS.map((m) => {
+                    const active = activeMethods.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => toggleMethod(m.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                          active
+                            ? "bg-tierra-700 border-tierra-700 text-white shadow-sm"
+                            : "bg-white border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700"
+                        }`}
+                      >
+                        {m.icon}
+                        {m.short}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Cambio / Falta */}
+              {/* Inputs por método activo */}
+              <div className="space-y-2">
+                {PAY_METHODS.filter((m) => activeMethods.has(m.id)).map((m) => (
+                  <div key={m.id} className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-500 w-14 shrink-0 truncate">{m.short}</span>
+                    <div className="relative flex-1">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
+                      <input
+                        type="number"
+                        value={montos[m.id]}
+                        onChange={(e) => setMonto(m.id, e.target.value)}
+                        placeholder="0"
+                        min={0}
+                        className="w-full h-8 pl-5 pr-2 rounded-lg border border-neutral-200 text-xs font-semibold tabular-nums bg-white focus:outline-none focus:border-tierra-700 transition-colors"
+                      />
+                    </div>
+                    <button
+                      onClick={() => fillJusto(m.id)}
+                      disabled={totalPrecio === 0}
+                      className="shrink-0 h-8 px-2 rounded-lg border border-neutral-200 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 transition-colors"
+                    >
+                      Justo
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Vuelto / Falta */}
               {cambio !== null && (
                 <div className={`rounded-lg px-3 py-2 flex items-center justify-between ${
                   cambio >= 0 ? "bg-selva-50 border border-selva-200" : "bg-danger/5 border border-danger/20"
                 }`}>
                   <span className={`text-xs font-semibold ${cambio >= 0 ? "text-selva-700" : "text-danger"}`}>
-                    {cambio >= 0 ? "Cambio" : "Falta"}
+                    {cambio >= 0 ? "Vuelto" : "Falta"}
                   </span>
                   <span className={`text-lg font-bold tabular-nums font-display ${cambio >= 0 ? "text-selva-700" : "text-danger"}`}>
                     {AR.format(Math.abs(cambio))}
