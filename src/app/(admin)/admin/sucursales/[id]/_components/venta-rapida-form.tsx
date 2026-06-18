@@ -12,35 +12,35 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 
 type PayMethod = "efectivo" | "mp" | "tarjeta" | "transferencia";
 
-const PAY_METHODS: { id: PayMethod; label: string; short: string; icon: React.ReactNode }[] = [
+const PAY_METHODS: { id: PayMethod; label: string; icon: React.ReactNode }[] = [
   {
-    id: "efectivo", label: "Efectivo", short: "Efectivo",
+    id: "efectivo", label: "Efectivo",
     icon: (
-      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
       </svg>
     ),
   },
   {
-    id: "mp", label: "Mercado Pago", short: "Mercado Pago",
+    id: "mp", label: "Mercado Pago",
     icon: (
-      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3" />
       </svg>
     ),
   },
   {
-    id: "tarjeta", label: "Tarjeta", short: "Tarjeta",
+    id: "tarjeta", label: "Tarjeta",
     icon: (
-      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
       </svg>
     ),
   },
   {
-    id: "transferencia", label: "Transferencia", short: "Transferencia",
+    id: "transferencia", label: "Transferencia",
     icon: (
-      <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
       </svg>
     ),
@@ -59,27 +59,35 @@ type Receipt = {
 };
 
 interface Props {
-  open:           boolean;
-  onClose:        () => void;
-  sucursalId:     string;
+  open:            boolean;
+  onClose:         () => void;
+  sucursalId:      string;
   sucursalNombre?: string;
-  products:       Product[];
-  stockMap?:      Record<string, number>;
-  categories?:    Category[];
+  products:        Product[];
+  stockMap?:       Record<string, number>;
+  categories?:     Category[];
 }
 
 export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories }: Props) {
-  const [cantidades,    setCantidades]   = useState<Record<string, number>>({});
-  const [fecha,         setFecha]        = useState(() => new Date().toISOString().slice(0, 10));
-  const [notas,         setNotas]        = useState("");
-  const [catFilter,     setCatFilter]    = useState("all");
-  const [search,        setSearch]       = useState("");
-  const [activeMethods, setActiveMethods] = useState<Set<PayMethod>>(new Set<PayMethod>(["efectivo"]));
-  const [montos,        setMontos]       = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-  const [pending,  startTransition]      = useTransition();
-  const [error,    setError]             = useState<string | null>(null);
-  const [receipt,  setReceipt]           = useState<Receipt | null>(null);
+  // POS state
+  const [cantidades,  setCantidades] = useState<Record<string, number>>({});
+  const [fecha,       setFecha]      = useState(() => new Date().toISOString().slice(0, 10));
+  const [catFilter,   setCatFilter]  = useState("all");
+  const [search,      setSearch]     = useState("");
 
+  // Modal de cobro
+  const [showPay,      setShowPay]      = useState(false);
+  const [payMethod,    setPayMethod]    = useState<PayMethod>("efectivo");
+  const [montoRecibido, setMontoRecibido] = useState("");
+  const [notas,        setNotas]        = useState("");
+  const [error,        setError]        = useState<string | null>(null);
+
+  // Comprobante
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+
+  const [pending, startTransition] = useTransition();
+
+  /* ── derivados ── */
   const catsConProductos = useMemo(() => {
     if (!categories?.length) return [];
     const ids = new Set(products.map((p) => p.category_id));
@@ -106,68 +114,48 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   }, 0);
   const totalUnidades = seleccionados.reduce((s, [, qty]) => s + qty, 0);
 
-  const totalRecibido = Array.from(activeMethods).reduce((s, m) => s + (parseFloat(montos[m]) || 0), 0);
-  const cambio = activeMethods.has("efectivo") && totalRecibido > 0 ? totalRecibido - totalPrecio : null;
+  const monto  = parseFloat(montoRecibido) || 0;
+  const vuelto = payMethod === "efectivo" && monto > 0 ? monto - totalPrecio : null;
 
+  /* ── handlers ── */
   function set(id: string, value: number) {
     setCantidades((prev) => ({ ...prev, [id]: Math.max(0, value) }));
-  }
-
-  function toggleMethod(m: PayMethod) {
-    setActiveMethods((prev) => {
-      const next = new Set(prev);
-      if (next.has(m)) { if (next.size > 1) next.delete(m); }
-      else { next.add(m); }
-      return next;
-    });
-  }
-
-  function setMonto(m: PayMethod, val: string) {
-    setMontos((prev) => ({ ...prev, [m]: val }));
-  }
-
-  function fillJusto(m: PayMethod) {
-    const alreadyPaid = Array.from(activeMethods)
-      .filter((x) => x !== m)
-      .reduce((s, x) => s + (parseFloat(montos[x]) || 0), 0);
-    setMontos((prev) => ({ ...prev, [m]: String(Math.max(0, totalPrecio - alreadyPaid)) }));
   }
 
   function resetForm() {
     setCantidades({});
     setFecha(new Date().toISOString().slice(0, 10));
-    setNotas(""); setSearch(""); setError(null); setCatFilter("all");
-    setActiveMethods(new Set<PayMethod>(["efectivo"]));
-    setMontos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+    setSearch(""); setCatFilter("all");
+    setShowPay(false); setPayMethod("efectivo");
+    setMontoRecibido(""); setNotas(""); setError(null);
     setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
 
-  function buildNotasConMedios(): string | null {
-    const partes: string[] = [];
-    for (const m of activeMethods) {
-      const val = parseFloat(montos[m]) || 0;
-      if (val > 0) partes.push(`${PAY_METHODS.find((x) => x.id === m)!.short} ${AR.format(val)}`);
-    }
-    const medioStr = partes.length ? `[Cobro: ${partes.join(" + ")}]` : null;
-    return [medioStr, notas || null].filter(Boolean).join(" — ") || null;
+  function openPay() {
+    setMontoRecibido("");
+    setError(null);
+    setShowPay(true);
   }
 
-  function handleSubmit() {
+  function handleConfirm() {
     setError(null);
-    const now = new Date();
+    const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
     const receiptItems = seleccionados.map(([id, qty]) => {
       const p = products.find((p) => p.id === id)!;
-      const precioUnit = p?.precio_dist ?? 0;
-      return { name: p?.name ?? "—", qty, precioUnit, sub: qty * precioUnit };
+      return { name: p?.name ?? "—", qty, precioUnit: p?.precio_dist ?? 0, sub: qty * (p?.precio_dist ?? 0) };
     });
 
-    const pagos = PAY_METHODS
-      .filter((m) => activeMethods.has(m.id) && (parseFloat(montos[m.id]) || 0) > 0)
-      .map((m) => ({ label: m.label, monto: parseFloat(montos[m.id]) || 0 }));
+    const metodo = PAY_METHODS.find((m) => m.id === payMethod)!;
+    const pagos  = [{ label: metodo.label, monto: monto > 0 ? monto : totalPrecio }];
+
+    const notasFinal = [
+      `[${metodo.label}]`,
+      notas || null,
+    ].filter(Boolean).join(" — ") || null;
 
     startTransition(async () => {
       try {
@@ -175,13 +163,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           sucursal_id: sucursalId,
           fecha,
           tipo:  "venta",
-          notas: buildNotasConMedios(),
+          notas: notasFinal,
           items: seleccionados.map(([product_id, cantidad]) => ({
             product_id,
             cantidad,
             precio_unitario: products.find((p) => p.id === product_id)?.precio_dist ?? null,
           })),
         });
+        setShowPay(false);
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora,
@@ -189,7 +178,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           totalPrecio,
           totalUnidades,
           pagos,
-          vuelto: cambio !== null && cambio >= 0 ? cambio : null,
+          vuelto: vuelto !== null && vuelto >= 0 ? vuelto : null,
           notas: notas || null,
         });
       } catch (e) {
@@ -203,29 +192,23 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprobante</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 13px; padding: 24px 20px; color: #111; }
-  h1 { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 2px; }
-  .sub { text-align: center; font-size: 11px; color: #555; margin-bottom: 12px; }
-  .divider { border-top: 1px dashed #bbb; margin: 10px 0; }
-  .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-  .row .name { flex: 1; padding-right: 8px; }
-  .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; margin-top: 4px; }
-  .pago-row { display: flex; justify-content: space-between; margin-bottom: 3px; color: #333; }
-  .vuelto-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 4px; }
-  .footer { text-align: center; font-size: 10px; color: #888; margin-top: 16px; }
-  @media print { body { padding: 8px; } }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Courier New',monospace; font-size:13px; padding:24px 20px; color:#111; }
+  h1 { font-size:16px; font-weight:bold; text-align:center; margin-bottom:2px; }
+  .sub { text-align:center; font-size:11px; color:#555; margin-bottom:12px; }
+  .divider { border-top:1px dashed #bbb; margin:10px 0; }
+  .row { display:flex; justify-content:space-between; margin-bottom:4px; }
+  .name { flex:1; padding-right:8px; }
+  .total-row { display:flex; justify-content:space-between; font-weight:bold; font-size:15px; margin-top:4px; }
+  .pago-row { display:flex; justify-content:space-between; margin-bottom:3px; }
+  .vuelto-row { display:flex; justify-content:space-between; font-weight:bold; margin-top:4px; }
+  .footer { text-align:center; font-size:10px; color:#888; margin-top:16px; }
 </style></head><body>
 <h1>Kioscos IDEIA</h1>
 <div class="sub">${sucursalNombre ?? ""}</div>
 <div class="sub">${r.fecha} · ${r.hora}</div>
 <div class="divider"></div>
-${r.items.map((i) => `
-  <div class="row">
-    <span class="name">${i.name}</span>
-    <span>${i.qty} × ${AR.format(i.precioUnit)}</span>
-    <span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span>
-  </div>`).join("")}
+${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span>${i.qty} × ${AR.format(i.precioUnit)}</span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span></div>`).join("")}
 <div class="divider"></div>
 <div class="total-row"><span>TOTAL (${r.totalUnidades} u.)</span><span>${AR.format(r.totalPrecio)}</span></div>
 <div class="divider"></div>
@@ -236,7 +219,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 </body></html>`);
     w.document.close();
     w.focus();
-    setTimeout(() => { w.print(); }, 200);
+    setTimeout(() => w.print(), 200);
   }
 
   if (!open) return null;
@@ -247,8 +230,6 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
         <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-
-          {/* Header success */}
           <div className="bg-selva-600 px-6 py-6 text-center">
             <div className="size-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
               <svg className="size-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -259,28 +240,22 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             <p className="text-white/70 text-sm mt-0.5 capitalize">{receipt.fecha} · {receipt.hora}</p>
           </div>
 
-          {/* Detalle */}
           <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
-            {/* Ítems */}
             <div className="space-y-1.5">
               {receipt.items.map((item, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
                   <span className="text-neutral-400 tabular-nums shrink-0 w-5 text-right">{item.qty}×</span>
                   <span className="flex-1 text-neutral-800 leading-tight">{item.name}</span>
-                  {item.sub > 0 && (
-                    <span className="tabular-nums text-neutral-600 shrink-0">{AR.format(item.sub)}</span>
-                  )}
+                  {item.sub > 0 && <span className="tabular-nums text-neutral-600 shrink-0">{AR.format(item.sub)}</span>}
                 </div>
               ))}
             </div>
 
-            {/* Total */}
             <div className="border-t border-neutral-100 pt-3 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{receipt.totalUnidades} unidades</span>
               <span className="text-2xl font-bold tabular-nums font-display text-neutral-900">{AR.format(receipt.totalPrecio)}</span>
             </div>
 
-            {/* Pagos */}
             {receipt.pagos.length > 0 && (
               <div className="space-y-1 border-t border-neutral-100 pt-3">
                 {receipt.pagos.map((p, i) => (
@@ -298,13 +273,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </div>
             )}
 
-            {/* Notas */}
             {receipt.notas && (
               <p className="text-xs text-neutral-400 border-t border-neutral-100 pt-2">{receipt.notas}</p>
             )}
           </div>
 
-          {/* Acciones */}
           <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
             <button
               onClick={() => handlePrint(receipt)}
@@ -316,16 +289,10 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               Imprimir comprobante
             </button>
             <div className="flex gap-2">
-              <button
-                onClick={resetForm}
-                className="flex-1 h-10 rounded-xl bg-tierra-700 text-white text-sm font-semibold hover:bg-tierra-800 transition-colors"
-              >
+              <button onClick={resetForm} className="flex-1 h-10 rounded-xl bg-tierra-700 text-white text-sm font-semibold hover:bg-tierra-800 transition-colors">
                 Nueva venta
               </button>
-              <button
-                onClick={handleClose}
-                className="flex-1 h-10 rounded-xl border border-neutral-200 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition-colors"
-              >
+              <button onClick={handleClose} className="flex-1 h-10 rounded-xl border border-neutral-200 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition-colors">
                 Cerrar
               </button>
             </div>
@@ -410,17 +377,12 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                       <div
                         key={prod.id}
                         className={`rounded-xl border overflow-hidden select-none transition-all ${
-                          qty > 0
-                            ? "border-tierra-600 ring-1 ring-tierra-600 shadow-sm"
-                            : sinStock
-                            ? "border-neutral-100 opacity-40"
-                            : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
+                          qty > 0 ? "border-tierra-600 ring-1 ring-tierra-600 shadow-sm"
+                          : sinStock ? "border-neutral-100 opacity-40"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-sm"
                         }`}
                       >
-                        <div
-                          onClick={() => set(prod.id, qty + 1)}
-                          className={`relative aspect-square overflow-hidden ${sinStock ? "" : "cursor-pointer"}`}
-                        >
+                        <div onClick={() => set(prod.id, qty + 1)} className={`relative aspect-square overflow-hidden ${sinStock ? "" : "cursor-pointer"}`}>
                           {prod.cover_image_url ? (
                             <img src={prod.cover_image_url} alt={prod.name} loading="lazy" className="w-full h-full object-cover" />
                           ) : (
@@ -429,9 +391,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                             </div>
                           )}
                           {qty > 0 && (
-                            <div className="absolute top-1 right-1 min-w-[1.25rem] h-5 px-1 bg-tierra-700 text-white rounded-full flex items-center justify-center text-[11px] font-bold leading-none">
-                              {qty}
-                            </div>
+                            <div className="absolute top-1 right-1 min-w-[1.25rem] h-5 px-1 bg-tierra-700 text-white rounded-full flex items-center justify-center text-[11px] font-bold leading-none">{qty}</div>
                           )}
                           {sinStock && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white/60">
@@ -440,14 +400,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                           )}
                         </div>
                         <div className="p-2">
-                          <p
-                            onClick={() => set(prod.id, qty + 1)}
-                            className={`text-[11px] font-medium text-neutral-800 leading-tight line-clamp-2 min-h-[1.625rem] ${sinStock ? "" : "cursor-pointer"}`}
-                          >{prod.name}</p>
+                          <p onClick={() => set(prod.id, qty + 1)} className={`text-[11px] font-medium text-neutral-800 leading-tight line-clamp-2 min-h-[1.625rem] ${sinStock ? "" : "cursor-pointer"}`}>
+                            {prod.name}
+                          </p>
                           <div className="flex items-center justify-between mt-0.5">
-                            {prod.precio_dist
-                              ? <p className="text-[11px] text-neutral-400 tabular-nums">{AR.format(prod.precio_dist)}</p>
-                              : <span />}
+                            {prod.precio_dist ? <p className="text-[11px] text-neutral-400 tabular-nums">{AR.format(prod.precio_dist)}</p> : <span />}
                             {stock !== null && stock > 0 && <span className="text-[10px] text-neutral-300">{stock}u</span>}
                           </div>
                           {qty > 0 && (
@@ -466,8 +423,14 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             </div>
           </div>
 
-          {/* DERECHO: carrito + cobro */}
-          <div className="w-72 shrink-0 flex flex-col bg-neutral-50/50">
+          {/* DERECHO: ticket */}
+          <div className="w-64 shrink-0 flex flex-col bg-neutral-50/50">
+            <div className="px-4 py-3 border-b border-neutral-100 shrink-0">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Ticket en curso</p>
+              {sucursalNombre && <p className="text-[11px] text-neutral-400 mt-0.5">{sucursalNombre}</p>}
+            </div>
+
+            {/* Lista items */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5">
               {seleccionados.length === 0 ? (
                 <p className="text-xs text-center text-neutral-300 pt-10">Tocá un producto para agregar</p>
@@ -497,100 +460,151 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               )}
             </div>
 
-            <div className="border-t border-neutral-200 px-4 py-4 shrink-0 space-y-3 bg-white">
+            {/* Total + botón cobrar */}
+            <div className="border-t border-neutral-200 p-4 shrink-0 bg-white space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
-                  {totalUnidades > 0 ? `${totalUnidades} un.` : "Total"}
+                <span className="text-xs text-neutral-400">
+                  {totalUnidades > 0 ? `${totalUnidades} producto${totalUnidades !== 1 ? "s" : ""}` : "Total"}
                 </span>
                 <span className="text-2xl font-bold font-display tabular-nums text-neutral-900">{AR.format(totalPrecio)}</span>
               </div>
-
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-2">Medio de pago</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {PAY_METHODS.map((m) => {
-                    const active = activeMethods.has(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => toggleMethod(m.id)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                          active
-                            ? "bg-tierra-700 border-tierra-700 text-white shadow-sm"
-                            : "bg-white border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700"
-                        }`}
-                      >
-                        {m.icon}
-                        {m.id === "efectivo" ? "Efectivo" : m.id === "mp" ? "MP" : m.id === "tarjeta" ? "Tarjeta" : "Transfer."}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {PAY_METHODS.filter((m) => activeMethods.has(m.id)).map((m) => (
-                  <div key={m.id} className="flex items-center gap-2">
-                    <span className="text-xs text-neutral-500 w-14 shrink-0 truncate">
-                      {m.id === "efectivo" ? "Efec." : m.id === "mp" ? "MP" : m.id === "tarjeta" ? "Tarj." : "Trans."}
-                    </span>
-                    <div className="relative flex-1">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
-                      <input
-                        type="number"
-                        value={montos[m.id]}
-                        onChange={(e) => setMonto(m.id, e.target.value)}
-                        placeholder="0"
-                        min={0}
-                        className="w-full h-8 pl-5 pr-2 rounded-lg border border-neutral-200 text-xs font-semibold tabular-nums bg-white focus:outline-none focus:border-tierra-700 transition-colors"
-                      />
-                    </div>
-                    <button
-                      onClick={() => fillJusto(m.id)}
-                      disabled={totalPrecio === 0}
-                      className="shrink-0 h-8 px-2 rounded-lg border border-neutral-200 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 transition-colors"
-                    >Justo</button>
-                  </div>
-                ))}
-              </div>
-
-              {cambio !== null && (
-                <div className={`rounded-lg px-3 py-2 flex items-center justify-between ${
-                  cambio >= 0 ? "bg-selva-50 border border-selva-200" : "bg-danger/5 border border-danger/20"
-                }`}>
-                  <span className={`text-xs font-semibold ${cambio >= 0 ? "text-selva-700" : "text-danger"}`}>
-                    {cambio >= 0 ? "Vuelto" : "Falta"}
-                  </span>
-                  <span className={`text-lg font-bold tabular-nums font-display ${cambio >= 0 ? "text-selva-700" : "text-danger"}`}>
-                    {AR.format(Math.abs(cambio))}
-                  </span>
-                </div>
-              )}
-
-              <textarea
-                placeholder="Notas…"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                rows={1}
-                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs focus:outline-none focus:border-tierra-700 resize-none"
-              />
-
-              {error && <p className="text-xs text-danger">{error}</p>}
-
-              <Button
-                variant="primary"
-                size="sm"
-                loading={pending}
+              <button
+                onClick={openPay}
                 disabled={seleccionados.length === 0}
-                onClick={handleSubmit}
-                className="w-full"
+                className="w-full h-12 rounded-xl bg-tierra-700 hover:bg-tierra-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base transition-colors shadow-sm"
               >
-                Registrar venta
-              </Button>
+                {seleccionados.length === 0 ? "Seleccioná productos" : `Cobrar ${AR.format(totalPrecio)}`}
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── MODAL CONFIRMAR COBRO ── */}
+      {showPay && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 bg-black/20" onClick={() => setShowPay(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-neutral-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold font-display text-neutral-900">Confirmar cobro</h3>
+                <button onClick={() => setShowPay(false)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 transition-colors">
+                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {/* Resumen */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-neutral-400">Total</p>
+                  <p className="text-3xl font-bold font-display tabular-nums text-neutral-900">{AR.format(totalPrecio)}</p>
+                  <p className="text-xs text-neutral-400 mt-0.5">{totalUnidades} producto{totalUnidades !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+
+              {/* Medio de pago */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Medio de pago</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PAY_METHODS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => { setPayMethod(m.id); setMontoRecibido(""); }}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                        payMethod === m.id
+                          ? "bg-neutral-900 border-neutral-900 text-white shadow-sm"
+                          : "bg-white border-neutral-200 text-neutral-600 hover:border-neutral-300"
+                      }`}
+                    >
+                      {m.icon}
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Monto recibido (solo efectivo) */}
+              {payMethod === "efectivo" && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Monto recibido</p>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">$</span>
+                      <input
+                        type="number"
+                        value={montoRecibido}
+                        onChange={(e) => setMontoRecibido(e.target.value)}
+                        placeholder="0"
+                        min={0}
+                        autoFocus
+                        className="w-full h-11 pl-7 pr-3 rounded-xl border border-neutral-300 text-base font-semibold tabular-nums focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/15 transition-colors"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setMontoRecibido(String(totalPrecio))}
+                      className="h-11 px-3 rounded-xl border border-neutral-200 text-sm font-medium text-neutral-500 hover:bg-neutral-50 transition-colors whitespace-nowrap"
+                    >
+                      Justo
+                    </button>
+                  </div>
+
+                  {/* Vuelto */}
+                  {vuelto !== null && (
+                    <div className={`mt-3 rounded-xl px-4 py-3 flex items-center justify-between ${
+                      vuelto >= 0 ? "bg-selva-50 border border-selva-200" : "bg-danger/5 border border-danger/20"
+                    }`}>
+                      <span className={`text-sm font-semibold ${vuelto >= 0 ? "text-selva-700" : "text-danger"}`}>
+                        {vuelto >= 0 ? "Vuelto" : "Falta"}
+                      </span>
+                      <span className={`text-xl font-bold tabular-nums font-display ${vuelto >= 0 ? "text-selva-700" : "text-danger"}`}>
+                        {AR.format(Math.abs(vuelto))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Notas */}
+              <div>
+                <textarea
+                  placeholder="Notas opcionales…"
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  rows={1}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-tierra-700 resize-none"
+                />
+              </div>
+
+              {error && <p className="text-sm text-danger">{error}</p>}
+            </div>
+
+            {/* Acciones */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setShowPay(false)}
+                className="flex-1 h-11 rounded-xl border border-neutral-200 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={pending}
+                onClick={handleConfirm}
+                className="flex-1 h-11 rounded-xl text-sm font-bold"
+              >
+                Confirmar venta
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
