@@ -83,10 +83,10 @@ function NavContent({
               className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ${
                 active
                   ? "bg-white/10 text-white"
-                  : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+                  : "text-neutral-200 hover:bg-white/8 hover:text-white"
               }`}
             >
-              <span className={`shrink-0 ${active ? "text-tierra-400" : "text-neutral-500"}`}>
+              <span className={`shrink-0 ${active ? "text-tierra-400" : "text-neutral-400"}`}>
                 {ICONS[item.icon]}
               </span>
               <span className="text-sm font-medium">{item.label}</span>
