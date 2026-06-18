@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { emailNuevoRegistroB2B } from "@/lib/email";
 import { z } from "zod";
 
 const Schema = z.object({
@@ -40,14 +39,6 @@ export async function POST(request: NextRequest) {
       : error.message;
     return NextResponse.json({ error: msg }, { status: 400 });
   }
-
-  // Notificar al admin — fire and forget
-  emailNuevoRegistroB2B({
-    empresa,
-    email,
-    canal,
-    zona: zonaNombre ?? zonaId,
-  }).catch(() => {});
 
   return NextResponse.json({ ok: true, userId: data.user.id });
 }
