@@ -116,8 +116,19 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                   <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-neutral-500">{p.sku}</td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-neutral-900">{p.name}</span>
-                      {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                      <div className="flex items-center gap-3">
+                        {p.cover_image_url ? (
+                          <img src={p.cover_image_url} alt="" className="size-9 rounded-lg object-cover shrink-0 border border-neutral-100" />
+                        ) : (
+                          <div className="size-9 rounded-lg bg-neutral-100 shrink-0 flex items-center justify-center">
+                            <span className="text-xs font-bold text-neutral-300 uppercase">{p.name.slice(0, 2)}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-medium text-neutral-900">{p.name}</span>
+                          {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       {p.category ? <Badge>{p.category.name}</Badge> : <span className="text-neutral-300">—</span>}

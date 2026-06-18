@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea, Select } from "@/components/ui";
 import { Button } from "@/components/ui";
 import { crearProducto, actualizarProducto } from "../actions";
+import { ImageUploader } from "./image-uploader";
 import type { Database } from "@/types/database";
 
 type Product  = Database["public"]["Tables"]["products"]["Row"];
@@ -49,7 +50,8 @@ interface Props {
 }
 
 export function ProductoDrawer({ open, product, categories, onClose }: Props) {
-  const [pending, startTransition] = useTransition();
+  const [pending,  startTransition] = useTransition();
+  const [imageUrl, setImageUrl]     = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
@@ -62,6 +64,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setImageUrl(product?.cover_image_url ?? null);
     reset(product ? {
       sku:               product.sku,
       name:              product.name,
@@ -96,6 +99,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       price_b2c:         values.precio_publico ?? 0,
       price_b2b:         values.precio_dist ?? 0,
       pkg_unitario:      values.pkg_unitario,
+      cover_image_url:   imageUrl,
     };
 
     startTransition(async () => {
@@ -135,6 +139,12 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Imagen */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Imagen</p>
+            <ImageUploader value={imageUrl} onChange={setImageUrl} />
+          </div>
+
           {/* Identificación */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Producto</p>
