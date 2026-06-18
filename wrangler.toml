@@ -1,7 +1,8 @@
 name = "kioscos-ideia"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-12-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next/cloudflare"
+main = ".open-next/worker.js"
 
-[vars]
-# Variables públicas (no secretos) — los NEXT_PUBLIC_* van en Cloudflare Pages dashboard
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
