@@ -8,6 +8,8 @@ import { CierreCajaButton } from "./_components/cierre-caja-button";
 
 export const revalidate = 0;
 
+type StockRow = { product_id: string; product_name: string; sku: string; entradas: number; salidas: number; stock_actual: number };
+
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +38,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }] = await Promise.all([
+  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     supabase
       .from("movimientos")
@@ -53,6 +55,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     supabase.from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle(),
+    (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
   ]);
 
   if (!sucursal) notFound();
@@ -81,24 +84,11 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
 
-  // Stock estimado por producto
-  const stockMap = new Map<string, { name: string; sku: string; entradas: number; salidas: number }>();
-  for (const m of movs) {
-    for (const item of m.movimiento_items) {
-      if (!item.product) continue;
-      const existing = stockMap.get(item.product.id) ?? { name: item.product.name, sku: item.product.sku, entradas: 0, salidas: 0 };
-      if (m.tipo === "entrega") {
-        existing.entradas += item.cantidad;
-      } else if (m.tipo === "devolucion" || m.tipo === "venta") {
-        existing.salidas += item.cantidad;
-      }
-      stockMap.set(item.product.id, existing);
-    }
-  }
-  const stock = Array.from(stockMap.values()).sort((a, b) => b.entradas - a.entradas);
-  // Mapa plano productId → stock actual para el POS de venta
-  const stockActual: Record<string, number> = {};
-  for (const [id, s] of stockMap.entries()) stockActual[id] = s.entradas - s.salidas;
+  // Stock por producto desde la vista SQL
+  const stock = (stockRows ?? []).sort((a, b) => b.entradas - a.entradas);
+  const stockActual: Record<string, number> = Object.fromEntries(
+    stock.map((r) => [r.product_id, r.stock_actual])
+  );
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -268,20 +258,17 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {stock.map((p) => {
-                  const actual = p.entradas - p.salidas;
-                  return (
-                    <tr key={p.sku} className="hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-neutral-800">{p.name}</span>
-                        <span className="ml-2 text-xs text-neutral-400">{p.sku}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-selva-700 font-medium">+{p.entradas}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{p.salidas > 0 ? `-${p.salidas}` : "—"}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-bold text-neutral-900">{actual}</td>
-                    </tr>
-                  );
-                })}
+                {stock.map((p) => (
+                  <tr key={p.product_id} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-neutral-800">{p.product_name}</span>
+                      <span className="ml-2 text-xs text-neutral-400">{p.sku}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-selva-700 font-medium">+{p.entradas}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{p.salidas > 0 ? `-${p.salidas}` : "—"}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-neutral-900">{p.stock_actual}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
