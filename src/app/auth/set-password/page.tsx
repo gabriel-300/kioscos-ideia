@@ -39,21 +39,7 @@ export default function SetPasswordPage() {
       return;
     }
 
-    // Redirigir según rol
-    const { data: { session } } = await supabase.auth.getSession();
-    const jwt = session?.access_token ?? "";
-    const payload = jwt ? JSON.parse(atob(jwt.split(".")[1])) : {};
-    const role = payload.app_metadata?.role as string | undefined;
-
-    if (role === "admin" || role === "vendedor") {
-      router.push("/admin/pedidos");
-    } else if (role === "produccion") {
-      router.push("/admin/produccion");
-    } else if (role === "customer_b2b") {
-      router.push("/b2b/catalogo");
-    } else {
-      router.push("/tienda");
-    }
+    router.push("/auth/redirect");
   }
 
   return (
@@ -62,9 +48,9 @@ export default function SetPasswordPage() {
         {/* Logo */}
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <span className="size-9 rounded-xl bg-tierra-700 text-white flex items-center justify-center font-bold text-sm tracking-tight">
-            EM
+            KI
           </span>
-          <span className="font-display font-semibold text-xl text-neutral-900">En Minutas</span>
+          <span className="font-display font-semibold text-xl text-neutral-900">Kioscos IDEIA</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">

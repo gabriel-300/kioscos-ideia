@@ -40,9 +40,9 @@ export default function ForgotPasswordPage() {
         {/* Logo */}
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <span className="size-9 rounded-xl bg-tierra-700 text-white flex items-center justify-center font-bold text-sm tracking-tight">
-            EM
+            KI
           </span>
-          <span className="font-display font-semibold text-xl text-neutral-900">En Minutas</span>
+          <span className="font-display font-semibold text-xl text-neutral-900">Kioscos IDEIA</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">

@@ -44,14 +44,14 @@ export function LoginForm() {
     <div className="w-full max-w-sm">
       {/* Logo */}
       <div className="text-center mb-8">
-        <div className="size-12 rounded-full bg-tierra-700 text-white flex items-center justify-center mx-auto mb-4 font-display font-bold text-lg">
-          EM
+        <div className="size-12 rounded-xl bg-tierra-700 text-white flex items-center justify-center mx-auto mb-4 font-display font-bold text-lg">
+          KI
         </div>
         <h1 className="font-display text-2xl font-semibold text-neutral-900">
           Iniciar sesión
         </h1>
         <p className="text-sm text-neutral-500 mt-1">
-          Accedé a tu cuenta de En Minutas
+          Panel de gestión · Kioscos IDEIA
         </p>
       </div>
 
@@ -89,11 +89,8 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-neutral-500 mt-4">
-        ¿No tenés cuenta?{" "}
-        <Link href="/registro" className="text-tierra-700 font-medium hover:underline">
-          Registrate
-        </Link>
+      <p className="text-center text-xs text-neutral-400 mt-4">
+        ¿Problemas para acceder? Contactá al administrador.
       </p>
     </div>
   );

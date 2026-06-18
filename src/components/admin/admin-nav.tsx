@@ -18,7 +18,9 @@ const ICONS: Record<string, React.ReactNode> = {
   sucursales:  <Icon><path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" /></Icon>,
   productos:   <Icon><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></Icon>,
   movimientos: <Icon><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></Icon>,
+  stock:       <Icon><path d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" /></Icon>,
   envio:       <Icon><path d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" /></Icon>,
+  categorias:  <Icon><path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3zM6 6h.008v.008H6V6z" /></Icon>,
   staff:       <Icon><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></Icon>,
 };
 
@@ -33,9 +35,11 @@ const NAV: Item[] = [
 
   { href: "/admin/sucursales",   label: "Sucursales",         roles: ["admin", "encargado"], icon: "sucursales" },
   { href: "/admin/movimientos",  label: "Historial",          roles: ["admin"],              icon: "movimientos" },
+  { href: "/admin/stock",        label: "Stock kioscos",      roles: ["admin"],              icon: "stock" },
 
   { type: "separator", label: "Catálogo", roles: ["admin"] },
 
+  { href: "/admin/categorias",   label: "Categorías",          roles: ["admin"],             icon: "categorias" },
   { href: "/admin/productos",    label: "Productos (reventa)", roles: ["admin"],             icon: "productos" },
 
   { type: "separator", label: "Configuración", roles: ["admin"] },
@@ -119,7 +123,7 @@ function NavContent({
   );
 }
 
-export function AdminNav({ role, email, name }: { role: string | null; email: string | null; name: string | null }) {
+export function AdminNav({ role, email, name, sucursalId }: { role: string | null; email: string | null; name: string | null; sucursalId?: string | null }) {
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
@@ -140,7 +144,22 @@ export function AdminNav({ role, email, name }: { role: string | null; email: st
     router.push("/login");
   }
 
-  const visibleItems = NAV.filter((item) => item.roles.includes(role ?? ""));
+  // Inyectar "Mi sucursal" para encargados con sucursal asignada
+  const navWithSucursal: Item[] = sucursalId && role === "encargado"
+    ? NAV.map((item) =>
+        !("type" in item) && item.href === "/admin/sucursales"
+          ? { ...item, href: `/admin/sucursales/${sucursalId}`, label: "Mi sucursal" }
+          : item
+      )
+    : NAV;
+
+  const visibleItems = navWithSucursal.filter((item) => {
+    if (!item.roles.includes(role ?? "")) return false;
+    // Encargado con sucursal asignada no necesita Dashboard (ya tiene "Mi sucursal")
+    if (!("type" in item) && item.href === "/admin/dashboard" && role === "encargado" && sucursalId) return false;
+    // Ocultar el separador "Kioscos" si no hay items debajo para el rol
+    return true;
+  });
 
   return (
     <>

@@ -1,0 +1,158 @@
+"use client";
+
+import { useState, useTransition, useMemo } from "react";
+import { toggleProductoActivo } from "../actions";
+import { ProductoDrawer } from "./producto-drawer";
+import { AjustePreciosDrawer } from "./ajuste-precios-drawer";
+import type { Database } from "@/types/database";
+import { Badge, Button } from "@/components/ui";
+
+type Product  = Database["public"]["Tables"]["products"]["Row"];
+type Category = Database["public"]["Tables"]["categories"]["Row"];
+type ProductWithCat = Product & { category: Category | null };
+
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
+function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => startTransition(() => toggleProductoActivo(id, activo))}
+      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tierra-700 disabled:opacity-50 ${activo ? "bg-tierra-700" : "bg-neutral-300"}`}
+      aria-label={activo ? "Desactivar" : "Activar"}
+    >
+      <span className={`inline-block size-4 mt-0.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${activo ? "translate-x-4.5" : "translate-x-0.5"}`} />
+    </button>
+  );
+}
+
+export function ProductsTable({ products, categories }: { products: ProductWithCat[]; categories: Category[] }) {
+  const [search, setSearch]         = useState("");
+  const [catFilter, setCat]         = useState("all");
+  const [status, setStatus]         = useState<"all" | "activo" | "inactivo">("all");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editing, setEditing]       = useState<Product | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return products.filter((p) => {
+      if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+      if (catFilter !== "all" && p.category_id !== catFilter) return false;
+      if (status === "activo"   && !p.is_active) return false;
+      if (status === "inactivo" && p.is_active)  return false;
+      return true;
+    });
+  }, [products, search, catFilter, status]);
+
+  function openNew()              { setEditing(null); setDrawerOpen(true); }
+  function openEdit(p: Product)   { setEditing(p);    setDrawerOpen(true); }
+  function closeDrawer()          { setDrawerOpen(false); setEditing(null); }
+
+  return (
+    <>
+      <div className="space-y-4">
+        {/* Filtros */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="search"
+            placeholder="Buscar por nombre o SKU…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20 w-64"
+          />
+          <select
+            value={catFilter}
+            onChange={(e) => setCat(e.target.value)}
+            className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+          >
+            <option value="all">Todas las categorías</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as typeof status)}
+            className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+          >
+            <option value="all">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+          <span className="text-sm text-neutral-400 mr-auto">{filtered.length} productos</span>
+          <AjustePreciosDrawer categories={categories} />
+          <Button size="sm" onClick={openNew}>
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Nuevo producto
+          </Button>
+        </div>
+
+        {/* Tabla */}
+        <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-100 bg-neutral-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Categoría</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">P. Kiosco</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">P. Público</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activo</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
+                      {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-neutral-500">{p.sku}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-neutral-900">{p.name}</span>
+                      {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      {p.category ? <Badge>{p.category.name}</Badge> : <span className="text-neutral-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
+                      {p.precio_dist != null ? AR.format(p.precio_dist) : <span className="text-neutral-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
+                      {p.price_b2c > 0 ? AR.format(p.price_b2c) : <span className="text-neutral-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
+                      {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <ToggleActivo id={p.id} activo={p.is_active} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => openEdit(p)} className="text-xs text-tierra-700 hover:underline font-medium">
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <ProductoDrawer
+        open={drawerOpen}
+        product={editing}
+        categories={categories}
+        onClose={closeDrawer}
+      />
+    </>
+  );
+}

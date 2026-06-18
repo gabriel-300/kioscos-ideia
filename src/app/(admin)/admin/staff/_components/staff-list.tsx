@@ -1,0 +1,289 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod/v4";
+import { Button, Badge, Input } from "@/components/ui";
+import { crearEncargado, eliminarStaff, actualizarEncargado, asignarSucursal } from "../actions";
+
+type StaffUser = {
+  id: string;
+  email: string | undefined;
+  nombre: string | undefined;
+  role: string | undefined;
+  lastSignIn: string | null;
+};
+
+type Sucursal = { id: string; nombre: string; encargado_user_id: string | null };
+
+const ROLE_LABEL: Record<string, string> = {
+  admin:     "Administrador",
+  encargado: "Encargado kiosco",
+};
+
+// ── Form crear encargado ──────────────────────────────────────────────────
+const createSchema = z.object({
+  nombre:     z.string().min(2, "Mínimo 2 caracteres"),
+  email:      z.string().email("Email inválido"),
+  password:   z.string().min(8, "Mínimo 8 caracteres"),
+  sucursalId: z.string().optional(),
+});
+
+function NuevoEncargadoForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onCreated: () => void }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<z.infer<typeof createSchema>>({
+    resolver: zodResolver(createSchema),
+    defaultValues: { nombre: "", email: "", password: "", sucursalId: "" },
+  });
+
+  function onSubmit(values: z.infer<typeof createSchema>) {
+    startTransition(async () => {
+      try {
+        const { userId } = await crearEncargado({ nombre: values.nombre, email: values.email, password: values.password });
+        if (values.sucursalId) {
+          await asignarSucursal(userId, values.sucursalId);
+        }
+        reset();
+        router.refresh();
+        onCreated();
+      } catch (e) {
+        alert((e as Error).message);
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-5 space-y-4">
+      <p className="text-sm font-semibold text-neutral-900">Nuevo encargado</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Input label="Nombre *" placeholder="Nombre completo" error={errors.nombre?.message} {...register("nombre")} />
+        <Input label="Email *" type="email" placeholder="correo@ejemplo.com" error={errors.email?.message} {...register("email")} />
+        <Input label="Contraseña *" type="password" placeholder="Mínimo 8 caracteres" error={errors.password?.message} {...register("password")} />
+        <div>
+          <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">Sucursal</label>
+          <select
+            {...register("sucursalId")}
+            className="w-full h-11 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+          >
+            <option value="">Sin asignar por ahora</option>
+            {sucursales.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}{s.encargado_user_id ? " (ya asignada)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button size="sm" loading={pending} onClick={handleSubmit(onSubmit)}>Crear encargado</Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Drawer editar encargado ───────────────────────────────────────────────
+const editSchema = z.object({
+  nombre:   z.string().min(2, "Mínimo 2 caracteres"),
+  password: z.string().optional().refine((v) => !v || v.length >= 8, { message: "Mínimo 8 caracteres" }),
+});
+
+function EditDrawer({ user, sucursales, onClose }: { user: StaffUser; sucursales: Sucursal[]; onClose: () => void }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const asignada = sucursales.find((s) => s.encargado_user_id === user.id) ?? null;
+  const [sucursalId, setSucursalId] = useState(asignada?.id ?? "");
+
+  const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof editSchema>>({
+    resolver: zodResolver(editSchema),
+    defaultValues: { nombre: user.nombre ?? "", password: "" },
+  });
+
+  function onSubmit(values: z.infer<typeof editSchema>) {
+    startTransition(async () => {
+      try {
+        await actualizarEncargado(user.id, { nombre: values.nombre, password: values.password || undefined });
+        if (sucursalId !== (asignada?.id ?? "")) {
+          await asignarSucursal(user.id, sucursalId || null);
+        }
+        router.refresh();
+        onClose();
+      } catch (e) {
+        alert((e as Error).message);
+      }
+    });
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <aside className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-white shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+          <h2 className="text-base font-semibold font-display text-neutral-900">Editar encargado</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors">
+            <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div>
+            <p className="text-xs text-neutral-400 mb-0.5">Email</p>
+            <p className="text-sm font-medium text-neutral-800">{user.email}</p>
+          </div>
+          <Input label="Nombre" error={errors.nombre?.message} {...register("nombre")} />
+          <Input
+            label="Nueva contraseña"
+            type="password"
+            placeholder="Dejar vacío para no cambiar"
+            error={errors.password?.message}
+            {...register("password")}
+          />
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
+              Sucursal asignada
+            </label>
+            <select
+              value={sucursalId}
+              onChange={(e) => setSucursalId(e.target.value)}
+              className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+            >
+              <option value="">Sin sucursal asignada</option>
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}{s.encargado_user_id && s.encargado_user_id !== user.id ? " (asignada a otro)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-neutral-400">El encargado verá solo esta sucursal al iniciar sesión.</p>
+          </div>
+          {user.lastSignIn && (
+            <div>
+              <p className="text-xs text-neutral-400 mb-0.5">Último acceso</p>
+              <p className="text-sm text-neutral-600">{user.lastSignIn}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
+          <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit(onSubmit)} className="flex-1">
+            Guardar cambios
+          </Button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ── Eliminar ──────────────────────────────────────────────────────────────
+function DeleteBtn({ id, email }: { id: string; email?: string }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => {
+        if (!confirm(`¿Eliminar usuario ${email ?? id}?`)) return;
+        startTransition(async () => {
+          await eliminarStaff(id);
+          router.refresh();
+        });
+      }}
+      className="text-xs text-neutral-400 hover:text-danger transition-colors disabled:opacity-50"
+    >
+      {pending ? "…" : "Eliminar"}
+    </button>
+  );
+}
+
+// ── Lista principal ───────────────────────────────────────────────────────
+export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursales: Sucursal[] }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing]   = useState<StaffUser | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-neutral-400">{staff.length} usuarios</span>
+        <Button size="sm" variant={showForm ? "ghost" : "primary"} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "Cancelar" : (
+            <>
+              <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Nuevo encargado
+            </>
+          )}
+        </Button>
+      </div>
+
+      {showForm && <NuevoEncargadoForm sucursales={sucursales} onCreated={() => setShowForm(false)} />}
+
+      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+        {staff.length === 0 ? (
+          <div className="p-10 text-center text-sm text-neutral-400">No hay usuarios con rol de staff.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-neutral-100 bg-neutral-50">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Usuario</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Rol</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
+                <th className="px-4 py-3 w-28" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {staff.map((u) => {
+                const sucursal = sucursales.find((s) => s.encargado_user_id === u.id);
+                return (
+                  <tr key={u.id} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-neutral-800 text-sm">{u.nombre ?? <span className="text-neutral-400">Sin nombre</span>}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">{u.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {u.role && (
+                        <Badge className={u.role === "admin" ? "bg-tierra-50 text-tierra-700 border-tierra-200" : ""}>
+                          {ROLE_LABEL[u.role] ?? u.role}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {sucursal
+                        ? <span className="text-sm text-selva-700 font-medium">{sucursal.nombre}</span>
+                        : <span className="text-xs text-neutral-300">Sin asignar</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {u.role !== "admin" && (
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => setEditing(u)}
+                            className="text-xs text-tierra-700 hover:underline font-medium"
+                          >
+                            Editar
+                          </button>
+                          <DeleteBtn id={u.id} email={u.email} />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {editing && (
+        <EditDrawer user={editing} sucursales={sucursales} onClose={() => setEditing(null)} />
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,91 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require-role";
+import type { Database } from "@/types/database";
+
+type Insert = Database["public"]["Tables"]["products"]["Insert"];
+type Update = Database["public"]["Tables"]["products"]["Update"];
+
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at">) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const payload = { ...data, slug: data.slug || slugify(data.name) };
+  const { error } = await supabase.from("products").insert(payload);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/productos");
+}
+
+export async function actualizarProducto(id: string, data: Update) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("products").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/productos");
+}
+
+export async function toggleProductoActivo(id: string, activo: boolean) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("products")
+    .update({ is_active: !activo })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/productos");
+}
+
+type CamposPrecio = ("precio_dist" | "price_b2c" | "costo")[];
+
+export async function ajustarPrecios({
+  porcentaje,
+  campos,
+  categoria_id,
+}: {
+  porcentaje:   number;
+  campos:       CamposPrecio;
+  categoria_id: string | null;
+}): Promise<{ actualizados: number }> {
+  await requireAdmin();
+  if (porcentaje === 0 || campos.length === 0) return { actualizados: 0 };
+
+  const supabase = createAdminClient();
+  const factor = 1 + porcentaje / 100;
+
+  let query = supabase.from("products").select("id, precio_dist, price_b2c, costo");
+  if (categoria_id) query = query.eq("category_id", categoria_id);
+
+  const { data: products, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!products || products.length === 0) return { actualizados: 0 };
+
+  const updates = products.map((p) => {
+    const patch: { id: string } & Partial<Record<typeof campos[number], number | null>> = { id: p.id };
+    for (const campo of campos) {
+      const val = p[campo];
+      patch[campo] = val != null ? Math.round(val * factor) : null;
+    }
+    return patch;
+  });
+
+  const errors = (
+    await Promise.all(
+      updates.map(({ id, ...fields }) =>
+        supabase.from("products").update(fields).eq("id", id)
+      )
+    )
+  ).filter((r) => r.error);
+  if (errors.length > 0) throw new Error(errors[0].error!.message);
+
+  revalidatePath("/admin/productos");
+  return { actualizados: products.length };
+}

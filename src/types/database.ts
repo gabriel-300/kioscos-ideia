@@ -265,6 +265,143 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["orders"]["Row"]>;
         Relationships: [];
       };
+      movimientos: {
+        Row: {
+          id:          string;
+          sucursal_id: string;
+          fecha:       string;
+          tipo:        "entrega" | "devolucion" | "ajuste" | "venta";
+          notas:       string | null;
+          created_by:  string | null;
+          created_at:  string;
+        };
+        Insert: {
+          id?:         string;
+          sucursal_id: string;
+          fecha?:      string;
+          tipo?:       "entrega" | "devolucion" | "ajuste" | "venta";
+          notas?:      string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          sucursal_id?: string;
+          fecha?:       string;
+          tipo?:        "entrega" | "devolucion" | "ajuste" | "venta";
+          notas?:       string | null;
+        };
+        Relationships: [
+          { foreignKeyName: "movimientos_sucursal_id_fkey"; columns: ["sucursal_id"]; referencedRelation: "sucursales"; referencedColumns: ["id"] }
+        ];
+      };
+      movimiento_items: {
+        Row: {
+          id:              string;
+          movimiento_id:   string;
+          product_id:      string;
+          cantidad:        number;
+          precio_unitario: number | null;
+          subtotal:        number | null;
+          created_at:      string;
+        };
+        Insert: {
+          id?:             string;
+          movimiento_id:   string;
+          product_id:      string;
+          cantidad:        number;
+          precio_unitario?: number | null;
+          subtotal?:       number | null;
+          created_at?:     string;
+        };
+        Update: {
+          cantidad?:        number;
+          precio_unitario?: number | null;
+          subtotal?:        number | null;
+        };
+        Relationships: [
+          { foreignKeyName: "movimiento_items_movimiento_id_fkey"; columns: ["movimiento_id"]; referencedRelation: "movimientos"; referencedColumns: ["id"] },
+          { foreignKeyName: "movimiento_items_product_id_fkey";   columns: ["product_id"];   referencedRelation: "products";    referencedColumns: ["id"] }
+        ];
+      };
+      cierres_caja: {
+        Row: {
+          id:                      string;
+          sucursal_id:             string;
+          fecha:                   string;
+          total_ventas:            number;
+          efectivo_declarado:      number;
+          mercadopago_declarado:   number;
+          diferencia:              number | null;
+          notas:                   string | null;
+          created_by:              string | null;
+          created_at:              string;
+        };
+        Insert: {
+          id?:                     string;
+          sucursal_id:             string;
+          fecha:                   string;
+          total_ventas:            number;
+          efectivo_declarado?:     number;
+          mercadopago_declarado?:  number;
+          notas?:                  string | null;
+          created_by?:             string | null;
+          created_at?:             string;
+        };
+        Update: {
+          efectivo_declarado?:     number;
+          mercadopago_declarado?:  number;
+          notas?:                  string | null;
+        };
+        Relationships: [
+          { foreignKeyName: "cierres_caja_sucursal_id_fkey"; columns: ["sucursal_id"]; referencedRelation: "sucursales"; referencedColumns: ["id"] }
+        ];
+      };
+      sucursales: {
+        Row: {
+          id: string;
+          nombre: string;
+          encargado_nombre: string | null;
+          encargado_telefono: string | null;
+          encargado_email: string | null;
+          encargado_user_id: string | null;
+          direccion: string | null;
+          localidad: string;
+          provincia: string;
+          notas: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          encargado_nombre?: string | null;
+          encargado_telefono?: string | null;
+          encargado_email?: string | null;
+          encargado_user_id?: string | null;
+          direccion?: string | null;
+          localidad?: string;
+          provincia?: string;
+          notas?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          nombre?: string;
+          encargado_nombre?: string | null;
+          encargado_telefono?: string | null;
+          encargado_email?: string | null;
+          encargado_user_id?: string | null;
+          direccion?: string | null;
+          localidad?: string;
+          provincia?: string;
+          notas?: string | null;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       platform_settings: {
         Row: {
           id: number;
