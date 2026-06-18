@@ -61,12 +61,27 @@ export async function crearMovimiento(data: {
   }
 
   revalidatePath("/admin/movimientos");
+  revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
+  revalidatePath("/admin/sucursales");
+  revalidatePath("/admin/stock");
 }
 
 export async function eliminarMovimiento(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();
+
+  const { data: mov } = await supabase
+    .from("movimientos")
+    .select("sucursal_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("movimientos").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
   revalidatePath("/admin/movimientos");
+  if (mov?.sucursal_id) {
+    revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
+    revalidatePath("/admin/stock");
+  }
 }
