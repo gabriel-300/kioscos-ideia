@@ -82,14 +82,14 @@ function NavContent({
               onClick={onNavClick}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ${
                 active
-                  ? "bg-white/10 text-white"
-                  : "text-neutral-200 hover:bg-white/8 hover:text-white"
+                  ? "bg-white/10"
+                  : "hover:bg-white/8"
               }`}
             >
-              <span className={`shrink-0 ${active ? "text-tierra-400" : "text-neutral-400"}`}>
+              <span className={`shrink-0 ${active ? "text-tierra-400" : "text-white/40"}`}>
                 {ICONS[item.icon]}
               </span>
-              <span className="text-sm font-medium">{item.label}</span>
+              <span className={`text-sm font-medium ${active ? "text-white" : "text-white/75"}`}>{item.label}</span>
               {active && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-tierra-400 shrink-0" />
               )}
