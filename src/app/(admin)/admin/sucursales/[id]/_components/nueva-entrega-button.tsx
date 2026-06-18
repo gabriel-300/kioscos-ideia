@@ -46,6 +46,7 @@ export function NuevaEntregaButton({
           open={open}
           onClose={() => setOpen(false)}
           sucursalId={sucursalId}
+          sucursalNombre={sucursalNombre}
           products={products}
           stockMap={stockMap}
           categories={categories}
