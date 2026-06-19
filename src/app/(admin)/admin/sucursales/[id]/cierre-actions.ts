@@ -5,12 +5,14 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 
 export async function cerrarCaja(data: {
-  sucursal_id:           string;
-  fecha:                 string;
-  total_ventas:          number;
-  efectivo_declarado:    number;
-  mercadopago_declarado: number;
-  notas:                 string | null;
+  sucursal_id:              string;
+  fecha:                    string;
+  total_ventas:             number;
+  efectivo_declarado:       number;
+  mercadopago_declarado:    number;
+  tarjeta_declarada:        number;
+  transferencia_declarada:  number;
+  notas:                    string | null;
 }) {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
@@ -26,14 +28,16 @@ export async function cerrarCaja(data: {
     }
   }
 
-  const { error } = await admin.from("cierres_caja").insert({
-    sucursal_id:           data.sucursal_id,
-    fecha:                 data.fecha,
-    total_ventas:          data.total_ventas,
-    efectivo_declarado:    data.efectivo_declarado,
-    mercadopago_declarado: data.mercadopago_declarado,
-    notas:                 data.notas,
-    created_by:            userId,
+  const { error } = await (admin as any).from("cierres_caja").insert({
+    sucursal_id:              data.sucursal_id,
+    fecha:                    data.fecha,
+    total_ventas:             data.total_ventas,
+    efectivo_declarado:       data.efectivo_declarado,
+    mercadopago_declarado:    data.mercadopago_declarado,
+    tarjeta_declarada:        data.tarjeta_declarada,
+    transferencia_declarada:  data.transferencia_declarada,
+    notas:                    data.notas,
+    created_by:               userId,
   });
 
   if (error) {
@@ -42,6 +46,7 @@ export async function cerrarCaja(data: {
   }
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
+  revalidatePath("/admin/cierres");
 }
 
 export async function getCierreDelDia(sucursalId: string, fecha: string) {

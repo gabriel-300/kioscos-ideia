@@ -7,12 +7,14 @@ import { cerrarCaja } from "../cierre-actions";
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 type CierreExistente = {
-  fecha:                 string;
-  total_ventas:          number;
-  efectivo_declarado:    number;
-  mercadopago_declarado: number;
-  diferencia:            number | null;
-  notas:                 string | null;
+  fecha:                    string;
+  total_ventas:             number;
+  efectivo_declarado:       number;
+  mercadopago_declarado:    number;
+  tarjeta_declarada:        number | null;
+  transferencia_declarada:  number | null;
+  diferencia:               number | null;
+  notas:                    string | null;
 };
 
 type AperturaExistente = {
@@ -66,9 +68,11 @@ function MontoInput({ label, icon, value, onChange, inputRef }: {
 export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cierreHoy, aperturaHoy }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [efectivo, setEfectivo] = useState("");
-  const [mp,       setMp]       = useState("");
-  const [notas,    setNotas]    = useState("");
+  const [efectivo,       setEfectivo]       = useState("");
+  const [mp,             setMp]             = useState("");
+  const [tarjeta,        setTarjeta]        = useState("");
+  const [transferencia,  setTransferencia]  = useState("");
+  const [notas,          setNotas]          = useState("");
   const [error,    setError]    = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const efectivoRef = useRef<HTMLInputElement>(null);
@@ -78,7 +82,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   }, [open, cierreHoy]);
 
   function handleClose() {
-    setEfectivo(""); setMp(""); setNotas(""); setError(null);
+    setEfectivo(""); setMp(""); setTarjeta(""); setTransferencia(""); setNotas(""); setError(null);
     onClose();
   }
 
@@ -89,23 +93,28 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   );
   const registrosHoy = ventasHoy.length;
 
-  const efectivoNum  = parseFloat(efectivo) || 0;
-  const mpNum        = parseFloat(mp)        || 0;
-  const totalDeclarado = efectivoNum + mpNum;
-  const diferencia     = (efectivoNum > 0 || mpNum > 0) ? totalDeclarado - totalVentas : null;
+  const efectivoNum      = parseFloat(efectivo)      || 0;
+  const mpNum            = parseFloat(mp)            || 0;
+  const tarjetaNum       = parseFloat(tarjeta)       || 0;
+  const transferenciaNum = parseFloat(transferencia) || 0;
+  const totalDeclarado   = efectivoNum + mpNum + tarjetaNum + transferenciaNum;
+  const hayAlgo          = totalDeclarado > 0;
+  const diferencia       = hayAlgo ? totalDeclarado - totalVentas : null;
 
   function handleSubmit() {
-    if (efectivoNum === 0 && mpNum === 0) { setError("Ingresá al menos un monto"); return; }
+    if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
     setError(null);
     startTransition(async () => {
       try {
         await cerrarCaja({
-          sucursal_id:           sucursalId,
-          fecha:                 hoy,
-          total_ventas:          totalVentas,
-          efectivo_declarado:    efectivoNum,
-          mercadopago_declarado: mpNum,
-          notas:                 notas || null,
+          sucursal_id:              sucursalId,
+          fecha:                    hoy,
+          total_ventas:             totalVentas,
+          efectivo_declarado:       efectivoNum,
+          mercadopago_declarado:    mpNum,
+          tarjeta_declarada:        tarjetaNum,
+          transferencia_declarada:  transferenciaNum,
+          notas:                    notas || null,
         });
         handleClose();
       } catch (e) {
@@ -166,21 +175,25 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
             /* ── Cierre ya realizado ── */
             <div className="space-y-3">
               <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-neutral-500 flex items-center gap-2">
-                    <span className="text-base">💵</span> Efectivo
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums">{AR.format(cierreHoy.efectivo_declarado)}</span>
-                </div>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-neutral-500 flex items-center gap-2">
-                    <span className="text-base">📱</span> Mercado Pago
-                  </span>
-                  <span className="text-sm font-semibold tabular-nums">{AR.format(cierreHoy.mercadopago_declarado)}</span>
-                </div>
+                {[
+                  { icon: "💵", label: "Efectivo",      v: cierreHoy.efectivo_declarado },
+                  { icon: "📱", label: "Mercado Pago",  v: cierreHoy.mercadopago_declarado },
+                  { icon: "💳", label: "Tarjeta",       v: cierreHoy.tarjeta_declarada ?? 0 },
+                  { icon: "🏦", label: "Transferencia", v: cierreHoy.transferencia_declarada ?? 0 },
+                ].filter((r) => r.v > 0).map((r) => (
+                  <div key={r.label} className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-neutral-500 flex items-center gap-2">
+                      <span className="text-base">{r.icon}</span> {r.label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">{AR.format(r.v)}</span>
+                  </div>
+                ))}
                 <div className="flex items-center justify-between px-4 py-3 bg-neutral-50">
                   <span className="text-sm font-semibold text-neutral-700">Total declarado</span>
-                  <span className="text-sm font-bold tabular-nums">{AR.format(cierreHoy.efectivo_declarado + cierreHoy.mercadopago_declarado)}</span>
+                  <span className="text-sm font-bold tabular-nums">{AR.format(
+                    cierreHoy.efectivo_declarado + cierreHoy.mercadopago_declarado +
+                    (cierreHoy.tarjeta_declarada ?? 0) + (cierreHoy.transferencia_declarada ?? 0)
+                  )}</span>
                 </div>
               </div>
 
@@ -217,10 +230,22 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 inputRef={efectivoRef}
               />
               <MontoInput
-                label="Cobrado por Mercado Pago"
+                label="Mercado Pago"
                 icon={<span className="text-base">📱</span>}
                 value={mp}
                 onChange={setMp}
+              />
+              <MontoInput
+                label="Tarjeta"
+                icon={<span className="text-base">💳</span>}
+                value={tarjeta}
+                onChange={setTarjeta}
+              />
+              <MontoInput
+                label="Transferencia"
+                icon={<span className="text-base">🏦</span>}
+                value={transferencia}
+                onChange={setTransferencia}
               />
 
               {/* Total declarado + diferencia */}

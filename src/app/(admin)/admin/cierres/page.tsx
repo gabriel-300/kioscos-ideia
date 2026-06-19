@@ -89,10 +89,12 @@ export default async function CierresPage({
   }
 
   // Totales del período
-  const totalVentas    = cierres.reduce((s, c) => s + (c.total_ventas ?? 0), 0);
-  const totalEfectivo  = cierres.reduce((s, c) => s + (c.efectivo_declarado ?? 0), 0);
-  const totalMP        = cierres.reduce((s, c) => s + (c.mercadopago_declarado ?? 0), 0);
-  const totalDiferencia = cierres.reduce((s, c) => s + (c.diferencia ?? 0), 0);
+  const totalVentas        = cierres.reduce((s, c) => s + (c.total_ventas ?? 0), 0);
+  const totalEfectivo      = cierres.reduce((s, c) => s + (c.efectivo_declarado ?? 0), 0);
+  const totalMP            = cierres.reduce((s, c) => s + (c.mercadopago_declarado ?? 0), 0);
+  const totalTarjeta       = cierres.reduce((s, c) => s + ((c as any).tarjeta_declarada ?? 0), 0);
+  const totalTransferencia = cierres.reduce((s, c) => s + ((c as any).transferencia_declarada ?? 0), 0);
+  const totalDiferencia    = cierres.reduce((s, c) => s + (c.diferencia ?? 0), 0);
 
   return (
     <div className="p-4 md:p-8 max-w-6xl">
@@ -152,13 +154,15 @@ export default async function CierresPage({
       </form>
 
       {/* Tarjetas resumen */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         {[
-          { label: "Ventas (sistema)", value: AR.format(totalVentas), sub: `${cierres.length} cierres` },
-          { label: "Efectivo declarado", value: AR.format(totalEfectivo) },
+          { label: "Ventas sistema", value: AR.format(totalVentas), sub: `${cierres.length} cierres` },
+          { label: "Efectivo", value: AR.format(totalEfectivo) },
           { label: "Mercado Pago", value: AR.format(totalMP) },
+          { label: "Tarjeta", value: AR.format(totalTarjeta) },
+          { label: "Transferencia", value: AR.format(totalTransferencia) },
           {
-            label: "Diferencia total",
+            label: "Diferencia",
             value: totalDiferencia === 0 ? "Cuadra ✓"
               : (totalDiferencia > 0 ? "+" : "") + AR.format(totalDiferencia),
             accent: totalDiferencia !== 0,
@@ -189,6 +193,8 @@ export default async function CierresPage({
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">MP</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
               </tr>
@@ -233,6 +239,12 @@ export default async function CierresPage({
                       <td className="px-4 py-3 text-right tabular-nums text-neutral-600">
                         {AR.format(c.mercadopago_declarado ?? 0)}
                       </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
+                        {((c as any).tarjeta_declarada ?? 0) > 0 ? AR.format((c as any).tarjeta_declarada) : <span className="text-neutral-200">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
+                        {((c as any).transferencia_declarada ?? 0) > 0 ? AR.format((c as any).transferencia_declarada) : <span className="text-neutral-200">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <DiferenciaBadge d={c.diferencia} />
                       </td>
@@ -246,12 +258,14 @@ export default async function CierresPage({
             {cierres.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
-                  <td className="px-4 py-3 text-xs uppercase tracking-wide text-neutral-500" colSpan={3}>
+                  <td className="px-4 py-3 text-xs uppercase tracking-wide text-neutral-500" colSpan={4}>
                     Total ({cierres.length} cierres)
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalEfectivo)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalMP)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTarjeta)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTransferencia)}</td>
                   <td className="px-4 py-3 text-center">
                     <DiferenciaBadge d={totalDiferencia} />
                   </td>
@@ -264,7 +278,7 @@ export default async function CierresPage({
       </div>
 
       <p className="text-xs text-neutral-400 mt-3">
-        Diferencia = efectivo declarado + MP declarado − ventas registradas en el sistema.
+        Diferencia = suma de todos los medios declarados − ventas registradas en el sistema.
         Positivo indica sobrante, negativo indica faltante.
       </p>
     </div>

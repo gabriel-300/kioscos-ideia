@@ -11,12 +11,14 @@ type Movimiento = {
 };
 
 type CierreHoy = {
-  fecha:                 string;
-  total_ventas:          number;
-  efectivo_declarado:    number;
-  mercadopago_declarado: number;
-  diferencia:            number | null;
-  notas:                 string | null;
+  fecha:                    string;
+  total_ventas:             number;
+  efectivo_declarado:       number;
+  mercadopago_declarado:    number;
+  tarjeta_declarada:        number | null;
+  transferencia_declarada:  number | null;
+  diferencia:               number | null;
+  notas:                    string | null;
 } | null;
 
 export function CierreCajaButton({

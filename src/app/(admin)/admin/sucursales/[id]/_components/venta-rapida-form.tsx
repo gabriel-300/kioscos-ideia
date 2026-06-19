@@ -87,10 +87,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
   const [search,        setSearch]        = useState("");
-  const [showPay,       setShowPay]       = useState(false);
-  const [payMethod,     setPayMethod]     = useState<PayMethod>("efectivo");
-  const [montoRecibido, setMontoRecibido] = useState("");
-  const [notas,         setNotas]         = useState("");
+  const [showPay, setShowPay] = useState(false);
+  const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+  const [notas,   setNotas]   = useState("");
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -115,10 +114,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     () => Object.entries(cantidades).filter(([, qty]) => qty > 0),
     [cantidades]
   );
-  const totalPrecio   = seleccionados.reduce((s, [id, qty]) => s + qty * (products.find((p) => p.id === id)?.precio_dist ?? 0), 0);
-  const totalUnidades = seleccionados.reduce((s, [, qty]) => s + qty, 0);
-  const monto         = parseFloat(montoRecibido) || 0;
-  const vuelto        = payMethod === "efectivo" && monto > 0 ? monto - totalPrecio : null;
+  const totalPrecio    = seleccionados.reduce((s, [id, qty]) => s + qty * (products.find((p) => p.id === id)?.precio_dist ?? 0), 0);
+  const totalUnidades  = seleccionados.reduce((s, [, qty]) => s + qty, 0);
+  const totalIngresado = (Object.values(pagos) as string[]).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const efectivoNum    = parseFloat(pagos.efectivo) || 0;
+  const otrosMedios    = totalIngresado - efectivoNum;
+  const vuelto         = efectivoNum > 0 ? efectivoNum - Math.max(0, totalPrecio - otrosMedios) : null;
 
   /* ── handlers ── */
   function set(id: string, value: number) {
@@ -128,12 +129,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   function resetForm() {
     setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
-    setPayMethod("efectivo"); setMontoRecibido(""); setNotas(""); setError(null); setReceipt(null);
+    setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+    setNotas(""); setError(null); setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
 
   function handleConfirm() {
+    if (totalIngresado < totalPrecio) { setError("El monto ingresado no cubre el total"); return; }
     setError(null);
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -141,9 +144,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       const p = products.find((p) => p.id === id)!;
       return { name: p?.name ?? "—", qty, precioUnit: p?.precio_dist ?? 0, sub: qty * (p?.precio_dist ?? 0) };
     });
-    const metodo = PAY_METHODS.find((m) => m.id === payMethod)!;
-    const pagos  = [{ label: metodo.label, monto: monto > 0 ? monto : totalPrecio }];
-    const notasFinal = [`[${metodo.label}]`, notas || null].filter(Boolean).join(" — ") || null;
+    const pagosList = PAY_METHODS
+      .map((m) => ({ label: m.label, monto: parseFloat(pagos[m.id]) || 0 }))
+      .filter((p) => p.monto > 0);
+    const notasMedios = pagosList.map((p) => `${p.label}: ${AR.format(p.monto)}`).join(" | ");
+    const notasFinal  = [notasMedios, notas || null].filter(Boolean).join(" — ") || null;
 
     startTransition(async () => {
       try {
@@ -157,8 +162,8 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
         setShowPay(false);
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-          hora, items: receiptItems, totalPrecio, totalUnidades, pagos,
-          vuelto: vuelto !== null && vuelto >= 0 ? vuelto : null, notas: notas || null,
+          hora, items: receiptItems, totalPrecio, totalUnidades, pagos: pagosList,
+          vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null,
         });
       } catch (e) { setError((e as Error).message); }
     });
@@ -517,40 +522,9 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <span style={{ fontSize: 28, fontWeight: 900, color: "#0F172A", letterSpacing: -1 }}>{AR.format(totalPrecio)}</span>
             </div>
 
-            {/* Payment methods 2×2 */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
-              {PAY_METHODS.map((m) => {
-                const active = payMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setPayMethod(m.id)}
-                    style={{
-                      padding: "10px 6px",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      border: `1.5px solid ${active ? NAVY : "#E2E8F0"}`,
-                      background: active ? NAVY_L : "#F8FAFC",
-                      color: active ? NAVY : "#64748B",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 4,
-                      cursor: "pointer",
-                      transition: "all .15s",
-                    }}
-                  >
-                    {m.icon}
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Cobrar button */}
             <button
-              onClick={() => { setMontoRecibido(""); setError(null); setShowPay(true); }}
+              onClick={() => { setError(null); setShowPay(true); }}
               disabled={seleccionados.length === 0}
               style={{
                 width: "100%",
@@ -576,84 +550,92 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
       {showPay && (
         <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: "rgba(15,23,42,.55)" }} onClick={() => setShowPay(false)}>
           <div
-            style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
+            style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A", marginBottom: 16 }}>Confirmar cobro</h3>
-
-            {/* Resumen */}
-            {[
-              { label: "Total", value: AR.format(totalPrecio), style: { fontSize: 18, color: NAVY } },
-              { label: "Medio de pago", value: PAY_METHODS.find((m) => m.id === payMethod)?.label ?? "" },
-            ].map((row) => (
-              <div key={row.label} className="flex justify-between items-center py-1.5 border-b" style={{ fontSize: 13, borderColor: "#E2E8F0" }}>
-                <span style={{ color: "#64748B" }}>{row.label}</span>
-                <span style={{ fontWeight: 700, ...row.style }}>{row.value}</span>
-              </div>
-            ))}
-
-            {/* Efectivo: monto recibido + vuelto */}
-            {payMethod === "efectivo" ? (
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#64748B", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".3px" }}>Monto recibido</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold" style={{ color: "#94A3B8" }}>$</span>
-                      <input
-                        type="number" value={montoRecibido} onChange={(e) => setMontoRecibido(e.target.value)}
-                        placeholder="0" min={0} autoFocus
-                        style={{ width: "100%", padding: "10px 12px 10px 28px", border: `1.5px solid #CBD5E1`, borderRadius: 5, fontSize: 14, fontWeight: 600, color: "#0F172A", outline: "none", fontFamily: "inherit" }}
-                        onFocus={(e) => (e.target.style.borderColor = NAVY)}
-                        onBlur={(e) => (e.target.style.borderColor = "#CBD5E1")}
-                      />
-                    </div>
-                    <button
-                      onClick={() => setMontoRecibido(String(totalPrecio))}
-                      style={{ padding: "0 12px", border: `1.5px solid #E2E8F0`, borderRadius: 5, fontSize: 13, fontWeight: 600, background: "#F8FAFC", color: "#64748B", cursor: "pointer", whiteSpace: "nowrap" }}
-                    >Justo</button>
-                  </div>
-                </div>
-
-                {vuelto !== null && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: vuelto >= 0 ? GREEN_L : RED_L, borderRadius: 5, padding: "10px 14px" }}>
-                    <span style={{ fontSize: 12, color: vuelto >= 0 ? GREEN : RED, fontWeight: 600 }}>
-                      {vuelto >= 0 ? "Vuelto" : "Falta"}
-                    </span>
-                    <span style={{ fontSize: 22, fontWeight: 900, color: vuelto >= 0 ? GREEN : RED, letterSpacing: "-.5px" }}>
-                      {AR.format(Math.abs(vuelto))}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ background: NAVY_L, borderRadius: 5, padding: "11px 13px", margin: "12px 0", fontSize: 13, color: NAVY, fontWeight: 600 }}>
-                Confirmá que el pago fue acreditado antes de continuar.
-              </div>
-            )}
-
-            {/* Notas */}
-            <div className="mt-3">
-              <textarea
-                placeholder="Observaciones opcionales…" value={notas} onChange={(e) => setNotas(e.target.value)} rows={1}
-                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E2E8F0", borderRadius: 5, fontSize: 13, outline: "none", fontFamily: "inherit", resize: "none" }}
-                onFocus={(e) => (e.target.style.borderColor = NAVY)}
-                onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
-              />
+            {/* Header */}
+            <div className="flex items-baseline justify-between mb-4">
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A" }}>Confirmar cobro</h3>
+              <span style={{ fontSize: 22, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{AR.format(totalPrecio)}</span>
             </div>
 
-            {error && <p className="text-sm mt-2" style={{ color: RED }}>{error}</p>}
+            {/* Medios de pago — uno por fila con input de monto */}
+            <div style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}>
+              {PAY_METHODS.map((m, i) => {
+                const val  = pagos[m.id];
+                const num  = parseFloat(val) || 0;
+                const isFirst = i === 0;
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 12px",
+                      borderTop: isFirst ? "none" : "1px solid #E2E8F0",
+                      background: num > 0 ? NAVY_L : "white",
+                    }}
+                  >
+                    <span style={{ color: num > 0 ? NAVY : "#94A3B8", display: "flex", flexShrink: 0 }}>{m.icon}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: num > 0 ? NAVY : "#475569" }}>{m.label}</span>
+                    <div style={{ position: "relative", width: 120 }}>
+                      <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#94A3B8", pointerEvents: "none" }}>$</span>
+                      <input
+                        type="number"
+                        value={val}
+                        onChange={(e) => setPagos((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        placeholder="0"
+                        min={0}
+                        autoFocus={isFirst}
+                        style={{ width: "100%", padding: "7px 8px 7px 22px", border: `1.5px solid ${num > 0 ? NAVY : "#E2E8F0"}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#0F172A", outline: "none", fontFamily: "inherit", background: "white", textAlign: "right" }}
+                        onFocus={(e) => (e.target.style.borderColor = NAVY)}
+                        onBlur={(e) => (e.target.style.borderColor = num > 0 ? NAVY : "#E2E8F0")}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Total ingresado + vuelto/falta */}
+            <div style={{ marginBottom: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#64748B" }}>Ingresado</span>
+                <span style={{ fontWeight: 700, color: totalIngresado >= totalPrecio ? "#0F172A" : "#94A3B8" }}>{AR.format(totalIngresado)}</span>
+              </div>
+              {totalIngresado > 0 && totalIngresado !== totalPrecio && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: totalIngresado >= totalPrecio ? GREEN_L : RED_L, borderRadius: 6, padding: "9px 13px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: totalIngresado >= totalPrecio ? GREEN : RED }}>
+                    {totalIngresado >= totalPrecio ? (vuelto !== null && vuelto > 0 ? "Vuelto efectivo" : "Exacto ✓") : "Falta"}
+                  </span>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: totalIngresado >= totalPrecio ? GREEN : RED, letterSpacing: "-.5px" }}>
+                    {totalIngresado >= totalPrecio
+                      ? (vuelto !== null && vuelto > 0 ? AR.format(vuelto) : "—")
+                      : AR.format(totalPrecio - totalIngresado)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Notas */}
+            <textarea
+              placeholder="Observaciones opcionales…" value={notas} onChange={(e) => setNotas(e.target.value)} rows={1}
+              style={{ width: "100%", padding: "9px 12px", border: "1.5px solid #E2E8F0", borderRadius: 6, fontSize: 13, outline: "none", fontFamily: "inherit", resize: "none", marginBottom: 4 }}
+              onFocus={(e) => (e.target.style.borderColor = NAVY)}
+              onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+            />
+
+            {error && <p style={{ fontSize: 12, color: RED, marginBottom: 8 }}>{error}</p>}
 
             {/* Buttons */}
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-3">
               <button
                 onClick={() => setShowPay(false)}
                 style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: "white", color: "#64748B", border: "1.5px solid #E2E8F0", cursor: "pointer" }}
               >Cancelar</button>
               <button
                 onClick={handleConfirm}
-                disabled={pending}
-                style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: pending ? "#E2E8F0" : NAVY, color: pending ? "#94A3B8" : "white", border: "none", cursor: pending ? "not-allowed" : "pointer" }}
+                disabled={pending || totalIngresado < totalPrecio}
+                style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: (pending || totalIngresado < totalPrecio) ? "#E2E8F0" : NAVY, color: (pending || totalIngresado < totalPrecio) ? "#94A3B8" : "white", border: "none", cursor: (pending || totalIngresado < totalPrecio) ? "not-allowed" : "pointer" }}
               >{pending ? "Guardando…" : "Confirmar venta"}</button>
             </div>
           </div>
