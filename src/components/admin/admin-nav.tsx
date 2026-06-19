@@ -137,19 +137,18 @@ export function AdminNav({ role, email, name, sucursalId }: {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-1.5 shrink-0 transition-all whitespace-nowrap ${
-                  active
-                    ? "text-white font-semibold bg-white/10"
-                    : "text-white/65 font-normal hover:text-white hover:bg-white/[0.07]"
-                }`}
+                className="flex items-center gap-1.5 shrink-0 transition-all whitespace-nowrap nav-tab"
                 style={{
                   padding: "0 14px",
                   height: "100%",
                   fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? "#ffffff" : "rgba(255,255,255,0.72)",
+                  background: active ? "rgba(255,255,255,0.10)" : "transparent",
                   borderBottom: active ? "3px solid white" : "3px solid transparent",
                 }}
               >
-                <span className={active ? "text-white" : "text-white/50"} style={{ display: "flex" }}>
+                <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
                   <NavIcon name={item.icon} size={15} />
                 </span>
                 {item.label}
