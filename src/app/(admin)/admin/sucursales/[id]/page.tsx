@@ -86,6 +86,12 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
 
+  const ventasHoy      = movs.filter((m) => m.tipo === "venta" && m.fecha === hoy);
+  const totalVentasHoy = ventasHoy.reduce(
+    (sum, m) => sum + m.movimiento_items.reduce((s: number, i: { subtotal: number | null }) => s + (i.subtotal ?? 0), 0),
+    0
+  );
+
   // Stock por producto desde la vista SQL
   const stock = (stockRows ?? []).sort((a, b) => b.entradas - a.entradas);
   const stockActual: Record<string, number> = Object.fromEntries(
@@ -182,6 +188,47 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           </div>
         </div>
       </div>
+
+      {/* ── Caja del día (encargado) ── */}
+      {user.app_metadata?.role === "encargado" && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {/* Apertura */}
+          <div className={`rounded-xl border p-4 ${aperturaHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${aperturaHoy ? "text-selva-600" : "text-neutral-400"}`}>
+              Fondo inicial
+            </p>
+            {aperturaHoy ? (
+              <p className="text-xl font-bold font-display tabular-nums text-selva-700">{AR.format(aperturaHoy.fondo_inicial)}</p>
+            ) : (
+              <p className="text-sm text-neutral-400">Sin apertura</p>
+            )}
+          </div>
+
+          {/* Ventas hoy */}
+          <div className="rounded-xl border border-tierra-100 bg-tierra-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-tierra-600 mb-2">Ventas hoy</p>
+            <p className="text-xl font-bold font-display tabular-nums text-tierra-700">
+              {totalVentasHoy > 0 ? AR.format(totalVentasHoy) : "—"}
+            </p>
+            <p className="text-[11px] text-tierra-600 mt-1">{ventasHoy.length} {ventasHoy.length === 1 ? "registro" : "registros"}</p>
+          </div>
+
+          {/* Cierre */}
+          <div className={`rounded-xl border p-4 ${cierreHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${cierreHoy ? "text-selva-600" : "text-neutral-400"}`}>
+              Cierre
+            </p>
+            {cierreHoy ? (
+              <>
+                <p className="text-sm font-bold text-selva-700">Cerrado ✓</p>
+                <p className="text-[11px] text-selva-600 mt-1">{AR.format(cierreHoy.total_ventas ?? 0)}</p>
+              </>
+            ) : (
+              <p className="text-sm text-neutral-400">Pendiente</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Info del encargado */}
       {(sucursal.encargado_nombre || sucursal.direccion || sucursal.encargado_telefono) && (
