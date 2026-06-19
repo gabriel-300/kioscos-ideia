@@ -5,6 +5,7 @@ import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
+import { AperturaCajaButton } from "./_components/apertura-caja-button";
 
 export const revalidate = 0;
 
@@ -38,7 +39,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }] = await Promise.all([
+  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     supabase
       .from("movimientos")
@@ -56,6 +57,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle(),
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
+    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fondo_inicial: number; notas: string | null } | null }>,
   ]);
 
   if (!sucursal) notFound();
@@ -165,11 +167,17 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                 />
               </>
             )}
+            <AperturaCajaButton
+              sucursalId={sucursal.id}
+              sucursalNombre={sucursal.nombre}
+              aperturaHoy={aperturaHoy}
+            />
             <CierreCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
               movimientos={(movs as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
               cierreHoy={cierreHoy}
+              aperturaHoy={aperturaHoy}
             />
           </div>
         </div>

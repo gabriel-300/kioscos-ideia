@@ -15,6 +15,10 @@ type CierreExistente = {
   notas:                 string | null;
 };
 
+type AperturaExistente = {
+  fondo_inicial: number;
+};
+
 type Movimiento = {
   fecha:            string;
   tipo:             string;
@@ -28,6 +32,7 @@ interface Props {
   sucursalNombre: string;
   movimientos:    Movimiento[];
   cierreHoy:      CierreExistente | null;
+  aperturaHoy?:   AperturaExistente | null;
 }
 
 function MontoInput({ label, icon, value, onChange, inputRef }: {
@@ -58,7 +63,7 @@ function MontoInput({ label, icon, value, onChange, inputRef }: {
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cierreHoy }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cierreHoy, aperturaHoy }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [efectivo, setEfectivo] = useState("");
@@ -148,6 +153,14 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
               </div>
             )}
           </div>
+
+          {/* Fondo inicial */}
+          {aperturaHoy && (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Fondo inicial</p>
+              <span className="text-sm font-bold tabular-nums text-neutral-700">{AR.format(aperturaHoy.fondo_inicial)}</span>
+            </div>
+          )}
 
           {cierreHoy ? (
             /* ── Cierre ya realizado ── */

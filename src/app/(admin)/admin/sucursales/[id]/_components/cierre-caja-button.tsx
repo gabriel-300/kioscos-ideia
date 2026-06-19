@@ -24,11 +24,13 @@ export function CierreCajaButton({
   sucursalNombre,
   movimientos,
   cierreHoy,
+  aperturaHoy,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
   movimientos:    Movimiento[];
   cierreHoy:      CierreHoy;
+  aperturaHoy?:   { fondo_inicial: number } | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -66,6 +68,7 @@ export function CierreCajaButton({
         sucursalNombre={sucursalNombre}
         movimientos={movimientos}
         cierreHoy={cierreHoy}
+        aperturaHoy={aperturaHoy}
       />
     </>
   );
