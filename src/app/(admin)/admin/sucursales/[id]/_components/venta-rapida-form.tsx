@@ -11,14 +11,14 @@ type Category = { id: string; name: string };
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 /* ── Colores del prototipo ── */
-const NAVY     = "#1E3A8A";
-const NAVY_D   = "#0C447C";
-const NAVY_L   = "#EFF6FF";
-const NAVY_M   = "#DBEAFE";
-const GREEN_L  = "#D1FAE5";
-const GREEN    = "#065F46";
-const RED_L    = "#FEE2E2";
-const RED      = "#991B1B";
+const NAVY     = "#15375E";
+const NAVY_D   = "#0F2742";
+const NAVY_L   = "#EEF4FB";
+const NAVY_M   = "#D4E3F4";
+const GREEN_L  = "#DCFCE9";
+const GREEN    = "#0B6B4F";
+const RED_L    = "#FDE4E2";
+const RED      = "#9B2222";
 
 /* ── Iconos de categoría por nombre (fallback genérico) ── */
 function getCatIcon(name: string, size = 18) {
@@ -271,7 +271,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 14 }}>
       {/* TOPBAR */}
-      <div className="flex items-center h-[50px] shrink-0" style={{ background: NAVY }}>
+      <div className="flex items-center h-[60px] shrink-0" style={{ background: NAVY }}>
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 h-full border-r" style={{ borderColor: "rgba(255,255,255,.12)" }}>
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5}>
@@ -339,7 +339,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           <div className="flex overflow-x-auto shrink-0" style={{ background: "white", borderBottom: "1px solid #E2E8F0" }}>
             <button
               onClick={() => setCatFilter("all")}
-              className="flex items-center gap-2 px-5 h-[50px] text-[13px] font-semibold shrink-0 transition-all border-b-[3px]"
+              className="flex items-center gap-2 px-5 h-[60px] text-[13px] font-semibold shrink-0 transition-all border-b-[3px]"
               style={{
                 color: catFilter === "all" ? NAVY : "#64748B",
                 borderBottomColor: catFilter === "all" ? NAVY : "transparent",
@@ -375,7 +375,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           </div>
 
           {/* Product grid */}
-          <div className="flex-1 overflow-y-auto p-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, alignContent: "start" } as CSSProperties}>
+          <div className="flex-1 overflow-y-auto" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 14, padding: 18, alignContent: "start" } as CSSProperties}>
             {filtered.length === 0 ? (
               <div className="col-span-full text-center py-16 text-sm" style={{ color: "#94A3B8" }}>
                 {search ? `Sin resultados para "${search}"` : "Sin productos"}
@@ -393,9 +393,10 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   onClick={() => !agotado && set(prod.id, qty + 1)}
                   style={{
                     background: "white",
-                    border: `1.5px solid ${qty > 0 ? NAVY : "#E2E8F0"}`,
-                    borderRadius: 8,
-                    padding: "14px 10px",
+                    border: `1.5px solid ${qty > 0 ? NAVY : "#E6ECF3"}`,
+                    borderRadius: 12,
+                    padding: "18px 12px",
+                    minHeight: 158,
                     cursor: agotado ? "not-allowed" : "pointer",
                     textAlign: "center",
                     display: "flex",
@@ -422,7 +423,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   )}
 
                   {/* Icon */}
-                  <div style={{ width: 44, height: 44, borderRadius: 8, background: catColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: catColor }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 10, background: catColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: catColor }}>
                     {prod.cover_image_url ? (
                       <img src={prod.cover_image_url} alt={prod.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
                     ) : (
@@ -460,7 +461,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
         </div>
 
         {/* DERECHO: ticket */}
-        <div className="flex flex-col shrink-0" style={{ width: 270, background: "white", borderLeft: "1px solid #E2E8F0" }}>
+        <div className="flex flex-col shrink-0" style={{ width: 340, background: "white", borderLeft: "1px solid #E6ECF3" }}>
 
           {/* Header */}
           <div className="shrink-0 px-3.5 py-3.5" style={{ borderBottom: "1px solid #E2E8F0" }}>
