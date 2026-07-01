@@ -250,14 +250,9 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </svg>
               Imprimir comprobante
             </button>
-            <div className="flex gap-2">
-              <button onClick={resetForm} className="flex-1 h-10 rounded-lg text-white text-sm font-bold transition-all" style={{ background: NAVY }}>
-                Nueva venta
-              </button>
-              <button onClick={handleClose} className="flex-1 h-10 rounded-lg border text-sm font-semibold transition-all" style={{ borderColor: "#E2E8F0", color: "#64748B" }}>
-                Cerrar
-              </button>
-            </div>
+            <button onClick={resetForm} className="w-full h-10 rounded-lg text-white text-sm font-bold transition-all" style={{ background: NAVY }}>
+              Nueva venta
+            </button>
           </div>
         </div>
       </div>
