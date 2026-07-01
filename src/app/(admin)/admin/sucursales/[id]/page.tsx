@@ -110,10 +110,8 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     0
   );
 
-  // Stock por producto desde la vista SQL
-  const stock = (stockRows ?? []).sort((a, b) => b.entradas - a.entradas);
   const stockActual: Record<string, number> = Object.fromEntries(
-    stock.map((r) => [r.product_id, r.stock_actual])
+    (stockRows ?? []).map((r) => [r.product_id, r.stock_actual])
   );
 
   return (
@@ -325,39 +323,6 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           sub="entregado − devuelto"
         />
       </div>
-
-      {/* Stock estimado */}
-      {stock.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-neutral-900 mb-3">Stock estimado</h2>
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-100 bg-neutral-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 w-20">Entradas</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 w-20">Salidas</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 w-20">Stock</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {stock.map((p) => (
-                  <tr key={p.product_id} className="hover:bg-neutral-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-neutral-800">{p.product_name}</span>
-                      <span className="ml-2 text-xs text-neutral-400">{p.sku}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-selva-700 font-medium">+{p.entradas}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{p.salidas > 0 ? `-${p.salidas}` : "—"}</td>
-                    <td className="px-4 py-3 text-right tabular-nums font-bold text-neutral-900">{p.stock_actual}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-neutral-400 mt-2">Entregas − devoluciones − ventas. Los ajustes de stock no se suman ni restan automáticamente.</p>
-        </div>
-      )}
 
       {/* Historial */}
       <div>

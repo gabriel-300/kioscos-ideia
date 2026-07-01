@@ -41,11 +41,12 @@ export async function crearMovimiento(data: {
     }
   }
   if (role === "vendedor") {
-    const { data: profile } = await (supabase as any)
+    const profileRes = await (supabase as any)
       .from("profiles")
       .select("sucursal_id")
       .eq("id", userId)
-      .single() as unknown as Promise<{ data: { sucursal_id: string | null } | null }>;
+      .single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
     if (profile?.sucursal_id !== data.sucursal_id) {
       throw new Error("No tenés permisos para esta sucursal");
     }
