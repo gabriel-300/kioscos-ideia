@@ -25,12 +25,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .single();
     sucursalId = data?.id ?? null;
   } else if (role === "vendedor") {
-    const { data } = await (supabase as any)
-      .from("profiles")
-      .select("sucursal_id")
-      .eq("id", user.id)
-      .single() as unknown as Promise<{ data: { sucursal_id: string | null } | null }>;
-    sucursalId = data?.sucursal_id ?? null;
+    const res = await (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
+    sucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
   }
 
   return (
