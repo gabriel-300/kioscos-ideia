@@ -6,6 +6,7 @@ import { HistorialSucursal } from "./_components/historial-sucursal";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
+import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
 
 export const revalidate = 0;
 
@@ -39,7 +40,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }] = await Promise.all([
+  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }, { data: retirosHoy }] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     supabase
       .from("movimientos")
@@ -58,6 +59,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null } | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("fondo_inicial, notas").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fondo_inicial: number; notas: string | null } | null }>,
+    (supabase as any).from("retiros_caja").select("id, monto, motivo, created_at").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; monto: number; motivo: string; created_at: string }[] | null }>,
   ]);
 
   if (!sucursal) notFound();
@@ -85,6 +87,9 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     .reduce((sum, m) => sum + m.movimiento_items.reduce((s: number, i: { cantidad: number }) => s + i.cantidad, 0), 0);
 
   const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
+
+  const retiros        = retirosHoy ?? [];
+  const totalRetiros   = retiros.reduce((sum, r) => sum + r.monto, 0);
 
   const ventasHoy      = movs.filter((m) => m.tipo === "venta" && m.fecha === hoy);
   const totalVentasHoy = ventasHoy.reduce(
@@ -129,6 +134,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           <div className="flex flex-wrap gap-2">
             {user.app_metadata?.role === "encargado" ? (
               <>
+                <RetiroEfectivoButton sucursalId={sucursal.id} />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
                   sucursalNombre={sucursal.nombre}
@@ -191,7 +197,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
       {/* ── Caja del día (encargado) ── */}
       {user.app_metadata?.role === "encargado" && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {/* Apertura */}
           <div className={`rounded-xl border p-4 ${aperturaHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
             <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${aperturaHoy ? "text-selva-600" : "text-neutral-400"}`}>
@@ -211,6 +217,21 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
               {totalVentasHoy > 0 ? AR.format(totalVentasHoy) : "—"}
             </p>
             <p className="text-[11px] text-tierra-600 mt-1">{ventasHoy.length} {ventasHoy.length === 1 ? "registro" : "registros"}</p>
+          </div>
+
+          {/* Retiros */}
+          <div className={`rounded-xl border p-4 ${totalRetiros > 0 ? "bg-danger-bg/30 border-danger/20" : "bg-neutral-50 border-neutral-200"}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${totalRetiros > 0 ? "text-danger" : "text-neutral-400"}`}>
+              Retiros
+            </p>
+            {totalRetiros > 0 ? (
+              <>
+                <p className="text-xl font-bold font-display tabular-nums text-danger">{AR.format(totalRetiros)}</p>
+                <p className="text-[11px] text-neutral-500 mt-1">{retiros.length} {retiros.length === 1 ? "retiro" : "retiros"}</p>
+              </>
+            ) : (
+              <p className="text-sm text-neutral-400">Sin retiros</p>
+            )}
           </div>
 
           {/* Cierre */}
