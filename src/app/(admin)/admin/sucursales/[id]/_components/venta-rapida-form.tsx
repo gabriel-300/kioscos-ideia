@@ -71,6 +71,8 @@ const PAY_METHODS: { id: PayMethod; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
+type Personal = { id: string; nombre: string };
+
 type Receipt = {
   fecha: string; hora: string;
   items: { name: string; qty: number; precioUnit: number; sub: number }[];
@@ -78,6 +80,7 @@ type Receipt = {
   pagos: { label: string; monto: number }[];
   vuelto: number | null; notas: string | null;
   canal: string;
+  personalNombre?: string | null;
 };
 
 interface Props {
@@ -88,17 +91,19 @@ interface Props {
   products:        Product[];
   stockMap?:       Record<string, number>;
   categories?:     Category[];
+  personal?:       Personal[];
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [] }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
   const [search,        setSearch]        = useState("");
   const [showPay, setShowPay] = useState(false);
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-  const [canal,   setCanal]   = useState("consumidor_final");
-  const [notas,   setNotas]   = useState("");
+  const [canal,      setCanal]      = useState("consumidor_final");
+  const [personalId, setPersonalId] = useState("");
+  const [notas,      setNotas]      = useState("");
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -150,7 +155,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-    setCanal("consumidor_final"); setNotas(""); setError(null); setReceipt(null);
+    setCanal("consumidor_final"); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -170,10 +175,13 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const notasMedios = pagosList.map((p) => `${p.label}: ${AR.format(p.monto)}`).join(" | ");
     const notasFinal  = [notasMedios, notas || null].filter(Boolean).join(" — ") || null;
 
+    const personalNombre = personal.find((p) => p.id === personalId)?.nombre ?? null;
+
     startTransition(async () => {
       try {
         await crearMovimiento({
           sucursal_id: sucursalId, fecha, tipo: "venta", notas: notasFinal, canal,
+          personal_id: canal === "cuenta_corriente" && personalId ? personalId : null,
           items: seleccionados.map(([product_id, cantidad]) => ({
             product_id, cantidad,
             precio_unitario: products.find((p) => p.id === product_id)?.precio_dist ?? null,
@@ -184,6 +192,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora, items: receiptItems, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
+          personalNombre: canal === "cuenta_corriente" ? personalNombre : null,
         });
       } catch (e) { setError((e as Error).message); }
     });
@@ -223,6 +232,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             <p className="font-bold text-lg" style={{ color: GREEN }}>Venta registrada</p>
             <p className="text-sm mt-0.5 capitalize" style={{ color: "#047857" }}>{receipt.fecha} · {receipt.hora}</p>
             {(() => { const c = CANALES.find((x) => x.id === receipt.canal); return c ? <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, background: c.bg, color: c.color, borderRadius: 20, padding: "2px 10px" }}>{c.label}</span> : null; })()}
+            {receipt.personalNombre && (
+              <div style={{ marginTop: 4, fontSize: 12, color: "#5B21B6", fontWeight: 600 }}>
+                {receipt.personalNombre}
+              </div>
+            )}
           </div>
 
           <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
@@ -499,7 +513,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               {CANALES.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => setCanal(c.id)}
+                  onClick={() => { setCanal(c.id); if (c.id !== "cuenta_corriente") setPersonalId(""); }}
                   style={{
                     padding: "6px 4px",
                     borderRadius: 7,
@@ -517,6 +531,27 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 </button>
               ))}
             </div>
+
+            {/* Selector de personal — solo para cuenta corriente */}
+            {canal === "cuenta_corriente" && personal.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <select
+                  value={personalId}
+                  onChange={(e) => setPersonalId(e.target.value)}
+                  style={{
+                    width: "100%", height: 34, borderRadius: 7, border: `1.5px solid ${personalId ? "#5B21B6" : "#E2E8F0"}`,
+                    background: personalId ? "#F5F3FF" : "white", color: personalId ? "#5B21B6" : "#94A3B8",
+                    fontSize: 12, fontWeight: personalId ? 700 : 400, padding: "0 10px",
+                    outline: "none", cursor: "pointer",
+                  }}
+                >
+                  <option value="">Seleccionar persona…</option>
+                  {personal.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Items */}

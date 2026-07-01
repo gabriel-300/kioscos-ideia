@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { redirect } from "next/navigation";
 
-const STAFF_ROLES = ["admin", "encargado"];
+const STAFF_ROLES = ["admin", "encargado", "vendedor"];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -24,6 +24,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .eq("encargado_user_id", user.id)
       .single();
     sucursalId = data?.id ?? null;
+  } else if (role === "vendedor") {
+    const { data } = await (supabase as any)
+      .from("profiles")
+      .select("sucursal_id")
+      .eq("id", user.id)
+      .single() as unknown as Promise<{ data: { sucursal_id: string | null } | null }>;
+    sucursalId = data?.sucursal_id ?? null;
   }
 
   return (

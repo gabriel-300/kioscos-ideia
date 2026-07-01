@@ -7,15 +7,19 @@ export const metadata: Metadata = { title: "Staff — Kioscos IDEIA" };
 export const revalidate = 0;
 
 export default async function StaffPage() {
-  const admin = createAdminClient();
+  const admin   = createAdminClient();
   const supabase = await createClient();
 
   const [
     { data: { users }, error },
     { data: sucursales },
+    profilesResult,
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 200 }),
     supabase.from("sucursales").select("id, nombre, encargado_user_id").order("nombre"),
+    (supabase as any)
+      .from("profiles")
+      .select("id, sucursal_id") as unknown as Promise<{ data: { id: string; sucursal_id: string | null }[] | null }>,
   ]);
 
   if (error) {
@@ -28,25 +32,28 @@ export default async function StaffPage() {
     );
   }
 
+  const profileMap: Record<string, string | null> = {};
+  for (const p of profilesResult.data ?? []) profileMap[p.id] = p.sucursal_id;
+
   const staff = (users ?? [])
     .filter((u) => {
       const role = u.app_metadata?.role as string | undefined;
-      return role === "admin" || role === "encargado";
+      return role === "admin" || role === "encargado" || role === "vendedor";
     })
     .sort((a, b) => {
-      // Admin primero, después por email
-      const ra = a.app_metadata?.role as string;
-      const rb = b.app_metadata?.role as string;
-      if (ra === "admin" && rb !== "admin") return -1;
-      if (rb === "admin" && ra !== "admin") return 1;
+      const order: Record<string, number> = { admin: 0, encargado: 1, vendedor: 2 };
+      const ra = (a.app_metadata?.role as string) ?? "";
+      const rb = (b.app_metadata?.role as string) ?? "";
+      if (order[ra] !== order[rb]) return (order[ra] ?? 9) - (order[rb] ?? 9);
       return (a.email ?? "").localeCompare(b.email ?? "");
     })
     .map((u) => ({
-      id:         u.id,
-      email:      u.email,
-      nombre:     u.user_metadata?.full_name as string | undefined,
-      role:       u.app_metadata?.role as string | undefined,
-      lastSignIn: u.last_sign_in_at
+      id:            u.id,
+      email:         u.email,
+      nombre:        u.user_metadata?.full_name as string | undefined,
+      role:          u.app_metadata?.role as string | undefined,
+      sucursalIdProfile: profileMap[u.id] ?? null,
+      lastSignIn:    u.last_sign_in_at
         ? new Date(u.last_sign_in_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })
         : null,
     }));

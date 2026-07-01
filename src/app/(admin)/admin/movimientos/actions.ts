@@ -11,14 +11,15 @@ export interface ItemInput {
 }
 
 export async function crearMovimiento(data: {
-  sucursal_id: string;
-  fecha:       string;
-  tipo:        "entrega" | "devolucion" | "ajuste" | "venta";
-  notas:       string | null;
-  items:       ItemInput[];
-  proveedor?:  string | null;
-  nro_remito?: string | null;
-  canal?:      string | null;
+  sucursal_id:  string;
+  fecha:        string;
+  tipo:         "entrega" | "devolucion" | "ajuste" | "venta";
+  notas:        string | null;
+  items:        ItemInput[];
+  proveedor?:   string | null;
+  nro_remito?:  string | null;
+  canal?:       string | null;
+  personal_id?: string | null;
 }) {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
@@ -28,7 +29,7 @@ export async function crearMovimiento(data: {
     throw new Error("No tenés permisos para realizar ajustes de stock");
   }
 
-  // Encargados solo pueden registrar movimientos en su propia sucursal
+  // Encargados y vendedores solo pueden registrar en su propia sucursal
   if (role === "encargado") {
     const { data: suc } = await supabase
       .from("sucursales")
@@ -36,6 +37,16 @@ export async function crearMovimiento(data: {
       .eq("id", data.sucursal_id)
       .single();
     if (suc?.encargado_user_id !== userId) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
+  if (role === "vendedor") {
+    const { data: profile } = await (supabase as any)
+      .from("profiles")
+      .select("sucursal_id")
+      .eq("id", userId)
+      .single() as unknown as Promise<{ data: { sucursal_id: string | null } | null }>;
+    if (profile?.sucursal_id !== data.sucursal_id) {
       throw new Error("No tenés permisos para esta sucursal");
     }
   }
@@ -49,7 +60,8 @@ export async function crearMovimiento(data: {
       notas:       data.notas,
       proveedor:   data.proveedor  ?? null,
       nro_remito:  data.nro_remito ?? null,
-      canal:       data.canal      ?? "consumidor_final",
+      canal:       data.canal       ?? "consumidor_final",
+      personal_id: data.personal_id ?? null,
       created_by:  userId,
     })
     .select("id")

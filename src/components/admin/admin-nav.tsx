@@ -40,19 +40,20 @@ function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
 type NavItem = { href: string; label: string; roles: string[]; icon: string };
 
 const NAV: NavItem[] = [
-  { href: "/admin/dashboard",   label: "Dashboard",  roles: ["admin"],              icon: "dashboard" },
-  { href: "/admin/sucursales",  label: "Kioscos",    roles: ["admin", "encargado"], icon: "sucursales" },
-  { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],              icon: "movimientos" },
-  { href: "/admin/stock",       label: "Stock",      roles: ["admin"],              icon: "stock" },
-  { href: "/admin/cierres",     label: "Cierres",    roles: ["admin"],              icon: "cierres" },
-  { href: "/admin/categorias",  label: "Categorías", roles: ["admin"],              icon: "categorias" },
-  { href: "/admin/productos",   label: "Productos",  roles: ["admin"],              icon: "productos" },
-  { href: "/admin/staff",       label: "Staff",      roles: ["admin"],              icon: "staff" },
+  { href: "/admin/dashboard",   label: "Dashboard",  roles: ["admin"],                          icon: "dashboard" },
+  { href: "/admin/sucursales",  label: "Kioscos",    roles: ["admin", "encargado", "vendedor"], icon: "sucursales" },
+  { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],                          icon: "movimientos" },
+  { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor"], icon: "stock" },
+  { href: "/admin/cierres",     label: "Cierres",    roles: ["admin"],                          icon: "cierres" },
+  { href: "/admin/categorias",  label: "Categorías", roles: ["admin"],                          icon: "categorias" },
+  { href: "/admin/productos",   label: "Productos",  roles: ["admin"],                          icon: "productos" },
+  { href: "/admin/staff",       label: "Staff",      roles: ["admin"],                          icon: "staff" },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
   admin:     "Administrador",
   encargado: "Encargado",
+  vendedor:  "Vendedor",
 };
 
 /* ─── Component ──────────────────────────────── */
@@ -85,11 +86,11 @@ export function AdminNav({ role, email, name, sucursalId }: {
   const visibleItems: NavItem[] = NAV
     .filter((item) => item.roles.includes(role ?? ""))
     .filter((item) => {
-      if (role === "encargado" && item.href === "/admin/dashboard") return false;
+      if ((role === "encargado" || role === "vendedor") && item.href === "/admin/dashboard") return false;
       return true;
     })
     .map((item) => {
-      if (role === "encargado" && sucursalId && item.href === "/admin/sucursales") {
+      if ((role === "encargado" || role === "vendedor") && sucursalId && item.href === "/admin/sucursales") {
         return { ...item, href: `/admin/sucursales/${sucursalId}`, label: "Mi Kiosco" };
       }
       return item;

@@ -85,11 +85,13 @@ export function StockTable({
   products,
   categories,
   stockMap,
+  readOnly = false,
 }: {
   sucursales: Sucursal[];
   products:   Product[];
   categories: Category[];
   stockMap:   Record<string, Record<string, number>>;
+  readOnly?:  boolean;
 }) {
   const [catFilter,   setCat]       = useState("all");
   const [statusFilter, setStatus]   = useState("all");

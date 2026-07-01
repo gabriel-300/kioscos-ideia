@@ -14,6 +14,6 @@ export async function requireStaff(): Promise<{ userId: string; role: string }> 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
   const role = user.app_metadata?.role as string | undefined;
-  if (!role || !["admin", "encargado"].includes(role)) throw new Error("Sin permisos");
+  if (!role || !["admin", "encargado", "vendedor"].includes(role)) throw new Error("Sin permisos");
   return { userId: user.id, role };
 }

@@ -41,6 +41,7 @@ type Movimiento = {
   tipo: "entrega" | "devolucion" | "ajuste" | "venta";
   notas: string | null;
   canal?: string | null;
+  personal_id?: string | null;
   created_at: string;
   movimiento_items: Item[];
 };
@@ -94,10 +95,12 @@ export function HistorialSucursal({
   movimientos,
   sucursalNombre = "",
   retiros = [],
+  personalMap = {},
 }: {
   movimientos:    Movimiento[];
   sucursalNombre?: string;
   retiros?:       Retiro[];
+  personalMap?:   Record<string, string>;
 }) {
   const [expanded,  setExpanded]  = useState<string | null>(null);
   const [mesFilter, setMesFilter] = useState("");
@@ -224,6 +227,11 @@ export function HistorialSucursal({
                           {m.tipo === "venta" && m.canal && m.canal !== "consumidor_final" && (
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${CANAL_COLOR[m.canal] ?? "bg-neutral-100 text-neutral-500"}`}>
                               {CANAL_LABEL[m.canal] ?? m.canal}
+                            </span>
+                          )}
+                          {m.canal === "cuenta_corriente" && m.personal_id && personalMap[m.personal_id] && (
+                            <span className="text-xs text-purple-700 font-semibold">
+                              {personalMap[m.personal_id]}
                             </span>
                           )}
                         </div>

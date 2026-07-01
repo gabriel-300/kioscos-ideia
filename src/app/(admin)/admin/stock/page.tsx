@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { StockTable } from "./_components/stock-table";
 
 export const metadata: Metadata = { title: "Stock kioscos — Kioscos IDEIA" };
@@ -12,31 +11,47 @@ export default async function StockPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const role = (user.app_metadata?.role as string) ?? "";
+  const isStaff = role === "encargado" || role === "vendedor";
+
+  // Para encargados/vendedores: obtener su sucursal_id
+  let staffSucursalId: string | null = null;
+  if (role === "encargado") {
+    const { data } = await supabase.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
+    staffSucursalId = data?.id ?? null;
+  } else if (role === "vendedor") {
+    const { data } = await (supabase as any)
+      .from("profiles")
+      .select("sucursal_id")
+      .eq("id", user.id)
+      .single() as unknown as Promise<{ data: { sucursal_id: string | null } | null }>;
+    staffSucursalId = data?.sucursal_id ?? null;
+  }
+
+  const sucursalesQuery = isStaff && staffSucursalId
+    ? supabase.from("sucursales").select("id, nombre").eq("id", staffSucursalId).eq("is_active", true)
+    : supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre");
+
+  const movimientosQuery = isStaff && staffSucursalId
+    ? supabase.from("movimientos").select("tipo, sucursal_id, movimiento_items(product_id, cantidad)")
+        .in("tipo", ["entrega", "devolucion", "venta"]).eq("sucursal_id", staffSucursalId)
+    : supabase.from("movimientos").select("tipo, sucursal_id, movimiento_items(product_id, cantidad)")
+        .in("tipo", ["entrega", "devolucion", "venta"]);
+
   const [
     { data: sucursales },
     { data: products },
     { data: categories },
     { data: movimientos },
   ] = await Promise.all([
-    supabase
-      .from("sucursales")
-      .select("id, nombre")
-      .eq("is_active", true)
-      .order("nombre"),
+    sucursalesQuery,
     (supabase as any)
       .from("products")
       .select("id, name, sku, category_id, unit_label, stock_minimo")
       .eq("is_active", true)
       .order("name") as unknown as Promise<{ data: { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number }[] | null }>,
-    supabase
-      .from("categories")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("sort_order"),
-    supabase
-      .from("movimientos")
-      .select("tipo, sucursal_id, movimiento_items(product_id, cantidad)")
-      .in("tipo", ["entrega", "devolucion", "venta"]),
+    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
+    movimientosQuery,
   ]);
 
   // Construir matriz: stockMap[sucursal_id][product_id] = cantidad
@@ -45,7 +60,7 @@ export default async function StockPage() {
     if (!m.sucursal_id) continue;
     if (!stockMap[m.sucursal_id]) stockMap[m.sucursal_id] = {};
     for (const item of m.movimiento_items) {
-      const delta = m.tipo === "entrega" ? item.cantidad : -item.cantidad; // devolucion y venta restan
+      const delta = m.tipo === "entrega" ? item.cantidad : -item.cantidad;
       stockMap[m.sucursal_id][item.product_id] =
         (stockMap[m.sucursal_id][item.product_id] ?? 0) + delta;
     }
@@ -57,7 +72,7 @@ export default async function StockPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Stock kioscos</h1>
           <p className="text-sm text-neutral-400 mt-0.5">
-            Stock estimado por producto en cada kiosco · calculado desde el historial de movimientos
+            Stock estimado por producto · calculado desde el historial de movimientos
           </p>
         </div>
       </div>
@@ -67,6 +82,7 @@ export default async function StockPage() {
         products={products ?? []}
         categories={categories ?? []}
         stockMap={stockMap}
+        readOnly={isStaff}
       />
     </div>
   );

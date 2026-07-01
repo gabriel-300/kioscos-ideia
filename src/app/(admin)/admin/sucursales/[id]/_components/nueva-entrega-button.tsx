@@ -18,6 +18,7 @@ export function NuevaEntregaButton({
   variant = "primary",
   stockMap,
   categories,
+  personal,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -27,6 +28,7 @@ export function NuevaEntregaButton({
   variant?:       "primary" | "ghost";
   stockMap?:      Record<string, number>;
   categories?:    { id: string; name: string }[];
+  personal?:      { id: string; nombre: string }[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -50,6 +52,7 @@ export function NuevaEntregaButton({
           products={products}
           stockMap={stockMap}
           categories={categories}
+          personal={personal}
         />
       ) : (
         <MovimientoForm

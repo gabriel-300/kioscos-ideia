@@ -40,12 +40,12 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }, { data: retirosHoy }] = await Promise.all([
+  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }, { data: retirosHoy }, personalResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
       .select(`
-        id, fecha, tipo, notas, canal, created_at,
+        id, fecha, tipo, notas, canal, personal_id, created_at,
         movimiento_items(
           id, cantidad, precio_unitario, subtotal,
           product:products(id, name, sku)
@@ -60,12 +60,23 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("fondo_inicial, notas").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fondo_inicial: number; notas: string | null } | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
+    (supabase as any)
+      .from("profiles")
+      .select("id, full_name")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
   ]);
 
   if (!sucursal) notFound();
 
-  // Encargados solo pueden ver su propia sucursal
-  if (user.app_metadata?.role === "encargado" && sucursal.encargado_user_id !== user.id) {
+  const personal = (personalResult.data ?? []).map((p) => ({ id: p.id, nombre: p.full_name ?? "Sin nombre" }));
+  const personalMap: Record<string, string> = Object.fromEntries(personal.map((p) => [p.id, p.nombre]));
+
+  // Staff solo puede ver su propia sucursal
+  const role = user.app_metadata?.role as string | undefined;
+  if (role === "encargado" && sucursal.encargado_user_id !== user.id) {
+    redirect("/admin/dashboard");
+  }
+  if (role === "vendedor" && !personal.some((p) => p.id === user.id)) {
     redirect("/admin/dashboard");
   }
 
@@ -109,7 +120,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     <div className="p-4 md:p-8 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
-        {user.app_metadata?.role === "admin" && (
+        {role === "admin" && (
           <Link
             href="/admin/sucursales"
             className="inline-flex items-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-700 mb-3 transition-colors"
@@ -134,7 +145,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {user.app_metadata?.role === "encargado" ? (
+            {(role === "encargado" || role === "vendedor") ? (
               <>
                 <RetiroEfectivoButton sucursalId={sucursal.id} />
                 <NuevaEntregaButton
@@ -152,6 +163,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   defaultTipo="venta"
                   stockMap={stockActual}
                   categories={categories ?? []}
+                  personal={personal}
                 />
               </>
             ) : (
@@ -164,6 +176,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   variant="ghost"
                   stockMap={stockActual}
                   categories={categories ?? []}
+                  personal={personal}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -189,8 +202,8 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* ── Caja del día (encargado) ── */}
-      {user.app_metadata?.role === "encargado" && (
+      {/* ── Caja del día (staff) ── */}
+      {(role === "encargado" || role === "vendedor") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {/* Apertura */}
           <div className={`rounded-xl border p-4 ${aperturaHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
@@ -356,6 +369,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]}
           sucursalNombre={sucursal.nombre}
           retiros={todosRetiros}
+          personalMap={personalMap}
         />
       </div>
     </div>
