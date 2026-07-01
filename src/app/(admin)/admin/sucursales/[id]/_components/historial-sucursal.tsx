@@ -20,11 +20,25 @@ type Item = {
   product: { name: string; sku: string } | null;
 };
 
+const CANAL_LABEL: Record<string, string> = {
+  consumidor_final: "Consumidor Final",
+  pedido_ya:        "Pedido Ya",
+  cuenta_corriente: "Cta. Cte.",
+  ambulante:        "Ambulante",
+};
+const CANAL_COLOR: Record<string, string> = {
+  consumidor_final: "bg-blue-50 text-blue-700",
+  pedido_ya:        "bg-orange-50 text-orange-700",
+  cuenta_corriente: "bg-purple-50 text-purple-700",
+  ambulante:        "bg-emerald-50 text-emerald-700",
+};
+
 type Movimiento = {
   id: string;
   fecha: string;
   tipo: "entrega" | "devolucion" | "ajuste" | "venta";
   notas: string | null;
+  canal?: string | null;
   created_at: string;
   movimiento_items: Item[];
 };
@@ -158,9 +172,16 @@ export function HistorialSucursal({ movimientos, sucursalNombre = "" }: { movimi
                     {new Date(m.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TIPO_COLOR[m.tipo]}`}>
-                      {TIPO_LABEL[m.tipo]}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${TIPO_COLOR[m.tipo]}`}>
+                        {TIPO_LABEL[m.tipo]}
+                      </span>
+                      {m.tipo === "venta" && m.canal && m.canal !== "consumidor_final" && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${CANAL_COLOR[m.canal] ?? "bg-neutral-100 text-neutral-500"}`}>
+                          {CANAL_LABEL[m.canal] ?? m.canal}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-neutral-500 hidden md:table-cell">
                     {m.notas ?? <span className="text-neutral-300">—</span>}

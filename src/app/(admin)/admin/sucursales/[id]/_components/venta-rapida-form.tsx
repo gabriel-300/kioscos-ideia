@@ -43,6 +43,13 @@ function getCatIcon(name: string, size = 18) {
 /* ── Colores de categoría por índice ── */
 const CAT_COLORS = [NAVY, "#065F46", "#92400E", "#475569", "#0C447C", "#7C3AED", "#B45309"];
 
+const CANALES = [
+  { id: "consumidor_final", label: "Consumidor Final", color: NAVY,      bg: NAVY_L },
+  { id: "pedido_ya",        label: "Pedido Ya",        color: "#C05621",  bg: "#FFF7ED" },
+  { id: "cuenta_corriente", label: "Cta. Corriente",   color: "#5B21B6",  bg: "#F5F3FF" },
+  { id: "ambulante",        label: "Ambulante",        color: "#065F46",  bg: "#ECFDF5" },
+] as const;
+
 type PayMethod = "efectivo" | "mp" | "tarjeta" | "transferencia";
 
 const PAY_METHODS: { id: PayMethod; label: string; icon: React.ReactNode }[] = [
@@ -70,6 +77,7 @@ type Receipt = {
   totalPrecio: number; totalUnidades: number;
   pagos: { label: string; monto: number }[];
   vuelto: number | null; notas: string | null;
+  canal: string;
 };
 
 interface Props {
@@ -89,6 +97,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [search,        setSearch]        = useState("");
   const [showPay, setShowPay] = useState(false);
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+  const [canal,   setCanal]   = useState("consumidor_final");
   const [notas,   setNotas]   = useState("");
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
@@ -130,7 +139,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-    setNotas(""); setError(null); setReceipt(null);
+    setCanal("consumidor_final"); setNotas(""); setError(null); setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -153,7 +162,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     startTransition(async () => {
       try {
         await crearMovimiento({
-          sucursal_id: sucursalId, fecha, tipo: "venta", notas: notasFinal,
+          sucursal_id: sucursalId, fecha, tipo: "venta", notas: notasFinal, canal,
           items: seleccionados.map(([product_id, cantidad]) => ({
             product_id, cantidad,
             precio_unitario: products.find((p) => p.id === product_id)?.precio_dist ?? null,
@@ -163,7 +172,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora, items: receiptItems, totalPrecio, totalUnidades, pagos: pagosList,
-          vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null,
+          vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
         });
       } catch (e) { setError((e as Error).message); }
     });
@@ -172,10 +181,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   function handlePrint(r: Receipt) {
     const w = window.open("", "_blank", "width=420,height=640");
     if (!w) return;
+    const canalLabel = CANALES.find((x) => x.id === r.canal)?.label ?? r.canal;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprobante</title>
 <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',monospace;font-size:13px;padding:24px 20px;color:#111;}h1{font-size:16px;font-weight:bold;text-align:center;margin-bottom:2px;}.sub{text-align:center;font-size:11px;color:#555;margin-bottom:12px;}.divider{border-top:1px dashed #bbb;margin:10px 0;}.row{display:flex;justify-content:space-between;margin-bottom:4px;}.name{flex:1;padding-right:8px;}.total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:4px;}.pago-row{display:flex;justify-content:space-between;margin-bottom:3px;}.vuelto-row{display:flex;justify-content:space-between;font-weight:bold;margin-top:4px;}.footer{text-align:center;font-size:10px;color:#888;margin-top:16px;}</style>
 </head><body>
-<h1>Kioscos IDEIA</h1><div class="sub">${sucursalNombre ?? ""}</div><div class="sub">${r.fecha} · ${r.hora}</div><div class="divider"></div>
+<h1>Kioscos IDEIA</h1><div class="sub">${sucursalNombre ?? ""}</div><div class="sub">${r.fecha} · ${r.hora}</div><div class="sub">${canalLabel}</div><div class="divider"></div>
 ${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span>${i.qty} × ${AR.format(i.precioUnit)}</span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span></div>`).join("")}
 <div class="divider"></div><div class="total-row"><span>TOTAL (${r.totalUnidades} u.)</span><span>${AR.format(r.totalPrecio)}</span></div><div class="divider"></div>
 ${r.pagos.map((p) => `<div class="pago-row"><span>${p.label}</span><span>${AR.format(p.monto)}</span></div>`).join("")}
@@ -201,6 +211,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             </div>
             <p className="font-bold text-lg" style={{ color: GREEN }}>Venta registrada</p>
             <p className="text-sm mt-0.5 capitalize" style={{ color: "#047857" }}>{receipt.fecha} · {receipt.hora}</p>
+            {(() => { const c = CANALES.find((x) => x.id === receipt.canal); return c ? <span style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, background: c.bg, color: c.color, borderRadius: 20, padding: "2px 10px" }}>{c.label}</span> : null; })()}
           </div>
 
           <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
@@ -470,6 +481,30 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             </div>
             <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 3 }}>
               {sucursalNombre ? `${sucursalNombre}` : "—"}
+            </div>
+
+            {/* Canal de venta */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 10 }}>
+              {CANALES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCanal(c.id)}
+                  style={{
+                    padding: "6px 4px",
+                    borderRadius: 7,
+                    fontSize: 11,
+                    fontWeight: canal === c.id ? 700 : 500,
+                    border: `1.5px solid ${canal === c.id ? c.color : "#E2E8F0"}`,
+                    background: canal === c.id ? c.bg : "white",
+                    color: canal === c.id ? c.color : "#94A3B8",
+                    cursor: "pointer",
+                    transition: "all .12s",
+                    textAlign: "center",
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
             </div>
           </div>
 

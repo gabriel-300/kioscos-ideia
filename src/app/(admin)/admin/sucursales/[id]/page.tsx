@@ -42,10 +42,10 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }, { data: retirosHoy }] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
-    supabase
+    (supabase as any)
       .from("movimientos")
       .select(`
-        id, fecha, tipo, notas, created_at,
+        id, fecha, tipo, notas, canal, created_at,
         movimiento_items(
           id, cantidad, precio_unitario, subtotal,
           product:products(id, name, sku)
@@ -53,7 +53,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
       `)
       .eq("sucursal_id", id)
       .order("fecha", { ascending: false })
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
     supabase.from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null } | null }>,
