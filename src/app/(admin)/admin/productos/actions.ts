@@ -16,19 +16,19 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at">) {
+export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }) {
   await requireAdmin();
   const supabase = createAdminClient();
   const payload = { ...data, slug: data.slug || slugify(data.name) };
-  const { error } = await supabase.from("products").insert(payload);
+  const { error } = await (supabase as any).from("products").insert(payload);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/productos");
 }
 
-export async function actualizarProducto(id: string, data: Update) {
+export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("products").update(data).eq("id", id);
+  const { error } = await (supabase as any).from("products").update(data).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/productos");
 }

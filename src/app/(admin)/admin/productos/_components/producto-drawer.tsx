@@ -30,6 +30,7 @@ const schema = z.object({
   precio_dist:       nPos,
   precio_publico:    nPos,
   pkg_unitario:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
+  stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -58,7 +59,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, precio_publico: null, pkg_unitario: null,
+      costo: null, precio_dist: null, precio_publico: null, pkg_unitario: null, stock_minimo: 0,
     },
   });
 
@@ -77,6 +78,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       precio_dist:       product.precio_dist ?? null,
       precio_publico:    product.price_b2c ?? null,
       pkg_unitario:      product.pkg_unitario ?? null,
+      stock_minimo:      (product as any).stock_minimo ?? 0,
     } : {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
@@ -99,6 +101,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       price_b2c:         values.precio_publico ?? 0,
       price_b2b:         values.precio_dist ?? 0,
       pkg_unitario:      values.pkg_unitario,
+      stock_minimo:      values.stock_minimo,
       cover_image_url:   imageUrl,
     };
 
@@ -206,15 +209,28 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
 
           {/* Embalaje */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Embalaje</p>
-            <div className="w-1/2 pr-1.5">
-              <Input
-                label="Unidades por caja"
-                type="number"
-                step="1"
-                placeholder="12"
-                {...register("pkg_unitario")}
-              />
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Embalaje y stock</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Input
+                  label="Unidades por caja"
+                  type="number"
+                  step="1"
+                  placeholder="12"
+                  {...register("pkg_unitario")}
+                />
+              </div>
+              <div>
+                <Input
+                  label="Stock mínimo (alerta)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  {...register("stock_minimo")}
+                />
+                <p className="text-[11px] text-neutral-400 mt-1">Marca "Bajo Stock" al llegar a este valor</p>
+              </div>
             </div>
           </div>
         </div>

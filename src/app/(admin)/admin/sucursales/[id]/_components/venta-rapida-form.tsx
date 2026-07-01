@@ -130,9 +130,20 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const otrosMedios    = totalIngresado - efectivoNum;
   const vuelto         = efectivoNum > 0 ? efectivoNum - Math.max(0, totalPrecio - otrosMedios) : null;
 
+  /* ── helpers ── */
+  function isKg(id: string) { return products.find((p) => p.id === id)?.unit_label === "kg"; }
+  function step(id: string) { return isKg(id) ? 0.1 : 1; }
+  function fmtCant(id: string, qty: number) {
+    return isKg(id)
+      ? `${qty.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 3 })} kg`
+      : `${qty}`;
+  }
+
   /* ── handlers ── */
   function set(id: string, value: number) {
-    setCantidades((prev) => ({ ...prev, [id]: Math.max(0, value) }));
+    const s = step(id);
+    const rounded = Math.round(Math.max(0, value) / s) * s;
+    setCantidades((prev) => ({ ...prev, [id]: parseFloat(rounded.toFixed(3)) }));
   }
 
   function resetForm() {
@@ -396,7 +407,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               return (
                 <div
                   key={prod.id}
-                  onClick={() => !agotado && set(prod.id, qty + 1)}
+                  onClick={() => !agotado && set(prod.id, qty + step(prod.id))}
                   style={{
                     background: "white",
                     border: `1.5px solid ${qty > 0 ? NAVY : "#E6ECF3"}`,
@@ -423,8 +434,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </span>
                   )}
                   {qty > 0 && (
-                    <span style={{ position: "absolute", top: 6, left: 6, minWidth: 20, height: 20, padding: "0 5px", background: NAVY, color: "white", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
-                      {qty}
+                    <span style={{ position: "absolute", top: 6, left: 6, minWidth: 20, height: 20, padding: "0 6px", background: NAVY, color: "white", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
+                      {fmtCant(prod.id, qty)}
                     </span>
                   )}
 
@@ -450,12 +461,12 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   {qty > 0 && !agotado && (
                     <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => set(prod.id, qty - 1)}
+                        onClick={() => set(prod.id, qty - step(prod.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid #CBD5E1`, background: "#F8FAFC", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#1E293B" }}
                       >−</button>
-                      <span style={{ fontSize: 13, fontWeight: 800, minWidth: 20, textAlign: "center", color: "#0F172A" }}>{qty}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(prod.id, qty)}</span>
                       <button
-                        onClick={() => set(prod.id, qty + 1)}
+                        onClick={() => set(prod.id, qty + step(prod.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid ${NAVY}`, background: NAVY_L, fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: NAVY }}
                       >+</button>
                     </div>
@@ -532,9 +543,9 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p?.name ?? "—"}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => set(id, qty - 1)} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
-                      <span style={{ fontSize: 13, fontWeight: 800, minWidth: 20, textAlign: "center", color: "#0F172A" }}>{qty}</span>
-                      <button onClick={() => set(id, qty + 1)} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>+</button>
+                      <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
+                      <span style={{ fontSize: 11, fontWeight: 800, minWidth: 28, textAlign: "center", color: "#0F172A" }}>{fmtCant(id, qty)}</span>
+                      <button onClick={() => set(id, qty + step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>+</button>
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 800, color: NAVY, minWidth: 64, textAlign: "right" }}>
                       {sub > 0 ? AR.format(sub) : "—"}

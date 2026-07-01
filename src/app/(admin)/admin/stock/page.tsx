@@ -23,11 +23,11 @@ export default async function StockPage() {
       .select("id, nombre")
       .eq("is_active", true)
       .order("nombre"),
-    supabase
+    (supabase as any)
       .from("products")
-      .select("id, name, sku, category_id")
+      .select("id, name, sku, category_id, unit_label, stock_minimo")
       .eq("is_active", true)
-      .order("name"),
+      .order("name") as unknown as Promise<{ data: { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number }[] | null }>,
     supabase
       .from("categories")
       .select("id, name")
