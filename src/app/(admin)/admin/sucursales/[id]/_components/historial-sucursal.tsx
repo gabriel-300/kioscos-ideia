@@ -29,7 +29,52 @@ type Movimiento = {
   movimiento_items: Item[];
 };
 
-export function HistorialSucursal({ movimientos }: { movimientos: Movimiento[] }) {
+function printTicket(m: Movimiento, sucursalNombre: string) {
+  const total = m.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+  const fecha = new Date(m.fecha + "T00:00:00").toLocaleDateString("es-AR", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  const id = m.id.slice(-8).toUpperCase();
+
+  const rows = m.movimiento_items.map((item) => `
+    <tr>
+      <td style="padding:4px 0;border-bottom:1px solid #eee">${item.product?.name ?? "Producto"}</td>
+      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:center">${item.cantidad}</td>
+      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:right">${AR.format(item.precio_unitario ?? 0)}</td>
+      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${item.subtotal != null ? AR.format(item.subtotal) : "—"}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Ticket ${id}</title>
+  <style>
+    body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 12px; }
+    h1 { font-size: 15px; font-weight: 800; margin: 0 0 2px; }
+    .sub { color: #666; margin-bottom: 10px; font-size: 11px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 10px; text-transform: uppercase; color: #999; padding-bottom: 4px; border-bottom: 2px solid #000; }
+    th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
+    .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
+    .footer { text-align: center; color: #999; font-size: 10px; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 8px; }
+    @media print { body { width: 100%; } }
+  </style></head><body>
+  <h1>Kioscos IDEIA</h1>
+  <div class="sub">${sucursalNombre}</div>
+  <div class="sub">${fecha} · #${id}</div>
+  <table>
+    <thead><tr><th>Producto</th><th style="text-align:right">Cant</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="total">TOTAL: ${AR.format(total)}</div>
+  <div class="footer">En Minutas — Kioscos IDEIA</div>
+  <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
+  </body></html>`;
+
+  const w = window.open("", "_blank", "width=340,height=500");
+  w?.document.write(html);
+  w?.document.close();
+}
+
+export function HistorialSucursal({ movimientos, sucursalNombre = "" }: { movimientos: Movimiento[]; sucursalNombre?: string }) {
   const [expanded,  setExpanded]  = useState<string | null>(null);
   const [mesFilter, setMesFilter] = useState("");
   const [tipoFilter, setTipo]     = useState("all");
@@ -93,7 +138,7 @@ export function HistorialSucursal({ movimientos }: { movimientos: Movimiento[] }
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Tipo</th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Notas</th>
             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Total</th>
-            <th className="px-4 py-3 w-8" />
+            <th className="px-4 py-3 w-16" />
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -124,12 +169,25 @@ export function HistorialSucursal({ movimientos }: { movimientos: Movimiento[] }
                     {total > 0 ? AR.format(total) : <span className="text-neutral-300 font-normal text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-400">
-                    <svg
-                      className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
+                    <div className="flex items-center justify-end gap-1">
+                      {m.tipo === "venta" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); printTicket(m, sucursalNombre); }}
+                          className="p-1 rounded hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
+                          title="Imprimir ticket"
+                        >
+                          <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+                          </svg>
+                        </button>
+                      )}
+                      <svg
+                        className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </div>
                   </td>
                 </tr>
 

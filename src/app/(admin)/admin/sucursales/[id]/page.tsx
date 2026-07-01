@@ -358,7 +358,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           <h2 className="text-sm font-semibold text-neutral-900">Historial de movimientos</h2>
           <span className="text-xs text-neutral-400">{movs.length} registros</span>
         </div>
-        <HistorialSucursal movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]} />
+        <HistorialSucursal movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]} sucursalNombre={sucursal.nombre} />
       </div>
     </div>
   );
