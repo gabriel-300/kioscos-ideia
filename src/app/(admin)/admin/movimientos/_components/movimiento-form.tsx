@@ -43,6 +43,8 @@ export function MovimientoForm({ open, sucursales, products, onClose, defaultSuc
   const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
   const [tipo,       setTipo]       = useState<TipoMov>(defaultTipo ?? "entrega");
   const [notas,      setNotas]      = useState("");
+  const [proveedor,  setProveedor]  = useState("");
+  const [nroRemito,  setNroRemito]  = useState("");
   const [items,      setItems]      = useState<LineItem[]>([emptyLine()]);
   const [error,      setError]      = useState<string | null>(null);
 
@@ -51,6 +53,8 @@ export function MovimientoForm({ open, sucursales, products, onClose, defaultSuc
     setFecha(new Date().toISOString().slice(0, 10));
     setTipo(defaultTipo ?? "entrega");
     setNotas("");
+    setProveedor("");
+    setNroRemito("");
     setItems([emptyLine()]);
     setError(null);
   }
@@ -92,7 +96,15 @@ export function MovimientoForm({ open, sucursales, products, onClose, defaultSuc
 
     startTransition(async () => {
       try {
-        await crearMovimiento({ sucursal_id: sucursalId, fecha, tipo, notas: notas || null, items: parsed });
+        await crearMovimiento({
+          sucursal_id: sucursalId,
+          fecha,
+          tipo,
+          notas:      notas      || null,
+          proveedor:  proveedor  || null,
+          nro_remito: nroRemito  || null,
+          items:      parsed,
+        });
         resetForm();
         onClose();
       } catch (e) {
@@ -251,6 +263,41 @@ export function MovimientoForm({ open, sucursales, products, onClose, defaultSuc
               </div>
             )}
           </div>
+
+          {/* Datos de factura — solo en entregas */}
+          {tipo === "entrega" && (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+                Datos de factura / remito (opcional)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
+                    Proveedor
+                  </label>
+                  <input
+                    type="text"
+                    value={proveedor}
+                    onChange={(e) => setProveedor(e.target.value)}
+                    placeholder="Nombre del proveedor"
+                    className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
+                    N° Remito / Factura
+                  </label>
+                  <input
+                    type="text"
+                    value={nroRemito}
+                    onChange={(e) => setNroRemito(e.target.value)}
+                    placeholder="Ej: 0001-00012345"
+                    className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <Textarea
             label="Notas"

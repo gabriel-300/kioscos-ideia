@@ -16,6 +16,8 @@ export async function crearMovimiento(data: {
   tipo:        "entrega" | "devolucion" | "ajuste" | "venta";
   notas:       string | null;
   items:       ItemInput[];
+  proveedor?:  string | null;
+  nro_remito?: string | null;
 }) {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
@@ -32,17 +34,19 @@ export async function crearMovimiento(data: {
     }
   }
 
-  const { data: mov, error } = await supabase
+  const { data: mov, error } = await ((supabase as any)
     .from("movimientos")
     .insert({
       sucursal_id: data.sucursal_id,
       fecha:       data.fecha,
       tipo:        data.tipo,
       notas:       data.notas,
+      proveedor:   data.proveedor  ?? null,
+      nro_remito:  data.nro_remito ?? null,
       created_by:  userId,
     })
     .select("id")
-    .single();
+    .single() as unknown as Promise<{ data: { id: string } | null; error: { message: string } | null }>);
 
   if (error || !mov) throw new Error(error?.message ?? "Error al crear movimiento");
 
