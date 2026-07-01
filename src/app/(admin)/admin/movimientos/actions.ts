@@ -18,9 +18,15 @@ export async function crearMovimiento(data: {
   items:       ItemInput[];
   proveedor?:  string | null;
   nro_remito?: string | null;
+  canal?:      string | null;
 }) {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
+
+  // Encargados no pueden hacer ajustes de stock
+  if (role === "encargado" && data.tipo === "ajuste") {
+    throw new Error("No tenés permisos para realizar ajustes de stock");
+  }
 
   // Encargados solo pueden registrar movimientos en su propia sucursal
   if (role === "encargado") {
@@ -43,6 +49,7 @@ export async function crearMovimiento(data: {
       notas:       data.notas,
       proveedor:   data.proveedor  ?? null,
       nro_remito:  data.nro_remito ?? null,
+      canal:       data.canal      ?? "consumidor_final",
       created_by:  userId,
     })
     .select("id")

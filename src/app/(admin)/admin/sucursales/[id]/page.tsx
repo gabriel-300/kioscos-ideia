@@ -139,14 +139,6 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   sucursalId={sucursal.id}
                   sucursalNombre={sucursal.nombre}
                   products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
-                  defaultTipo="ajuste"
-                  label="Ajuste"
-                  variant="ghost"
-                />
-                <NuevaEntregaButton
-                  sucursalId={sucursal.id}
-                  sucursalNombre={sucursal.nombre}
-                  products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
                   defaultTipo="entrega"
                   label="Registrar recepción"
                   variant="ghost"
