@@ -81,6 +81,7 @@ export default async function DashboardPage() {
   }
 
   const now       = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const hoy       = new Date().toISOString().slice(0, 10);
   const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
   const [
@@ -91,6 +92,11 @@ export default async function DashboardPage() {
     { data: ultimosMovimientos },
     { data: entregasMesRaw },
     { data: ventasMesRaw },
+    { data: sucursalesHoy },
+    { data: ventasHoyRaw },
+    aperturaHoyRaw,
+    cierreHoyRaw,
+    retirosHoyRaw,
   ] = await Promise.all([
     supabase.from("sucursales").select("*", { count: "exact", head: true }),
     supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -116,6 +122,29 @@ export default async function DashboardPage() {
       .select("sucursal:sucursales(id, nombre), movimiento_items(subtotal, cantidad, product:products(id, name))")
       .eq("tipo", "venta")
       .gte("fecha", mesInicio),
+    // sucursales activas para resumen del día
+    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
+    // ventas de hoy por sucursal
+    supabase
+      .from("movimientos")
+      .select("sucursal_id, movimiento_items(subtotal)")
+      .eq("tipo", "venta")
+      .eq("fecha", hoy),
+    // aperturas de hoy
+    (supabase as any)
+      .from("aperturas_caja")
+      .select("sucursal_id, fondo_inicial")
+      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; fondo_inicial: number }[] | null }>,
+    // cierres de hoy
+    (supabase as any)
+      .from("cierres_caja")
+      .select("sucursal_id, total_ventas")
+      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; total_ventas: number }[] | null }>,
+    // retiros de hoy
+    (supabase as any)
+      .from("retiros_caja")
+      .select("sucursal_id, monto")
+      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };
@@ -178,6 +207,41 @@ export default async function DashboardPage() {
   const maxDistrib  = topDistrib[0]?.cantidad  ?? 1;
   const maxVendidos = topVendidos[0]?.cantidad ?? 1;
 
+  // ── Resumen del día por sucursal ──
+  type ResumenSuc = {
+    id: string; nombre: string;
+    apertura: number | null;
+    ventasHoy: number;
+    registrosVenta: number;
+    retiros: number;
+    cerrado: boolean;
+  };
+
+  const ventasHoyMap = new Map<string, { total: number; registros: number }>();
+  for (const v of ventasHoyRaw ?? []) {
+    const total = (v.movimiento_items as { subtotal: number | null }[]).reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    const prev  = ventasHoyMap.get(v.sucursal_id) ?? { total: 0, registros: 0 };
+    ventasHoyMap.set(v.sucursal_id, { total: prev.total + total, registros: prev.registros + 1 });
+  }
+  const aperturaMap = new Map((aperturaHoyRaw.data ?? []).map((a) => [a.sucursal_id, a.fondo_inicial]));
+  const cierreSet   = new Set((cierreHoyRaw.data  ?? []).map((c) => c.sucursal_id));
+  const retirosMap  = new Map<string, number>();
+  for (const r of retirosHoyRaw.data ?? []) {
+    retirosMap.set(r.sucursal_id, (retirosMap.get(r.sucursal_id) ?? 0) + r.monto);
+  }
+
+  const resumenHoy: ResumenSuc[] = (sucursalesHoy ?? []).map((s) => ({
+    id:             s.id,
+    nombre:         s.nombre,
+    apertura:       aperturaMap.has(s.id) ? aperturaMap.get(s.id)! : null,
+    ventasHoy:      ventasHoyMap.get(s.id)?.total    ?? 0,
+    registrosVenta: ventasHoyMap.get(s.id)?.registros ?? 0,
+    retiros:        retirosMap.get(s.id) ?? 0,
+    cerrado:        cierreSet.has(s.id),
+  }));
+
+  const totalVentasHoy = resumenHoy.reduce((s, r) => s + r.ventasHoy, 0);
+
   return (
     <div className="p-4 md:p-8 max-w-5xl">
 
@@ -197,6 +261,61 @@ export default async function DashboardPage() {
           Nueva entrega
         </Link>
       </div>
+
+      {/* ── Resumen del día ── */}
+      {resumenHoy.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-neutral-900">Hoy — {new Date().toLocaleDateString("es-AR", { day: "numeric", month: "long" })}</h2>
+            {totalVentasHoy > 0 && (
+              <span className="text-sm font-bold tabular-nums text-selva-700">{AR.format(totalVentasHoy)} total ventas</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {resumenHoy.map((s) => (
+              <Link key={s.id} href={`/admin/sucursales/${s.id}`} className="block group">
+                <div className="bg-white rounded-xl border border-neutral-200 p-4 hover:border-neutral-300 hover:shadow-sm transition-all">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-semibold text-sm text-neutral-800 group-hover:text-tierra-700 transition-colors truncate">{s.nombre}</span>
+                    {s.cerrado ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 shrink-0 ml-2">Cerrado</span>
+                    ) : s.apertura !== null ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-selva-50 text-selva-700 shrink-0 ml-2">Abierto</span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0 ml-2">Sin apertura</span>
+                    )}
+                  </div>
+                  {/* Métricas */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wide mb-0.5">Fondo</p>
+                      <p className="text-sm font-bold tabular-nums text-neutral-700">
+                        {s.apertura !== null ? AR.format(s.apertura) : <span className="text-neutral-300 font-normal">—</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wide mb-0.5">Ventas</p>
+                      <p className={`text-sm font-bold tabular-nums ${s.ventasHoy > 0 ? "text-selva-700" : "text-neutral-300"}`}>
+                        {s.ventasHoy > 0 ? AR.format(s.ventasHoy) : "—"}
+                      </p>
+                      {s.registrosVenta > 0 && (
+                        <p className="text-[10px] text-neutral-400">{s.registrosVenta} reg.</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wide mb-0.5">Retiros</p>
+                      <p className={`text-sm font-bold tabular-nums ${s.retiros > 0 ? "text-danger" : "text-neutral-300"}`}>
+                        {s.retiros > 0 ? AR.format(s.retiros) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
