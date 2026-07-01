@@ -59,7 +59,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null } | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("fondo_inicial, notas").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fondo_inicial: number; notas: string | null } | null }>,
-    (supabase as any).from("retiros_caja").select("id, monto, motivo, created_at").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; monto: number; motivo: string; created_at: string }[] | null }>,
+    (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
   ]);
 
   if (!sucursal) notFound();
@@ -69,7 +69,9 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
     redirect("/admin/dashboard");
   }
 
-  const movs = movimientos ?? [];
+  const movs       = movimientos ?? [];
+  const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
+  const retirosHoyFilt = todosRetiros.filter((r) => r.fecha === hoy);
 
   // Totales
   const totalEntregado = movs
@@ -88,7 +90,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
 
-  const retiros        = retirosHoy ?? [];
+  const retiros        = retirosHoyFilt;
   const totalRetiros   = retiros.reduce((sum, r) => sum + r.monto, 0);
 
   const ventasHoy      = movs.filter((m) => m.tipo === "venta" && m.fecha === hoy);
@@ -350,7 +352,11 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           <h2 className="text-sm font-semibold text-neutral-900">Historial de movimientos</h2>
           <span className="text-xs text-neutral-400">{movs.length} registros</span>
         </div>
-        <HistorialSucursal movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]} sucursalNombre={sucursal.nombre} />
+        <HistorialSucursal
+          movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]}
+          sucursalNombre={sucursal.nombre}
+          retiros={todosRetiros}
+        />
       </div>
     </div>
   );
