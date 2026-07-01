@@ -40,12 +40,11 @@ export default async function StockPage() {
     const { data: sucursal } = await supabase
       .from("sucursales").select("id, nombre").eq("id", staffSucursalId).single();
 
-    const { data: stockRows } = await (supabase as any)
+    const stockRes = await (supabase as any)
       .from("stock_sucursal")
       .select("product_id, entradas, salidas, stock_actual")
-      .eq("sucursal_id", staffSucursalId) as unknown as Promise<{
-        data: { product_id: string; entradas: number; salidas: number; stock_actual: number }[] | null
-      }>;
+      .eq("sucursal_id", staffSucursalId);
+    const stockRows = stockRes.data as { product_id: string; entradas: number; salidas: number; stock_actual: number }[] | null;
 
     const entradaMap: Record<string, number> = {};
     const salidaMap:  Record<string, number> = {};
