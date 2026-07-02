@@ -368,6 +368,8 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   <th className="px-4 py-2.5 text-right font-semibold">Ventas</th>
                   <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Efectivo</th>
                   <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Billetera</th>
+                  <th className="px-4 py-2.5 text-right font-semibold hidden md:table-cell">Tarjeta</th>
+                  <th className="px-4 py-2.5 text-right font-semibold hidden md:table-cell">Transfer.</th>
                   <th className="px-4 py-2.5 text-right font-semibold">Diferencia</th>
                 </tr>
               </thead>
@@ -385,6 +387,12 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden sm:table-cell">
                       {(c.billetera_declarada ?? 0) > 0 ? AR.format(c.billetera_declarada) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden md:table-cell">
+                      {(c.tarjeta_declarada ?? 0) > 0 ? AR.format(c.tarjeta_declarada!) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden md:table-cell">
+                      {(c.transferencia_declarada ?? 0) > 0 ? AR.format(c.transferencia_declarada!) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {c.diferencia !== null ? (
