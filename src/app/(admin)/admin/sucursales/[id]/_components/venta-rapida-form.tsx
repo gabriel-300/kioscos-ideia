@@ -92,9 +92,10 @@ interface Props {
   stockMap?:       Record<string, number>;
   categories?:     Category[];
   personal?:       Personal[];
+  cajaAbierta?:    boolean;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [] }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
@@ -161,6 +162,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   function handleClose() { resetForm(); onClose(); }
 
   function handleConfirm() {
+    if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (totalIngresado < totalPrecio) { setError("El monto ingresado no cubre el total"); return; }
     setError(null);
     const now  = new Date();
@@ -540,24 +542,40 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               ))}
             </div>
 
-            {/* Selector de personal — solo para cuenta corriente */}
-            {canal === "cuenta_corriente" && personal.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <select
-                  value={personalId}
-                  onChange={(e) => setPersonalId(e.target.value)}
-                  style={{
-                    width: "100%", height: 34, borderRadius: 7, border: `1.5px solid ${personalId ? "#5B21B6" : "#E2E8F0"}`,
-                    background: personalId ? "#F5F3FF" : "white", color: personalId ? "#5B21B6" : "#94A3B8",
-                    fontSize: 12, fontWeight: personalId ? 700 : 400, padding: "0 10px",
-                    outline: "none", cursor: "pointer",
-                  }}
-                >
-                  <option value="">Seleccionar persona…</option>
-                  {personal.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
+            {/* Beneficiario — solo para cuenta corriente */}
+            {canal === "cuenta_corriente" && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Beneficiario
+                </p>
+                {personal.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#F59E0B", fontWeight: 600 }}>No hay personal registrado en esta sucursal</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {personal.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => setPersonalId(prev => prev === p.id ? "" : p.id)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "8px 10px", borderRadius: 7,
+                          border: `1.5px solid ${personalId === p.id ? "#5B21B6" : "#E2E8F0"}`,
+                          background: personalId === p.id ? "#F5F3FF" : "white",
+                          color: personalId === p.id ? "#5B21B6" : "#475569",
+                          fontSize: 13, fontWeight: personalId === p.id ? 700 : 500,
+                          cursor: "pointer", transition: "all .12s", textAlign: "left",
+                        }}
+                      >
+                        <span>{p.nombre}</span>
+                        {personalId === p.id && (
+                          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -607,26 +625,38 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <span style={{ fontSize: 28, fontWeight: 900, color: "#0F172A", letterSpacing: -1 }}>{AR.format(totalPrecio)}</span>
             </div>
 
+            {/* Warnings */}
+            {cajaAbierta === false && (
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 7, background: "#FEF2F2", border: "1px solid #FCA5A5" }}>
+                <p style={{ fontSize: 12, color: "#DC2626", fontWeight: 600, margin: 0 }}>Abrí la caja antes de registrar ventas</p>
+              </div>
+            )}
+            {cajaAbierta !== false && canal === "cuenta_corriente" && !personalId && seleccionados.length > 0 && (
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 7, background: "#FFF7ED", border: "1px solid #FED7AA" }}>
+                <p style={{ fontSize: 12, color: "#C2410C", fontWeight: 600, margin: 0 }}>Seleccioná un beneficiario</p>
+              </div>
+            )}
+
             {/* Cobrar button */}
-            <button
-              onClick={() => { setError(null); setShowPay(true); }}
-              disabled={seleccionados.length === 0}
-              style={{
-                width: "100%",
-                padding: "14px",
-                borderRadius: 8,
-                background: seleccionados.length === 0 ? "#E2E8F0" : NAVY,
-                color: seleccionados.length === 0 ? "#94A3B8" : "white",
-                fontSize: 15,
-                fontWeight: 800,
-                border: "none",
-                cursor: seleccionados.length === 0 ? "not-allowed" : "pointer",
-                letterSpacing: "-0.2px",
-                transition: "all .15s",
-              }}
-            >
-              {seleccionados.length === 0 ? "Cobrar" : `Cobrar ${AR.format(totalPrecio)}`}
-            </button>
+            {(() => {
+              const disabled = seleccionados.length === 0 || cajaAbierta === false || (canal === "cuenta_corriente" && !personalId);
+              return (
+                <button
+                  onClick={() => { setError(null); setShowPay(true); }}
+                  disabled={disabled}
+                  style={{
+                    width: "100%", padding: "14px", borderRadius: 8,
+                    background: disabled ? "#E2E8F0" : NAVY,
+                    color: disabled ? "#94A3B8" : "white",
+                    fontSize: 15, fontWeight: 800, border: "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    letterSpacing: "-0.2px", transition: "all .15s",
+                  }}
+                >
+                  {seleccionados.length === 0 ? "Cobrar" : `Cobrar ${AR.format(totalPrecio)}`}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>

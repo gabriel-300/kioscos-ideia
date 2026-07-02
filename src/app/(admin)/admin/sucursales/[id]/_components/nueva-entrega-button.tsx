@@ -19,6 +19,7 @@ export function NuevaEntregaButton({
   stockMap,
   categories,
   personal,
+  cajaAbierta,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -29,6 +30,7 @@ export function NuevaEntregaButton({
   stockMap?:      Record<string, number>;
   categories?:    { id: string; name: string }[];
   personal?:      { id: string; nombre: string }[];
+  cajaAbierta?:   boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -53,6 +55,7 @@ export function NuevaEntregaButton({
           stockMap={stockMap}
           categories={categories}
           personal={personal}
+          cajaAbierta={cajaAbierta}
         />
       ) : (
         <MovimientoForm

@@ -171,6 +171,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   stockMap={stockActual}
                   categories={categories ?? []}
                   personal={personal}
+                  cajaAbierta={cajaAbierta}
                 />
               </>
             ) : (
@@ -184,6 +185,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
                   stockMap={stockActual}
                   categories={categories ?? []}
                   personal={personal}
+                  cajaAbierta={cajaAbierta}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
