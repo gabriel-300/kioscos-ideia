@@ -106,6 +106,28 @@ export async function crearMovimiento(data: {
   revalidatePath("/admin/stock");
 }
 
+export async function actualizarMovimientoMetadata(
+  id: string,
+  data: {
+    fecha?:            string;
+    notas?:            string | null;
+    proveedor?:        string | null;
+    nro_remito?:       string | null;
+    remito_image_url?: string | null;
+  }
+) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+  const { data: mov } = await supabase.from("movimientos").select("sucursal_id").eq("id", id).single();
+  const { error }     = await (supabase as any).from("movimientos").update(data).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/movimientos");
+  if (mov?.sucursal_id) {
+    revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
+    revalidatePath("/admin/sucursales");
+  }
+}
+
 export async function eliminarMovimiento(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();

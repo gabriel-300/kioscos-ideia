@@ -2,9 +2,10 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MovimientoForm } from "./movimiento-form";
 import { ExportButton } from "./export-button";
-import { eliminarMovimiento } from "../actions";
+import { eliminarMovimiento, actualizarMovimientoMetadata } from "../actions";
 import { Button, Badge } from "@/components/ui";
 import type { Database } from "@/types/database";
 
@@ -34,6 +35,66 @@ const TIPO_COLOR: Record<string, string> = {
 const TIPO_LABEL: Record<string, string> = {
   entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste",
 };
+
+function EditMetadataForm({ m, onDone }: { m: MovimientoRow; onDone: () => void }) {
+  const [fecha,     setFecha]     = useState(m.fecha);
+  const [notas,     setNotas]     = useState(m.notas ?? "");
+  const [proveedor, setProveedor] = useState((m as any).proveedor ?? "");
+  const [nroRemito, setNroRemito] = useState((m as any).nro_remito ?? "");
+  const [pending,   startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleSave() {
+    startTransition(async () => {
+      try {
+        await actualizarMovimientoMetadata(m.id, {
+          fecha,
+          notas:      notas     || null,
+          proveedor:  proveedor || null,
+          nro_remito: nroRemito || null,
+        });
+        router.refresh();
+        onDone();
+      } catch (e) { alert((e as Error).message); }
+    });
+  }
+
+  return (
+    <div className="px-10 py-3 bg-blue-50 border-t border-blue-100 space-y-2">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Editar datos</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-neutral-500 block mb-0.5">Fecha</label>
+          <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
+            className="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700" />
+        </div>
+        {m.tipo === "entrega" && (
+          <div>
+            <label className="text-xs text-neutral-500 block mb-0.5">Proveedor</label>
+            <input type="text" value={proveedor} onChange={(e) => setProveedor(e.target.value)} placeholder="—"
+              className="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700" />
+          </div>
+        )}
+        {m.tipo === "entrega" && (
+          <div>
+            <label className="text-xs text-neutral-500 block mb-0.5">N° Remito</label>
+            <input type="text" value={nroRemito} onChange={(e) => setNroRemito(e.target.value)} placeholder="—"
+              className="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700" />
+          </div>
+        )}
+        <div className={m.tipo === "entrega" ? "col-span-2" : ""}>
+          <label className="text-xs text-neutral-500 block mb-0.5">Notas</label>
+          <input type="text" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="—"
+            className="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700" />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button variant="primary" size="sm" loading={pending} onClick={handleSave}>Guardar</Button>
+        <Button variant="ghost"   size="sm" onClick={onDone}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
 
 function DeleteBtn({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
@@ -69,6 +130,7 @@ export function MovimientosList({
   const [formOpen,        setFormOpen]        = useState(false);
   const [search,          setSearch]          = useState("");
   const [expanded,        setExpanded]        = useState<string | null>(null);
+  const [editingId,       setEditingId]       = useState<string | null>(null);
   const [tipoFilter,      setTipo]            = useState<"all" | "entrega" | "devolucion" | "venta" | "ajuste">("all");
   const [mes,             setMes]             = useState(mesDefault);
   const [proveedorFilter, setProveedorFilter] = useState("all");
@@ -239,12 +301,7 @@ export function MovimientosList({
                       )}
                       {(m as any).remito_image_url && (
                         <div className="mt-3">
-                          <a
-                            href={(m as any).remito_image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block"
-                          >
+                          <a href={(m as any).remito_image_url} target="_blank" rel="noopener noreferrer" className="inline-block">
                             <img
                               src={(m as any).remito_image_url}
                               alt="Imagen del remito"
@@ -257,7 +314,18 @@ export function MovimientosList({
                       {m.notas && (
                         <p className="mt-1.5 text-xs text-neutral-500 italic">{m.notas}</p>
                       )}
+                      <div className="mt-2 pt-2 border-t border-neutral-100">
+                        <button
+                          onClick={() => setEditingId(editingId === m.id ? null : m.id)}
+                          className="text-xs text-tierra-700 hover:underline font-medium"
+                        >
+                          {editingId === m.id ? "Cancelar edición" : "Editar datos"}
+                        </button>
+                      </div>
                     </div>
+                  )}
+                  {isOpen && editingId === m.id && (
+                    <EditMetadataForm m={m} onDone={() => setEditingId(null)} />
                   )}
                 </div>
               );

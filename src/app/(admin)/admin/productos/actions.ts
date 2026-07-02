@@ -28,8 +28,29 @@ export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "up
 export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>) {
   await requireAdmin();
   const supabase = createAdminClient();
+
+  // Leer precios actuales para detectar cambios
+  const { data: current } = await supabase.from("products").select("precio_dist, costo").eq("id", id).single();
+
   const { error } = await (supabase as any).from("products").update(data).eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Registrar historial si algún precio cambió
+  if (current) {
+    const d = data as Record<string, unknown>;
+    const precioChanged = d.precio_dist !== undefined && d.precio_dist !== current.precio_dist;
+    const costoChanged  = d.costo      !== undefined && d.costo      !== current.costo;
+    if (precioChanged || costoChanged) {
+      await (supabase as any).from("product_price_history").insert({
+        product_id:           id,
+        precio_dist_anterior: precioChanged ? current.precio_dist : null,
+        precio_dist_nuevo:    precioChanged ? d.precio_dist       : null,
+        costo_anterior:       costoChanged  ? current.costo       : null,
+        costo_nuevo:          costoChanged  ? d.costo             : null,
+      });
+    }
+  }
+
   revalidatePath("/admin/productos");
 }
 

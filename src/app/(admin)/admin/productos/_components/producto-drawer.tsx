@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useCallback } from "react";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
@@ -49,9 +50,21 @@ interface Props {
   onClose:    () => void;
 }
 
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
+type PriceHistoryEntry = {
+  id: string;
+  precio_dist_anterior: number | null;
+  precio_dist_nuevo: number | null;
+  costo_anterior: number | null;
+  costo_nuevo: number | null;
+  changed_at: string;
+};
+
 export function ProductoDrawer({ open, product, categories, onClose }: Props) {
-  const [pending,  startTransition] = useTransition();
-  const [imageUrl, setImageUrl]     = useState<string | null>(null);
+  const [pending,      startTransition] = useTransition();
+  const [imageUrl,     setImageUrl]     = useState<string | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
@@ -61,6 +74,18 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       costo: null, precio_dist: null, pkg_unitario: null, stock_minimo: 0,
     },
   });
+
+  useEffect(() => {
+    if (!open || !product) { setPriceHistory([]); return; }
+    const supabase = createBrowserClient();
+    (supabase as any)
+      .from("product_price_history")
+      .select("id, precio_dist_anterior, precio_dist_nuevo, costo_anterior, costo_nuevo, changed_at")
+      .eq("product_id", product.id)
+      .order("changed_at", { ascending: false })
+      .limit(12)
+      .then(({ data }: { data: PriceHistoryEntry[] | null }) => setPriceHistory(data ?? []));
+  }, [open, product?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -194,6 +219,36 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Historial de precios */}
+          {product && priceHistory.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Historial de precios</p>
+              <div className="rounded-xl border border-neutral-100 overflow-hidden divide-y divide-neutral-100">
+                {priceHistory.map((h) => (
+                  <div key={h.id} className="flex justify-between items-start px-3 py-2 text-xs">
+                    <span className="text-neutral-400">
+                      {new Date(h.changed_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                    <div className="text-right space-y-0.5">
+                      {h.precio_dist_nuevo != null && (
+                        <p className="text-neutral-700">
+                          Precio: {h.precio_dist_anterior != null ? `${AR.format(h.precio_dist_anterior)} → ` : ""}
+                          <span className="font-semibold">{AR.format(h.precio_dist_nuevo)}</span>
+                        </p>
+                      )}
+                      {h.costo_nuevo != null && (
+                        <p className="text-neutral-500">
+                          Costo: {h.costo_anterior != null ? `${AR.format(h.costo_anterior)} → ` : ""}
+                          <span className="font-semibold">{AR.format(h.costo_nuevo)}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Embalaje */}
           <div className="space-y-3">
