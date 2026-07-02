@@ -60,9 +60,9 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
     supabase.from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-    (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: CierreRow[] | null }>,
+    (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
-    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
+    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
     (supabase as any)
       .from("profiles")
@@ -71,9 +71,10 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
   ]);
 
   const movimientos = movimentos;
-  const aperturaActual = aperturasData?.[0] ?? null;
-  const ultimoCierre   = cierresData?.[0] ?? null;
-  const cajaAbierta    = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
+  const aperturaActual   = aperturasData?.[0] ?? null;
+  const ultimoCierre     = cierresData?.[0] ?? null;
+  const historicosCierres = cierresData ?? [];
+  const cajaAbierta      = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
 
   if (!sucursal) notFound();
 
@@ -335,6 +336,77 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           value={totalEntregado - totalDevuelto > 0 ? AR.format(totalEntregado - totalDevuelto) : "—"}
           sub="entregado − devuelto"
         />
+      </div>
+
+      {/* Acceso rápido a Cta. Corriente */}
+      <div className="mb-6">
+        <Link
+          href={`/admin/sucursales/${sucursal.id}/cta-corriente`}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:border-tierra-300 hover:bg-tierra-50 transition-colors text-sm font-medium text-neutral-700 hover:text-tierra-700"
+        >
+          <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+          </svg>
+          Ver cuenta corriente
+        </Link>
+      </div>
+
+      {/* Historial de cierres */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-neutral-900">Historial de cierres</h2>
+          <span className="text-xs text-neutral-400">{historicosCierres.length} registros</span>
+        </div>
+        {historicosCierres.length === 0 ? (
+          <p className="text-sm text-neutral-400">No hay cierres registrados.</p>
+        ) : (
+          <div className="rounded-xl border border-neutral-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 text-neutral-400 text-xs uppercase tracking-wider border-b border-neutral-200">
+                  <th className="px-4 py-2.5 text-left font-semibold">Fecha</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Ventas</th>
+                  <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Efectivo</th>
+                  <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Billetera</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {historicosCierres.map((c) => (
+                  <tr key={c.created_at} className="hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 text-neutral-700 font-medium">
+                      {new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-neutral-900">
+                      {AR.format(c.total_ventas)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden sm:table-cell">
+                      {c.efectivo_declarado > 0 ? AR.format(c.efectivo_declarado) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden sm:table-cell">
+                      {(c.billetera_declarada ?? 0) > 0 ? AR.format(c.billetera_declarada) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {c.diferencia !== null ? (
+                        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${
+                          c.diferencia === 0
+                            ? "bg-selva-50 text-selva-700"
+                            : c.diferencia > 0
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-red-50 text-red-600"
+                        }`}>
+                          {c.diferencia > 0 ? "+" : ""}{AR.format(c.diferencia)}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Historial */}

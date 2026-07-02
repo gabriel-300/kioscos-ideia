@@ -15,7 +15,7 @@ interface Props {
   movimientos:    MovimientoCierre[];
   cajaAbierta:    boolean;
   ultimoCierre:   UltimoCierre;
-  aperturaActual?: { fondo_inicial: number } | null;
+  aperturaActual?: { fondo_inicial: number; created_at: string } | null;
 }
 
 function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: {
@@ -66,7 +66,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const [pending, startTransition] = useTransition();
   const efectivoRef = useRef<HTMLInputElement>(null);
 
-  const ventasHoy = movimientos.filter((m) => m.tipo === "venta" && m.fecha === hoy);
+  // En multi-turno filtramos por created_at >= apertura actual para no sumar turnos anteriores
+  const ventasHoy = movimientos.filter((m) => {
+    if (m.tipo !== "venta") return false;
+    if (aperturaActual) return m.created_at >= aperturaActual.created_at;
+    return m.fecha === hoy;
+  });
 
   const sugeridoEfectivo      = ventasHoy.reduce((s, m) => s + (m.pago_efectivo      ?? 0), 0);
   const sugeridoBilletera     = ventasHoy.reduce((s, m) => s + (m.pago_billetera     ?? 0), 0);

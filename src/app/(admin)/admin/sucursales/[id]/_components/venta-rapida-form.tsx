@@ -152,6 +152,16 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades((prev) => ({ ...prev, [id]: parseFloat(rounded.toFixed(3)) }));
   }
 
+  // Setter para productos por peso: permite precisión de gramo sin redondear al paso del botón
+  function setGrams(id: string, raw: string) {
+    const v = parseFloat(raw);
+    if (!raw || isNaN(v) || v <= 0) {
+      setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      return;
+    }
+    setCantidades((prev) => ({ ...prev, [id]: Math.round(Math.max(0, v) * 1000) / 1000 }));
+  }
+
   function resetForm() {
     setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
@@ -163,7 +173,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
   function handleConfirm() {
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
-    if (totalIngresado < totalPrecio) { setError("El monto ingresado no cubre el total"); return; }
+    if (Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) { setError("El monto ingresado no cubre el total"); return; }
     setError(null);
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -488,7 +498,19 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                         onClick={() => set(prod.id, qty - step(prod.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid #CBD5E1`, background: "#F8FAFC", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#1E293B" }}
                       >−</button>
-                      <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(prod.id, qty)}</span>
+                      {isKg(prod.id) ? (
+                        <input
+                          type="number"
+                          value={qty}
+                          min={0.001}
+                          step={0.001}
+                          onChange={(e) => setGrams(prod.id, e.target.value)}
+                          onClick={(e) => { e.stopPropagation(); (e.target as HTMLInputElement).select(); }}
+                          style={{ fontSize: 11, fontWeight: 800, width: 54, textAlign: "center", border: "1px solid #CBD5E1", borderRadius: 4, outline: "none", color: "#0F172A", background: "white", padding: "2px 3px" }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(prod.id, qty)}</span>
+                      )}
                       <button
                         onClick={() => set(prod.id, qty + step(prod.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid ${NAVY}`, background: NAVY_L, fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: NAVY }}
@@ -605,7 +627,19 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
-                      <span style={{ fontSize: 11, fontWeight: 800, minWidth: 28, textAlign: "center", color: "#0F172A" }}>{fmtCant(id, qty)}</span>
+                      {isKg(id) ? (
+                        <input
+                          type="number"
+                          value={qty}
+                          min={0.001}
+                          step={0.001}
+                          onChange={(e) => setGrams(id, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          style={{ fontSize: 11, fontWeight: 800, width: 54, textAlign: "center", border: "1px solid #CBD5E1", borderRadius: 4, outline: "none", color: "#0F172A", background: "white", padding: "2px 3px" }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 11, fontWeight: 800, minWidth: 28, textAlign: "center", color: "#0F172A" }}>{fmtCant(id, qty)}</span>
+                      )}
                       <button onClick={() => set(id, qty + step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>+</button>
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 800, color: NAVY, minWidth: 64, textAlign: "right" }}>
@@ -720,11 +754,13 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               {totalIngresado > 0 && totalIngresado !== totalPrecio && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: totalIngresado >= totalPrecio ? GREEN_L : RED_L, borderRadius: 6, padding: "9px 13px" }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: totalIngresado >= totalPrecio ? GREEN : RED }}>
-                    {totalIngresado >= totalPrecio ? (vuelto !== null && vuelto > 0 ? "Vuelto efectivo" : "Exacto ✓") : "Falta"}
+                    {totalIngresado >= totalPrecio
+                      ? (vuelto !== null && vuelto > 0 ? "Vuelto efectivo" : totalIngresado > totalPrecio ? "Excedente" : "Exacto ✓")
+                      : "Falta"}
                   </span>
                   <span style={{ fontSize: 20, fontWeight: 900, color: totalIngresado >= totalPrecio ? GREEN : RED, letterSpacing: "-.5px" }}>
                     {totalIngresado >= totalPrecio
-                      ? (vuelto !== null && vuelto > 0 ? AR.format(vuelto) : "—")
+                      ? (vuelto !== null && vuelto > 0 ? AR.format(vuelto) : totalIngresado > totalPrecio ? AR.format(totalIngresado - totalPrecio) : "—")
                       : AR.format(totalPrecio - totalIngresado)}
                   </span>
                 </div>
@@ -749,8 +785,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               >Cancelar</button>
               <button
                 onClick={handleConfirm}
-                disabled={pending || totalIngresado < totalPrecio}
-                style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: (pending || totalIngresado < totalPrecio) ? "#E2E8F0" : NAVY, color: (pending || totalIngresado < totalPrecio) ? "#94A3B8" : "white", border: "none", cursor: (pending || totalIngresado < totalPrecio) ? "not-allowed" : "pointer" }}
+                disabled={pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)}
+                style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "#E2E8F0" : NAVY, color: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "#94A3B8" : "white", border: "none", cursor: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "not-allowed" : "pointer" }}
               >{pending ? "Guardando…" : "Confirmar venta"}</button>
             </div>
           </div>

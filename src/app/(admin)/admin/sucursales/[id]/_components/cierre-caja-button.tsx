@@ -5,8 +5,9 @@ import { Button } from "@/components/ui";
 import { CierreCajaModal } from "./cierre-caja-modal";
 
 export type MovimientoCierre = {
-  fecha:             string;
-  tipo:              string;
+  fecha:              string;
+  created_at:         string;
+  tipo:               string;
   pago_efectivo:      number | null;
   pago_billetera:     number | null;
   pago_tarjeta:       number | null;
@@ -40,7 +41,7 @@ export function CierreCajaButton({
   movimientos:    MovimientoCierre[];
   cajaAbierta:    boolean;
   ultimoCierre:   UltimoCierre;
-  aperturaActual?: { fondo_inicial: number } | null;
+  aperturaActual?: { fondo_inicial: number; created_at: string } | null;
 }) {
   const [open, setOpen] = useState(false);
 

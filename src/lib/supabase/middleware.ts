@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
-const STAFF_ROLES = ["admin", "encargado"];
+const STAFF_ROLES = ["admin", "encargado", "vendedor"];
 
 const ADMIN_ONLY_PREFIXES = [
   "/admin/productos",
@@ -63,8 +63,8 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL("/login", request.url));
       }
 
-      // Encargados solo pueden ver sus propias rutas (sucursales + dashboard)
-      if (role === "encargado" && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
+      // Encargados y vendedores no pueden acceder a rutas exclusivas de admin
+      if ((role === "encargado" || role === "vendedor") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
       }
     }

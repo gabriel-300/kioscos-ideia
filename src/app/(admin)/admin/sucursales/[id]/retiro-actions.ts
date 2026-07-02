@@ -22,6 +22,13 @@ export async function registrarRetiro(data: {
       throw new Error("No tenés permisos para esta sucursal");
     }
   }
+  if (role === "vendedor") {
+    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
+    if (profile?.sucursal_id !== data.sucursal_id) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
 
   const hoy = new Date().toISOString().slice(0, 10);
 

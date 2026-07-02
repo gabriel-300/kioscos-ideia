@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require-role";
 import type { Database } from "@/types/database";
 
 type Insert = Database["public"]["Tables"]["categories"]["Insert"];
@@ -16,6 +17,7 @@ function slugify(text: string) {
 }
 
 export async function crearCategoria(data: { name: string; description?: string | null }) {
+  await requireAdmin();
   const supabase = createAdminClient();
   const payload: Insert = {
     name:        data.name,
@@ -29,6 +31,7 @@ export async function crearCategoria(data: { name: string; description?: string 
 }
 
 export async function actualizarCategoria(id: string, data: { name: string; description?: string | null }) {
+  await requireAdmin();
   const supabase = createAdminClient();
   const payload: Update = {
     name:        data.name,
@@ -42,6 +45,7 @@ export async function actualizarCategoria(id: string, data: { name: string; desc
 }
 
 export async function toggleCategoriaActiva(id: string, activa: boolean) {
+  await requireAdmin();
   const supabase = createAdminClient();
   const { error } = await supabase.from("categories").update({ is_active: !activa }).eq("id", id);
   if (error) throw new Error(error.message);
@@ -50,6 +54,7 @@ export async function toggleCategoriaActiva(id: string, activa: boolean) {
 }
 
 export async function reordenarCategoria(id: string, sort_order: number) {
+  await requireAdmin();
   const supabase = createAdminClient();
   const { error } = await supabase.from("categories").update({ sort_order }).eq("id", id);
   if (error) throw new Error(error.message);

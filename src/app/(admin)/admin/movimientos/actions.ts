@@ -56,41 +56,31 @@ export async function crearMovimiento(data: {
     }
   }
 
-  const { data: mov, error } = await ((supabase as any)
-    .from("movimientos")
-    .insert({
-      sucursal_id:        data.sucursal_id,
-      fecha:              data.fecha,
-      tipo:               data.tipo,
-      notas:              data.notas,
-      proveedor:          data.proveedor         ?? null,
-      nro_remito:         data.nro_remito        ?? null,
-      canal:              data.canal             ?? "consumidor_final",
-      personal_id:        data.personal_id       ?? null,
-      pago_efectivo:      data.pago_efectivo      ?? null,
-      pago_billetera:     data.pago_billetera     ?? null,
-      pago_tarjeta:       data.pago_tarjeta       ?? null,
-      pago_transferencia: data.pago_transferencia ?? null,
-      created_by:         userId,
-    })
-    .select("id")
-    .single() as unknown as Promise<{ data: { id: string } | null; error: { message: string } | null }>);
-
-  if (error || !mov) throw new Error(error?.message ?? "Error al crear movimiento");
-
   const items = data.items.map((item) => ({
-    movimiento_id:   mov.id,
     product_id:      item.product_id,
     cantidad:        item.cantidad,
-    precio_unitario: item.precio_unitario,
+    precio_unitario: item.precio_unitario ?? null,
     subtotal:        item.precio_unitario != null ? item.cantidad * item.precio_unitario : null,
   }));
 
-  const { error: itemsError } = await supabase.from("movimiento_items").insert(items);
-  if (itemsError) {
-    await supabase.from("movimientos").delete().eq("id", mov.id);
-    throw new Error(itemsError.message);
-  }
+  const rpcRes = await (supabase as any).rpc("crear_movimiento_con_items", {
+    p_sucursal_id:        data.sucursal_id,
+    p_fecha:              data.fecha,
+    p_tipo:               data.tipo,
+    p_notas:              data.notas              ?? null,
+    p_proveedor:          data.proveedor          ?? null,
+    p_nro_remito:         data.nro_remito         ?? null,
+    p_canal:              data.canal              ?? "consumidor_final",
+    p_personal_id:        data.personal_id        ?? null,
+    p_pago_efectivo:      data.pago_efectivo      ?? null,
+    p_pago_billetera:     data.pago_billetera     ?? null,
+    p_pago_tarjeta:       data.pago_tarjeta       ?? null,
+    p_pago_transferencia: data.pago_transferencia ?? null,
+    p_created_by:         userId,
+    p_items:              items,
+  });
+
+  if (rpcRes.error) throw new Error(rpcRes.error.message ?? "Error al crear movimiento");
 
   revalidatePath("/admin/movimientos");
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
