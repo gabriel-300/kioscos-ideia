@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
   const sucursalId = searchParams.get("sucursal_id");
 
   const admin = createAdminClient();
-  let query = admin
+  let query = (admin as any)
     .from("movimientos")
     .select(`
-      id, fecha, tipo, notas, created_at,
+      id, fecha, tipo, notas, created_at, proveedor, nro_remito, canal,
       sucursal:sucursales(nombre, localidad),
       movimiento_items(
         cantidad, precio_unitario, subtotal,
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   if (hasta)      query = query.lte("fecha", hasta);
   if (sucursalId) query = query.eq("sucursal_id", sucursalId);
 
-  const { data, error } = await query;
+  const { data, error } = await query as { data: any[] | null; error: any };
   if (error) return new NextResponse(error.message, { status: 500 });
 
   const movimientos = data ?? [];
@@ -67,13 +67,16 @@ export async function GET(req: NextRequest) {
   // ── Hoja 1: Resumen ────────────────────────────────────────
   const wsResumen = wb.addWorksheet("Resumen");
   wsResumen.columns = [
-    { header: "Fecha",     key: "fecha",    width: 14 },
-    { header: "Sucursal",  key: "sucursal", width: 24 },
-    { header: "Localidad", key: "localidad",width: 16 },
-    { header: "Tipo",      key: "tipo",     width: 14 },
-    { header: "Ítems",     key: "items",    width: 8  },
-    { header: "Total",     key: "total",    width: 16 },
-    { header: "Notas",     key: "notas",    width: 30 },
+    { header: "Fecha",      key: "fecha",      width: 14 },
+    { header: "Sucursal",   key: "sucursal",   width: 24 },
+    { header: "Localidad",  key: "localidad",  width: 16 },
+    { header: "Tipo",       key: "tipo",       width: 14 },
+    { header: "Proveedor",  key: "proveedor",  width: 20 },
+    { header: "N° Remito",  key: "nro_remito", width: 14 },
+    { header: "Ítems",      key: "items",      width: 8  },
+    { header: "Total",      key: "total",      width: 16 },
+    { header: "Canal",      key: "canal",      width: 16 },
+    { header: "Notas",      key: "notas",      width: 30 },
   ];
   styleHeader(wsResumen.getRow(1));
 
@@ -84,13 +87,16 @@ export async function GET(req: NextRequest) {
     totalGeneral += total;
 
     const row = wsResumen.addRow({
-      fecha:     m.fecha,
-      sucursal:  sucursal?.nombre ?? "",
-      localidad: sucursal?.localidad ?? "",
-      tipo:      { entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" }[m.tipo] ?? m.tipo,
-      items:     m.movimiento_items.length,
-      total:     total > 0 ? total : null,
-      notas:     m.notas ?? "",
+      fecha:      m.fecha,
+      sucursal:   sucursal?.nombre ?? "",
+      localidad:  sucursal?.localidad ?? "",
+      tipo:       ({ entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" } as Record<string, string>)[m.tipo] ?? m.tipo,
+      proveedor:  (m as any).proveedor  ?? "",
+      nro_remito: (m as any).nro_remito ?? "",
+      items:      m.movimiento_items.length,
+      total:      total > 0 ? total : null,
+      canal:      (m as any).canal ?? "",
+      notas:      m.notas ?? "",
     });
     row.eachCell((cell) => { cell.border = BORDER; });
 
@@ -142,7 +148,7 @@ export async function GET(req: NextRequest) {
       const row = wsDetalle.addRow({
         fecha:    m.fecha,
         sucursal: sucursal?.nombre ?? "",
-        tipo:     { entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" }[m.tipo] ?? m.tipo,
+        tipo:     ({ entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" } as Record<string, string>)[m.tipo] ?? m.tipo,
         sku:      product?.sku ?? "",
         producto: product?.name ?? "",
         cantidad: item.cantidad,

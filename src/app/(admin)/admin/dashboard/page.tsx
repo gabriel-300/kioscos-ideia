@@ -80,6 +80,20 @@ export default async function DashboardPage() {
     );
   }
 
+  if (role === "vendedor") {
+    const res = await (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
+    const sucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
+    if (sucursalId) redirect(`/admin/sucursales/${sucursalId}`);
+    return (
+      <div className="p-4 md:p-8 max-w-lg">
+        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center">
+          <p className="font-semibold text-neutral-900 mb-1">Sin sucursal asignada</p>
+          <p className="text-sm text-neutral-500">Contactá al administrador para que te asigne una.</p>
+        </div>
+      </div>
+    );
+  }
+
   const admin = createAdminClient();
   const now       = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const hoy       = new Date().toISOString().slice(0, 10);

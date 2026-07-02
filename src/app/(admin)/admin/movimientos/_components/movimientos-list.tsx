@@ -134,6 +134,7 @@ export function MovimientosList({
   const [tipoFilter,      setTipo]            = useState<"all" | "entrega" | "devolucion" | "venta" | "ajuste">("all");
   const [mes,             setMes]             = useState(mesDefault);
   const [proveedorFilter, setProveedorFilter] = useState("all");
+  const [sucursalFilter,  setSucursalFilter]  = useState("all");
 
   const proveedoresEnMovs = useMemo(() => {
     const seen = new Set<string>();
@@ -149,19 +150,19 @@ export function MovimientosList({
     const q = search.toLowerCase();
     return movimientos.filter((m) => {
       if (q) {
-        const matchesSucursal = m.sucursal?.nombre.toLowerCase().includes(q);
         const matchesFecha    = m.fecha.includes(q);
         const matchesProducto = m.movimiento_items.some(
           (i) => i.product?.name.toLowerCase().includes(q) || i.product?.sku.toLowerCase().includes(q)
         );
-        if (!matchesSucursal && !matchesFecha && !matchesProducto) return false;
+        if (!matchesFecha && !matchesProducto) return false;
       }
       if (tipoFilter !== "all" && m.tipo !== tipoFilter) return false;
       if (mes && !m.fecha.startsWith(mes)) return false;
       if (proveedorFilter !== "all" && (m as any).proveedor !== proveedorFilter) return false;
+      if (sucursalFilter !== "all" && m.sucursal?.id !== sucursalFilter) return false;
       return true;
     });
-  }, [movimientos, search, tipoFilter, mes, proveedorFilter]);
+  }, [movimientos, search, tipoFilter, mes, proveedorFilter, sucursalFilter]);
 
   return (
     <>
@@ -191,6 +192,18 @@ export function MovimientosList({
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20 w-44"
           />
+          {sucursales.length > 1 && (
+            <select
+              value={sucursalFilter}
+              onChange={(e) => setSucursalFilter(e.target.value)}
+              className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+            >
+              <option value="all">Todos los kioscos</option>
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
+            </select>
+          )}
           {proveedoresEnMovs.length > 0 && (
             <select
               value={proveedorFilter}
