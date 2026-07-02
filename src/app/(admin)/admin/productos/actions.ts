@@ -107,6 +107,23 @@ export async function ajustarPrecios({
   ).filter((r) => r.error);
   if (errors.length > 0) throw new Error(errors[0].error!.message);
 
+  // Registrar historial de precios para el ajuste masivo
+  const historyItems = products
+    .filter((p) => campos.some((c) => p[c] != null))
+    .map((p) => {
+      const patch = updates.find((u) => u.id === p.id)!;
+      return {
+        product_id:           p.id,
+        precio_dist_anterior: campos.includes("precio_dist") && p.precio_dist != null ? p.precio_dist : null,
+        precio_dist_nuevo:    campos.includes("precio_dist") && patch.precio_dist != null ? patch.precio_dist : null,
+        costo_anterior:       campos.includes("costo") && p.costo != null ? p.costo : null,
+        costo_nuevo:          campos.includes("costo") && patch.costo != null ? patch.costo : null,
+      };
+    });
+  if (historyItems.length > 0) {
+    await (supabase as any).from("product_price_history").insert(historyItems);
+  }
+
   revalidatePath("/admin/productos");
   return { actualizados: products.length };
 }

@@ -140,6 +140,15 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     (stockRows ?? []).map((r) => [r.product_id, r.stock_actual])
   );
 
+  const productosStockBajo = (products ?? [])
+    .filter((p) => {
+      const min = ((p as any).stock_minimo as number) ?? 0;
+      if (min <= 0) return false;
+      return (stockActual[p.id] ?? 0) <= min;
+    })
+    .sort((a, b) => (stockActual[a.id] ?? 0) - (stockActual[b.id] ?? 0))
+    .slice(0, 8);
+
   // Analytics del mes seleccionado
   const ventasDelMes = movs.filter(
     (m) => m.tipo === "venta" && m.fecha >= mesInicio && m.fecha <= mesFin
@@ -379,6 +388,30 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           sub="entregado − devuelto"
         />
       </div>
+
+      {/* Alerta stock bajo */}
+      {productosStockBajo.length > 0 && (
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="size-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <p className="text-sm font-semibold text-amber-800">
+              {productosStockBajo.length === 1 ? "1 producto con stock bajo" : `${productosStockBajo.length} productos con stock bajo`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {productosStockBajo.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-1.5 text-xs">
+                <span className="font-medium text-neutral-700">{p.name}</span>
+                <span className="font-semibold text-amber-700">
+                  {stockActual[p.id] ?? 0} / {(p as any).stock_minimo}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Análisis del mes */}
       <div className="mb-8">

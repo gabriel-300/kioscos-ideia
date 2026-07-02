@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useEffect, useState, useTransition, useCallback, useMemo } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -66,7 +66,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
@@ -142,6 +142,13 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
     });
   }
 
+  const watchedCosto  = watch("costo");
+  const watchedPrecio = watch("precio_dist");
+  const margen = useMemo(() => {
+    if (watchedCosto == null || watchedPrecio == null || watchedCosto <= 0) return null;
+    return Math.round(((watchedPrecio - watchedCosto) / watchedCosto) * 100);
+  }, [watchedCosto, watchedPrecio]);
+
   if (!open) return null;
 
   const catOptions = [
@@ -216,6 +223,17 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
                   {...register("precio_dist")}
                 />
                 <p className="text-[11px] text-neutral-400 mt-1">Lo que cobra IDEIA</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-600 mb-1.5">Margen</p>
+                {margen != null ? (
+                  <p className={`text-xl font-bold font-display tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                    {margen}%
+                  </p>
+                ) : (
+                  <p className="text-xl text-neutral-300 font-bold">—</p>
+                )}
+                <p className="text-[11px] text-neutral-400 mt-1">Ganancia estimada</p>
               </div>
             </div>
           </div>

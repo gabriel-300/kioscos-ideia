@@ -99,6 +99,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Categoría</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">P. Kiosco</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Margen</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activo</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -106,12 +107,16 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
               <tbody className="divide-y divide-neutral-100">
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
                       {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
                     </td>
                   </tr>
                 )}
-                {filtered.map((p) => (
+                {filtered.map((p) => {
+                  const margen = p.costo != null && p.precio_dist != null && p.costo > 0
+                    ? Math.round(((p.precio_dist - p.costo) / p.costo) * 100)
+                    : null;
+                  return (
                   <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-neutral-500">{p.sku}</td>
                     <td className="px-4 py-3">
@@ -138,6 +143,12 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
                       {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}
                     </td>
+                    <td className="px-4 py-3 text-right hidden lg:table-cell">
+                      {margen != null
+                        ? <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>{margen}%</span>
+                        : <span className="text-neutral-300">—</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <ToggleActivo id={p.id} activo={p.is_active} />
                     </td>
@@ -147,7 +158,8 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
