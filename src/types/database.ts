@@ -328,6 +328,7 @@ export interface Database {
           id:                      string;
           sucursal_id:             string;
           fecha:                   string;
+          fondo_inicial:           number;
           total_ventas:            number;
           efectivo_declarado:      number;
           billetera_declarada:     number;
@@ -339,19 +340,21 @@ export interface Database {
           created_at:              string;
         };
         Insert: {
-          id?:                     string;
-          sucursal_id:             string;
-          fecha:                   string;
-          total_ventas:            number;
-          efectivo_declarado?:     number;
-          billetera_declarada?:    number;
-          tarjeta_declarada?:      number | null;
+          id?:                      string;
+          sucursal_id:              string;
+          fecha:                    string;
+          fondo_inicial?:           number;
+          total_ventas:             number;
+          efectivo_declarado?:      number;
+          billetera_declarada?:     number;
+          tarjeta_declarada?:       number | null;
           transferencia_declarada?: number | null;
-          notas?:                  string | null;
-          created_by?:             string | null;
-          created_at?:             string;
+          notas?:                   string | null;
+          created_by?:              string | null;
+          created_at?:              string;
         };
         Update: {
+          fondo_inicial?:           number;
           efectivo_declarado?:      number;
           billetera_declarada?:     number;
           tarjeta_declarada?:       number | null;

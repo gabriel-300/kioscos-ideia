@@ -18,12 +18,13 @@ interface Props {
   aperturaActual?: { fondo_inicial: number } | null;
 }
 
-function MontoInput({ label, icon, value, onChange, sugerido, inputRef }: {
+function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: {
   label:     string;
   icon:      React.ReactNode;
   value:     string;
   onChange:  (v: string) => void;
   sugerido?: number;
+  hint?:     string;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
@@ -36,6 +37,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, inputRef }: {
           <span className="text-xs text-neutral-400">Sugerido: {AR.format(sugerido)}</span>
         )}
       </label>
+      {hint && <p className="text-xs text-neutral-400 mb-1.5">{hint}</p>}
       <div className="relative">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base font-semibold text-neutral-400">$</span>
         <input
@@ -74,9 +76,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const totalVentas  = ventasHoy.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const registrosHoy = ventasHoy.length;
 
+  const fondo = aperturaActual?.fondo_inicial ?? 0;
+
   useEffect(() => {
     if (open && cajaAbierta) {
-      if (sugeridoEfectivo > 0)      setEfectivo(String(sugeridoEfectivo));
+      const efectivoTotal = sugeridoEfectivo + fondo;
+      if (efectivoTotal > 0)         setEfectivo(String(efectivoTotal));
       if (sugeridoBilletera > 0)     setMp(String(sugeridoBilletera));
       if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
       if (sugeridoTransferencia > 0) setTransferencia(String(sugeridoTransferencia));
@@ -96,7 +101,8 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const transferenciaNum = parseFloat(transferencia) || 0;
   const totalDeclarado   = efectivoNum + mpNum + tarjetaNum + transferenciaNum;
   const hayAlgo          = totalDeclarado > 0;
-  const diferencia       = hayAlgo ? totalDeclarado - totalVentas : null;
+  // diferencia = (efectivo − fondo) + resto − ventas (espejea la columna generada en DB)
+  const diferencia       = hayAlgo ? (efectivoNum - fondo) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
 
   function handleSubmit() {
     if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
@@ -106,6 +112,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         await cerrarCaja({
           sucursal_id:              sucursalId,
           fecha:                    hoy,
+          fondo_inicial:           fondo,
           total_ventas:            totalVentas,
           efectivo_declarado:      efectivoNum,
           billetera_declarada:     mpNum,
@@ -176,7 +183,8 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 icon={<span className="text-base">💵</span>}
                 value={efectivo}
                 onChange={setEfectivo}
-                sugerido={sugeridoEfectivo}
+                sugerido={sugeridoEfectivo + fondo}
+                hint={fondo > 0 ? `Contá todo el efectivo del cajón (incluye fondo inicial de ${AR.format(fondo)})` : undefined}
                 inputRef={efectivoRef}
               />
               <MontoInput

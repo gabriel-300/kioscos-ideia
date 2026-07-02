@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/auth/require-role";
 export async function cerrarCaja(data: {
   sucursal_id:              string;
   fecha:                    string;
+  fondo_inicial:           number;
   total_ventas:            number;
   efectivo_declarado:      number;
   billetera_declarada:     number;
@@ -31,6 +32,7 @@ export async function cerrarCaja(data: {
   const { error } = await (admin as any).from("cierres_caja").insert({
     sucursal_id:             data.sucursal_id,
     fecha:                   data.fecha,
+    fondo_inicial:           data.fondo_inicial,
     total_ventas:            data.total_ventas,
     efectivo_declarado:      data.efectivo_declarado,
     billetera_declarada:     data.billetera_declarada,

@@ -16,6 +16,7 @@ export type MovimientoCierre = {
 
 export type UltimoCierre = {
   fecha:                   string;
+  fondo_inicial:           number;
   total_ventas:            number;
   efectivo_declarado:      number;
   billetera_declarada:     number;
