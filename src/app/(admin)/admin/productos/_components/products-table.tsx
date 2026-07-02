@@ -98,7 +98,6 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Categoría</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">P. Kiosco</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">P. Público</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activo</th>
                   <th className="px-4 py-3" />
@@ -107,7 +106,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
               <tbody className="divide-y divide-neutral-100">
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400">
                       {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
                     </td>
                   </tr>
@@ -135,9 +134,6 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
                       {p.precio_dist != null ? AR.format(p.precio_dist) : <span className="text-neutral-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
-                      {p.price_b2c > 0 ? AR.format(p.price_b2c) : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
                       {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}

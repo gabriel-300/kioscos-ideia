@@ -28,7 +28,6 @@ const schema = z.object({
   is_active:         z.boolean(),
   costo:             nPos,
   precio_dist:       nPos,
-  precio_publico:    nPos,
   pkg_unitario:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
   stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
 });
@@ -59,7 +58,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, precio_publico: null, pkg_unitario: null, stock_minimo: 0,
+      costo: null, precio_dist: null, pkg_unitario: null, stock_minimo: 0,
     },
   });
 
@@ -76,13 +75,12 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       is_active:         product.is_active,
       costo:             product.costo ?? null,
       precio_dist:       product.precio_dist ?? null,
-      precio_publico:    product.price_b2c ?? null,
       pkg_unitario:      product.pkg_unitario ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
     } : {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, precio_publico: null, pkg_unitario: null,
+      costo: null, precio_dist: null, pkg_unitario: null,
     });
   }, [open, product, reset]);
 
@@ -98,7 +96,7 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       is_active:         values.is_active,
       costo:             values.costo,
       precio_dist:       values.precio_dist,
-      price_b2c:         values.precio_publico ?? 0,
+      price_b2c:         0,
       price_b2b:         values.precio_dist ?? 0,
       pkg_unitario:      values.pkg_unitario,
       stock_minimo:      values.stock_minimo,
@@ -193,16 +191,6 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
                   {...register("precio_dist")}
                 />
                 <p className="text-[11px] text-neutral-400 mt-1">Lo que cobra IDEIA</p>
-              </div>
-              <div>
-                <Input
-                  label="Precio público $"
-                  type="number"
-                  step="1"
-                  placeholder="0"
-                  {...register("precio_publico")}
-                />
-                <p className="text-[11px] text-neutral-400 mt-1">Sugerido al cliente</p>
               </div>
             </div>
           </div>

@@ -9,7 +9,6 @@ type Category = Database["public"]["Tables"]["categories"]["Row"];
 
 const CAMPOS = [
   { key: "precio_dist", label: "Precio a kioscos" },
-  { key: "price_b2c",   label: "Precio público sugerido" },
   { key: "costo",       label: "Costo" },
 ] as const;
 

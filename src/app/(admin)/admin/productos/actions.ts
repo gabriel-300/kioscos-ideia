@@ -44,7 +44,7 @@ export async function toggleProductoActivo(id: string, activo: boolean) {
   revalidatePath("/admin/productos");
 }
 
-type CamposPrecio = ("precio_dist" | "price_b2c" | "costo")[];
+type CamposPrecio = ("precio_dist" | "costo")[];
 
 export async function ajustarPrecios({
   porcentaje,
@@ -61,7 +61,7 @@ export async function ajustarPrecios({
   const supabase = createAdminClient();
   const factor = 1 + porcentaje / 100;
 
-  let query = supabase.from("products").select("id, precio_dist, price_b2c, costo");
+  let query = supabase.from("products").select("id, precio_dist, costo");
   if (categoria_id) query = query.eq("category_id", categoria_id);
 
   const { data: products, error } = await query;
