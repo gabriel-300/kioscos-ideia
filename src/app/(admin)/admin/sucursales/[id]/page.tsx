@@ -31,14 +31,24 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   );
 }
 
-export default async function SucursalDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
+export default async function SucursalDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ mes?: string }> }) {
+  const { id }        = await params;
+  const { mes: mesParam } = await searchParams;
+  const supabase      = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy       = new Date().toISOString().slice(0, 10);
+  const mesActual = hoy.slice(0, 7);
+  const mes       = mesParam ?? mesActual;
+  const [mesYear, mesMonth] = mes.split("-").map(Number);
+  const mesInicio  = `${mes}-01`;
+  const mesFin     = new Date(mesYear, mesMonth, 0).toISOString().slice(0, 10);
+  const prevMes    = (() => { const d = new Date(mesYear, mesMonth - 2, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
+  const nextMes    = (() => { const d = new Date(mesYear, mesMonth, 1);     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
+  const mesLabel   = new Date(mesYear, mesMonth - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  const canGoNext  = mes < mesActual;
 
   type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
@@ -123,6 +133,30 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
   const stockActual: Record<string, number> = Object.fromEntries(
     (stockRows ?? []).map((r) => [r.product_id, r.stock_actual])
   );
+
+  // Analytics del mes seleccionado
+  const ventasDelMes = movs.filter(
+    (m) => m.tipo === "venta" && m.fecha >= mesInicio && m.fecha <= mesFin
+  );
+  const totalesPago = {
+    efectivo:      ventasDelMes.reduce((s: number, m: any) => s + (m.pago_efectivo      ?? 0), 0),
+    billetera:     ventasDelMes.reduce((s: number, m: any) => s + (m.pago_billetera     ?? 0), 0),
+    tarjeta:       ventasDelMes.reduce((s: number, m: any) => s + (m.pago_tarjeta       ?? 0), 0),
+    transferencia: ventasDelMes.reduce((s: number, m: any) => s + (m.pago_transferencia ?? 0), 0),
+  };
+  const totalVentasMes = ventasDelMes.reduce(
+    (s: number, m: any) => s + m.movimiento_items.reduce((si: number, i: any) => si + (i.subtotal ?? 0), 0), 0
+  );
+  const prodMap: Record<string, { name: string; cantidad: number; total: number }> = {};
+  for (const v of ventasDelMes) {
+    for (const item of v.movimiento_items as any[]) {
+      const name = item.product?.name ?? "Sin nombre";
+      if (!prodMap[name]) prodMap[name] = { name, cantidad: 0, total: 0 };
+      prodMap[name].cantidad += item.cantidad;
+      prodMap[name].total    += item.subtotal ?? 0;
+    }
+  }
+  const rankingProductos = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 5);
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -336,6 +370,92 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           value={totalEntregado - totalDevuelto > 0 ? AR.format(totalEntregado - totalDevuelto) : "—"}
           sub="entregado − devuelto"
         />
+      </div>
+
+      {/* Análisis del mes */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-neutral-900">Análisis</h2>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href={`/admin/sucursales/${id}?mes=${prevMes}`}
+              className="p-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
+            >
+              <svg className="size-3.5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </Link>
+            <span className="text-sm font-medium text-neutral-700 capitalize w-36 text-center">{mesLabel}</span>
+            {canGoNext ? (
+              <Link
+                href={`/admin/sucursales/${id}?mes=${nextMes}`}
+                className="p-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
+              >
+                <svg className="size-3.5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </Link>
+            ) : (
+              <div className="size-8" />
+            )}
+          </div>
+        </div>
+
+        {ventasDelMes.length === 0 ? (
+          <p className="text-sm text-neutral-400 py-2">Sin ventas registradas en <span className="capitalize">{mesLabel}</span>.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Medios de pago */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Medios de pago</p>
+              <div className="space-y-2.5">
+                {(
+                  [
+                    { label: "Efectivo",       value: totalesPago.efectivo,      color: "bg-selva-50 text-selva-700" },
+                    { label: "Billetera",      value: totalesPago.billetera,     color: "bg-blue-50 text-blue-700" },
+                    { label: "Tarjeta",        value: totalesPago.tarjeta,       color: "bg-violet-50 text-violet-700" },
+                    { label: "Transferencia",  value: totalesPago.transferencia, color: "bg-amber-50 text-amber-700" },
+                  ] as const
+                ).map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${color}`}>{label}</span>
+                    <span className="text-sm font-semibold tabular-nums text-neutral-700">
+                      {value > 0 ? AR.format(value) : <span className="text-neutral-300">—</span>}
+                    </span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-neutral-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-neutral-500">Total ventas</span>
+                  <span className="text-sm font-bold tabular-nums text-neutral-900">{AR.format(totalVentasMes)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Ranking productos */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Top productos</p>
+              <div className="space-y-3">
+                {rankingProductos.map((p, i) => {
+                  const pct = totalVentasMes > 0 ? (p.total / totalVentasMes) * 100 : 0;
+                  return (
+                    <div key={p.name}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-bold text-neutral-300 w-4 text-right shrink-0">{i + 1}</span>
+                          <span className="text-sm text-neutral-700 truncate">{p.name}</span>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums text-neutral-900 ml-2 shrink-0">{AR.format(p.total)}</span>
+                      </div>
+                      <div className="ml-6 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-tierra-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Acceso rápido a Cta. Corriente */}
