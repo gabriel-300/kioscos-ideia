@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
-import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, generarLinkResetPassword } from "../actions";
+import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, generarLinkResetPassword, suspenderStaff } from "../actions";
 
 type StaffUser = {
   id: string;
@@ -14,6 +14,8 @@ type StaffUser = {
   nombre: string | undefined;
   role: string | undefined;
   sucursalIdProfile: string | null;
+  creditoLimite: number | null;
+  isSuspended: boolean;
   lastSignIn: string | null;
 };
 
@@ -124,10 +126,14 @@ function EditDrawer({
   sucursales: Sucursal[];
   onClose: () => void;
 }) {
-  const [pending,   startTransition] = useTransition();
-  const [resetting, startReset]      = useTransition();
-  const [resetLink, setResetLink]    = useState<string | null>(null);
-  const [copied,    setCopied]       = useState(false);
+  const [pending,     startTransition] = useTransition();
+  const [resetting,   startReset]      = useTransition();
+  const [suspendiendo, startSuspend]   = useTransition();
+  const [resetLink,   setResetLink]    = useState<string | null>(null);
+  const [copied,      setCopied]       = useState(false);
+  const [creditoLimite, setCreditoLimite] = useState(
+    user.creditoLimite != null ? String(user.creditoLimite) : ""
+  );
   const router = useRouter();
 
   const sucursalActual =
@@ -145,7 +151,12 @@ function EditDrawer({
   function onSubmit(values: z.infer<typeof editSchema>) {
     startTransition(async () => {
       try {
-        await actualizarStaff(user.id, { nombre: values.nombre, password: values.password || undefined });
+        const limiteNum = creditoLimite.trim() ? parseFloat(creditoLimite) : null;
+        await actualizarStaff(user.id, {
+          nombre:        values.nombre,
+          password:      values.password || undefined,
+          creditoLimite: limiteNum,
+        });
         if (sucursalId !== (sucursalActual?.id ?? "")) {
           await asignarSucursal(user.id, sucursalId || null, user.role);
         }
@@ -187,6 +198,20 @@ function EditDrawer({
           />
           <div>
             <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
+              Límite de crédito CTA (ARS)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={creditoLimite}
+              onChange={(e) => setCreditoLimite(e.target.value)}
+              placeholder="Sin límite"
+              className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm tabular-nums focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
               Sucursal asignada
             </label>
             <select
@@ -211,6 +236,37 @@ function EditDrawer({
               <p className="text-sm text-neutral-600">{user.lastSignIn}</p>
             </div>
           )}
+
+          {/* Suspensión */}
+          <div className="border-t border-neutral-100 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Suspender cuenta</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {user.isSuspended ? "Suspendido — no puede ingresar" : "Cuenta activa"}
+                </p>
+              </div>
+              <button
+                disabled={suspendiendo}
+                onClick={() => {
+                  const msg = user.isSuspended
+                    ? "¿Reactivar este usuario?"
+                    : "¿Suspender a este usuario? No podrá ingresar al sistema.";
+                  if (!confirm(msg)) return;
+                  startSuspend(async () => {
+                    try {
+                      await suspenderStaff(user.id, !user.isSuspended);
+                      router.refresh();
+                      onClose();
+                    } catch (e) { alert((e as Error).message); }
+                  });
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${user.isSuspended ? "bg-red-400" : "bg-neutral-300"}`}
+              >
+                <span className={`inline-block size-4 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${user.isSuspended ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+          </div>
 
           {/* Link de acceso */}
           <div className="border-t border-neutral-100 pt-4">
@@ -339,11 +395,16 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
                       <p className="text-xs text-neutral-400 mt-0.5">{u.email}</p>
                     </td>
                     <td className="px-4 py-3">
-                      {u.role && (
-                        <Badge className={ROLE_BADGE[u.role] ?? ""}>
-                          {ROLE_LABEL[u.role] ?? u.role}
-                        </Badge>
-                      )}
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {u.role && (
+                          <Badge className={ROLE_BADGE[u.role] ?? ""}>
+                            {ROLE_LABEL[u.role] ?? u.role}
+                          </Badge>
+                        )}
+                        {u.isSuspended && (
+                          <Badge className="bg-red-50 text-red-600 border-red-200">Suspendido</Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {sucursal

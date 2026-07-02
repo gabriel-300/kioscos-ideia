@@ -47,7 +47,7 @@ export async function eliminarStaff(userId: string) {
   revalidatePath("/admin/sucursales");
 }
 
-export async function actualizarStaff(userId: string, data: { nombre: string; password?: string }) {
+export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null }) {
   await requireAdmin();
   const admin = createAdminClient();
   const update: { user_metadata: Record<string, string>; password?: string } = {
@@ -55,6 +55,19 @@ export async function actualizarStaff(userId: string, data: { nombre: string; pa
   };
   if (data.password) update.password = data.password;
   const { error } = await admin.auth.admin.updateUserById(userId, update);
+  if (error) throw new Error(error.message);
+  if (data.creditoLimite !== undefined) {
+    await (admin as any).from("profiles").update({ credito_limite: data.creditoLimite }).eq("id", userId);
+  }
+  revalidatePath("/admin/staff");
+}
+
+export async function suspenderStaff(userId: string, suspend: boolean) {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: suspend ? "876600h" : "none",
+  });
   if (error) throw new Error(error.message);
   revalidatePath("/admin/staff");
 }

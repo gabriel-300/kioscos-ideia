@@ -19,7 +19,9 @@ export default async function StaffPage() {
     supabase.from("sucursales").select("id, nombre, encargado_user_id").order("nombre"),
     (supabase as any)
       .from("profiles")
-      .select("id, sucursal_id") as unknown as Promise<{ data: { id: string; sucursal_id: string | null }[] | null }>,
+      .select("id, sucursal_id, credito_limite") as unknown as Promise<{
+        data: { id: string; sucursal_id: string | null; credito_limite: number | null }[] | null;
+      }>,
   ]);
 
   if (error) {
@@ -32,8 +34,11 @@ export default async function StaffPage() {
     );
   }
 
-  const profileMap: Record<string, string | null> = {};
-  for (const p of profilesResult.data ?? []) profileMap[p.id] = p.sucursal_id;
+  type ProfileEntry = { sucursalId: string | null; creditoLimite: number | null };
+  const profileMap: Record<string, ProfileEntry> = {};
+  for (const p of profilesResult.data ?? []) {
+    profileMap[p.id] = { sucursalId: p.sucursal_id, creditoLimite: p.credito_limite ?? null };
+  }
 
   const staff = (users ?? [])
     .filter((u) => {
@@ -52,7 +57,9 @@ export default async function StaffPage() {
       email:         u.email,
       nombre:        u.user_metadata?.full_name as string | undefined,
       role:          u.app_metadata?.role as string | undefined,
-      sucursalIdProfile: profileMap[u.id] ?? null,
+      sucursalIdProfile: profileMap[u.id]?.sucursalId ?? null,
+      creditoLimite: profileMap[u.id]?.creditoLimite ?? null,
+      isSuspended:   !!(u as any).banned_until && (u as any).banned_until !== "none",
       lastSignIn:    u.last_sign_in_at
         ? new Date(u.last_sign_in_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })
         : null,

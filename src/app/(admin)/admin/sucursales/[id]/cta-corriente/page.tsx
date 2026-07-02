@@ -70,8 +70,8 @@ export default async function CtaCorrientePage({
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null }>,
     (supabase as any)
       .from("profiles")
-      .select("id, full_name")
-      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
+      .select("id, full_name, credito_limite")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null; credito_limite: number | null }[] | null }>,
     // Total histórico acumulado por persona (sin filtro de mes)
     (supabase as any)
       .from("movimientos")
@@ -111,6 +111,9 @@ export default async function CtaCorrientePage({
 
   const personalMap: Record<string, string> = Object.fromEntries(
     personal.map((p) => [p.id, p.full_name ?? "Sin nombre"])
+  );
+  const limitesMap: Record<string, number | null> = Object.fromEntries(
+    personal.map((p) => [p.id, p.credito_limite ?? null])
   );
 
   type VentaItem  = { name: string; cantidad: number; subtotal: number };
@@ -218,25 +221,34 @@ export default async function CtaCorrientePage({
       ) : (
         <div className="space-y-4">
           {personas.map(([pid, data]) => {
-            const initials = data.nombre.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+            const initials   = data.nombre.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+            const saldo      = (totalHistorico[pid] ?? 0) - (pagadosMap[pid]?.total ?? 0);
+            const limite     = pid !== "sin_asignar" ? (limitesMap[pid] ?? null) : null;
+            const excedeCredito = limite != null && saldo > limite;
             return (
-              <div key={pid} className="rounded-xl border border-neutral-200 overflow-hidden">
+              <div key={pid} className={`rounded-xl overflow-hidden ${excedeCredito ? "border-2 border-red-300" : "border border-neutral-200"}`}>
                 {/* Employee header */}
                 <div className="flex items-center justify-between px-4 py-3.5 bg-neutral-50 border-b border-neutral-200">
                   <div className="flex items-center gap-2.5">
                     <div className="size-8 rounded-full bg-tierra-100 flex items-center justify-center text-xs font-bold text-tierra-700 shrink-0">
                       {initials}
                     </div>
-                    <span className="font-semibold text-neutral-900">{data.nombre}</span>
+                    <div>
+                      <span className="font-semibold text-neutral-900">{data.nombre}</span>
+                      {excedeCredito && (
+                        <p className="text-xs text-red-500 font-semibold">Límite excedido</p>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="font-bold tabular-nums text-tierra-700">{AR.format(data.total)}</p>
-                    {(() => {
-                      const saldo = (totalHistorico[pid] ?? 0) - (pagadosMap[pid]?.total ?? 0);
-                      if (saldo > 0) return <p className="text-xs text-red-500 tabular-nums font-semibold">Saldo: {AR.format(saldo)}</p>;
-                      if (saldo <= 0 && (totalHistorico[pid] ?? 0) > 0) return <p className="text-xs text-selva-600 tabular-nums">Al día ✓</p>;
-                      return null;
-                    })()}
+                    {saldo > 0 && <p className="text-xs text-red-500 tabular-nums font-semibold">Saldo: {AR.format(saldo)}</p>}
+                    {saldo <= 0 && (totalHistorico[pid] ?? 0) > 0 && <p className="text-xs text-selva-600 tabular-nums">Al día ✓</p>}
+                    {limite != null && (
+                      <p className={`text-xs tabular-nums ${excedeCredito ? "text-red-400" : "text-neutral-400"}`}>
+                        Límite: {AR.format(limite)}
+                      </p>
+                    )}
                     <p className="text-xs text-neutral-400">{data.ventas.length} {data.ventas.length === 1 ? "venta" : "ventas"} este mes</p>
                   </div>
                 </div>
