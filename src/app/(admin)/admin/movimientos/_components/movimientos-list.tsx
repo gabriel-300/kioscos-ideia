@@ -41,7 +41,9 @@ function DeleteBtn({ id }: { id: string }) {
     <button
       disabled={pending}
       onClick={() => {
-        if (!confirm("¿Eliminar este movimiento?")) return;
+        const motivo = window.prompt("Motivo de la eliminación (obligatorio):");
+        if (motivo === null) return;
+        if (!motivo.trim()) { window.alert("El motivo es obligatorio para eliminar un movimiento."); return; }
         startTransition(() => eliminarMovimiento(id));
       }}
       className="text-xs text-neutral-400 hover:text-danger transition-colors disabled:opacity-50"
@@ -64,11 +66,22 @@ export function MovimientosList({
   const hoy   = new Date();
   const mesDefault = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
 
-  const [formOpen,   setFormOpen]   = useState(false);
-  const [search,     setSearch]     = useState("");
-  const [expanded,   setExpanded]   = useState<string | null>(null);
-  const [tipoFilter, setTipo]       = useState<"all" | "entrega" | "devolucion" | "venta" | "ajuste">("all");
-  const [mes,        setMes]        = useState(mesDefault);
+  const [formOpen,        setFormOpen]        = useState(false);
+  const [search,          setSearch]          = useState("");
+  const [expanded,        setExpanded]        = useState<string | null>(null);
+  const [tipoFilter,      setTipo]            = useState<"all" | "entrega" | "devolucion" | "venta" | "ajuste">("all");
+  const [mes,             setMes]             = useState(mesDefault);
+  const [proveedorFilter, setProveedorFilter] = useState("all");
+
+  const proveedoresEnMovs = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const m of movimientos) {
+      const p = (m as any).proveedor as string | null;
+      if (p && !seen.has(p)) { seen.add(p); list.push(p); }
+    }
+    return list.sort();
+  }, [movimientos]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -83,9 +96,10 @@ export function MovimientosList({
       }
       if (tipoFilter !== "all" && m.tipo !== tipoFilter) return false;
       if (mes && !m.fecha.startsWith(mes)) return false;
+      if (proveedorFilter !== "all" && (m as any).proveedor !== proveedorFilter) return false;
       return true;
     });
-  }, [movimientos, search, tipoFilter, mes]);
+  }, [movimientos, search, tipoFilter, mes, proveedorFilter]);
 
   return (
     <>
@@ -115,6 +129,18 @@ export function MovimientosList({
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20 w-44"
           />
+          {proveedoresEnMovs.length > 0 && (
+            <select
+              value={proveedorFilter}
+              onChange={(e) => setProveedorFilter(e.target.value)}
+              className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+            >
+              <option value="all">Todos los proveedores</option>
+              {proveedoresEnMovs.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} movimientos</span>
           <ExportButton sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))} />
           <Button size="sm" onClick={() => setFormOpen(true)}>
@@ -198,8 +224,15 @@ export function MovimientosList({
                           ))}
                         </tbody>
                       </table>
+                      {((m as any).proveedor || (m as any).nro_remito) && (
+                        <p className="mt-2 text-xs text-neutral-500">
+                          {(m as any).proveedor && <><span className="font-semibold text-neutral-700">Proveedor:</span> {(m as any).proveedor}</>}
+                          {(m as any).proveedor && (m as any).nro_remito && <span className="mx-2 text-neutral-300">·</span>}
+                          {(m as any).nro_remito && <><span className="font-semibold text-neutral-700">Remito:</span> {(m as any).nro_remito}</>}
+                        </p>
+                      )}
                       {m.notas && (
-                        <p className="mt-2 text-xs text-neutral-500 italic">{m.notas}</p>
+                        <p className="mt-1.5 text-xs text-neutral-500 italic">{m.notas}</p>
                       )}
                     </div>
                   )}

@@ -172,6 +172,30 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   function handleClose() { resetForm(); onClose(); }
 
   function handleConfirm() {
+    if (cajaAbierta === false) {
+      setError("No hay caja abierta. Registrá una apertura antes de vender.");
+      return;
+    }
+    const sinPrecio = seleccionados.filter(([id]) => {
+      const p = products.find((prod) => prod.id === id);
+      return !p || p.precio_dist == null;
+    });
+    if (sinPrecio.length > 0) {
+      const nombres = sinPrecio.map(([id]) => products.find((p) => p.id === id)?.name ?? "?").join(", ");
+      setError(`Sin precio configurado: ${nombres}`);
+      return;
+    }
+    if (stockMap) {
+      const insuficiente = seleccionados.filter(([id, qty]) => (stockMap[id] ?? 0) < qty);
+      if (insuficiente.length > 0) {
+        const detalles = insuficiente.map(([id, qty]) => {
+          const p = products.find((prod) => prod.id === id);
+          return `${p?.name ?? "?"} (disponible: ${stockMap[id] ?? 0})`;
+        }).join(", ");
+        setError(`Stock insuficiente: ${detalles}`);
+        return;
+      }
+    }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) { setError("El monto ingresado no cubre el total"); return; }
     setError(null);

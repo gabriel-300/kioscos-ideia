@@ -63,16 +63,24 @@ export default async function CierresPage({
   const { data: cierresRaw } = await query;
   const cierres = cierresRaw ?? [];
 
-  // Fetch aperturas del mismo rango para cruzar fondo_inicial
+  // Fetch aperturas del mismo rango para cruzar fondo_inicial (con created_at para multi-turno)
   const { data: aperturasRaw } = await ((admin as any)
     .from("aperturas_caja")
-    .select("sucursal_id, fecha, fondo_inicial")
+    .select("sucursal_id, fecha, fondo_inicial, created_at")
     .gte("fecha", desde)
-    .lte("fecha", hasta)) as unknown as { data: { sucursal_id: string; fecha: string; fondo_inicial: number }[] | null };
+    .lte("fecha", hasta)) as unknown as { data: { sucursal_id: string; fecha: string; fondo_inicial: number; created_at: string }[] | null };
 
-  const aperturaMap: Record<string, number> = {};
+  const aperturasBySuc: Record<string, { fecha: string; fondo_inicial: number; created_at: string }[]> = {};
   for (const a of aperturasRaw ?? []) {
-    aperturaMap[`${a.sucursal_id}_${a.fecha}`] = a.fondo_inicial;
+    if (!aperturasBySuc[a.sucursal_id]) aperturasBySuc[a.sucursal_id] = [];
+    aperturasBySuc[a.sucursal_id].push({ fecha: a.fecha, fondo_inicial: a.fondo_inicial, created_at: a.created_at });
+  }
+  function findFondo(sucId: string, cierreDate: string, cierreCreatedAt: string): number | null {
+    const candidates = (aperturasBySuc[sucId] ?? []).filter(
+      (a) => a.fecha === cierreDate && a.created_at <= cierreCreatedAt
+    );
+    if (!candidates.length) return null;
+    return candidates.sort((a, b) => b.created_at.localeCompare(a.created_at))[0].fondo_inicial;
   }
 
   // Fetch nombres de usuarios (created_by)
@@ -209,7 +217,7 @@ export default async function CierresPage({
               ) : (
                 cierres.map((c) => {
                   const suc = c.sucursales as { id: string; nombre: string } | null;
-                  const fondo = suc ? (aperturaMap[`${suc.id}_${c.fecha}`] ?? null) : null;
+                  const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
                   const encargado = c.created_by ? (profileMap[c.created_by] ?? "—") : "—";
                   const fechaDisplay = new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", {
                     weekday: "short", day: "numeric", month: "short",
