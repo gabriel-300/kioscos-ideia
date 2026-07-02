@@ -32,10 +32,7 @@ export async function abrirCaja(data: {
     created_by:    userId,
   });
 
-  if (error) {
-    if (error.code === "23505") throw new Error("Ya existe una apertura para este día");
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/cierres");

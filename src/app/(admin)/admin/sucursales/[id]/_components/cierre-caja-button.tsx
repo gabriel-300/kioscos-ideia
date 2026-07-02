@@ -4,13 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui";
 import { CierreCajaModal } from "./cierre-caja-modal";
 
-type Movimiento = {
+export type MovimientoCierre = {
   fecha:    string;
   tipo:     string;
+  canal:    string | null;
   movimiento_items: { subtotal: number | null }[];
 };
 
-type CierreHoy = {
+export type UltimoCierre = {
   fecha:                    string;
   total_ventas:             number;
   efectivo_declarado:       number;
@@ -19,20 +20,23 @@ type CierreHoy = {
   transferencia_declarada:  number | null;
   diferencia:               number | null;
   notas:                    string | null;
+  created_at:               string;
 } | null;
 
 export function CierreCajaButton({
   sucursalId,
   sucursalNombre,
   movimientos,
-  cierreHoy,
-  aperturaHoy,
+  cajaAbierta,
+  ultimoCierre,
+  aperturaActual,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
-  movimientos:    Movimiento[];
-  cierreHoy:      CierreHoy;
-  aperturaHoy?:   { fondo_inicial: number } | null;
+  movimientos:    MovimientoCierre[];
+  cajaAbierta:    boolean;
+  ultimoCierre:   UltimoCierre;
+  aperturaActual?: { fondo_inicial: number } | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -41,12 +45,12 @@ export function CierreCajaButton({
       <button
         onClick={() => setOpen(true)}
         className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-medium border transition-colors ${
-          cierreHoy
+          !cajaAbierta
             ? "border-selva-300 bg-selva-50 text-selva-700 hover:bg-selva-100"
             : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 hover:border-neutral-400"
         }`}
       >
-        {cierreHoy ? (
+        {!cajaAbierta ? (
           <>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -69,8 +73,9 @@ export function CierreCajaButton({
         sucursalId={sucursalId}
         sucursalNombre={sucursalNombre}
         movimientos={movimientos}
-        cierreHoy={cierreHoy}
-        aperturaHoy={aperturaHoy}
+        cajaAbierta={cajaAbierta}
+        ultimoCierre={ultimoCierre}
+        aperturaActual={aperturaActual}
       />
     </>
   );

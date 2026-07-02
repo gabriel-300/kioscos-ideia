@@ -6,20 +6,18 @@ import { abrirCaja } from "../apertura-actions";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
-type AperturaExistente = {
-  fondo_inicial: number;
-  notas:         string | null;
-};
+type AperturaActual = { fondo_inicial: number; notas: string | null; created_at: string };
 
 interface Props {
   open:           boolean;
   onClose:        () => void;
   sucursalId:     string;
   sucursalNombre: string;
-  aperturaHoy:    AperturaExistente | null;
+  cajaAbierta:    boolean;
+  aperturaActual: AperturaActual | null;
 }
 
-export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, aperturaHoy }: Props) {
+export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [fondo,  setFondo]  = useState("");
@@ -29,8 +27,8 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, a
   const fondoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open && !aperturaHoy) setTimeout(() => fondoRef.current?.focus(), 80);
-  }, [open, aperturaHoy]);
+    if (open && !cajaAbierta) setTimeout(() => fondoRef.current?.focus(), 80);
+  }, [open, cajaAbierta]);
 
   function handleClose() {
     setFondo(""); setNotas(""); setError(null);
@@ -82,8 +80,8 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, a
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          {aperturaHoy ? (
-            /* Apertura ya realizada */
+          {cajaAbierta ? (
+            /* Caja actualmente abierta */
             <div className="space-y-3">
               <div className="rounded-xl border border-selva-200 bg-selva-50 p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -98,13 +96,13 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, a
                   </div>
                 </div>
                 <span className="text-xl font-bold font-display tabular-nums text-selva-700">
-                  {AR.format(aperturaHoy.fondo_inicial)}
+                  {aperturaActual ? AR.format(aperturaActual.fondo_inicial) : "—"}
                 </span>
               </div>
-              {aperturaHoy.notas && (
-                <p className="text-xs text-neutral-400 italic px-1">{aperturaHoy.notas}</p>
+              {aperturaActual?.notas && (
+                <p className="text-xs text-neutral-400 italic px-1">{aperturaActual.notas}</p>
               )}
-              <p className="text-xs text-center text-neutral-400">La apertura de hoy ya fue registrada.</p>
+              <p className="text-xs text-center text-neutral-400">La caja está abierta. Cerrala antes de iniciar un nuevo turno.</p>
             </div>
           ) : (
             /* Formulario */
@@ -147,7 +145,7 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, a
           )}
         </div>
 
-        {!aperturaHoy && (
+        {!cajaAbierta && (
           <div className="px-6 pb-5">
             <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="w-full">
               Registrar apertura

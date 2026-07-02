@@ -3,51 +3,38 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { cerrarCaja } from "../cierre-actions";
+import { type MovimientoCierre, type UltimoCierre } from "./cierre-caja-button";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
-
-type CierreExistente = {
-  fecha:                    string;
-  total_ventas:             number;
-  efectivo_declarado:       number;
-  mercadopago_declarado:    number;
-  tarjeta_declarada:        number | null;
-  transferencia_declarada:  number | null;
-  diferencia:               number | null;
-  notas:                    string | null;
-};
-
-type AperturaExistente = {
-  fondo_inicial: number;
-};
-
-type Movimiento = {
-  fecha:            string;
-  tipo:             string;
-  movimiento_items: { subtotal: number | null }[];
-};
 
 interface Props {
   open:           boolean;
   onClose:        () => void;
   sucursalId:     string;
   sucursalNombre: string;
-  movimientos:    Movimiento[];
-  cierreHoy:      CierreExistente | null;
-  aperturaHoy?:   AperturaExistente | null;
+  movimientos:    MovimientoCierre[];
+  cajaAbierta:    boolean;
+  ultimoCierre:   UltimoCierre;
+  aperturaActual?: { fondo_inicial: number } | null;
 }
 
-function MontoInput({ label, icon, value, onChange, inputRef }: {
+function MontoInput({ label, icon, value, onChange, sugerido, inputRef }: {
   label:     string;
   icon:      React.ReactNode;
   value:     string;
   onChange:  (v: string) => void;
+  sugerido?: number;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
-        {icon}{label}
+      <label className="flex items-center justify-between mb-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          {icon}{label}
+        </span>
+        {sugerido !== undefined && sugerido > 0 && (
+          <span className="text-xs text-neutral-400">Sugerido: {AR.format(sugerido)}</span>
+        )}
       </label>
       <div className="relative">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base font-semibold text-neutral-400">$</span>
@@ -65,7 +52,7 @@ function MontoInput({ label, icon, value, onChange, inputRef }: {
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cierreHoy, aperturaHoy }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [efectivo,       setEfectivo]       = useState("");
@@ -73,25 +60,40 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const [tarjeta,        setTarjeta]        = useState("");
   const [transferencia,  setTransferencia]  = useState("");
   const [notas,          setNotas]          = useState("");
-  const [error,    setError]    = useState<string | null>(null);
+  const [error,          setError]          = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const efectivoRef = useRef<HTMLInputElement>(null);
 
+  const ventasHoy = movimientos.filter((m) => m.tipo === "venta" && m.fecha === hoy);
+
+  const sumaCanal = (canal: string) =>
+    ventasHoy
+      .filter((m) => m.canal === canal)
+      .reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
+
+  const sugeridoEfectivo      = sumaCanal("efectivo");
+  const sugeridoMp            = sumaCanal("mercadopago");
+  const sugeridoTarjeta       = sumaCanal("tarjeta");
+  const sugeridoTransferencia = sumaCanal("transferencia");
+
+  const totalVentas  = ventasHoy.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
+  const registrosHoy = ventasHoy.length;
+
   useEffect(() => {
-    if (open && !cierreHoy) setTimeout(() => efectivoRef.current?.focus(), 80);
-  }, [open, cierreHoy]);
+    if (open && cajaAbierta) {
+      if (sugeridoEfectivo > 0)      setEfectivo(String(sugeridoEfectivo));
+      if (sugeridoMp > 0)            setMp(String(sugeridoMp));
+      if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
+      if (sugeridoTransferencia > 0) setTransferencia(String(sugeridoTransferencia));
+      setTimeout(() => efectivoRef.current?.focus(), 80);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cajaAbierta]);
 
   function handleClose() {
     setEfectivo(""); setMp(""); setTarjeta(""); setTransferencia(""); setNotas(""); setError(null);
     onClose();
   }
-
-  const ventasHoy   = movimientos.filter((m) => m.tipo === "venta" && m.fecha === hoy);
-  const totalVentas = ventasHoy.reduce(
-    (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0),
-    0
-  );
-  const registrosHoy = ventasHoy.length;
 
   const efectivoNum      = parseFloat(efectivo)      || 0;
   const mpNum            = parseFloat(mp)            || 0;
@@ -152,7 +154,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         <div className="px-6 py-5 space-y-4">
           {/* Ventas del día */}
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Ventas de hoy</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Ventas del turno</p>
             {registrosHoy === 0 ? (
               <p className="text-sm text-neutral-400">No hay ventas registradas hoy.</p>
             ) : (
@@ -164,62 +166,14 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
           </div>
 
           {/* Fondo inicial */}
-          {aperturaHoy && (
+          {aperturaActual && (
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Fondo inicial</p>
-              <span className="text-sm font-bold tabular-nums text-neutral-700">{AR.format(aperturaHoy.fondo_inicial)}</span>
+              <span className="text-sm font-bold tabular-nums text-neutral-700">{AR.format(aperturaActual.fondo_inicial)}</span>
             </div>
           )}
 
-          {cierreHoy ? (
-            /* ── Cierre ya realizado ── */
-            <div className="space-y-3">
-              <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
-                {[
-                  { icon: "💵", label: "Efectivo",      v: cierreHoy.efectivo_declarado },
-                  { icon: "📱", label: "Mercado Pago",  v: cierreHoy.mercadopago_declarado },
-                  { icon: "💳", label: "Tarjeta",       v: cierreHoy.tarjeta_declarada ?? 0 },
-                  { icon: "🏦", label: "Transferencia", v: cierreHoy.transferencia_declarada ?? 0 },
-                ].filter((r) => r.v > 0).map((r) => (
-                  <div key={r.label} className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-neutral-500 flex items-center gap-2">
-                      <span className="text-base">{r.icon}</span> {r.label}
-                    </span>
-                    <span className="text-sm font-semibold tabular-nums">{AR.format(r.v)}</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between px-4 py-3 bg-neutral-50">
-                  <span className="text-sm font-semibold text-neutral-700">Total declarado</span>
-                  <span className="text-sm font-bold tabular-nums">{AR.format(
-                    cierreHoy.efectivo_declarado + cierreHoy.mercadopago_declarado +
-                    (cierreHoy.tarjeta_declarada ?? 0) + (cierreHoy.transferencia_declarada ?? 0)
-                  )}</span>
-                </div>
-              </div>
-
-              {cierreHoy.diferencia !== null && (
-                <div className={`rounded-xl p-3 flex items-center justify-between ${
-                  cierreHoy.diferencia === 0
-                    ? "bg-selva-50 border border-selva-200"
-                    : Math.abs(cierreHoy.diferencia) < 500
-                    ? "bg-warning-bg border border-warning/30"
-                    : "bg-danger/5 border border-danger/20"
-                }`}>
-                  <span className={`text-sm font-semibold ${cierreHoy.diferencia === 0 ? "text-selva-700" : cierreHoy.diferencia > 0 ? "text-blue-700" : "text-danger"}`}>
-                    {cierreHoy.diferencia === 0 ? "Cuadró exacto ✓" : cierreHoy.diferencia > 0 ? "Sobrante" : "Faltante"}
-                  </span>
-                  <span className={`text-base font-bold tabular-nums ${cierreHoy.diferencia === 0 ? "text-selva-700" : cierreHoy.diferencia > 0 ? "text-blue-700" : "text-danger"}`}>
-                    {cierreHoy.diferencia > 0 ? "+" : ""}{AR.format(cierreHoy.diferencia)}
-                  </span>
-                </div>
-              )}
-
-              {cierreHoy.notas && (
-                <p className="text-xs text-neutral-400 italic px-1">{cierreHoy.notas}</p>
-              )}
-              <p className="text-xs text-center text-neutral-400">La caja de hoy ya fue cerrada.</p>
-            </div>
-          ) : (
+          {cajaAbierta ? (
             /* ── Formulario de cierre ── */
             <>
               <MontoInput
@@ -227,6 +181,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 icon={<span className="text-base">💵</span>}
                 value={efectivo}
                 onChange={setEfectivo}
+                sugerido={sugeridoEfectivo}
                 inputRef={efectivoRef}
               />
               <MontoInput
@@ -234,22 +189,25 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 icon={<span className="text-base">📱</span>}
                 value={mp}
                 onChange={setMp}
+                sugerido={sugeridoMp}
               />
               <MontoInput
                 label="Tarjeta"
                 icon={<span className="text-base">💳</span>}
                 value={tarjeta}
                 onChange={setTarjeta}
+                sugerido={sugeridoTarjeta}
               />
               <MontoInput
                 label="Transferencia"
                 icon={<span className="text-base">🏦</span>}
                 value={transferencia}
                 onChange={setTransferencia}
+                sugerido={sugeridoTransferencia}
               />
 
               {/* Total declarado + diferencia */}
-              {(efectivoNum > 0 || mpNum > 0) && (
+              {hayAlgo && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between px-1 text-sm text-neutral-500">
                     <span>Total declarado</span>
@@ -284,13 +242,65 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
               {error && <p className="text-xs text-danger">{error}</p>}
             </>
+          ) : (
+            /* ── Último cierre registrado ── */
+            ultimoCierre ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
+                  {[
+                    { icon: "💵", label: "Efectivo",      v: ultimoCierre.efectivo_declarado },
+                    { icon: "📱", label: "Mercado Pago",  v: ultimoCierre.mercadopago_declarado },
+                    { icon: "💳", label: "Tarjeta",       v: ultimoCierre.tarjeta_declarada ?? 0 },
+                    { icon: "🏦", label: "Transferencia", v: ultimoCierre.transferencia_declarada ?? 0 },
+                  ].filter((r) => r.v > 0).map((r) => (
+                    <div key={r.label} className="flex items-center justify-between px-4 py-3">
+                      <span className="text-sm text-neutral-500 flex items-center gap-2">
+                        <span className="text-base">{r.icon}</span> {r.label}
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums">{AR.format(r.v)}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between px-4 py-3 bg-neutral-50">
+                    <span className="text-sm font-semibold text-neutral-700">Total declarado</span>
+                    <span className="text-sm font-bold tabular-nums">{AR.format(
+                      ultimoCierre.efectivo_declarado + ultimoCierre.mercadopago_declarado +
+                      (ultimoCierre.tarjeta_declarada ?? 0) + (ultimoCierre.transferencia_declarada ?? 0)
+                    )}</span>
+                  </div>
+                </div>
+
+                {ultimoCierre.diferencia !== null && (
+                  <div className={`rounded-xl p-3 flex items-center justify-between ${
+                    ultimoCierre.diferencia === 0
+                      ? "bg-selva-50 border border-selva-200"
+                      : Math.abs(ultimoCierre.diferencia) < 500
+                      ? "bg-warning-bg border border-warning/30"
+                      : "bg-danger/5 border border-danger/20"
+                  }`}>
+                    <span className={`text-sm font-semibold ${ultimoCierre.diferencia === 0 ? "text-selva-700" : ultimoCierre.diferencia > 0 ? "text-blue-700" : "text-danger"}`}>
+                      {ultimoCierre.diferencia === 0 ? "Cuadró exacto ✓" : ultimoCierre.diferencia > 0 ? "Sobrante" : "Faltante"}
+                    </span>
+                    <span className={`text-base font-bold tabular-nums ${ultimoCierre.diferencia === 0 ? "text-selva-700" : ultimoCierre.diferencia > 0 ? "text-blue-700" : "text-danger"}`}>
+                      {ultimoCierre.diferencia > 0 ? "+" : ""}{AR.format(ultimoCierre.diferencia)}
+                    </span>
+                  </div>
+                )}
+
+                {ultimoCierre.notas && (
+                  <p className="text-xs text-neutral-400 italic px-1">{ultimoCierre.notas}</p>
+                )}
+                <p className="text-xs text-center text-neutral-400">La caja está cerrada. Abrí un nuevo turno para continuar.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-400 text-center py-2">No hay cierre registrado hoy.</p>
+            )
           )}
         </div>
 
-        {!cierreHoy && (
+        {cajaAbierta && (
           <div className="px-6 pb-5">
             <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="w-full">
-              Cerrar caja del día
+              Cerrar caja
             </Button>
           </div>
         )}

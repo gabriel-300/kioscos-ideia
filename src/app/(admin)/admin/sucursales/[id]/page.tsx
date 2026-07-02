@@ -40,7 +40,10 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  const [{ data: sucursal }, { data: movimientos }, { data: products }, { data: categories }, { data: cierreHoy }, { data: stockRows }, { data: aperturaHoy }, { data: retirosHoy }, personalResult] = await Promise.all([
+  type CierreRow = { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
+  type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
+
+  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -56,15 +59,20 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
     supabase.from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-    (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null } | null }>,
+    (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: CierreRow[] | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
-    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas").eq("sucursal_id", id).eq("fecha", hoy).maybeSingle() as unknown as Promise<{ data: { fondo_inicial: number; notas: string | null } | null }>,
+    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at").eq("sucursal_id", id).eq("fecha", hoy).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
     (supabase as any)
       .from("profiles")
       .select("id, full_name")
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
   ]);
+
+  const movimientos = movimentos;
+  const aperturaActual = aperturasData?.[0] ?? null;
+  const ultimoCierre   = cierresData?.[0] ?? null;
+  const cajaAbierta    = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
 
   if (!sucursal) notFound();
 
@@ -187,14 +195,16 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
             <AperturaCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
-              aperturaHoy={aperturaHoy}
+              cajaAbierta={cajaAbierta}
+              aperturaActual={aperturaActual}
             />
             <CierreCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
               movimientos={(movs as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
-              cierreHoy={cierreHoy}
-              aperturaHoy={aperturaHoy}
+              cajaAbierta={cajaAbierta}
+              ultimoCierre={ultimoCierre}
+              aperturaActual={aperturaActual}
             />
           </div>
         </div>
@@ -204,12 +214,12 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
       {(role === "encargado" || role === "vendedor") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {/* Apertura */}
-          <div className={`rounded-xl border p-4 ${aperturaHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
-            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${aperturaHoy ? "text-selva-600" : "text-neutral-400"}`}>
+          <div className={`rounded-xl border p-4 ${cajaAbierta ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${cajaAbierta ? "text-selva-600" : "text-neutral-400"}`}>
               Fondo inicial
             </p>
-            {aperturaHoy ? (
-              <p className="text-xl font-bold font-display tabular-nums text-selva-700">{AR.format(aperturaHoy.fondo_inicial)}</p>
+            {cajaAbierta && aperturaActual ? (
+              <p className="text-xl font-bold font-display tabular-nums text-selva-700">{AR.format(aperturaActual.fondo_inicial)}</p>
             ) : (
               <p className="text-sm text-neutral-400">Sin apertura</p>
             )}
@@ -240,14 +250,14 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
           </div>
 
           {/* Cierre */}
-          <div className={`rounded-xl border p-4 ${cierreHoy ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
-            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${cierreHoy ? "text-selva-600" : "text-neutral-400"}`}>
+          <div className={`rounded-xl border p-4 ${!cajaAbierta && ultimoCierre ? "bg-selva-50 border-selva-200" : "bg-neutral-50 border-neutral-200"}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-widest mb-2 ${!cajaAbierta && ultimoCierre ? "text-selva-600" : "text-neutral-400"}`}>
               Cierre
             </p>
-            {cierreHoy ? (
+            {!cajaAbierta && ultimoCierre ? (
               <>
                 <p className="text-sm font-bold text-selva-700">Cerrado ✓</p>
-                <p className="text-[11px] text-selva-600 mt-1">{AR.format(cierreHoy.total_ventas ?? 0)}</p>
+                <p className="text-[11px] text-selva-600 mt-1">{AR.format(ultimoCierre.total_ventas ?? 0)}</p>
               </>
             ) : (
               <p className="text-sm text-neutral-400">Pendiente</p>
