@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { CierresExportButton } from "./_components/export-button";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe de cierres — Kioscos IDEIA" };
@@ -104,12 +105,31 @@ export default async function CierresPage({
   const totalTransferencia = cierres.reduce((s, c) => s + ((c as any).transferencia_declarada ?? 0), 0);
   const totalDiferencia    = cierres.reduce((s, c) => s + (c.diferencia ?? 0), 0);
 
+  const cierresExport = cierres.map((c) => {
+    const suc = c.sucursales as { id: string; nombre: string } | null;
+    return {
+      fecha:          c.fecha,
+      sucursal:       suc?.nombre ?? "—",
+      fondo_inicial:  suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
+      ventas:         c.total_ventas ?? 0,
+      efectivo:       c.efectivo_declarado ?? 0,
+      billetera:      (c as any).billetera_declarada ?? 0,
+      tarjeta:        (c as any).tarjeta_declarada ?? 0,
+      transferencia:  (c as any).transferencia_declarada ?? 0,
+      diferencia:     c.diferencia,
+      encargado:      c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
+    };
+  });
+
   return (
     <div className="p-4 md:p-8 max-w-6xl">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Informe de cierres</h1>
-        <p className="text-sm text-neutral-400 mt-0.5">Cierres de caja por sucursal y período</p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Informe de cierres</h1>
+          <p className="text-sm text-neutral-400 mt-0.5">Cierres de caja por sucursal y período</p>
+        </div>
+        {cierres.length > 0 && <CierresExportButton cierres={cierresExport} />}
       </div>
 
       {/* Filtros */}

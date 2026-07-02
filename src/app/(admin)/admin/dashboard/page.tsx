@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -80,6 +80,7 @@ export default async function DashboardPage() {
     );
   }
 
+  const admin = createAdminClient();
   const now       = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const hoy       = new Date().toISOString().slice(0, 10);
   const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -97,6 +98,8 @@ export default async function DashboardPage() {
     aperturaHoyRaw,
     cierreHoyRaw,
     retirosHoyRaw,
+    stockSucursalRaw,
+    prodsMinimoRaw,
   ] = await Promise.all([
     supabase.from("sucursales").select("*", { count: "exact", head: true }),
     supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -145,6 +148,17 @@ export default async function DashboardPage() {
       .from("retiros_caja")
       .select("sucursal_id, monto")
       .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
+    // stock actual por sucursal/producto (para alertas)
+    (admin as any)
+      .from("stock_sucursal")
+      .select("sucursal_id, product_id, stock_actual")
+      as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
+    // productos con stock mínimo configurado
+    admin
+      .from("products")
+      .select("id, name, stock_minimo")
+      .eq("is_active", true)
+      .gt("stock_minimo", 0) as unknown as Promise<{ data: { id: string; name: string; stock_minimo: number }[] | null }>,
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };
@@ -241,6 +255,25 @@ export default async function DashboardPage() {
   }));
 
   const totalVentasHoy = resumenHoy.reduce((s, r) => s + r.ventasHoy, 0);
+
+  // ── Alertas de stock bajo ──
+  const prodsMinimoMap = new Map(
+    (prodsMinimoRaw?.data ?? []).map((p) => [p.id, p])
+  );
+  type AlertaStock = { sucursalId: string; productName: string; stockActual: number; stockMinimo: number };
+  const alertasStock: AlertaStock[] = [];
+  for (const row of stockSucursalRaw?.data ?? []) {
+    const prod = prodsMinimoMap.get(row.product_id);
+    if (!prod) continue;
+    if (row.stock_actual <= prod.stock_minimo) {
+      alertasStock.push({ sucursalId: row.sucursal_id, productName: prod.name, stockActual: row.stock_actual, stockMinimo: prod.stock_minimo });
+    }
+  }
+  const alertasBySuc = new Map<string, AlertaStock[]>();
+  for (const a of alertasStock) {
+    alertasBySuc.set(a.sucursalId, [...(alertasBySuc.get(a.sucursalId) ?? []), a]);
+  }
+  const sucNombresMap = new Map((sucursalesHoy ?? []).map((s) => [s.id, s.nombre]));
 
   return (
     <div className="p-4 md:p-8 max-w-5xl">
@@ -498,6 +531,43 @@ export default async function DashboardPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Alertas de stock bajo */}
+      {alertasBySuc.size > 0 && (
+        <div className="bg-white rounded-xl border border-amber-200 overflow-hidden mb-4">
+          <div className="px-5 py-3 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="size-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <h2 className="text-sm font-semibold text-amber-800">
+                Stock bajo — {alertasStock.length} {alertasStock.length === 1 ? "producto" : "productos"} en {alertasBySuc.size} {alertasBySuc.size === 1 ? "kiosco" : "kioscos"}
+              </h2>
+            </div>
+            <Link href="/admin/stock" className="text-xs text-amber-700 hover:underline font-medium">Ver stock completo</Link>
+          </div>
+          <div className="divide-y divide-neutral-50">
+            {Array.from(alertasBySuc.entries()).map(([sucId, items]) => (
+              <div key={sucId} className="px-5 py-3">
+                <Link href={`/admin/sucursales/${sucId}`} className="text-xs font-semibold text-neutral-700 hover:text-tierra-700 transition-colors">
+                  {sucNombresMap.get(sucId) ?? sucId}
+                </Link>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {items.map((a) => (
+                    <span key={a.productName} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                      a.stockActual <= 0 ? "bg-red-50 text-red-700 border border-red-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}>
+                      {a.productName}
+                      <span className="opacity-60">·</span>
+                      <span className="tabular-nums">{a.stockActual <= 0 ? "sin stock" : `${a.stockActual} u.`}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -53,7 +53,7 @@ export default async function CtaCorrientePage({
     if (profile?.sucursal_id !== id) redirect("/admin/dashboard");
   }
 
-  const [ventasRes, personalRes] = await Promise.all([
+  const [ventasRes, personalRes, totalHistRes] = await Promise.all([
     (supabase as any)
       .from("movimientos")
       .select(`
@@ -71,10 +71,26 @@ export default async function CtaCorrientePage({
       .from("profiles")
       .select("id, full_name")
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
+    // Total histórico acumulado por persona (sin filtro de mes)
+    (supabase as any)
+      .from("movimientos")
+      .select("personal_id, movimiento_items(subtotal)")
+      .eq("sucursal_id", id)
+      .eq("canal", "cuenta_corriente")
+      .eq("tipo", "venta") as unknown as Promise<{ data: { personal_id: string | null; movimiento_items: { subtotal: number | null }[] }[] | null }>,
   ]);
 
   const ventas   = ventasRes.data   ?? [];
   const personal = personalRes.data ?? [];
+
+  // Saldo acumulado histórico por persona
+  const totalHistorico: Record<string, number> = {};
+  for (const v of totalHistRes.data ?? []) {
+    const pid = v.personal_id ?? "sin_asignar";
+    const sub = v.movimiento_items.reduce((s: number, i: { subtotal: number | null }) => s + (i.subtotal ?? 0), 0);
+    totalHistorico[pid] = (totalHistorico[pid] ?? 0) + sub;
+  }
+  const deudaHistoricaTotal = Object.values(totalHistorico).reduce((s, v) => s + v, 0);
   const personalMap: Record<string, string> = Object.fromEntries(
     personal.map((p) => [p.id, p.full_name ?? "Sin nombre"])
   );
@@ -150,18 +166,25 @@ export default async function CtaCorrientePage({
       </div>
 
       {/* Summary cards */}
-      {ventas.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+      {(ventas.length > 0 || deudaHistoricaTotal > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="rounded-xl border border-tierra-200 bg-tierra-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-tierra-600 mb-1">Total fiado</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-tierra-600 mb-1">Fiado este mes</p>
             <p className="text-2xl font-bold font-display tabular-nums text-tierra-700">{AR.format(totalMes)}</p>
+          </div>
+          <div className={`rounded-xl border p-4 ${deudaHistoricaTotal > totalMes ? "border-red-200 bg-red-50" : "border-neutral-200 bg-white"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${deudaHistoricaTotal > totalMes ? "text-red-500" : "text-neutral-400"}`}>Deuda histórica</p>
+            <p className={`text-2xl font-bold font-display tabular-nums ${deudaHistoricaTotal > totalMes ? "text-red-700" : "text-neutral-900"}`}>
+              {AR.format(deudaHistoricaTotal)}
+            </p>
+            <p className="text-xs text-neutral-400 mt-0.5">acumulado sin pagos</p>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Empleados</p>
             <p className="text-2xl font-bold font-display text-neutral-900">{personas.length}</p>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Ventas</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Ventas este mes</p>
             <p className="text-2xl font-bold font-display text-neutral-900">{ventas.length}</p>
           </div>
         </div>
@@ -188,7 +211,10 @@ export default async function CtaCorrientePage({
                   </div>
                   <div className="text-right">
                     <p className="font-bold tabular-nums text-tierra-700">{AR.format(data.total)}</p>
-                    <p className="text-xs text-neutral-400">{data.ventas.length} {data.ventas.length === 1 ? "venta" : "ventas"}</p>
+                    {totalHistorico[pid] != null && totalHistorico[pid] > data.total && (
+                      <p className="text-xs text-red-500 tabular-nums">Histórico: {AR.format(totalHistorico[pid])}</p>
+                    )}
+                    <p className="text-xs text-neutral-400">{data.ventas.length} {data.ventas.length === 1 ? "venta" : "ventas"} este mes</p>
                   </div>
                 </div>
 
