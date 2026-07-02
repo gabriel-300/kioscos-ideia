@@ -186,7 +186,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           notas:              notasFinal,
           canal,
           personal_id:        canal === "cuenta_corriente" && personalId ? personalId : null,
-          pago_efectivo:      parseFloat(pagos.efectivo)      || null,
+          pago_efectivo:      efectivoNum > 0 ? Math.max(0, efectivoNum - (vuelto ?? 0)) || null : null,
           pago_billetera:     parseFloat(pagos.mp)            || null,
           pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
           pago_transferencia: parseFloat(pagos.transferencia) || null,
