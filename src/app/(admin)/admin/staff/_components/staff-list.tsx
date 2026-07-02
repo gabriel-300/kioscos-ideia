@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
-import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal } from "../actions";
+import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, generarLinkResetPassword } from "../actions";
 
 type StaffUser = {
   id: string;
@@ -124,7 +124,10 @@ function EditDrawer({
   sucursales: Sucursal[];
   onClose: () => void;
 }) {
-  const [pending, startTransition] = useTransition();
+  const [pending,   startTransition] = useTransition();
+  const [resetting, startReset]      = useTransition();
+  const [resetLink, setResetLink]    = useState<string | null>(null);
+  const [copied,    setCopied]       = useState(false);
   const router = useRouter();
 
   const sucursalActual =
@@ -208,6 +211,51 @@ function EditDrawer({
               <p className="text-sm text-neutral-600">{user.lastSignIn}</p>
             </div>
           )}
+
+          {/* Link de acceso */}
+          <div className="border-t border-neutral-100 pt-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">Link de acceso único</p>
+            {resetLink ? (
+              <div className="space-y-2">
+                <input
+                  readOnly
+                  value={resetLink}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="w-full h-9 rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-xs text-neutral-600 font-mono"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetLink).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {copied ? "✓ Copiado" : "Copiar link"}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-neutral-400 mb-2">Generá un link para que el empleado pueda ingresar o cambiar su contraseña.</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={resetting}
+                  onClick={() => {
+                    if (!user.email) { alert("El usuario no tiene email"); return; }
+                    startReset(async () => {
+                      try { setResetLink(await generarLinkResetPassword(user.email!)); }
+                      catch (e) { alert((e as Error).message); }
+                    });
+                  }}
+                >
+                  Generar link de acceso
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">

@@ -59,6 +59,14 @@ export async function actualizarStaff(userId: string, data: { nombre: string; pa
   revalidatePath("/admin/staff");
 }
 
+export async function generarLinkResetPassword(email: string): Promise<string> {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email });
+  if (error || !data) throw new Error(error?.message ?? "Error al generar link");
+  return data.properties.action_link;
+}
+
 export async function asignarSucursal(userId: string, sucursalId: string | null, role?: string) {
   await requireAdmin();
   const admin = createAdminClient();

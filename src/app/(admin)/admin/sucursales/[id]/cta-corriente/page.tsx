@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { PagoBtn } from "./_components/pago-form";
 
 export const revalidate = 0;
 
@@ -53,7 +54,7 @@ export default async function CtaCorrientePage({
     if (profile?.sucursal_id !== id) redirect("/admin/dashboard");
   }
 
-  const [ventasRes, personalRes, totalHistRes] = await Promise.all([
+  const [ventasRes, personalRes, totalHistRes, pagosRes] = await Promise.all([
     (supabase as any)
       .from("movimientos")
       .select(`
@@ -78,6 +79,12 @@ export default async function CtaCorrientePage({
       .eq("sucursal_id", id)
       .eq("canal", "cuenta_corriente")
       .eq("tipo", "venta") as unknown as Promise<{ data: { personal_id: string | null; movimiento_items: { subtotal: number | null }[] }[] | null }>,
+    // Pagos de deuda registrados
+    (supabase as any)
+      .from("cta_corriente_pagos")
+      .select("id, personal_id, monto, fecha, notas")
+      .eq("sucursal_id", id)
+      .order("fecha", { ascending: false }) as unknown as Promise<{ data: { id: string; personal_id: string; monto: number; fecha: string; notas: string | null }[] | null }>,
   ]);
 
   const ventas   = ventasRes.data   ?? [];
@@ -91,6 +98,17 @@ export default async function CtaCorrientePage({
     totalHistorico[pid] = (totalHistorico[pid] ?? 0) + sub;
   }
   const deudaHistoricaTotal = Object.values(totalHistorico).reduce((s, v) => s + v, 0);
+
+  // Pagos acumulados por persona
+  const pagadosMap: Record<string, { total: number; items: { id: string; monto: number; fecha: string; notas: string | null }[] }> = {};
+  for (const p of pagosRes.data ?? []) {
+    if (!pagadosMap[p.personal_id]) pagadosMap[p.personal_id] = { total: 0, items: [] };
+    pagadosMap[p.personal_id].total += p.monto;
+    pagadosMap[p.personal_id].items.push({ id: p.id, monto: p.monto, fecha: p.fecha, notas: p.notas });
+  }
+  const totalPagado = Object.values(pagadosMap).reduce((s, v) => s + v.total, 0);
+  const saldoPendienteGlobal = deudaHistoricaTotal - totalPagado;
+
   const personalMap: Record<string, string> = Object.fromEntries(
     personal.map((p) => [p.id, p.full_name ?? "Sin nombre"])
   );
@@ -172,12 +190,14 @@ export default async function CtaCorrientePage({
             <p className="text-xs font-semibold uppercase tracking-widest text-tierra-600 mb-1">Fiado este mes</p>
             <p className="text-2xl font-bold font-display tabular-nums text-tierra-700">{AR.format(totalMes)}</p>
           </div>
-          <div className={`rounded-xl border p-4 ${deudaHistoricaTotal > totalMes ? "border-red-200 bg-red-50" : "border-neutral-200 bg-white"}`}>
-            <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${deudaHistoricaTotal > totalMes ? "text-red-500" : "text-neutral-400"}`}>Deuda histórica</p>
-            <p className={`text-2xl font-bold font-display tabular-nums ${deudaHistoricaTotal > totalMes ? "text-red-700" : "text-neutral-900"}`}>
-              {AR.format(deudaHistoricaTotal)}
+          <div className={`rounded-xl border p-4 ${saldoPendienteGlobal > 0 ? "border-red-200 bg-red-50" : "border-selva-200 bg-selva-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${saldoPendienteGlobal > 0 ? "text-red-500" : "text-selva-600"}`}>Saldo pendiente</p>
+            <p className={`text-2xl font-bold font-display tabular-nums ${saldoPendienteGlobal > 0 ? "text-red-700" : "text-selva-700"}`}>
+              {AR.format(Math.max(0, saldoPendienteGlobal))}
             </p>
-            <p className="text-xs text-neutral-400 mt-0.5">acumulado sin pagos</p>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              {totalPagado > 0 ? `${AR.format(totalPagado)} pagado` : "sin pagos registrados"}
+            </p>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Empleados</p>
@@ -211,9 +231,12 @@ export default async function CtaCorrientePage({
                   </div>
                   <div className="text-right">
                     <p className="font-bold tabular-nums text-tierra-700">{AR.format(data.total)}</p>
-                    {totalHistorico[pid] != null && totalHistorico[pid] > data.total && (
-                      <p className="text-xs text-red-500 tabular-nums">Histórico: {AR.format(totalHistorico[pid])}</p>
-                    )}
+                    {(() => {
+                      const saldo = (totalHistorico[pid] ?? 0) - (pagadosMap[pid]?.total ?? 0);
+                      if (saldo > 0) return <p className="text-xs text-red-500 tabular-nums font-semibold">Saldo: {AR.format(saldo)}</p>;
+                      if (saldo <= 0 && (totalHistorico[pid] ?? 0) > 0) return <p className="text-xs text-selva-600 tabular-nums">Al día ✓</p>;
+                      return null;
+                    })()}
                     <p className="text-xs text-neutral-400">{data.ventas.length} {data.ventas.length === 1 ? "venta" : "ventas"} este mes</p>
                   </div>
                 </div>
@@ -251,6 +274,16 @@ export default async function CtaCorrientePage({
                   <span className="text-xs font-semibold text-tierra-600 uppercase tracking-wider">Total {mesLabel}</span>
                   <span className="font-bold tabular-nums text-tierra-700">{AR.format(data.total)}</span>
                 </div>
+
+                {/* Pagos */}
+                {pid !== "sin_asignar" && (
+                  <PagoBtn
+                    sucursalId={id}
+                    personalId={pid}
+                    nombre={data.nombre}
+                    pagos={pagadosMap[pid]?.items ?? []}
+                  />
+                )}
               </div>
             );
           })}

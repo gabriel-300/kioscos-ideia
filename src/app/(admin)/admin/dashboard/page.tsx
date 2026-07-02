@@ -151,8 +151,7 @@ export default async function DashboardPage() {
     // stock actual por sucursal/producto (para alertas)
     (admin as any)
       .from("stock_sucursal")
-      .select("sucursal_id, product_id, stock_actual")
-      as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
+      .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
     // productos con stock mínimo configurado
     admin
       .from("products")

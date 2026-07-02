@@ -18,7 +18,7 @@ export async function listarProveedores() {
 export async function crearProveedor(nombre: string, contacto?: string) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("proveedores").insert({
+  const { error } = await (supabase as any).from("proveedores").insert({
     nombre: nombre.trim(),
     contacto: contacto?.trim() || null,
   });
@@ -29,7 +29,7 @@ export async function crearProveedor(nombre: string, contacto?: string) {
 export async function actualizarProveedor(id: string, nombre: string, contacto?: string) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("proveedores").update({
+  const { error } = await (supabase as any).from("proveedores").update({
     nombre: nombre.trim(),
     contacto: contacto?.trim() || null,
   }).eq("id", id);
@@ -40,7 +40,7 @@ export async function actualizarProveedor(id: string, nombre: string, contacto?:
 export async function toggleProveedorActivo(id: string, activo: boolean) {
   await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("proveedores").update({ is_active: !activo }).eq("id", id);
+  const { error } = await (supabase as any).from("proveedores").update({ is_active: !activo }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/proveedores");
 }

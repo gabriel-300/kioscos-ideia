@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { crearProveedor, actualizarProveedor, toggleProveedorActivo } from "../actions";
 
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
 type Proveedor = { id: string; nombre: string; contacto: string | null; is_active: boolean };
 
 function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
@@ -77,7 +79,7 @@ function ProveedorForm({
   );
 }
 
-export function ProveedoresList({ proveedores }: { proveedores: Proveedor[] }) {
+export function ProveedoresList({ proveedores, comprasMap = {} }: { proveedores: Proveedor[]; comprasMap?: Record<string, number> }) {
   const [showNew,  setShowNew]  = useState(false);
   const [editing,  setEditing]  = useState<string | null>(null);
 
@@ -126,6 +128,7 @@ export function ProveedoresList({ proveedores }: { proveedores: Proveedor[] }) {
               <tr className="bg-neutral-50 border-b border-neutral-200">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">Nombre</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400 hidden sm:table-cell">Contacto</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-400 hidden md:table-cell">Total comprado</th>
                 <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-neutral-400">Activo</th>
                 <th className="px-4 py-2.5" />
               </tr>
@@ -150,6 +153,11 @@ export function ProveedoresList({ proveedores }: { proveedores: Proveedor[] }) {
                     <>
                       <td className="px-4 py-3 text-neutral-500 hidden sm:table-cell">
                         {p.contacto ?? <span className="text-neutral-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell">
+                        {comprasMap[p.nombre]
+                          ? <span className="text-sm font-medium text-neutral-700">{AR.format(comprasMap[p.nombre])}</span>
+                          : <span className="text-neutral-300 text-sm">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <ToggleActivo id={p.id} activo={p.is_active} />
