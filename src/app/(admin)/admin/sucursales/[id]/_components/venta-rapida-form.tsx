@@ -58,7 +58,7 @@ const PAY_METHODS: { id: PayMethod; label: string; icon: React.ReactNode }[] = [
     icon: <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>,
   },
   {
-    id: "mp", label: "Mercado Pago",
+    id: "mp", label: "Billetera virtual",
     icon: <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>,
   },
   {
@@ -180,8 +180,16 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     startTransition(async () => {
       try {
         await crearMovimiento({
-          sucursal_id: sucursalId, fecha, tipo: "venta", notas: notasFinal, canal,
-          personal_id: canal === "cuenta_corriente" && personalId ? personalId : null,
+          sucursal_id:        sucursalId,
+          fecha,
+          tipo:               "venta",
+          notas:              notasFinal,
+          canal,
+          personal_id:        canal === "cuenta_corriente" && personalId ? personalId : null,
+          pago_efectivo:      parseFloat(pagos.efectivo)      || null,
+          pago_billetera:     parseFloat(pagos.mp)            || null,
+          pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
+          pago_transferencia: parseFloat(pagos.transferencia) || null,
           items: seleccionados.map(([product_id, cantidad]) => ({
             product_id, cantidad,
             precio_unitario: products.find((p) => p.id === product_id)?.precio_dist ?? null,

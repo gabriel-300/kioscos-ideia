@@ -5,22 +5,25 @@ import { Button } from "@/components/ui";
 import { CierreCajaModal } from "./cierre-caja-modal";
 
 export type MovimientoCierre = {
-  fecha:    string;
-  tipo:     string;
-  canal:    string | null;
+  fecha:             string;
+  tipo:              string;
+  pago_efectivo:      number | null;
+  pago_billetera:     number | null;
+  pago_tarjeta:       number | null;
+  pago_transferencia: number | null;
   movimiento_items: { subtotal: number | null }[];
 };
 
 export type UltimoCierre = {
-  fecha:                    string;
-  total_ventas:             number;
-  efectivo_declarado:       number;
-  mercadopago_declarado:    number;
-  tarjeta_declarada:        number | null;
-  transferencia_declarada:  number | null;
-  diferencia:               number | null;
-  notas:                    string | null;
-  created_at:               string;
+  fecha:                   string;
+  total_ventas:            number;
+  efectivo_declarado:      number;
+  billetera_declarada:     number;
+  tarjeta_declarada:       number | null;
+  transferencia_declarada: number | null;
+  diferencia:              number | null;
+  notas:                   string | null;
+  created_at:              string;
 } | null;
 
 export function CierreCajaButton({

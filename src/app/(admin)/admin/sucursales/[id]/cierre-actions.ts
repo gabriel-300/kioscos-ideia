@@ -7,11 +7,11 @@ import { requireStaff } from "@/lib/auth/require-role";
 export async function cerrarCaja(data: {
   sucursal_id:              string;
   fecha:                    string;
-  total_ventas:             number;
-  efectivo_declarado:       number;
-  mercadopago_declarado:    number;
-  tarjeta_declarada:        number;
-  transferencia_declarada:  number;
+  total_ventas:            number;
+  efectivo_declarado:      number;
+  billetera_declarada:     number;
+  tarjeta_declarada:       number;
+  transferencia_declarada: number;
   notas:                    string | null;
 }) {
   const { userId, role } = await requireStaff();
@@ -29,15 +29,15 @@ export async function cerrarCaja(data: {
   }
 
   const { error } = await (admin as any).from("cierres_caja").insert({
-    sucursal_id:              data.sucursal_id,
-    fecha:                    data.fecha,
-    total_ventas:             data.total_ventas,
-    efectivo_declarado:       data.efectivo_declarado,
-    mercadopago_declarado:    data.mercadopago_declarado,
-    tarjeta_declarada:        data.tarjeta_declarada,
-    transferencia_declarada:  data.transferencia_declarada,
-    notas:                    data.notas,
-    created_by:               userId,
+    sucursal_id:             data.sucursal_id,
+    fecha:                   data.fecha,
+    total_ventas:            data.total_ventas,
+    efectivo_declarado:      data.efectivo_declarado,
+    billetera_declarada:     data.billetera_declarada,
+    tarjeta_declarada:       data.tarjeta_declarada,
+    transferencia_declarada: data.transferencia_declarada,
+    notas:                   data.notas,
+    created_by:              userId,
   });
 
   if (error) throw new Error(error.message);

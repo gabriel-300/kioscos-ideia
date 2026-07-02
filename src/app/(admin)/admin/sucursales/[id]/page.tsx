@@ -40,7 +40,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  type CierreRow = { fecha: string; total_ventas: number; efectivo_declarado: number; mercadopago_declarado: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
+  type CierreRow = { fecha: string; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
 
   const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult] = await Promise.all([
@@ -49,6 +49,7 @@ export default async function SucursalDetailPage({ params }: { params: Promise<{
       .from("movimientos")
       .select(`
         id, fecha, tipo, notas, canal, personal_id, created_at,
+        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
         movimiento_items(
           id, cantidad, precio_unitario, subtotal,
           product:products(id, name, sku)

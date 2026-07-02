@@ -48,7 +48,7 @@ export default async function CierresPage({
   let query = admin
     .from("cierres_caja")
     .select(`
-      id, fecha, total_ventas, efectivo_declarado, mercadopago_declarado, diferencia, notas, created_by, created_at,
+      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, diferencia, notas, created_by, created_at,
       sucursales(id, nombre)
     `)
     .gte("fecha", desde)
@@ -91,7 +91,7 @@ export default async function CierresPage({
   // Totales del período
   const totalVentas        = cierres.reduce((s, c) => s + (c.total_ventas ?? 0), 0);
   const totalEfectivo      = cierres.reduce((s, c) => s + (c.efectivo_declarado ?? 0), 0);
-  const totalMP            = cierres.reduce((s, c) => s + (c.mercadopago_declarado ?? 0), 0);
+  const totalBilletera     = cierres.reduce((s, c) => s + ((c as any).billetera_declarada ?? 0), 0);
   const totalTarjeta       = cierres.reduce((s, c) => s + ((c as any).tarjeta_declarada ?? 0), 0);
   const totalTransferencia = cierres.reduce((s, c) => s + ((c as any).transferencia_declarada ?? 0), 0);
   const totalDiferencia    = cierres.reduce((s, c) => s + (c.diferencia ?? 0), 0);
@@ -158,7 +158,7 @@ export default async function CierresPage({
         {[
           { label: "Ventas sistema", value: AR.format(totalVentas), sub: `${cierres.length} cierres` },
           { label: "Efectivo", value: AR.format(totalEfectivo) },
-          { label: "Mercado Pago", value: AR.format(totalMP) },
+          { label: "Billetera", value: AR.format(totalBilletera) },
           { label: "Tarjeta", value: AR.format(totalTarjeta) },
           { label: "Transferencia", value: AR.format(totalTransferencia) },
           {
@@ -192,7 +192,7 @@ export default async function CierresPage({
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo ini.</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">MP</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
@@ -237,7 +237,7 @@ export default async function CierresPage({
                         {AR.format(c.efectivo_declarado ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-neutral-600">
-                        {AR.format(c.mercadopago_declarado ?? 0)}
+                        {AR.format((c as any).billetera_declarada ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
                         {((c as any).tarjeta_declarada ?? 0) > 0 ? AR.format((c as any).tarjeta_declarada) : <span className="text-neutral-200">—</span>}
@@ -263,7 +263,7 @@ export default async function CierresPage({
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalEfectivo)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalMP)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalBilletera)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTarjeta)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTransferencia)}</td>
                   <td className="px-4 py-3 text-center">

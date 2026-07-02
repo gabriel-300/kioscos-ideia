@@ -66,15 +66,10 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   const ventasHoy = movimientos.filter((m) => m.tipo === "venta" && m.fecha === hoy);
 
-  const sumaCanal = (canal: string) =>
-    ventasHoy
-      .filter((m) => m.canal === canal)
-      .reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
-
-  const sugeridoEfectivo      = sumaCanal("efectivo");
-  const sugeridoMp            = sumaCanal("mercadopago");
-  const sugeridoTarjeta       = sumaCanal("tarjeta");
-  const sugeridoTransferencia = sumaCanal("transferencia");
+  const sugeridoEfectivo      = ventasHoy.reduce((s, m) => s + (m.pago_efectivo      ?? 0), 0);
+  const sugeridoBilletera     = ventasHoy.reduce((s, m) => s + (m.pago_billetera     ?? 0), 0);
+  const sugeridoTarjeta       = ventasHoy.reduce((s, m) => s + (m.pago_tarjeta       ?? 0), 0);
+  const sugeridoTransferencia = ventasHoy.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
 
   const totalVentas  = ventasHoy.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const registrosHoy = ventasHoy.length;
@@ -82,7 +77,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   useEffect(() => {
     if (open && cajaAbierta) {
       if (sugeridoEfectivo > 0)      setEfectivo(String(sugeridoEfectivo));
-      if (sugeridoMp > 0)            setMp(String(sugeridoMp));
+      if (sugeridoBilletera > 0)     setMp(String(sugeridoBilletera));
       if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
       if (sugeridoTransferencia > 0) setTransferencia(String(sugeridoTransferencia));
       setTimeout(() => efectivoRef.current?.focus(), 80);
@@ -111,11 +106,11 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         await cerrarCaja({
           sucursal_id:              sucursalId,
           fecha:                    hoy,
-          total_ventas:             totalVentas,
-          efectivo_declarado:       efectivoNum,
-          mercadopago_declarado:    mpNum,
-          tarjeta_declarada:        tarjetaNum,
-          transferencia_declarada:  transferenciaNum,
+          total_ventas:            totalVentas,
+          efectivo_declarado:      efectivoNum,
+          billetera_declarada:     mpNum,
+          tarjeta_declarada:       tarjetaNum,
+          transferencia_declarada: transferenciaNum,
           notas:                    notas || null,
         });
         handleClose();
@@ -185,11 +180,11 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 inputRef={efectivoRef}
               />
               <MontoInput
-                label="Mercado Pago"
+                label="Billetera virtual"
                 icon={<span className="text-base">📱</span>}
                 value={mp}
                 onChange={setMp}
-                sugerido={sugeridoMp}
+                sugerido={sugeridoBilletera}
               />
               <MontoInput
                 label="Tarjeta"
@@ -248,10 +243,10 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
               <div className="space-y-3">
                 <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
                   {[
-                    { icon: "💵", label: "Efectivo",      v: ultimoCierre.efectivo_declarado },
-                    { icon: "📱", label: "Mercado Pago",  v: ultimoCierre.mercadopago_declarado },
-                    { icon: "💳", label: "Tarjeta",       v: ultimoCierre.tarjeta_declarada ?? 0 },
-                    { icon: "🏦", label: "Transferencia", v: ultimoCierre.transferencia_declarada ?? 0 },
+                    { icon: "💵", label: "Efectivo",          v: ultimoCierre.efectivo_declarado },
+                    { icon: "📱", label: "Billetera virtual", v: ultimoCierre.billetera_declarada },
+                    { icon: "💳", label: "Tarjeta",           v: ultimoCierre.tarjeta_declarada ?? 0 },
+                    { icon: "🏦", label: "Transferencia",     v: ultimoCierre.transferencia_declarada ?? 0 },
                   ].filter((r) => r.v > 0).map((r) => (
                     <div key={r.label} className="flex items-center justify-between px-4 py-3">
                       <span className="text-sm text-neutral-500 flex items-center gap-2">
@@ -263,7 +258,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                   <div className="flex items-center justify-between px-4 py-3 bg-neutral-50">
                     <span className="text-sm font-semibold text-neutral-700">Total declarado</span>
                     <span className="text-sm font-bold tabular-nums">{AR.format(
-                      ultimoCierre.efectivo_declarado + ultimoCierre.mercadopago_declarado +
+                      ultimoCierre.efectivo_declarado + ultimoCierre.billetera_declarada +
                       (ultimoCierre.tarjeta_declarada ?? 0) + (ultimoCierre.transferencia_declarada ?? 0)
                     )}</span>
                   </div>

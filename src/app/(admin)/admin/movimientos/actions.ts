@@ -11,15 +11,19 @@ export interface ItemInput {
 }
 
 export async function crearMovimiento(data: {
-  sucursal_id:  string;
-  fecha:        string;
-  tipo:         "entrega" | "devolucion" | "ajuste" | "venta";
-  notas:        string | null;
-  items:        ItemInput[];
-  proveedor?:   string | null;
-  nro_remito?:  string | null;
-  canal?:       string | null;
-  personal_id?: string | null;
+  sucursal_id:       string;
+  fecha:             string;
+  tipo:              "entrega" | "devolucion" | "ajuste" | "venta";
+  notas:             string | null;
+  items:             ItemInput[];
+  proveedor?:        string | null;
+  nro_remito?:       string | null;
+  canal?:            string | null;
+  personal_id?:      string | null;
+  pago_efectivo?:      number | null;
+  pago_billetera?:     number | null;
+  pago_tarjeta?:       number | null;
+  pago_transferencia?: number | null;
 }) {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
@@ -55,15 +59,19 @@ export async function crearMovimiento(data: {
   const { data: mov, error } = await ((supabase as any)
     .from("movimientos")
     .insert({
-      sucursal_id: data.sucursal_id,
-      fecha:       data.fecha,
-      tipo:        data.tipo,
-      notas:       data.notas,
-      proveedor:   data.proveedor  ?? null,
-      nro_remito:  data.nro_remito ?? null,
-      canal:       data.canal       ?? "consumidor_final",
-      personal_id: data.personal_id ?? null,
-      created_by:  userId,
+      sucursal_id:        data.sucursal_id,
+      fecha:              data.fecha,
+      tipo:               data.tipo,
+      notas:              data.notas,
+      proveedor:          data.proveedor         ?? null,
+      nro_remito:         data.nro_remito        ?? null,
+      canal:              data.canal             ?? "consumidor_final",
+      personal_id:        data.personal_id       ?? null,
+      pago_efectivo:      data.pago_efectivo      ?? null,
+      pago_billetera:     data.pago_billetera     ?? null,
+      pago_tarjeta:       data.pago_tarjeta       ?? null,
+      pago_transferencia: data.pago_transferencia ?? null,
+      created_by:         userId,
     })
     .select("id")
     .single() as unknown as Promise<{ data: { id: string } | null; error: { message: string } | null }>);

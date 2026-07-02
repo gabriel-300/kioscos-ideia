@@ -330,7 +330,9 @@ export interface Database {
           fecha:                   string;
           total_ventas:            number;
           efectivo_declarado:      number;
-          mercadopago_declarado:   number;
+          billetera_declarada:     number;
+          tarjeta_declarada:       number | null;
+          transferencia_declarada: number | null;
           diferencia:              number | null;
           notas:                   string | null;
           created_by:              string | null;
@@ -342,15 +344,19 @@ export interface Database {
           fecha:                   string;
           total_ventas:            number;
           efectivo_declarado?:     number;
-          mercadopago_declarado?:  number;
+          billetera_declarada?:    number;
+          tarjeta_declarada?:      number | null;
+          transferencia_declarada?: number | null;
           notas?:                  string | null;
           created_by?:             string | null;
           created_at?:             string;
         };
         Update: {
-          efectivo_declarado?:     number;
-          mercadopago_declarado?:  number;
-          notas?:                  string | null;
+          efectivo_declarado?:      number;
+          billetera_declarada?:     number;
+          tarjeta_declarada?:       number | null;
+          transferencia_declarada?: number | null;
+          notas?:                   string | null;
         };
         Relationships: [
           { foreignKeyName: "cierres_caja_sucursal_id_fkey"; columns: ["sucursal_id"]; referencedRelation: "sucursales"; referencedColumns: ["id"] }
