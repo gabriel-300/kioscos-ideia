@@ -51,12 +51,15 @@ function DeleteBtn({ id }: { id: string }) {
   );
 }
 
+type Proveedor = { id: string; nombre: string };
+
 export function MovimientosList({
-  movimientos, sucursales, products,
+  movimientos, sucursales, products, proveedores = [],
 }: {
   movimientos: MovimientoRow[];
   sucursales:  Sucursal[];
   products:    Product[];
+  proveedores?: Proveedor[];
 }) {
   const hoy   = new Date();
   const mesDefault = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
@@ -211,6 +214,7 @@ export function MovimientosList({
         open={formOpen}
         sucursales={sucursales}
         products={products}
+        proveedores={proveedores}
         onClose={() => setFormOpen(false)}
       />
     </>

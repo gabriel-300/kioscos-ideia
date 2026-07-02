@@ -27,17 +27,20 @@ const emptyLine = (): LineItem => ({ product_id: "", cantidad: "", precio_unitar
 
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta";
 
+type Proveedor = { id: string; nombre: string };
+
 interface Props {
   open:               boolean;
   sucursales:         Sucursal[];
   products:           Product[];
+  proveedores?:       Proveedor[];
   onClose:            () => void;
   defaultSucursalId?: string;
   defaultTipo?:       TipoMov;
   formTitle?:         string;
 }
 
-export function MovimientoForm({ open, sucursales, products, onClose, defaultSucursalId, defaultTipo, formTitle }: Props) {
+export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
@@ -275,13 +278,26 @@ export function MovimientoForm({ open, sucursales, products, onClose, defaultSuc
                   <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
                     Proveedor
                   </label>
-                  <input
-                    type="text"
-                    value={proveedor}
-                    onChange={(e) => setProveedor(e.target.value)}
-                    placeholder="Nombre del proveedor"
-                    className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
-                  />
+                  {proveedores.length > 0 ? (
+                    <select
+                      value={proveedor}
+                      onChange={(e) => setProveedor(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+                    >
+                      <option value="">Sin proveedor</option>
+                      {proveedores.map((p) => (
+                        <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={proveedor}
+                      onChange={(e) => setProveedor(e.target.value)}
+                      placeholder="Nombre del proveedor"
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">

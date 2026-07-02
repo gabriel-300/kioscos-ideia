@@ -11,7 +11,7 @@ export default async function MovimientosPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: movimientos }, { data: sucursales }, { data: products }] = await Promise.all([
+  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }] = await Promise.all([
     supabase
       .from("movimientos")
       .select(`
@@ -35,6 +35,11 @@ export default async function MovimientosPage() {
       .select("id, name, sku, precio_dist")
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("proveedores")
+      .select("id, nombre")
+      .eq("is_active", true)
+      .order("nombre"),
   ]);
 
   return (
@@ -48,6 +53,7 @@ export default async function MovimientosPage() {
         movimientos={(movimientos ?? []) as Parameters<typeof MovimientosList>[0]["movimientos"]}
         sucursales={sucursales ?? []}
         products={(products ?? []) as Parameters<typeof MovimientosList>[0]["products"]}
+        proveedores={proveedores ?? []}
       />
     </div>
   );

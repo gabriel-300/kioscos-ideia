@@ -53,7 +53,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -78,6 +78,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .from("profiles")
       .select("id, full_name")
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
+    (supabase as any)
+      .from("proveedores")
+      .select("id, nombre")
+      .eq("is_active", true)
+      .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string }[] | null }>,
   ]);
 
   const movimientos = movimentos;
@@ -88,7 +93,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   if (!sucursal) notFound();
 
-  const personal = (personalResult.data ?? []).map((p) => ({ id: p.id, nombre: p.full_name ?? "Sin nombre" }));
+  const personal     = (personalResult.data ?? []).map((p) => ({ id: p.id, nombre: p.full_name ?? "Sin nombre" }));
+  const proveedores  = proveedoresResult.data ?? [];
   const personalMap: Record<string, string> = Object.fromEntries(personal.map((p) => [p.id, p.nombre]));
 
   // Staff solo puede ver su propia sucursal
@@ -197,6 +203,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   defaultTipo="entrega"
                   label="Registrar recepción"
                   variant="ghost"
+                  proveedores={proveedores}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -227,6 +234,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   sucursalNombre={sucursal.nombre}
                   products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
                   defaultTipo="entrega"
+                  proveedores={proveedores}
                 />
               </>
             )}

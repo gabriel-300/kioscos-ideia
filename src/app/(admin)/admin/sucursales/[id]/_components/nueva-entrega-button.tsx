@@ -20,6 +20,7 @@ export function NuevaEntregaButton({
   categories,
   personal,
   cajaAbierta,
+  proveedores = [],
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -31,6 +32,7 @@ export function NuevaEntregaButton({
   categories?:    { id: string; name: string }[];
   personal?:      { id: string; nombre: string }[];
   cajaAbierta?:   boolean;
+  proveedores?:   { id: string; nombre: string }[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -62,6 +64,7 @@ export function NuevaEntregaButton({
           open={open}
           sucursales={[{ id: sucursalId, nombre: sucursalNombre } as Database["public"]["Tables"]["sucursales"]["Row"]]}
           products={products}
+          proveedores={proveedores}
           defaultSucursalId={sucursalId}
           defaultTipo={defaultTipo}
           formTitle={btnLabel}

@@ -1,0 +1,175 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui";
+import { crearProveedor, actualizarProveedor, toggleProveedorActivo } from "../actions";
+
+type Proveedor = { id: string; nombre: string; contacto: string | null; is_active: boolean };
+
+function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => startTransition(() => toggleProveedorActivo(id, activo))}
+      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tierra-700 disabled:opacity-50 ${activo ? "bg-tierra-700" : "bg-neutral-300"}`}
+      aria-label={activo ? "Desactivar" : "Activar"}
+    >
+      <span className={`inline-block size-4 mt-0.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${activo ? "translate-x-4.5" : "translate-x-0.5"}`} />
+    </button>
+  );
+}
+
+function ProveedorForm({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial?: { nombre: string; contacto: string };
+  onSave: (nombre: string, contacto: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [nombre,   setNombre]   = useState(initial?.nombre   ?? "");
+  const [contacto, setContacto] = useState(initial?.contacto ?? "");
+  const [pending,  startTransition] = useTransition();
+  const [error,    setError]    = useState<string | null>(null);
+
+  function handleSave() {
+    if (!nombre.trim()) { setError("El nombre es requerido"); return; }
+    setError(null);
+    startTransition(async () => {
+      try { await onSave(nombre, contacto); }
+      catch (e) { setError((e as Error).message); }
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-medium text-neutral-600 block mb-1">Nombre *</label>
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej: Distribuidora Norte"
+          className="h-9 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+          autoFocus
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-neutral-600 block mb-1">Contacto (opcional)</label>
+        <input
+          type="text"
+          value={contacto}
+          onChange={(e) => setContacto(e.target.value)}
+          placeholder="Teléfono o email"
+          className="h-9 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        />
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <Button variant="primary" size="sm" loading={pending} onClick={handleSave}>Guardar</Button>
+        <Button variant="ghost"   size="sm" onClick={onCancel}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
+export function ProveedoresList({ proveedores }: { proveedores: Proveedor[] }) {
+  const [showNew,  setShowNew]  = useState(false);
+  const [editing,  setEditing]  = useState<string | null>(null);
+
+  async function handleCreate(nombre: string, contacto: string) {
+    await crearProveedor(nombre, contacto);
+    setShowNew(false);
+  }
+
+  async function handleUpdate(id: string, nombre: string, contacto: string) {
+    await actualizarProveedor(id, nombre, contacto);
+    setEditing(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-neutral-500">{proveedores.length} proveedores</p>
+        {!showNew && (
+          <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Nuevo proveedor
+          </Button>
+        )}
+      </div>
+
+      {showNew && (
+        <div className="rounded-xl border border-tierra-200 bg-tierra-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-tierra-600 mb-3">Nuevo proveedor</p>
+          <ProveedorForm
+            onSave={handleCreate}
+            onCancel={() => setShowNew(false)}
+          />
+        </div>
+      )}
+
+      {proveedores.length === 0 && !showNew ? (
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-10 text-center text-sm text-neutral-400">
+          No hay proveedores todavía. Creá el primero.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-neutral-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-neutral-50 border-b border-neutral-200">
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">Nombre</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400 hidden sm:table-cell">Contacto</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-neutral-400">Activo</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {proveedores.map((p) => (
+                <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
+                  <td className="px-4 py-3" colSpan={editing === p.id ? 4 : 1}>
+                    {editing === p.id ? (
+                      <ProveedorForm
+                        initial={{ nombre: p.nombre, contacto: p.contacto ?? "" }}
+                        onSave={(nombre, contacto) => handleUpdate(p.id, nombre, contacto)}
+                        onCancel={() => setEditing(null)}
+                      />
+                    ) : (
+                      <span className={`font-medium ${p.is_active ? "text-neutral-900" : "text-neutral-400"}`}>
+                        {p.nombre}
+                      </span>
+                    )}
+                  </td>
+                  {editing !== p.id && (
+                    <>
+                      <td className="px-4 py-3 text-neutral-500 hidden sm:table-cell">
+                        {p.contacto ?? <span className="text-neutral-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <ToggleActivo id={p.id} activo={p.is_active} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setEditing(p.id)}
+                          className="text-xs text-tierra-700 hover:underline font-medium"
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
