@@ -18,6 +18,7 @@ export async function crearMovimiento(data: {
   items:             ItemInput[];
   proveedor?:        string | null;
   nro_remito?:       string | null;
+  remito_image_url?: string | null;
   canal?:            string | null;
   personal_id?:      string | null;
   pago_efectivo?:      number | null;
@@ -81,6 +82,23 @@ export async function crearMovimiento(data: {
   });
 
   if (rpcRes.error) throw new Error(rpcRes.error.message ?? "Error al crear movimiento");
+
+  // Asociar imagen si se proporcionó — intentamos con el ID devuelto por la función
+  if (data.remito_image_url) {
+    const newId = typeof rpcRes.data === "string" ? rpcRes.data : null;
+    if (newId) {
+      await (supabase as any).from("movimientos").update({ remito_image_url: data.remito_image_url }).eq("id", newId);
+    } else {
+      // Fallback: actualizar el movimiento más reciente con los mismos parámetros
+      const { data: recent } = await (supabase as any)
+        .from("movimientos").select("id")
+        .eq("sucursal_id", data.sucursal_id).eq("tipo", data.tipo).eq("fecha", data.fecha)
+        .order("created_at", { ascending: false }).limit(1).single();
+      if (recent?.id) {
+        await (supabase as any).from("movimientos").update({ remito_image_url: data.remito_image_url }).eq("id", recent.id);
+      }
+    }
+  }
 
   revalidatePath("/admin/movimientos");
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);

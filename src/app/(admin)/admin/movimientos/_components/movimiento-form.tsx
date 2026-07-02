@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button, Input, Select, Textarea } from "@/components/ui";
 import { crearMovimiento, type ItemInput } from "../actions";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -49,7 +50,10 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [proveedor,  setProveedor]  = useState("");
   const [nroRemito,  setNroRemito]  = useState("");
   const [items,      setItems]      = useState<LineItem[]>([emptyLine()]);
-  const [error,      setError]      = useState<string | null>(null);
+  const [error,        setError]        = useState<string | null>(null);
+  const [remitoImage,  setRemitoImage]  = useState<File | null>(null);
+  const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
+  const [uploading,    setUploading]    = useState(false);
 
   function resetForm() {
     setSucursalId(defaultSucursalId ?? "");
@@ -60,6 +64,34 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setNroRemito("");
     setItems([emptyLine()]);
     setError(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setRemitoImage(null);
+    setPreviewUrl(null);
+  }
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setRemitoImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    e.target.value = "";
+  }
+
+  function handleRemoveImage() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setRemitoImage(null);
+    setPreviewUrl(null);
+  }
+
+  async function uploadImage(file: File): Promise<string> {
+    const supabase = createBrowserClient();
+    const ext  = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from("remitos").upload(path, file);
+    if (error) throw new Error(`No se pudo subir la imagen: ${error.message}`);
+    const { data } = supabase.storage.from("remitos").getPublicUrl(path);
+    return data.publicUrl;
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -99,14 +131,21 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
 
     startTransition(async () => {
       try {
+        let remitoImageUrl: string | null = null;
+        if (remitoImage) {
+          setUploading(true);
+          try { remitoImageUrl = await uploadImage(remitoImage); }
+          finally { setUploading(false); }
+        }
         await crearMovimiento({
-          sucursal_id: sucursalId,
+          sucursal_id:      sucursalId,
           fecha,
           tipo,
-          notas:      notas      || null,
-          proveedor:  proveedor  || null,
-          nro_remito: nroRemito  || null,
-          items:      parsed,
+          notas:            notas     || null,
+          proveedor:        proveedor || null,
+          nro_remito:       nroRemito || null,
+          remito_image_url: remitoImageUrl,
+          items:            parsed,
         });
         resetForm();
         onClose();
@@ -312,6 +351,45 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                   />
                 </div>
               </div>
+
+              {/* Imagen del remito */}
+              <div>
+                <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
+                  Foto de remito / factura
+                </label>
+                {previewUrl ? (
+                  <div className="flex items-start gap-3">
+                    <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={previewUrl}
+                        alt="Preview remito"
+                        className="h-24 rounded-lg border border-neutral-200 object-contain bg-neutral-50"
+                      />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="mt-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      Quitar imagen
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 h-10 px-3 w-full rounded-lg border border-dashed border-neutral-300 bg-white hover:bg-neutral-50 cursor-pointer transition-colors">
+                    <svg className="size-4 text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    </svg>
+                    <span className="text-sm text-neutral-500">Agregar imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           )}
 
@@ -327,8 +405,8 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
 
         <div className="px-6 py-4 border-t border-neutral-200 flex gap-3 shrink-0">
           <Button variant="ghost" size="sm" onClick={onClose} type="button" className="flex-1">Cancelar</Button>
-          <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="flex-1">
-            {TIPO_BTN[tipo]}
+          <Button variant="primary" size="sm" loading={pending || uploading} onClick={handleSubmit} className="flex-1">
+            {uploading ? "Subiendo imagen…" : TIPO_BTN[tipo]}
           </Button>
         </div>
       </aside>
