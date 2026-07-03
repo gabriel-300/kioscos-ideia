@@ -243,8 +243,9 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
             <div className="space-y-2">
               {items.map((item, i) => {
                 const prod = products.find((p) => p.id === item.product_id);
+                const importe = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio_unitario) || 0);
                 return (
-                  <div key={i} className="grid grid-cols-[1fr_80px_100px_auto] gap-2 items-end">
+                  <div key={i} className="grid grid-cols-[1fr_80px_100px_100px_auto] gap-2 items-end">
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                       <Combobox
@@ -276,6 +277,12 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                         onChange={(e) => updateLine(i, "precio_unitario", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
+                    </div>
+                    <div>
+                      {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Importe</p>}
+                      <div className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 text-sm tabular-nums flex items-center text-neutral-600">
+                        {importe > 0 ? AR.format(importe) : "—"}
+                      </div>
                     </div>
                     <button
                       onClick={() => removeLine(i)}
