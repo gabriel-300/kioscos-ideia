@@ -79,8 +79,27 @@ export async function cerrarCaja(data: {
 }
 
 export async function getCierreDelDia(sucursalId: string, fecha: string) {
-  await requireStaff();
+  const { userId, role } = await requireStaff();
   const supabase = createAdminClient();
+
+  if (role === "encargado") {
+    const { data: suc } = await supabase
+      .from("sucursales")
+      .select("encargado_user_id")
+      .eq("id", sucursalId)
+      .single();
+    if (suc?.encargado_user_id !== userId) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
+  if (role === "vendedor") {
+    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
+    if (profile?.sucursal_id !== sucursalId) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
+
   const res = await (supabase as any)
     .from("cierres_caja")
     .select("*")

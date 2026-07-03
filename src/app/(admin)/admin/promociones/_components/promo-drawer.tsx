@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Combobox } from "@/components/ui";
 import { crearPromo, actualizarPromo, type PromoItemInput } from "../actions";
 import type { PromoWithItems } from "./promos-table";
 
@@ -128,16 +128,11 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
                 <div key={i} className="grid grid-cols-[1fr_100px_auto] gap-2 items-end">
                   <div>
                     {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
-                    <select
+                    <Combobox
+                      options={products.map((p) => ({ value: p.id, label: p.name }))}
                       value={item.product_id}
-                      onChange={(e) => updateLine(i, "product_id", e.target.value)}
-                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700"
-                    >
-                      <option value="">Seleccioná…</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => updateLine(i, "product_id", v)}
+                    />
                   </div>
                   <div>
                     {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}

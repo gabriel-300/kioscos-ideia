@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, Input, Select, Textarea } from "@/components/ui";
+import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
 import { crearMovimiento, type ItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
@@ -247,16 +247,11 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                   <div key={i} className="grid grid-cols-[1fr_80px_100px_auto] gap-2 items-end">
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
-                      <select
+                      <Combobox
+                        options={products.map((p) => ({ value: p.id, label: p.name }))}
                         value={item.product_id}
-                        onChange={(e) => autoPrecio(i, e.target.value)}
-                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700"
-                      >
-                        <option value="">Seleccioná…</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => autoPrecio(i, v)}
+                      />
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}
