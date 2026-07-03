@@ -7,451 +7,948 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
-export type UserRole =
-  | "customer_b2c"
-  | "customer_b2b"
-  | "repartidor"
-  | "admin_enminutas"
-  | "admin_ideaia";
-
-export type OrderStatus =
-  | "pending_payment"
-  | "payment_review"
-  | "paid"
-  | "preparing"
-  | "ready"
-  | "in_delivery"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "refunded"
-  | "aprobado"
-  | "enviado_prod"
-  | "despachado"
-  | "en_distribucion";
-
-export type OrderChannel =
-  | "b2c_nacional"
-  | "b2b_mayorista"
-  | "pedido_ya_local";
-
-export type B2bStatus = "pending" | "approved" | "rejected" | "suspended";
-
-export type ClientCanal = "dist" | "gastro" | "min";
-export type B2bProfileStatus = "pendiente" | "activo" | "inactivo";
-
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
-      profiles: {
+      aperturas_caja: {
         Row: {
-          id: string;
-          role: UserRole;
-          full_name: string | null;
-          phone: string | null;
-          document_type: string | null;
-          document_number: string | null;
-          canal: ClientCanal | null;
-          zona_id: string | null;
-          b2b_status: B2bProfileStatus | null;
-          created_at: string;
-          updated_at: string;
-        };
+          created_at: string
+          created_by: string | null
+          fecha: string
+          fondo_inicial: number
+          id: string
+          notas: string | null
+          sucursal_id: string
+        }
         Insert: {
-          id: string;
-          role?: UserRole;
-          full_name?: string | null;
-          phone?: string | null;
-          document_type?: string | null;
-          document_number?: string | null;
-          canal?: ClientCanal | null;
-          zona_id?: string | null;
-          b2b_status?: B2bProfileStatus | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          fondo_inicial?: number
+          id?: string
+          notas?: string | null
+          sucursal_id: string
+        }
         Update: {
-          id?: string;
-          role?: UserRole;
-          full_name?: string | null;
-          phone?: string | null;
-          document_type?: string | null;
-          document_number?: string | null;
-          canal?: ClientCanal | null;
-          zona_id?: string | null;
-          b2b_status?: B2bProfileStatus | null;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      categories: {
-        Row: {
-          id: string;
-          slug: string;
-          name: string;
-          description: string | null;
-          image_url: string | null;
-          sort_order: number;
-          is_active: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          slug: string;
-          name: string;
-          description?: string | null;
-          image_url?: string | null;
-          sort_order?: number;
-          is_active?: boolean;
-          created_at?: string;
-        };
-        Update: {
-          slug?: string;
-          name?: string;
-          description?: string | null;
-          image_url?: string | null;
-          sort_order?: number;
-          is_active?: boolean;
-        };
-        Relationships: [];
-      };
-      products: {
-        Row: {
-          id: string;
-          sku: string;
-          slug: string;
-          name: string;
-          short_description: string | null;
-          description: string | null;
-          category_id: string | null;
-          price_b2c: number;
-          price_b2b: number;
-          min_quantity_b2b: number;
-          unit_label: string;
-          weight_grams: number | null;
-          freezer_required: boolean;
-          is_active: boolean;
-          cover_image_url: string | null;
-          gallery_urls: Json;
-          metadata: Json;
-          costo: number | null;
-          kg_caja: number | null;
-          bolsas_caja: number | null;
-          pkg_unitario: number | null;
-          pkg_bulto: number | null;
-          margen_dist: number | null;
-          margen_gastro: number | null;
-          margen_min: number | null;
-          mult_bolsas: boolean | null;
-          precio_dist: number | null;
-          precio_gastro: number | null;
-          precio_min: number | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          sku: string;
-          slug: string;
-          name: string;
-          short_description?: string | null;
-          description?: string | null;
-          category_id?: string | null;
-          price_b2c: number;
-          price_b2b: number;
-          min_quantity_b2b?: number;
-          unit_label?: string;
-          weight_grams?: number | null;
-          freezer_required?: boolean;
-          is_active?: boolean;
-          cover_image_url?: string | null;
-          gallery_urls?: Json;
-          metadata?: Json;
-          costo?: number | null;
-          kg_caja?: number | null;
-          bolsas_caja?: number | null;
-          pkg_unitario?: number | null;
-          pkg_bulto?: number | null;
-          margen_dist?: number | null;
-          margen_gastro?: number | null;
-          margen_min?: number | null;
-          mult_bolsas?: boolean | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          sku?: string;
-          slug?: string;
-          name?: string;
-          short_description?: string | null;
-          description?: string | null;
-          category_id?: string | null;
-          price_b2c?: number;
-          price_b2b?: number;
-          min_quantity_b2b?: number;
-          unit_label?: string;
-          weight_grams?: number | null;
-          freezer_required?: boolean;
-          is_active?: boolean;
-          cover_image_url?: string | null;
-          gallery_urls?: Json;
-          metadata?: Json;
-          costo?: number | null;
-          kg_caja?: number | null;
-          bolsas_caja?: number | null;
-          pkg_unitario?: number | null;
-          pkg_bulto?: number | null;
-          margen_dist?: number | null;
-          margen_gastro?: number | null;
-          margen_min?: number | null;
-          mult_bolsas?: boolean | null;
-          updated_at?: string;
-        };
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          fondo_inicial?: number
+          id?: string
+          notas?: string | null
+          sucursal_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "products_category_id_fkey";
-            columns: ["category_id"];
-            referencedRelation: "categories";
-            referencedColumns: ["id"];
-          }
-        ];
-      };
-      orders: {
+            foreignKeyName: "aperturas_caja_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
         Row: {
-          id: string;
-          order_number: string;
-          channel: OrderChannel;
-          customer_id: string | null;
-          guest_email: string | null;
-          guest_phone: string | null;
-          status: OrderStatus;
-          subtotal: number;
-          shipping_fee: number;
-          discount: number;
-          total: number;
-          ideaia_commission_rate: number;
-          ideaia_commission_amount: number;
-          shipping_method: string;
-          shipping_address_id: string | null;
-          shipping_snapshot: Json | null;
-          delivery_zone_id: string | null;
-          assigned_driver_id: string | null;
-          tracking_number: string | null;
-          payment_method: string;
-          payment_declared_at: string | null;
-          payment_confirmed_at: string | null;
-          payment_confirmed_by: string | null;
-          payment_proof_url: string | null;
-          mp_preference_id: string | null;
-          mp_payment_id: string | null;
-          notes: string | null;
-          aprobado_por: string | null;
-          aprobado_at: string | null;
-          despachado_at: string | null;
-          entregado_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: Partial<Database["public"]["Tables"]["orders"]["Row"]> & {
-          channel: OrderChannel;
-          subtotal: number;
-          total: number;
-          ideaia_commission_rate: number;
-          ideaia_commission_amount: number;
-          shipping_method: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["orders"]["Row"]>;
-        Relationships: [];
-      };
-      movimientos: {
-        Row: {
-          id:          string;
-          sucursal_id: string;
-          fecha:       string;
-          tipo:        "entrega" | "devolucion" | "ajuste" | "venta";
-          notas:       string | null;
-          created_by:  string | null;
-          created_at:  string;
-        };
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          slug: string
+          sort_order: number
+        }
         Insert: {
-          id?:         string;
-          sucursal_id: string;
-          fecha?:      string;
-          tipo?:       "entrega" | "devolucion" | "ajuste" | "venta";
-          notas?:      string | null;
-          created_by?: string | null;
-          created_at?: string;
-        };
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+        }
         Update: {
-          sucursal_id?: string;
-          fecha?:       string;
-          tipo?:        "entrega" | "devolucion" | "ajuste" | "venta";
-          notas?:       string | null;
-        };
-        Relationships: [
-          { foreignKeyName: "movimientos_sucursal_id_fkey"; columns: ["sucursal_id"]; referencedRelation: "sucursales"; referencedColumns: ["id"] }
-        ];
-      };
-      movimiento_items: {
-        Row: {
-          id:              string;
-          movimiento_id:   string;
-          product_id:      string;
-          cantidad:        number;
-          precio_unitario: number | null;
-          subtotal:        number | null;
-          created_at:      string;
-        };
-        Insert: {
-          id?:             string;
-          movimiento_id:   string;
-          product_id:      string;
-          cantidad:        number;
-          precio_unitario?: number | null;
-          subtotal?:       number | null;
-          created_at?:     string;
-        };
-        Update: {
-          cantidad?:        number;
-          precio_unitario?: number | null;
-          subtotal?:        number | null;
-        };
-        Relationships: [
-          { foreignKeyName: "movimiento_items_movimiento_id_fkey"; columns: ["movimiento_id"]; referencedRelation: "movimientos"; referencedColumns: ["id"] },
-          { foreignKeyName: "movimiento_items_product_id_fkey";   columns: ["product_id"];   referencedRelation: "products";    referencedColumns: ["id"] }
-        ];
-      };
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       cierres_caja: {
         Row: {
-          id:                      string;
-          sucursal_id:             string;
-          fecha:                   string;
-          fondo_inicial:           number;
-          total_ventas:            number;
-          efectivo_declarado:      number;
-          billetera_declarada:     number;
-          tarjeta_declarada:       number | null;
-          transferencia_declarada: number | null;
-          diferencia:              number | null;
-          notas:                   string | null;
-          created_by:              string | null;
-          created_at:              string;
-        };
+          billetera_declarada: number
+          created_at: string
+          created_by: string | null
+          diferencia: number | null
+          efectivo_declarado: number
+          fecha: string
+          fondo_inicial: number
+          id: string
+          notas: string | null
+          sucursal_id: string
+          tarjeta_declarada: number
+          total_ventas: number
+          transferencia_declarada: number
+        }
         Insert: {
-          id?:                      string;
-          sucursal_id:              string;
-          fecha:                    string;
-          fondo_inicial?:           number;
-          total_ventas:             number;
-          efectivo_declarado?:      number;
-          billetera_declarada?:     number;
-          tarjeta_declarada?:       number | null;
-          transferencia_declarada?: number | null;
-          notas?:                   string | null;
-          created_by?:              string | null;
-          created_at?:              string;
-        };
+          billetera_declarada?: number
+          created_at?: string
+          created_by?: string | null
+          diferencia?: number | null
+          efectivo_declarado?: number
+          fecha: string
+          fondo_inicial?: number
+          id?: string
+          notas?: string | null
+          sucursal_id: string
+          tarjeta_declarada?: number
+          total_ventas?: number
+          transferencia_declarada?: number
+        }
         Update: {
-          fondo_inicial?:           number;
-          efectivo_declarado?:      number;
-          billetera_declarada?:     number;
-          tarjeta_declarada?:       number | null;
-          transferencia_declarada?: number | null;
-          notas?:                   string | null;
-        };
+          billetera_declarada?: number
+          created_at?: string
+          created_by?: string | null
+          diferencia?: number | null
+          efectivo_declarado?: number
+          fecha?: string
+          fondo_inicial?: number
+          id?: string
+          notas?: string | null
+          sucursal_id?: string
+          tarjeta_declarada?: number
+          total_ventas?: number
+          transferencia_declarada?: number
+        }
         Relationships: [
-          { foreignKeyName: "cierres_caja_sucursal_id_fkey"; columns: ["sucursal_id"]; referencedRelation: "sucursales"; referencedColumns: ["id"] }
-        ];
-      };
-      sucursales: {
+          {
+            foreignKeyName: "cierres_caja_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cta_corriente_pagos: {
         Row: {
-          id: string;
-          nombre: string;
-          encargado_nombre: string | null;
-          encargado_telefono: string | null;
-          encargado_email: string | null;
-          encargado_user_id: string | null;
-          direccion: string | null;
-          localidad: string;
-          provincia: string;
-          notas: string | null;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          monto: number
+          notas: string | null
+          personal_id: string
+          sucursal_id: string
+        }
         Insert: {
-          id?: string;
-          nombre: string;
-          encargado_nombre?: string | null;
-          encargado_telefono?: string | null;
-          encargado_email?: string | null;
-          encargado_user_id?: string | null;
-          direccion?: string | null;
-          localidad?: string;
-          provincia?: string;
-          notas?: string | null;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto: number
+          notas?: string | null
+          personal_id: string
+          sucursal_id: string
+        }
         Update: {
-          nombre?: string;
-          encargado_nombre?: string | null;
-          encargado_telefono?: string | null;
-          encargado_email?: string | null;
-          encargado_user_id?: string | null;
-          direccion?: string | null;
-          localidad?: string;
-          provincia?: string;
-          notas?: string | null;
-          is_active?: boolean;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto?: number
+          notas?: string | null
+          personal_id?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cta_corriente_pagos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimiento_items: {
+        Row: {
+          cantidad: number
+          created_at: string
+          id: string
+          movimiento_id: string
+          precio_unitario: number | null
+          product_id: string
+          promo_id: string | null
+          subtotal: number | null
+        }
+        Insert: {
+          cantidad: number
+          created_at?: string
+          id?: string
+          movimiento_id: string
+          precio_unitario?: number | null
+          product_id: string
+          promo_id?: string | null
+          subtotal?: number | null
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          id?: string
+          movimiento_id?: string
+          precio_unitario?: number | null
+          product_id?: string
+          promo_id?: string | null
+          subtotal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_items_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_items_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "promos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimientos: {
+        Row: {
+          canal: string | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          notas: string | null
+          nro_remito: string | null
+          pago_billetera: number | null
+          pago_efectivo: number | null
+          pago_tarjeta: number | null
+          pago_transferencia: number | null
+          personal_id: string | null
+          proveedor: string | null
+          remito_image_url: string | null
+          sucursal_id: string
+          tipo: string
+        }
+        Insert: {
+          canal?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          notas?: string | null
+          nro_remito?: string | null
+          pago_billetera?: number | null
+          pago_efectivo?: number | null
+          pago_tarjeta?: number | null
+          pago_transferencia?: number | null
+          personal_id?: string | null
+          proveedor?: string | null
+          remito_image_url?: string | null
+          sucursal_id: string
+          tipo?: string
+        }
+        Update: {
+          canal?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          notas?: string | null
+          nro_remito?: string | null
+          pago_billetera?: number | null
+          pago_efectivo?: number | null
+          pago_tarjeta?: number | null
+          pago_transferencia?: number | null
+          personal_id?: string | null
+          proveedor?: string | null
+          remito_image_url?: string | null
+          sucursal_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_personal_id_fkey"
+            columns: ["personal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
-          id: number;
-          ideaia_commission_rate: number;
-          bank_cbu: string;
-          bank_alias: string;
-          bank_holder: string;
-          cuit_emisor: string;
-          whatsapp_phone_display: string | null;
-          updated_at: string;
-        };
+          bank_alias: string
+          bank_cbu: string
+          bank_holder: string
+          cuit_emisor: string
+          id: number
+          ideaia_commission_rate: number
+          updated_at: string
+          whatsapp_phone_display: string | null
+        }
         Insert: {
-          id?: number;
-          ideaia_commission_rate?: number;
-          bank_cbu: string;
-          bank_alias: string;
-          bank_holder: string;
-          cuit_emisor: string;
-          whatsapp_phone_display?: string | null;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["platform_settings"]["Row"]>;
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
+          bank_alias?: string
+          bank_cbu?: string
+          bank_holder?: string
+          cuit_emisor?: string
+          id?: number
+          ideaia_commission_rate?: number
+          updated_at?: string
+          whatsapp_phone_display?: string | null
+        }
+        Update: {
+          bank_alias?: string
+          bank_cbu?: string
+          bank_holder?: string
+          cuit_emisor?: string
+          id?: number
+          ideaia_commission_rate?: number
+          updated_at?: string
+          whatsapp_phone_display?: string | null
+        }
+        Relationships: []
+      }
+      product_price_history: {
+        Row: {
+          changed_at: string
+          costo_anterior: number | null
+          costo_nuevo: number | null
+          id: string
+          precio_dist_anterior: number | null
+          precio_dist_nuevo: number | null
+          product_id: string
+        }
+        Insert: {
+          changed_at?: string
+          costo_anterior?: number | null
+          costo_nuevo?: number | null
+          id?: string
+          precio_dist_anterior?: number | null
+          precio_dist_nuevo?: number | null
+          product_id: string
+        }
+        Update: {
+          changed_at?: string
+          costo_anterior?: number | null
+          costo_nuevo?: number | null
+          id?: string
+          precio_dist_anterior?: number | null
+          precio_dist_nuevo?: number | null
+          product_id?: string
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          bolsas_caja: number | null
+          category_id: string | null
+          costo: number | null
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          freezer_required: boolean
+          gallery_urls: Json
+          id: string
+          is_active: boolean
+          kg_caja: number | null
+          margen_dist: number | null
+          margen_gastro: number | null
+          margen_min: number | null
+          metadata: Json
+          min_quantity_b2b: number
+          mult_bolsas: boolean | null
+          name: string
+          pkg_bulto: number | null
+          pkg_unitario: number | null
+          precio_dist: number | null
+          precio_gastro: number | null
+          precio_min: number | null
+          price_b2b: number
+          price_b2c: number
+          short_description: string | null
+          sku: string
+          slug: string
+          stock_minimo: number
+          unit_label: string
+          updated_at: string
+          weight_grams: number | null
+        }
+        Insert: {
+          bolsas_caja?: number | null
+          category_id?: string | null
+          costo?: number | null
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          freezer_required?: boolean
+          gallery_urls?: Json
+          id?: string
+          is_active?: boolean
+          kg_caja?: number | null
+          margen_dist?: number | null
+          margen_gastro?: number | null
+          margen_min?: number | null
+          metadata?: Json
+          min_quantity_b2b?: number
+          mult_bolsas?: boolean | null
+          name: string
+          pkg_bulto?: number | null
+          pkg_unitario?: number | null
+          precio_dist?: number | null
+          precio_gastro?: number | null
+          precio_min?: number | null
+          price_b2b?: number
+          price_b2c?: number
+          short_description?: string | null
+          sku: string
+          slug: string
+          stock_minimo?: number
+          unit_label?: string
+          updated_at?: string
+          weight_grams?: number | null
+        }
+        Update: {
+          bolsas_caja?: number | null
+          category_id?: string | null
+          costo?: number | null
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          freezer_required?: boolean
+          gallery_urls?: Json
+          id?: string
+          is_active?: boolean
+          kg_caja?: number | null
+          margen_dist?: number | null
+          margen_gastro?: number | null
+          margen_min?: number | null
+          metadata?: Json
+          min_quantity_b2b?: number
+          mult_bolsas?: boolean | null
+          name?: string
+          pkg_bulto?: number | null
+          pkg_unitario?: number | null
+          precio_dist?: number | null
+          precio_gastro?: number | null
+          precio_min?: number | null
+          price_b2b?: number
+          price_b2c?: number
+          short_description?: string | null
+          sku?: string
+          slug?: string
+          stock_minimo?: number
+          unit_label?: string
+          updated_at?: string
+          weight_grams?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          b2b_status: string | null
+          canal: string | null
+          created_at: string
+          credito_limite: number | null
+          document_number: string | null
+          document_type: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          sucursal_id: string | null
+          updated_at: string
+          zona_id: string | null
+        }
+        Insert: {
+          b2b_status?: string | null
+          canal?: string | null
+          created_at?: string
+          credito_limite?: number | null
+          document_number?: string | null
+          document_type?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          sucursal_id?: string | null
+          updated_at?: string
+          zona_id?: string | null
+        }
+        Update: {
+          b2b_status?: string | null
+          canal?: string | null
+          created_at?: string
+          credito_limite?: number | null
+          document_number?: string | null
+          document_type?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          sucursal_id?: string | null
+          updated_at?: string
+          zona_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_items: {
+        Row: {
+          cantidad: number
+          created_at: string
+          id: string
+          product_id: string
+          promo_id: string
+        }
+        Insert: {
+          cantidad: number
+          created_at?: string
+          id?: string
+          product_id: string
+          promo_id: string
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          id?: string
+          product_id?: string
+          promo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_items_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "promos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promos: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      proveedores: {
+        Row: {
+          contacto: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          nombre: string
+        }
+        Insert: {
+          contacto?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          nombre: string
+        }
+        Update: {
+          contacto?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          nombre?: string
+        }
+        Relationships: []
+      }
+      retiros_caja: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          monto: number
+          motivo: string
+          sucursal_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto: number
+          motivo: string
+          sucursal_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto?: number
+          motivo?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retiros_caja_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sucursales: {
+        Row: {
+          created_at: string
+          direccion: string | null
+          encargado_email: string | null
+          encargado_nombre: string | null
+          encargado_telefono: string | null
+          encargado_user_id: string | null
+          id: string
+          is_active: boolean
+          localidad: string
+          nombre: string
+          notas: string | null
+          provincia: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          direccion?: string | null
+          encargado_email?: string | null
+          encargado_nombre?: string | null
+          encargado_telefono?: string | null
+          encargado_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          localidad?: string
+          nombre: string
+          notas?: string | null
+          provincia?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          direccion?: string | null
+          encargado_email?: string | null
+          encargado_nombre?: string | null
+          encargado_telefono?: string | null
+          encargado_user_id?: string | null
+          id?: string
+          is_active?: boolean
+          localidad?: string
+          nombre?: string
+          notas?: string | null
+          provincia?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      stock_sucursal: {
+        Row: {
+          entradas: number | null
+          product_id: string | null
+          product_name: string | null
+          salidas: number | null
+          sku: string | null
+          stock_actual: number | null
+          sucursal_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
     Functions: {
-      current_role: {
-        Args: Record<string, never>;
-        Returns: string;
-      };
-      is_admin: {
-        Args: Record<string, never>;
-        Returns: boolean;
-      };
-    };
+      crear_movimiento_con_items: {
+        Args: {
+          p_canal?: string
+          p_created_by?: string
+          p_fecha: string
+          p_items?: Json
+          p_notas?: string
+          p_nro_remito?: string
+          p_pago_billetera?: number
+          p_pago_efectivo?: number
+          p_pago_tarjeta?: number
+          p_pago_transferencia?: number
+          p_personal_id?: string
+          p_proveedor?: string
+          p_sucursal_id: string
+          p_tipo: string
+        }
+        Returns: string
+      }
+      current_role: { Args: never; Returns: string }
+      is_admin: { Args: never; Returns: boolean }
+    }
     Enums: {
-      user_role: UserRole;
-      order_status: OrderStatus;
-      order_channel: OrderChannel;
-      b2b_status: B2bStatus;
-    };
-  };
+      b2b_status: "pending" | "approved" | "rejected" | "suspended"
+      order_channel: "b2c_nacional" | "b2b_mayorista" | "pedido_ya_local"
+      order_status:
+        | "pending_payment"
+        | "payment_review"
+        | "paid"
+        | "preparing"
+        | "ready"
+        | "in_delivery"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
+        | "refunded"
+        | "aprobado"
+        | "enviado_prod"
+        | "despachado"
+        | "en_distribucion"
+      user_role:
+        | "customer_b2c"
+        | "customer_b2b"
+        | "repartidor"
+        | "admin_enminutas"
+        | "admin_ideaia"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      b2b_status: ["pending", "approved", "rejected", "suspended"],
+      order_channel: ["b2c_nacional", "b2b_mayorista", "pedido_ya_local"],
+      order_status: [
+        "pending_payment",
+        "payment_review",
+        "paid",
+        "preparing",
+        "ready",
+        "in_delivery",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "refunded",
+        "aprobado",
+        "enviado_prod",
+        "despachado",
+        "en_distribucion",
+      ],
+      user_role: [
+        "customer_b2c",
+        "customer_b2b",
+        "repartidor",
+        "admin_enminutas",
+        "admin_ideaia",
+      ],
+    },
+  },
+} as const

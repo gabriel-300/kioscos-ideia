@@ -10,12 +10,23 @@ export interface ItemInput {
   precio_unitario: number | null;
 }
 
+export interface PromoItemInput {
+  promo_id: string;
+  cantidad: number;
+}
+
+type VentaItemInput = ItemInput | PromoItemInput;
+
+function esPromoItem(item: VentaItemInput): item is PromoItemInput {
+  return "promo_id" in item;
+}
+
 export async function crearMovimiento(data: {
   sucursal_id:       string;
   fecha:             string;
   tipo:              "entrega" | "devolucion" | "ajuste" | "venta";
   notas:             string | null;
-  items:             ItemInput[];
+  items:             VentaItemInput[];
   proveedor?:        string | null;
   nro_remito?:       string | null;
   remito_image_url?: string | null;
@@ -57,12 +68,54 @@ export async function crearMovimiento(data: {
     }
   }
 
-  const items = data.items.map((item) => ({
-    product_id:      item.product_id,
-    cantidad:        item.cantidad,
-    precio_unitario: item.precio_unitario ?? null,
-    subtotal:        item.precio_unitario != null ? item.cantidad * item.precio_unitario : null,
-  }));
+  const promoInputs   = data.items.filter(esPromoItem);
+  const productInputs = data.items.filter((i): i is ItemInput => !esPromoItem(i));
+
+  const expandedPromoItems: {
+    product_id: string; cantidad: number; precio_unitario: number | null; subtotal: number | null; promo_id: string;
+  }[] = [];
+
+  if (promoInputs.length > 0) {
+    const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
+    const { data: promos, error: promosError } = await (supabase as any)
+      .from("promos")
+      .select("id, price, is_active, promo_items(product_id, cantidad)")
+      .in("id", promoIds);
+    if (promosError) throw new Error(promosError.message);
+
+    type PromoRow = { id: string; price: number; is_active: boolean; promo_items: { product_id: string; cantidad: number }[] };
+    const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
+
+    for (const input of promoInputs) {
+      const promo = promoMap.get(input.promo_id);
+      if (!promo) throw new Error("Promoción no encontrada");
+      if (!promo.is_active) throw new Error(`La promoción "${promo.id}" ya no está activa`);
+      if (!promo.promo_items || promo.promo_items.length === 0) {
+        throw new Error("La promoción no tiene productos configurados");
+      }
+      const subtotalTotal = input.cantidad * promo.price;
+      promo.promo_items.forEach((pi: { product_id: string; cantidad: number }, idx: number) => {
+        expandedPromoItems.push({
+          product_id:      pi.product_id,
+          cantidad:        input.cantidad * pi.cantidad,
+          precio_unitario: null,
+          subtotal:        idx === 0 ? subtotalTotal : null,
+          promo_id:        input.promo_id,
+        });
+      });
+    }
+  }
+
+  const items = [
+    ...productInputs.map((item) => ({
+      product_id:      item.product_id,
+      cantidad:        item.cantidad,
+      precio_unitario: item.precio_unitario ?? null,
+      subtotal:        item.precio_unitario != null ? item.cantidad * item.precio_unitario : null,
+      promo_id:        null as string | null,
+    })),
+    ...expandedPromoItems,
+  ];
 
   const rpcRes = await (supabase as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id:        data.sucursal_id,

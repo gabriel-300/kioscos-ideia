@@ -11,6 +11,8 @@ interface Props {
 export function ImageUploader({ value, onChange }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
+  const [showUrl,   setShowUrl]   = useState(false);
+  const [urlValue,  setUrlValue]  = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
@@ -46,6 +48,16 @@ export function ImageUploader({ value, onChange }: Props) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file) handleFile(file);
+  }
+
+  function handleUseUrl() {
+    const url = urlValue.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) { setError("La URL debe empezar con http:// o https://"); return; }
+    setError(null);
+    onChange(url);
+    setUrlValue("");
+    setShowUrl(false);
   }
 
   return (
@@ -94,10 +106,37 @@ export function ImageUploader({ value, onChange }: Props) {
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="mt-1.5 text-xs text-neutral-400 hover:text-danger transition-colors"
+          className="mt-1.5 text-xs text-neutral-400 hover:text-danger transition-colors block"
         >
           Quitar imagen
         </button>
+      )}
+
+      {!uploading && (
+        showUrl ? (
+          <div className="mt-1.5 flex items-center gap-1">
+            <input
+              type="text"
+              autoFocus
+              placeholder="https://…"
+              value={urlValue}
+              onChange={(e) => setUrlValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleUseUrl(); } }}
+              className="h-7 w-32 rounded border border-neutral-300 bg-white px-2 text-xs focus:outline-none focus:border-tierra-700"
+            />
+            <button type="button" onClick={handleUseUrl} className="text-xs text-tierra-700 hover:underline font-medium">
+              Usar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowUrl(true)}
+            className="mt-1.5 text-xs text-neutral-400 hover:text-tierra-700 transition-colors block"
+          >
+            o pegar una URL
+          </button>
+        )
       )}
 
       {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}

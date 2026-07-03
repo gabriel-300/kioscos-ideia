@@ -8,6 +8,7 @@ import type { Database } from "@/types/database";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta";
+type Promo = { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] };
 
 export function NuevaEntregaButton({
   sucursalId,
@@ -21,6 +22,7 @@ export function NuevaEntregaButton({
   personal,
   cajaAbierta,
   proveedores = [],
+  promos,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -33,6 +35,7 @@ export function NuevaEntregaButton({
   personal?:      { id: string; nombre: string }[];
   cajaAbierta?:   boolean;
   proveedores?:   { id: string; nombre: string }[];
+  promos?:        Promo[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -58,6 +61,7 @@ export function NuevaEntregaButton({
           categories={categories}
           personal={personal}
           cajaAbierta={cajaAbierta}
+          promos={promos}
         />
       ) : (
         <MovimientoForm

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(ls -la \"c:\\\\claude-proyecto\" 2>&1)",
       "Read(//c/claude-proyecto/**)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm run *)"
     ]
   },
   "hooks": {
@@ -13,8 +14,8 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Write(.env*)",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Writing to .env files is blocked by hook\"}}'"
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Writing to .env files is blocked by hook\"}}'",
+            "if": "Write(.env*)"
           }
         ]
       },

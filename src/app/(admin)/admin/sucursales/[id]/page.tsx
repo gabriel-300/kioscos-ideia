@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
+import { HistorialCierres, type CierreConDetalle } from "./_components/historial-cierres";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
@@ -53,7 +54,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -83,7 +84,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .select("id, nombre")
       .eq("is_active", true)
       .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string }[] | null }>,
+    (supabase as any)
+      .from("promos")
+      .select("id, name, price, promo_items(product_id, cantidad)")
+      .eq("is_active", true)
+      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
   ]);
+
+  const promos = promosResult.data ?? [];
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -109,6 +117,17 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
   const retirosHoyFilt = todosRetiros.filter((r) => r.fecha === hoy);
+
+  // Detalle por cierre: fondo inicial + retiros de efectivo del turno (entre el cierre anterior y este)
+  const cierresConDetalle: CierreConDetalle[] = historicosCierres.map((c, i) => {
+    const lowerBound = historicosCierres[i + 1]?.created_at ?? null;
+    const retirosDelTurno = todosRetiros.filter(
+      (r) => r.created_at <= c.created_at && (lowerBound === null || r.created_at > lowerBound)
+    );
+    return { ...c, retiros: retirosDelTurno };
+  });
+  // El encargado solo ve el historial de cierres del día; el admin ve todo el histórico
+  const cierresVisibles = role === "encargado" ? cierresConDetalle.filter((c) => c.fecha === hoy) : cierresConDetalle;
 
   // Totales
   const totalEntregado = movs
@@ -223,6 +242,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   categories={categories ?? []}
                   personal={personal}
                   cajaAbierta={cajaAbierta}
+                  promos={promos}
                 />
               </>
             ) : (
@@ -237,6 +257,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   categories={categories ?? []}
                   personal={personal}
                   cajaAbierta={cajaAbierta}
+                  promos={promos}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -364,30 +385,32 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Total entregado"
-          value={totalEntregado > 0 ? AR.format(totalEntregado) : "—"}
-          sub={`${cantidadEntregas} entregas`}
-          accent
-        />
-        <StatCard
-          label="Ventas registradas"
-          value={totalUnidadesVendidas > 0 ? `${totalUnidadesVendidas} u.` : "—"}
-          sub={`${cantidadRegistrosVenta} registros`}
-        />
-        <StatCard
-          label="Devoluciones"
-          value={totalDevuelto > 0 ? AR.format(totalDevuelto) : "—"}
-          sub={`${movs.filter((m) => m.tipo === "devolucion").length} movimientos`}
-        />
-        <StatCard
-          label="Saldo kiosco"
-          value={totalEntregado - totalDevuelto > 0 ? AR.format(totalEntregado - totalDevuelto) : "—"}
-          sub="entregado − devuelto"
-        />
-      </div>
+      {/* Stats — precios de distribución, solo admin (revela estructura de costos) */}
+      {role === "admin" && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <StatCard
+            label="Total entregado"
+            value={totalEntregado > 0 ? AR.format(totalEntregado) : "—"}
+            sub={`${cantidadEntregas} entregas`}
+            accent
+          />
+          <StatCard
+            label="Ventas registradas"
+            value={totalUnidadesVendidas > 0 ? `${totalUnidadesVendidas} u.` : "—"}
+            sub={`${cantidadRegistrosVenta} registros`}
+          />
+          <StatCard
+            label="Devoluciones"
+            value={totalDevuelto > 0 ? AR.format(totalDevuelto) : "—"}
+            sub={`${movs.filter((m) => m.tipo === "devolucion").length} movimientos`}
+          />
+          <StatCard
+            label="Saldo kiosco"
+            value={totalEntregado - totalDevuelto > 0 ? AR.format(totalEntregado - totalDevuelto) : "—"}
+            sub="entregado − devuelto"
+          />
+        </div>
+      )}
 
       {/* Alerta stock bajo */}
       {productosStockBajo.length > 0 && (
@@ -516,66 +539,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-neutral-900">Historial de cierres</h2>
-          <span className="text-xs text-neutral-400">{historicosCierres.length} registros</span>
+          <span className="text-xs text-neutral-400">
+            {cierresVisibles.length} registros{role === "encargado" ? " (hoy)" : ""}
+          </span>
         </div>
-        {historicosCierres.length === 0 ? (
-          <p className="text-sm text-neutral-400">No hay cierres registrados.</p>
-        ) : (
-          <div className="rounded-xl border border-neutral-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-neutral-50 text-neutral-400 text-xs uppercase tracking-wider border-b border-neutral-200">
-                  <th className="px-4 py-2.5 text-left font-semibold">Fecha</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Ventas</th>
-                  <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Efectivo</th>
-                  <th className="px-4 py-2.5 text-right font-semibold hidden sm:table-cell">Billetera</th>
-                  <th className="px-4 py-2.5 text-right font-semibold hidden md:table-cell">Tarjeta</th>
-                  <th className="px-4 py-2.5 text-right font-semibold hidden md:table-cell">Transfer.</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Diferencia</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {historicosCierres.map((c) => (
-                  <tr key={c.created_at} className="hover:bg-neutral-50 transition-colors">
-                    <td className="px-4 py-3 text-neutral-700 font-medium">
-                      {new Date(c.fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-neutral-900">
-                      {AR.format(c.total_ventas)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden sm:table-cell">
-                      {c.efectivo_declarado > 0 ? AR.format(c.efectivo_declarado) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden sm:table-cell">
-                      {(c.billetera_declarada ?? 0) > 0 ? AR.format(c.billetera_declarada) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden md:table-cell">
-                      {(c.tarjeta_declarada ?? 0) > 0 ? AR.format(c.tarjeta_declarada!) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 hidden md:table-cell">
-                      {(c.transferencia_declarada ?? 0) > 0 ? AR.format(c.transferencia_declarada!) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {c.diferencia !== null ? (
-                        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${
-                          c.diferencia === 0
-                            ? "bg-selva-50 text-selva-700"
-                            : c.diferencia > 0
-                            ? "bg-blue-50 text-blue-700"
-                            : "bg-red-50 text-red-600"
-                        }`}>
-                          {c.diferencia > 0 ? "+" : ""}{AR.format(c.diferencia)}
-                        </span>
-                      ) : (
-                        <span className="text-neutral-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <HistorialCierres cierres={cierresVisibles} />
       </div>
 
       {/* Historial */}

@@ -7,6 +7,12 @@ import type { CSSProperties } from "react";
 
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = { id: string; name: string };
+type Promo    = { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] };
+
+const PROMO_PREFIX = "promo:";
+const PROMO_COLOR  = "#B45309";
+function isPromoId(id: string)  { return id.startsWith(PROMO_PREFIX); }
+function promoIdOf(id: string)  { return id.slice(PROMO_PREFIX.length); }
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -93,9 +99,10 @@ interface Props {
   categories?:     Category[];
   personal?:       Personal[];
   cajaAbierta?:    boolean;
+  promos?:         Promo[];
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [] }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
@@ -117,7 +124,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   }, [categories, products]);
 
   const filtered = useMemo(() => {
-    let list = catFilter === "all" ? products : products.filter((p) => p.category_id === catFilter);
+    let list = catFilter === "all" || catFilter === "promos" ? products : products.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
@@ -125,11 +132,51 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     return list;
   }, [products, catFilter, search]);
 
+  const promoMap = useMemo(() => new Map(promos.map((p) => [p.id, p])), [promos]);
+
+  const filteredPromos = useMemo(() => {
+    let list = promos;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [promos, search]);
+
+  function promoDisponible(promo: Promo): number | null {
+    if (!stockMap || promo.promo_items.length === 0) return null;
+    return Math.min(...promo.promo_items.map((pi) => Math.floor((stockMap[pi.product_id] ?? 0) / pi.cantidad)));
+  }
+
+  function nameOf(id: string) {
+    if (isPromoId(id)) return promoMap.get(promoIdOf(id))?.name ?? "—";
+    return products.find((p) => p.id === id)?.name ?? "—";
+  }
+  function priceOf(id: string) {
+    if (isPromoId(id)) return promoMap.get(promoIdOf(id))?.price ?? 0;
+    return products.find((p) => p.id === id)?.precio_dist ?? 0;
+  }
+
   const seleccionados = useMemo(
     () => Object.entries(cantidades).filter(([, qty]) => qty > 0),
     [cantidades]
   );
-  const totalPrecio    = seleccionados.reduce((s, [id, qty]) => s + qty * (products.find((p) => p.id === id)?.precio_dist ?? 0), 0);
+
+  // Stock requerido por producto real, contemplando tanto líneas sueltas como componentes de promos
+  const requeridoPorProducto = useMemo(() => {
+    const req: Record<string, number> = {};
+    for (const [id, qty] of seleccionados) {
+      if (isPromoId(id)) {
+        const promo = promoMap.get(promoIdOf(id));
+        promo?.promo_items.forEach((pi) => { req[pi.product_id] = (req[pi.product_id] ?? 0) + qty * pi.cantidad; });
+      } else {
+        req[id] = (req[id] ?? 0) + qty;
+      }
+    }
+    return req;
+  }, [seleccionados, promoMap]);
+
+  const totalPrecio    = seleccionados.reduce((s, [id, qty]) => s + qty * priceOf(id), 0);
   const totalUnidades  = seleccionados.reduce((s, [, qty]) => s + qty, 0);
   const totalIngresado = (Object.values(pagos) as string[]).reduce((s, v) => s + (parseFloat(v) || 0), 0);
   const efectivoNum    = parseFloat(pagos.efectivo) || 0;
@@ -137,7 +184,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const vuelto         = efectivoNum > 0 ? efectivoNum - Math.max(0, totalPrecio - otrosMedios) : null;
 
   /* ── helpers ── */
-  function isKg(id: string) { return products.find((p) => p.id === id)?.unit_label === "kg"; }
+  function isKg(id: string) { if (isPromoId(id)) return false; return products.find((p) => p.id === id)?.unit_label === "kg"; }
   function step(id: string) { return isKg(id) ? 0.1 : 1; }
   function fmtCant(id: string, qty: number) {
     return isKg(id)
@@ -177,6 +224,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       return;
     }
     const sinPrecio = seleccionados.filter(([id]) => {
+      if (isPromoId(id)) return false;
       const p = products.find((prod) => prod.id === id);
       return !p || p.precio_dist == null;
     });
@@ -186,11 +234,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       return;
     }
     if (stockMap) {
-      const insuficiente = seleccionados.filter(([id, qty]) => (stockMap[id] ?? 0) < qty);
+      const insuficiente = Object.entries(requeridoPorProducto).filter(([pid, qty]) => (stockMap[pid] ?? 0) < qty);
       if (insuficiente.length > 0) {
-        const detalles = insuficiente.map(([id, qty]) => {
-          const p = products.find((prod) => prod.id === id);
-          return `${p?.name ?? "?"} (disponible: ${stockMap[id] ?? 0})`;
+        const detalles = insuficiente.map(([pid, qty]) => {
+          const p = products.find((prod) => prod.id === pid);
+          return `${p?.name ?? "?"} (disponible: ${stockMap[pid] ?? 0}, necesario: ${qty})`;
         }).join(", ");
         setError(`Stock insuficiente: ${detalles}`);
         return;
@@ -202,8 +250,8 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
     const receiptItems = seleccionados.map(([id, qty]) => {
-      const p = products.find((p) => p.id === id)!;
-      return { name: p?.name ?? "—", qty, precioUnit: p?.precio_dist ?? 0, sub: qty * (p?.precio_dist ?? 0) };
+      const precioUnit = priceOf(id);
+      return { name: nameOf(id), qty, precioUnit, sub: qty * precioUnit };
     });
     const pagosList = PAY_METHODS
       .map((m) => ({ label: m.label, monto: parseFloat(pagos[m.id]) || 0 }))
@@ -226,10 +274,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           pago_billetera:     parseFloat(pagos.mp)            || null,
           pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
           pago_transferencia: parseFloat(pagos.transferencia) || null,
-          items: seleccionados.map(([product_id, cantidad]) => ({
-            product_id, cantidad,
-            precio_unitario: products.find((p) => p.id === product_id)?.precio_dist ?? null,
-          })),
+          items: seleccionados.map(([id, cantidad]) =>
+            isPromoId(id)
+              ? { promo_id: promoIdOf(id), cantidad }
+              : { product_id: id, cantidad, precio_unitario: products.find((p) => p.id === id)?.precio_dist ?? null }
+          ),
         });
         setShowPay(false);
         setReceipt({
@@ -342,6 +391,34 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   const catColorMap: Record<string, string> = {};
   catsConProductos.forEach((c, i) => { catColorMap[c.id] = CAT_COLORS[i % CAT_COLORS.length]; });
 
+  type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean };
+
+  const tiles: Tile[] = catFilter === "promos"
+    ? filteredPromos.map((promo) => {
+        const disp = promoDisponible(promo);
+        return {
+          id: `${PROMO_PREFIX}${promo.id}`,
+          name: promo.name,
+          price: promo.price,
+          agotado: disp !== null && disp <= 0,
+          color: PROMO_COLOR,
+          coverImageUrl: null,
+          isPromo: true,
+        };
+      })
+    : filtered.map((prod) => {
+        const stock = stockMap?.[prod.id] ?? null;
+        return {
+          id: prod.id,
+          name: prod.name,
+          price: prod.precio_dist,
+          agotado: stock !== null && stock <= 0,
+          color: prod.category_id ? (catColorMap[prod.category_id] ?? NAVY) : NAVY,
+          coverImageUrl: prod.cover_image_url,
+          isPromo: false,
+        };
+      });
+
   /* ── POS ── */
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 14 }}>
@@ -426,7 +503,23 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </svg>
               Todos
             </button>
-            {catsConProductos.map((cat) => {
+            {promos.length > 0 && (
+              <button
+                onClick={() => setCatFilter("promos")}
+                className="flex items-center gap-2 px-5 h-[60px] text-[13px] font-semibold shrink-0 transition-all border-b-[3px]"
+                style={{
+                  color: catFilter === "promos" ? PROMO_COLOR : "#64748B",
+                  borderBottomColor: catFilter === "promos" ? PROMO_COLOR : "transparent",
+                  background: catFilter === "promos" ? "#FFFBEB" : "transparent",
+                }}
+              >
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={catFilter === "promos" ? PROMO_COLOR : "#94A3B8"} strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3zM6 6h.008v.008H6V6z" />
+                </svg>
+                Promos
+              </button>
+            )}
+            {catFilter !== "promos" && catsConProductos.map((cat) => {
               const color = catColorMap[cat.id] ?? NAVY;
               const active = catFilter === cat.id;
               return (
@@ -449,23 +542,22 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             })}
           </div>
 
-          {/* Product grid */}
+          {/* Product / Promo grid */}
           <div className="flex-1 overflow-y-auto" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 14, padding: 18, alignContent: "start" } as CSSProperties}>
-            {filtered.length === 0 ? (
+            {tiles.length === 0 ? (
               <div className="col-span-full text-center py-16 text-sm" style={{ color: "#94A3B8" }}>
-                {search ? `Sin resultados para "${search}"` : "Sin productos"}
+                {search ? `Sin resultados para "${search}"` : catFilter === "promos" ? "Sin promociones activas" : "Sin productos"}
               </div>
-            ) : filtered.map((prod) => {
-              const qty      = cantidades[prod.id] ?? 0;
-              const stock    = stockMap?.[prod.id] ?? null;
-              const agotado  = stock !== null && stock <= 0;
-              const catColor = prod.category_id ? (catColorMap[prod.category_id] ?? NAVY) : NAVY;
-              const initials = prod.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+            ) : tiles.map((tile) => {
+              const qty      = cantidades[tile.id] ?? 0;
+              const agotado  = tile.agotado;
+              const catColor = tile.color;
+              const initials = tile.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
               return (
                 <div
-                  key={prod.id}
-                  onClick={() => !agotado && set(prod.id, qty + step(prod.id))}
+                  key={tile.id}
+                  onClick={() => !agotado && set(tile.id, qty + step(tile.id))}
                   style={{
                     background: "white",
                     border: `1.5px solid ${qty > 0 ? NAVY : "#E6ECF3"}`,
@@ -491,52 +583,56 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                       Agotado
                     </span>
                   )}
-                  {qty > 0 && (
+                  {qty > 0 ? (
                     <span style={{ position: "absolute", top: 6, left: 6, minWidth: 20, height: 20, padding: "0 6px", background: NAVY, color: "white", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
-                      {fmtCant(prod.id, qty)}
+                      {fmtCant(tile.id, qty)}
+                    </span>
+                  ) : tile.isPromo && (
+                    <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 700, background: "#FEF3C7", color: PROMO_COLOR, borderRadius: 5, padding: "2px 6px" }}>
+                      Promo
                     </span>
                   )}
 
                   {/* Icon */}
                   <div style={{ width: 48, height: 48, borderRadius: 10, background: catColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: catColor }}>
-                    {prod.cover_image_url ? (
-                      <img src={prod.cover_image_url} alt={prod.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                    {tile.coverImageUrl ? (
+                      <img src={tile.coverImageUrl} alt={tile.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
                     ) : (
                       <span style={{ fontSize: 16, fontWeight: 800, color: catColor }}>{initials}</span>
                     )}
                   </div>
 
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", lineHeight: 1.3, minHeight: "2.4em" }}>{prod.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", lineHeight: 1.3, minHeight: "2.4em" }}>{tile.name}</div>
 
                   {agotado ? (
                     <div style={{ fontSize: 11, color: "#94A3B8" }}>No disponible</div>
                   ) : (
                     <div style={{ fontSize: 14, fontWeight: 800, color: NAVY }}>
-                      {prod.precio_dist ? AR.format(prod.precio_dist) : "—"}
+                      {tile.price ? AR.format(tile.price) : "—"}
                     </div>
                   )}
 
                   {qty > 0 && !agotado && (
                     <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => set(prod.id, qty - step(prod.id))}
+                        onClick={() => set(tile.id, qty - step(tile.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid #CBD5E1`, background: "#F8FAFC", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#1E293B" }}
                       >−</button>
-                      {isKg(prod.id) ? (
+                      {isKg(tile.id) ? (
                         <input
                           type="number"
                           value={qty}
                           min={0.001}
                           step={0.001}
-                          onChange={(e) => setGrams(prod.id, e.target.value)}
+                          onChange={(e) => setGrams(tile.id, e.target.value)}
                           onClick={(e) => { e.stopPropagation(); (e.target as HTMLInputElement).select(); }}
                           style={{ fontSize: 11, fontWeight: 800, width: 54, textAlign: "center", border: "1px solid #CBD5E1", borderRadius: 4, outline: "none", color: "#0F172A", background: "white", padding: "2px 3px" }}
                         />
                       ) : (
-                        <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(prod.id, qty)}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(tile.id, qty)}</span>
                       )}
                       <button
-                        onClick={() => set(prod.id, qty + step(prod.id))}
+                        onClick={() => set(tile.id, qty + step(tile.id))}
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid ${NAVY}`, background: NAVY_L, fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: NAVY }}
                       >+</button>
                     </div>
@@ -638,16 +734,19 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </div>
             ) : (
               seleccionados.map(([id, qty]) => {
-                const p   = products.find((p) => p.id === id);
-                const sub = qty * (p?.precio_dist ?? 0);
-                const catColor = p?.category_id ? (catColorMap[p.category_id] ?? NAVY) : NAVY;
+                const name = nameOf(id);
+                const sub  = qty * priceOf(id);
+                const catColor = isPromoId(id) ? PROMO_COLOR : (() => {
+                  const p = products.find((prod) => prod.id === id);
+                  return p?.category_id ? (catColorMap[p.category_id] ?? NAVY) : NAVY;
+                })();
                 return (
                   <div key={id} className="flex items-center gap-1.5 group" style={{ padding: "9px 12px", borderBottom: "1px solid #E2E8F0" }}>
                     <div style={{ width: 28, height: 28, borderRadius: 5, background: NAVY_L, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: NAVY, fontSize: 10, fontWeight: 700 }}>
-                      {p?.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                      {name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p?.name ?? "—"}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
