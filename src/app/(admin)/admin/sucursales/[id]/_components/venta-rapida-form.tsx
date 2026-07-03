@@ -233,17 +233,21 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       setError(`Sin precio configurado: ${nombres}`);
       return;
     }
-    if (stockMap) {
-      const insuficiente = Object.entries(requeridoPorProducto).filter(([pid, qty]) => (stockMap[pid] ?? 0) < qty);
-      if (insuficiente.length > 0) {
-        const detalles = insuficiente.map(([pid, qty]) => {
-          const p = products.find((prod) => prod.id === pid);
-          return `${p?.name ?? "?"} (disponible: ${stockMap[pid] ?? 0}, necesario: ${qty})`;
-        }).join(", ");
-        setError(`Stock insuficiente: ${detalles}`);
-        return;
-      }
-    }
+    // TEMPORALMENTE DESACTIVADO (2026-07-03, a pedido del usuario): todavía no
+    // se terminó de cargar el stock real (entregas) de todos los productos,
+    // así que esta validación bloqueaba ventas legítimas. Reactivar cuando el
+    // catálogo tenga el stock inicial cargado — ver memoria del proyecto.
+    // if (stockMap) {
+    //   const insuficiente = Object.entries(requeridoPorProducto).filter(([pid, qty]) => (stockMap[pid] ?? 0) < qty);
+    //   if (insuficiente.length > 0) {
+    //     const detalles = insuficiente.map(([pid, qty]) => {
+    //       const p = products.find((prod) => prod.id === pid);
+    //       return `${p?.name ?? "?"} (disponible: ${stockMap[pid] ?? 0}, necesario: ${qty})`;
+    //     }).join(", ");
+    //     setError(`Stock insuficiente: ${detalles}`);
+    //     return;
+    //   }
+    // }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) { setError("El monto ingresado no cubre el total"); return; }
     setError(null);
