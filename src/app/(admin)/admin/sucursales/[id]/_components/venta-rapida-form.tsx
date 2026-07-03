@@ -521,7 +521,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 Promos
               </button>
             )}
-            {catFilter !== "promos" && catsConProductos.map((cat) => {
+            {catsConProductos.map((cat) => {
               const color = catColorMap[cat.id] ?? NAVY;
               const active = catFilter === cat.id;
               return (
