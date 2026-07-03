@@ -29,7 +29,6 @@ const schema = z.object({
   is_active:         z.boolean(),
   costo:             nPos,
   precio_dist:       nPos,
-  pkg_unitario:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
   stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
 });
 
@@ -82,7 +81,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, pkg_unitario: null, stock_minimo: 0,
+      costo: null, precio_dist: null, stock_minimo: 0,
     },
   });
 
@@ -111,12 +110,11 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       is_active:         product.is_active,
       costo:             product.costo ?? null,
       precio_dist:       product.precio_dist ?? null,
-      pkg_unitario:      product.pkg_unitario ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
     } : {
       sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, pkg_unitario: null,
+      costo: null, precio_dist: null, stock_minimo: 0,
     });
   }, [open, product, reset, existingSkus]);
 
@@ -124,7 +122,6 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     const payload = {
       sku:               values.sku,
       name:              values.name,
-      slug:              "",
       short_description: values.short_description || null,
       category_id:       values.category_id || null,
       unit_label:        values.unit_label,
@@ -134,7 +131,6 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       precio_dist:       values.precio_dist,
       price_b2c:         0,
       price_b2b:         values.precio_dist ?? 0,
-      pkg_unitario:      values.pkg_unitario,
       stock_minimo:      values.stock_minimo,
       cover_image_url:   imageUrl,
     };
@@ -144,7 +140,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
         if (product) {
           await actualizarProducto(product.id, payload);
         } else {
-          await crearProducto(payload);
+          await crearProducto({ ...payload, slug: "" });
         }
         onClose();
       } catch (e) {
@@ -279,30 +275,19 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
             </div>
           )}
 
-          {/* Embalaje */}
+          {/* Stock */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Embalaje y stock</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Input
-                  label="Unidades por caja"
-                  type="number"
-                  step="1"
-                  placeholder="12"
-                  {...register("pkg_unitario")}
-                />
-              </div>
-              <div>
-                <Input
-                  label="Stock mínimo (alerta)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  {...register("stock_minimo")}
-                />
-                <p className="text-[11px] text-neutral-400 mt-1">Marca "Bajo Stock" al llegar a este valor</p>
-              </div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Stock</p>
+            <div>
+              <Input
+                label="Stock mínimo (alerta)"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0"
+                {...register("stock_minimo")}
+              />
+              <p className="text-[11px] text-neutral-400 mt-1">Marca "Bajo Stock" al llegar a este valor</p>
             </div>
           </div>
         </div>

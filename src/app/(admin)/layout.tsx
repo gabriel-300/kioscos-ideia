@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
 
 const STAFF_ROLES = ["admin", "encargado", "vendedor"];
@@ -31,6 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="h-screen flex flex-col bg-neutral-50">
+      <NumberInputWheelGuard />
       <AdminNav role={role} email={email} name={name} sucursalId={sucursalId} />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>
