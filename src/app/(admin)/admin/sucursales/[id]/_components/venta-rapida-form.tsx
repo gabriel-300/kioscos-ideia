@@ -104,6 +104,8 @@ interface Props {
 
 export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [] }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
+  const [montoMode,     setMontoMode]     = useState<Record<string, boolean>>({});
+  const [montoTexto,    setMontoTexto]    = useState<Record<string, string>>({});
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
   const [search,        setSearch]        = useState("");
@@ -199,14 +201,68 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades((prev) => ({ ...prev, [id]: parseFloat(rounded.toFixed(3)) }));
   }
 
-  // Setter para productos por peso: permite precisión de gramo sin redondear al paso del botón
+  // Setter para productos por peso: el input pide GRAMOS (no kg), para evitar
+  // que "100" (pensado como 100g) se cargue como 100 kg por error.
   function setGrams(id: string, raw: string) {
     const v = parseFloat(raw);
     if (!raw || isNaN(v) || v <= 0) {
       setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
       return;
     }
-    setCantidades((prev) => ({ ...prev, [id]: Math.round(Math.max(0, v) * 1000) / 1000 }));
+    setCantidades((prev) => ({ ...prev, [id]: Math.round(Math.max(0, v)) / 1000 }));
+  }
+
+  // Modo "vender por monto": el cajero tipea $ y se calcula el peso solo, según el precio/kg
+  function setMonto(id: string, raw: string) {
+    setMontoTexto((prev) => ({ ...prev, [id]: raw }));
+    const monto = parseFloat(raw);
+    const precioKg = priceOf(id);
+    if (!raw || isNaN(monto) || monto <= 0 || !precioKg) {
+      setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      return;
+    }
+    const kg = Math.round((monto / precioKg) * 1000) / 1000;
+    setCantidades((prev) => ({ ...prev, [id]: kg }));
+  }
+
+  function toggleMontoMode(id: string) {
+    setMontoMode((prev) => ({ ...prev, [id]: !prev[id] }));
+    setMontoTexto((prev) => ({ ...prev, [id]: "" }));
+  }
+
+  // Input compartido para productos por kg: gramos por defecto, con toggle a modo "$"
+  function renderKgInput(id: string, qty: number) {
+    const modo = montoMode[id];
+    return (
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="number"
+          value={modo ? (montoTexto[id] ?? "") : (qty > 0 ? Math.round(qty * 1000) : "")}
+          min={1}
+          step={1}
+          placeholder={modo ? "$" : "g"}
+          onChange={(e) => (modo ? setMonto(id, e.target.value) : setGrams(id, e.target.value))}
+          onFocus={(e) => e.target.select()}
+          style={{
+            fontSize: 13, fontWeight: 800, width: 70, textAlign: "center",
+            border: `1.5px solid ${modo ? GREEN : "#CBD5E1"}`, borderRadius: 5, outline: "none",
+            color: "#0F172A", background: "white", padding: "4px 4px",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => toggleMontoMode(id)}
+          title={modo ? "Cambiar a gramos" : "Vender por monto ($)"}
+          style={{
+            fontSize: 10, fontWeight: 800, width: 22, height: 22, borderRadius: 4, flexShrink: 0,
+            border: `1px solid ${modo ? GREEN : "#CBD5E1"}`, background: modo ? GREEN : "#F8FAFC",
+            color: modo ? "white" : "#64748B", cursor: "pointer",
+          }}
+        >
+          {modo ? "g" : "$"}
+        </button>
+      </div>
+    );
   }
 
   function resetForm() {
@@ -629,15 +685,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                         style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid #CBD5E1`, background: "#F8FAFC", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#1E293B" }}
                       >−</button>
                       {isKg(tile.id) ? (
-                        <input
-                          type="number"
-                          value={qty}
-                          min={0.001}
-                          step={0.001}
-                          onChange={(e) => setGrams(tile.id, e.target.value)}
-                          onClick={(e) => { e.stopPropagation(); (e.target as HTMLInputElement).select(); }}
-                          style={{ fontSize: 11, fontWeight: 800, width: 54, textAlign: "center", border: "1px solid #CBD5E1", borderRadius: 4, outline: "none", color: "#0F172A", background: "white", padding: "2px 3px" }}
-                        />
+                        renderKgInput(tile.id, qty)
                       ) : (
                         <span style={{ fontSize: 12, fontWeight: 800, minWidth: 24, textAlign: "center", color: "#0F172A" }}>{fmtCant(tile.id, qty)}</span>
                       )}
@@ -761,15 +809,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     <div className="flex items-center gap-1">
                       <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
                       {isKg(id) ? (
-                        <input
-                          type="number"
-                          value={qty}
-                          min={0.001}
-                          step={0.001}
-                          onChange={(e) => setGrams(id, e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          style={{ fontSize: 11, fontWeight: 800, width: 54, textAlign: "center", border: "1px solid #CBD5E1", borderRadius: 4, outline: "none", color: "#0F172A", background: "white", padding: "2px 3px" }}
-                        />
+                        renderKgInput(id, qty)
                       ) : (
                         <span style={{ fontSize: 11, fontWeight: 800, minWidth: 28, textAlign: "center", color: "#0F172A" }}>{fmtCant(id, qty)}</span>
                       )}
