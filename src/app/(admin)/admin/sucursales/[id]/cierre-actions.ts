@@ -36,6 +36,39 @@ export async function cerrarCaja(data: {
     }
   }
 
+  // Billetera/tarjeta/transferencia: encargado y vendedor no los pueden declarar
+  // manualmente (ya los registra el sistema en cada venta) — el frontend los
+  // muestra de solo lectura, pero acá se recalculan server-side igual, por si
+  // alguien intenta mandar otro valor directo a la action.
+  let billeteraDeclarada     = data.billetera_declarada;
+  let tarjetaDeclarada       = data.tarjeta_declarada;
+  let transferenciaDeclarada = data.transferencia_declarada;
+
+  if (role !== "admin") {
+    const aperturaRes = await (admin as any)
+      .from("aperturas_caja")
+      .select("created_at")
+      .eq("sucursal_id", data.sucursal_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const ultimaApertura = aperturaRes.data as { created_at: string } | null;
+
+    let ventasQuery = (admin as any)
+      .from("movimientos")
+      .select("pago_billetera, pago_tarjeta, pago_transferencia")
+      .eq("sucursal_id", data.sucursal_id)
+      .eq("tipo", "venta");
+    if (ultimaApertura) ventasQuery = ventasQuery.gte("created_at", ultimaApertura.created_at);
+    else ventasQuery = ventasQuery.eq("fecha", data.fecha);
+
+    const { data: ventasTurno } = await ventasQuery as { data: { pago_billetera: number | null; pago_tarjeta: number | null; pago_transferencia: number | null }[] | null };
+
+    billeteraDeclarada     = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
+    tarjetaDeclarada       = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
+    transferenciaDeclarada = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+  }
+
   // Cierre atómico: la RPC lockea por sucursal, valida el ciclo y calcula
   // retiros_turno server-side (no confía en lo que mande el cliente)
   const { error } = await (admin as any).rpc("cerrar_caja", {
@@ -44,9 +77,9 @@ export async function cerrarCaja(data: {
     p_fondo_inicial:           data.fondo_inicial,
     p_total_ventas:            data.total_ventas,
     p_efectivo_declarado:      data.efectivo_declarado,
-    p_billetera_declarada:     data.billetera_declarada,
-    p_tarjeta_declarada:       data.tarjeta_declarada,
-    p_transferencia_declarada: data.transferencia_declarada,
+    p_billetera_declarada:     billeteraDeclarada,
+    p_tarjeta_declarada:       tarjetaDeclarada,
+    p_transferencia_declarada: transferenciaDeclarada,
     p_notas:                   data.notas,
     p_created_by:              userId,
   });

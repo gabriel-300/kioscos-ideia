@@ -36,6 +36,7 @@ export function CierreCajaButton({
   ultimoCierre,
   aperturaActual,
   retiros,
+  role,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -44,6 +45,7 @@ export function CierreCajaButton({
   ultimoCierre:   UltimoCierre;
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
   retiros?:        { monto: number; created_at: string }[];
+  role?:           string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -84,6 +86,7 @@ export function CierreCajaButton({
         ultimoCierre={ultimoCierre}
         aperturaActual={aperturaActual}
         retiros={retiros}
+        role={role}
       />
     </>
   );

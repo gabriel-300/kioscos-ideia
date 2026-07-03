@@ -266,6 +266,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   defaultTipo="entrega"
                   proveedores={proveedores}
                 />
+                <NuevaEntregaButton
+                  sucursalId={sucursal.id}
+                  sucursalNombre={sucursal.nombre}
+                  products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
+                  defaultTipo="ajuste"
+                  label="Ajuste de stock"
+                  variant="ghost"
+                />
               </>
             )}
             <AperturaCajaButton
@@ -282,6 +290,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               ultimoCierre={ultimoCierre}
               aperturaActual={aperturaActual}
               retiros={todosRetiros}
+              role={role}
             />
           </div>
         </div>

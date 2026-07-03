@@ -17,9 +17,10 @@ interface Props {
   ultimoCierre:   UltimoCierre;
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
   retiros?:        { monto: number; created_at: string }[];
+  role?:           string | null;
 }
 
-function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: {
+function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, readOnly }: {
   label:     string;
   icon:      React.ReactNode;
   value:     string;
@@ -27,6 +28,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: 
   sugerido?: number;
   hint?:     string;
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -34,7 +36,9 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: 
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400">
           {icon}{label}
         </span>
-        {sugerido !== undefined && sugerido > 0 && (
+        {readOnly ? (
+          <span className="text-xs text-neutral-400">Calculado por el sistema</span>
+        ) : sugerido !== undefined && sugerido > 0 && (
           <span className="text-xs text-neutral-400">Sugerido: {AR.format(sugerido)}</span>
         )}
       </label>
@@ -48,15 +52,21 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: 
           onChange={(e) => onChange(e.target.value)}
           placeholder="0"
           min={0}
-          className="w-full h-12 pl-8 pr-4 rounded-xl border-2 border-neutral-300 text-lg font-bold tabular-nums text-neutral-900 focus:outline-none focus:border-tierra-700 transition-colors"
+          readOnly={readOnly}
+          className={`w-full h-12 pl-8 pr-4 rounded-xl border-2 text-lg font-bold tabular-nums focus:outline-none transition-colors ${
+            readOnly
+              ? "border-neutral-200 bg-neutral-50 text-neutral-500 cursor-not-allowed"
+              : "border-neutral-300 text-neutral-900 focus:border-tierra-700"
+          }`}
         />
       </div>
     </div>
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [] }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
+  const puedeEditarMedios = role === "admin";
 
   const [efectivo,       setEfectivo]       = useState("");
   const [mp,             setMp]             = useState("");
@@ -212,6 +222,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 value={mp}
                 onChange={setMp}
                 sugerido={sugeridoBilletera}
+                readOnly={!puedeEditarMedios}
               />
               <MontoInput
                 label="Tarjeta"
@@ -219,6 +230,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 value={tarjeta}
                 onChange={setTarjeta}
                 sugerido={sugeridoTarjeta}
+                readOnly={!puedeEditarMedios}
               />
               <MontoInput
                 label="Transferencia"
@@ -226,6 +238,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 value={transferencia}
                 onChange={setTransferencia}
                 sugerido={sugeridoTransferencia}
+                readOnly={!puedeEditarMedios}
               />
 
               {/* Total declarado + diferencia */}
