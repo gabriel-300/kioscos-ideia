@@ -20,6 +20,14 @@ export default async function AuthRedirectPage() {
       .eq("encargado_user_id", user.id)
       .single();
     redirect(sucursal ? `/admin/sucursales/${sucursal.id}` : "/admin/dashboard");
+  } else if (role === "vendedor") {
+    const profileRes = await (admin as any)
+      .from("profiles")
+      .select("sucursal_id")
+      .eq("id", user.id)
+      .single();
+    const sucursalId = (profileRes.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
+    redirect(sucursalId ? `/admin/sucursales/${sucursalId}` : "/admin/dashboard");
   } else {
     redirect("/login");
   }

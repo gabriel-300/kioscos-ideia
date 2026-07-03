@@ -584,9 +584,9 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     <span style={{ position: "absolute", top: 6, right: 6, fontSize: 10, fontWeight: 700, background: RED_L, color: RED, borderRadius: 5, padding: "2px 6px" }}>
                       Agotado
                     </span>
-                  ) : tile.stock !== null && (
+                  ) : (
                     <span style={{ position: "absolute", top: 6, right: 6, fontSize: 10, fontWeight: 700, background: "#F1F5F9", color: "#64748B", borderRadius: 5, padding: "2px 6px" }}>
-                      {isKg(tile.id) ? fmtCant(tile.id, tile.stock) : `${tile.stock} un.`}
+                      {isKg(tile.id) ? fmtCant(tile.id, tile.stock ?? 0) : `${tile.stock ?? 0} un.`}
                     </span>
                   )}
                   {qty > 0 ? (
