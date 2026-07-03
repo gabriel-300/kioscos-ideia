@@ -44,10 +44,21 @@ const UNIT_OPTIONS = [
 ];
 
 interface Props {
-  open:       boolean;
-  product:    Product | null;
-  categories: Category[];
-  onClose:    () => void;
+  open:         boolean;
+  product:      Product | null;
+  categories:   Category[];
+  existingSkus: string[];
+  onClose:      () => void;
+}
+
+function nextSku(existing: string[]): string {
+  const prefix = "KIO-";
+  let max = 0;
+  for (const sku of existing) {
+    const m = sku.match(/^KIO-(\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${prefix}${String(max + 1).padStart(4, "0")}`;
 }
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -61,7 +72,7 @@ type PriceHistoryEntry = {
   changed_at: string;
 };
 
-export function ProductoDrawer({ open, product, categories, onClose }: Props) {
+export function ProductoDrawer({ open, product, categories, existingSkus, onClose }: Props) {
   const [pending,      startTransition] = useTransition();
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
@@ -103,11 +114,11 @@ export function ProductoDrawer({ open, product, categories, onClose }: Props) {
       pkg_unitario:      product.pkg_unitario ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
     } : {
-      sku: "", name: "", short_description: "", category_id: "",
+      sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
       costo: null, precio_dist: null, pkg_unitario: null,
     });
-  }, [open, product, reset]);
+  }, [open, product, reset, existingSkus]);
 
   function onSubmit(values: FormValues) {
     const payload = {

@@ -170,6 +170,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
         open={drawerOpen}
         product={editing}
         categories={categories}
+        existingSkus={products.map((p) => p.sku)}
         onClose={closeDrawer}
       />
     </>
