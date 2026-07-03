@@ -48,7 +48,7 @@ const NAV: NavItem[] = [
   { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor"], icon: "stock" },
   { href: "/admin/cierres",     label: "Cierres",    roles: ["admin"],                          icon: "cierres" },
   { href: "/admin/categorias",  label: "Categorías", roles: ["admin"],                          icon: "categorias" },
-  { href: "/admin/productos",   label: "Productos",  roles: ["admin"],                          icon: "productos" },
+  { href: "/admin/productos",   label: "Productos",  roles: ["admin", "encargado"],              icon: "productos" },
   { href: "/admin/promociones", label: "Promociones", roles: ["admin"],                         icon: "promociones" },
   { href: "/admin/proveedores",  label: "Proveedores", roles: ["admin"],                         icon: "proveedores" },
   { href: "/admin/staff",       label: "Staff",      roles: ["admin"],                          icon: "staff" },

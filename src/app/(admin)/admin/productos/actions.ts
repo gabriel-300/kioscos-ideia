@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/require-role";
+import { requireAdminOrEncargado } from "@/lib/auth/require-role";
 import type { Database } from "@/types/database";
 
 type Insert = Database["public"]["Tables"]["products"]["Insert"];
@@ -31,7 +31,7 @@ function friendlyDbError(error: { code?: string; message: string }): string {
 }
 
 export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }): Promise<{ error?: string }> {
-  await requireAdmin();
+  await requireAdminOrEncargado();
   const supabase = createAdminClient();
 
   const baseSlug = data.slug || slugify(data.name) || "producto";
@@ -55,7 +55,7 @@ export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "up
 }
 
 export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>): Promise<{ error?: string }> {
-  await requireAdmin();
+  await requireAdminOrEncargado();
   const supabase = createAdminClient();
 
   // Leer precios actuales para detectar cambios
@@ -85,7 +85,7 @@ export async function actualizarProducto(id: string, data: (Update & { stock_min
 }
 
 export async function toggleProductoActivo(id: string, activo: boolean) {
-  await requireAdmin();
+  await requireAdminOrEncargado();
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("products")
@@ -106,7 +106,7 @@ export async function ajustarPrecios({
   campos:       CamposPrecio;
   categoria_id: string | null;
 }): Promise<{ actualizados: number }> {
-  await requireAdmin();
+  await requireAdminOrEncargado();
   if (porcentaje === 0 || campos.length === 0) return { actualizados: 0 };
 
   const supabase = createAdminClient();

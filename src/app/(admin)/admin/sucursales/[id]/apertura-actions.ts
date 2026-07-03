@@ -31,36 +31,13 @@ export async function abrirCaja(data: {
     }
   }
 
-  // Guard server-side: verificar que no haya una apertura ya abierta
-  const aperturaRes = await (admin as any)
-    .from("aperturas_caja")
-    .select("created_at")
-    .eq("sucursal_id", data.sucursal_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const ultimaApertura = aperturaRes.data as { created_at: string } | null;
-
-  if (ultimaApertura) {
-    const cierreRes = await (admin as any)
-      .from("cierres_caja")
-      .select("created_at")
-      .eq("sucursal_id", data.sucursal_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const ultimoCierre = cierreRes.data as { created_at: string } | null;
-    if (!ultimoCierre || ultimaApertura.created_at > ultimoCierre.created_at) {
-      throw new Error("La caja ya está abierta");
-    }
-  }
-
-  const { error } = await (admin as any).from("aperturas_caja").insert({
-    sucursal_id:   data.sucursal_id,
-    fecha:         data.fecha,
-    fondo_inicial: data.fondo_inicial,
-    notas:         data.notas,
-    created_by:    userId,
+  // Apertura atómica: la RPC lockea por sucursal y valida que no haya un ciclo abierto
+  const { error } = await (admin as any).rpc("abrir_caja", {
+    p_sucursal_id:   data.sucursal_id,
+    p_fecha:         data.fecha,
+    p_fondo_inicial: data.fondo_inicial,
+    p_notas:         data.notas,
+    p_created_by:    userId,
   });
 
   if (error) throw new Error(error.message);

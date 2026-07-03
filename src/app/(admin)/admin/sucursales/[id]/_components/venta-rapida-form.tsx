@@ -391,7 +391,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   const catColorMap: Record<string, string> = {};
   catsConProductos.forEach((c, i) => { catColorMap[c.id] = CAT_COLORS[i % CAT_COLORS.length]; });
 
-  type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean };
+  type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean; stock: number | null };
 
   const tiles: Tile[] = catFilter === "promos"
     ? filteredPromos.map((promo) => {
@@ -404,6 +404,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           color: PROMO_COLOR,
           coverImageUrl: null,
           isPromo: true,
+          stock: disp,
         };
       })
     : filtered.map((prod) => {
@@ -416,6 +417,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           color: prod.category_id ? (catColorMap[prod.category_id] ?? NAVY) : NAVY,
           coverImageUrl: prod.cover_image_url,
           isPromo: false,
+          stock,
         };
       });
 
@@ -578,9 +580,13 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   onMouseOver={(e) => { if (!agotado) { e.currentTarget.style.borderColor = NAVY; e.currentTarget.style.boxShadow = "0 3px 12px rgba(30,58,138,.1)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
                   onMouseOut={(e) => { e.currentTarget.style.borderColor = qty > 0 ? NAVY : "#E2E8F0"; e.currentTarget.style.boxShadow = qty > 0 ? `0 0 0 1px ${NAVY}` : "none"; e.currentTarget.style.transform = "none"; }}
                 >
-                  {agotado && (
+                  {agotado ? (
                     <span style={{ position: "absolute", top: 6, right: 6, fontSize: 10, fontWeight: 700, background: RED_L, color: RED, borderRadius: 5, padding: "2px 6px" }}>
                       Agotado
+                    </span>
+                  ) : tile.stock !== null && (
+                    <span style={{ position: "absolute", top: 6, right: 6, fontSize: 10, fontWeight: 700, background: "#F1F5F9", color: "#64748B", borderRadius: 5, padding: "2px 6px" }}>
+                      {isKg(tile.id) ? fmtCant(tile.id, tile.stock) : `${tile.stock} un.`}
                     </span>
                   )}
                   {qty > 0 ? (

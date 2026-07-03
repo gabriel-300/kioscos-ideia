@@ -50,6 +50,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [proveedor,  setProveedor]  = useState("");
   const [nroRemito,  setNroRemito]  = useState("");
   const [items,      setItems]      = useState<LineItem[]>([emptyLine()]);
+  const [ajusteDireccion, setAjusteDireccion] = useState<"sumar" | "restar">("sumar");
   const [error,        setError]        = useState<string | null>(null);
   const [remitoImage,  setRemitoImage]  = useState<File | null>(null);
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
@@ -63,6 +64,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setProveedor("");
     setNroRemito("");
     setItems([emptyLine()]);
+    setAjusteDireccion("sumar");
     setError(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setRemitoImage(null);
@@ -123,9 +125,10 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     const validItems = items.filter((i) => i.product_id && parseFloat(i.cantidad) > 0);
     if (validItems.length === 0) { setError("Agregá al menos un producto con cantidad"); return; }
 
+    const signo = tipo === "ajuste" && ajusteDireccion === "restar" ? -1 : 1;
     const parsed: ItemInput[] = validItems.map((i) => ({
       product_id:      i.product_id,
-      cantidad:        parseFloat(i.cantidad),
+      cantidad:        parseFloat(i.cantidad) * signo,
       precio_unitario: i.precio_unitario ? parseFloat(i.precio_unitario) : null,
     }));
 
@@ -230,6 +233,37 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
               />
             )}
           </div>
+
+          {/* Sentido del ajuste */}
+          {tipo === "ajuste" && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">Sentido del ajuste</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAjusteDireccion("sumar")}
+                  className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                    ajusteDireccion === "sumar"
+                      ? "border-selva-600 bg-selva-50 text-selva-700"
+                      : "border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                  }`}
+                >
+                  + Sumar stock
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAjusteDireccion("restar")}
+                  className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                    ajusteDireccion === "restar"
+                      ? "border-danger bg-danger/5 text-danger"
+                      : "border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                  }`}
+                >
+                  − Restar stock
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Líneas de productos */}
           <div>

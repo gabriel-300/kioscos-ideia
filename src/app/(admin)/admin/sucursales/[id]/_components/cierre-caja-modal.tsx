@@ -16,6 +16,7 @@ interface Props {
   cajaAbierta:    boolean;
   ultimoCierre:   UltimoCierre;
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
+  retiros?:        { monto: number; created_at: string }[];
 }
 
 function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: {
@@ -54,7 +55,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef }: 
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [] }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [efectivo,       setEfectivo]       = useState("");
@@ -83,9 +84,14 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   const fondo = aperturaActual?.fondo_inicial ?? 0;
 
+  // Retiros del turno actual — se restan del efectivo esperado (mismo criterio que la RPC cerrar_caja)
+  const retirosTurno = retiros
+    .filter((r) => aperturaActual ? r.created_at >= aperturaActual.created_at : r.created_at.slice(0, 10) === hoy)
+    .reduce((s, r) => s + r.monto, 0);
+
   useEffect(() => {
     if (open && cajaAbierta) {
-      const efectivoTotal = sugeridoEfectivo + fondo;
+      const efectivoTotal = sugeridoEfectivo + fondo - retirosTurno;
       if (efectivoTotal > 0)         setEfectivo(String(efectivoTotal));
       if (sugeridoBilletera > 0)     setMp(String(sugeridoBilletera));
       if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
@@ -106,8 +112,8 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const transferenciaNum = parseFloat(transferencia) || 0;
   const totalDeclarado   = efectivoNum + mpNum + tarjetaNum + transferenciaNum;
   const hayAlgo          = totalDeclarado > 0;
-  // diferencia = (efectivo − fondo) + resto − ventas (espejea la columna generada en DB)
-  const diferencia       = hayAlgo ? (efectivoNum - fondo) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
+  // diferencia = (efectivo − fondo + retiros del turno) + resto − ventas (espejea la RPC cerrar_caja)
+  const diferencia       = hayAlgo ? (efectivoNum - fondo + retirosTurno) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
 
   function handleSubmit() {
     if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
@@ -174,9 +180,17 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
           {/* Fondo inicial */}
           {aperturaActual && (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Fondo inicial</p>
-              <span className="text-sm font-bold tabular-nums text-neutral-700">{AR.format(aperturaActual.fondo_inicial)}</span>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Fondo inicial</p>
+                <span className="text-sm font-bold tabular-nums text-neutral-700">{AR.format(aperturaActual.fondo_inicial)}</span>
+              </div>
+              {retirosTurno > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">Retiros del turno</p>
+                  <span className="text-sm font-bold tabular-nums text-amber-600">−{AR.format(retirosTurno)}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -188,7 +202,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 icon={<span className="text-base">💵</span>}
                 value={efectivo}
                 onChange={setEfectivo}
-                sugerido={sugeridoEfectivo + fondo}
+                sugerido={sugeridoEfectivo + fondo - retirosTurno}
                 hint={fondo > 0 ? `Contá todo el efectivo del cajón (incluye fondo inicial de ${AR.format(fondo)})` : undefined}
                 inputRef={efectivoRef}
               />

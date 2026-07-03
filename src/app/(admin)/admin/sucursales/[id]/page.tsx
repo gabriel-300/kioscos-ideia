@@ -281,6 +281,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               cajaAbierta={cajaAbierta}
               ultimoCierre={ultimoCierre}
               aperturaActual={aperturaActual}
+              retiros={todosRetiros}
             />
           </div>
         </div>
