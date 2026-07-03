@@ -136,16 +136,14 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     };
 
     startTransition(async () => {
-      try {
-        if (product) {
-          await actualizarProducto(product.id, payload);
-        } else {
-          await crearProducto({ ...payload, slug: "" });
-        }
-        onClose();
-      } catch (e) {
-        alert((e as Error).message);
+      const result = product
+        ? await actualizarProducto(product.id, payload)
+        : await crearProducto({ ...payload, slug: "" });
+      if (result.error) {
+        alert(result.error);
+        return;
       }
+      onClose();
     });
   }
 

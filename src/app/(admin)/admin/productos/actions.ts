@@ -16,16 +16,45 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }) {
-  await requireAdmin();
-  const supabase = createAdminClient();
-  const payload = { ...data, slug: data.slug || slugify(data.name) };
-  const { error } = await (supabase as any).from("products").insert(payload);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/productos");
+// Traduce errores de constraint únicos de Postgres a mensajes entendibles
+function friendlyDbError(error: { code?: string; message: string }): string {
+  if (error.code === "23505") {
+    if (error.message.includes("sku")) {
+      return "Ya existe un producto con ese SKU. Elegí otro (puede que se haya sugerido uno repetido si creaste varios productos seguidos sin refrescar la página).";
+    }
+    if (error.message.includes("slug")) {
+      return "Ya existe un producto con ese nombre.";
+    }
+    return "Ya existe un producto con ese dato (SKU o nombre duplicado).";
+  }
+  return error.message;
 }
 
-export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>) {
+export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }): Promise<{ error?: string }> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+
+  const baseSlug = data.slug || slugify(data.name) || "producto";
+  const { data: existing } = await (supabase as any)
+    .from("products")
+    .select("slug")
+    .like("slug", `${baseSlug}%`);
+  const takenSlugs = new Set((existing ?? []).map((p: { slug: string }) => p.slug));
+  let slug = baseSlug;
+  let suffix = 2;
+  while (takenSlugs.has(slug)) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix++;
+  }
+
+  const payload = { ...data, slug };
+  const { error } = await (supabase as any).from("products").insert(payload);
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin/productos");
+  return {};
+}
+
+export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>): Promise<{ error?: string }> {
   await requireAdmin();
   const supabase = createAdminClient();
 
@@ -33,7 +62,7 @@ export async function actualizarProducto(id: string, data: (Update & { stock_min
   const { data: current } = await supabase.from("products").select("precio_dist, costo").eq("id", id).single();
 
   const { error } = await (supabase as any).from("products").update(data).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: friendlyDbError(error) };
 
   // Registrar historial si algún precio cambió
   if (current) {
@@ -52,6 +81,7 @@ export async function actualizarProducto(id: string, data: (Update & { stock_min
   }
 
   revalidatePath("/admin/productos");
+  return {};
 }
 
 export async function toggleProductoActivo(id: string, activo: boolean) {
