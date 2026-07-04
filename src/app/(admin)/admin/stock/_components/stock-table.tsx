@@ -242,14 +242,26 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
 }
 
 /* ─── Vista matriz (admin — todas las sucursales) ─────────── */
-function StockCell({ qty, hasData, unit, min }: { qty: number; hasData: boolean; unit: string; min: number }) {
+function StockCell({ qty, hasData, unit, min, sucursalId, productId }: {
+  qty: number; hasData: boolean; unit: string; min: number; sucursalId: string; productId: string;
+}) {
   const status = getStatus(qty, min, hasData);
   if (status === "none") return <span className="text-neutral-200 text-xs">—</span>;
   const badge = STATUS_BADGE[status as Exclude<Status, "none">];
   const bw    = barWidth(qty, min, status);
+  const badgeEl = (
+    <span
+      className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.cls} ${status === "negative" ? "hover:ring-2 hover:ring-red-300 transition-shadow" : ""}`}
+      title={status === "negative" ? "Ir a Ajuste de stock" : undefined}
+    >
+      {fmtQty(qty, unit)}
+    </span>
+  );
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.cls}`}>{fmtQty(qty, unit)}</span>
+      {status === "negative" ? (
+        <Link href={`/admin/sucursales/${sucursalId}?ajuste=${productId}`}>{badgeEl}</Link>
+      ) : badgeEl}
       {min > 0 && <span className="text-[10px] text-neutral-300">mín {fmtQty(min, unit)}</span>}
       <div className="w-full h-1 rounded-full bg-neutral-100 overflow-hidden">
         <div className={`h-full rounded-full transition-all ${STATUS_BAR[status]}`} style={{ width: `${bw}%` }} />
@@ -296,11 +308,11 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
   }), [products, catFilter, search, hideEmpty, statusFilter, sucursales, stockMap]);
 
   const alerts = useMemo(() => {
-    const neg: { nombre: string; product: string; qty: number; unit: string }[] = [];
+    const neg: { sucursalId: string; productId: string; nombre: string; product: string; qty: number; unit: string }[] = [];
     for (const s of sucursales) {
       for (const p of products) {
         const qty = stockMap[s.id]?.[p.id];
-        if (qty !== undefined && qty < 0) neg.push({ nombre: s.nombre, product: p.name, qty, unit: p.unit_label });
+        if (qty !== undefined && qty < 0) neg.push({ sucursalId: s.id, productId: p.id, nombre: s.nombre, product: p.name, qty, unit: p.unit_label });
       }
     }
     return neg;
@@ -319,9 +331,13 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
             <p className="text-xs font-semibold text-red-600 mb-1">Stock negativo — revisá las entregas registradas</p>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5">
               {alerts.map((a, i) => (
-                <span key={i} className="text-xs text-red-500/80">
-                  {a.product} en <span className="font-medium">{a.nombre}</span>: {fmtQty(a.qty, a.unit)}
-                </span>
+                <Link
+                  key={i}
+                  href={`/admin/sucursales/${a.sucursalId}?ajuste=${a.productId}`}
+                  className="text-xs text-red-500/80 hover:text-red-700 hover:underline"
+                >
+                  {a.product} en <span className="font-medium">{a.nombre}</span>: {fmtQty(a.qty, a.unit)} →
+                </Link>
               ))}
             </div>
           </div>
@@ -367,7 +383,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
                     const hasData = qty !== undefined;
                     return (
                       <td key={s.id} className="px-4 py-3">
-                        <StockCell qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={p.stock_minimo} />
+                        <StockCell qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={p.stock_minimo} sucursalId={s.id} productId={p.id} />
                       </td>
                     );
                   })}

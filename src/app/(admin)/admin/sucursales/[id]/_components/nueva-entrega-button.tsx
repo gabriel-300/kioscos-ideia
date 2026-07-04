@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui";
 import { MovimientoForm } from "@/app/(admin)/admin/movimientos/_components/movimiento-form";
 import { VentaRapidaForm } from "./venta-rapida-form";
@@ -23,6 +24,8 @@ export function NuevaEntregaButton({
   cajaAbierta,
   proveedores = [],
   promos,
+  autoOpen,
+  preselectProductId,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -36,10 +39,21 @@ export function NuevaEntregaButton({
   cajaAbierta?:   boolean;
   proveedores?:   { id: string; nombre: string }[];
   promos?:        Promo[];
+  autoOpen?:            boolean;
+  preselectProductId?:  string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!autoOpen);
+  const router   = useRouter();
+  const pathname = usePathname();
 
   const btnLabel = label ?? (defaultTipo === "venta" ? "Registrar venta" : "Nueva entrega");
+
+  function handleClose() {
+    setOpen(false);
+    // Si se abrió sola vía deep-link (?ajuste=...), limpiar la URL al cerrar
+    // para que un refresh no la vuelva a abrir.
+    if (autoOpen) router.replace(pathname);
+  }
 
   return (
     <>
@@ -53,7 +67,7 @@ export function NuevaEntregaButton({
       {defaultTipo === "venta" ? (
         <VentaRapidaForm
           open={open}
-          onClose={() => setOpen(false)}
+          onClose={handleClose}
           sucursalId={sucursalId}
           sucursalNombre={sucursalNombre}
           products={products}
@@ -72,7 +86,8 @@ export function NuevaEntregaButton({
           defaultSucursalId={sucursalId}
           defaultTipo={defaultTipo}
           formTitle={btnLabel}
-          onClose={() => setOpen(false)}
+          preselectProductId={preselectProductId}
+          onClose={handleClose}
         />
       )}
     </>

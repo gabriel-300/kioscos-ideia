@@ -39,9 +39,10 @@ interface Props {
   defaultSucursalId?: string;
   defaultTipo?:       TipoMov;
   formTitle?:         string;
+  preselectProductId?: string;
 }
 
-export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle }: Props) {
+export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, preselectProductId }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
@@ -49,7 +50,9 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [notas,      setNotas]      = useState("");
   const [proveedor,  setProveedor]  = useState("");
   const [nroRemito,  setNroRemito]  = useState("");
-  const [items,      setItems]      = useState<LineItem[]>([emptyLine()]);
+  const [items,      setItems]      = useState<LineItem[]>(
+    () => preselectProductId ? [{ ...emptyLine(), product_id: preselectProductId }] : [emptyLine()]
+  );
   const [ajusteDireccion, setAjusteDireccion] = useState<"sumar" | "restar">("sumar");
   const [pesoMode,  setPesoMode]  = useState<Record<number, boolean>>({});
   const [pesoTexto, setPesoTexto] = useState<Record<number, string>>({});
