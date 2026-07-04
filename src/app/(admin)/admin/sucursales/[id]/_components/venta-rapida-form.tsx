@@ -224,10 +224,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setGramosTexto((prev) => ({ ...prev, [id]: raw }));
     setMontoTexto((prev) => { const n = { ...prev }; delete n[id]; return n; }); // el otro campo pasa a mostrar el valor derivado
     const v = parseFloat(raw);
-    if (!raw || isNaN(v) || v <= 0) {
-      setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
-      return;
-    }
+    // Mientras el campo está vacío o a medio escribir (ej. borraste todo para tipear
+    // un número nuevo) NO se toca la cantidad — si no, el producto desaparecía del
+    // carrito ni bien quedaba vacío un instante, y con él el input para seguir escribiendo.
+    if (!raw || isNaN(v) || v <= 0) return;
     setCantidades((prev) => ({ ...prev, [id]: Math.round(Math.max(0, v)) / 1000 }));
   }
 
@@ -237,10 +237,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setGramosTexto((prev) => { const n = { ...prev }; delete n[id]; return n; }); // el otro campo pasa a mostrar el valor derivado
     const monto = parseFloat(raw);
     const precioKg = priceOf(id);
-    if (!raw || isNaN(monto) || monto <= 0 || !precioKg) {
-      setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
-      return;
-    }
+    // Mismo criterio que setGrams: no borrar la cantidad solo porque el campo
+    // está vacío o a medio escribir.
+    if (!raw || isNaN(monto) || monto <= 0 || !precioKg) return;
     const kg = Math.round((monto / precioKg) * 1000) / 1000;
     setCantidades((prev) => ({ ...prev, [id]: kg }));
   }
