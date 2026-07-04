@@ -51,6 +51,8 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [nroRemito,  setNroRemito]  = useState("");
   const [items,      setItems]      = useState<LineItem[]>([emptyLine()]);
   const [ajusteDireccion, setAjusteDireccion] = useState<"sumar" | "restar">("sumar");
+  const [pesoMode,  setPesoMode]  = useState<Record<number, boolean>>({});
+  const [pesoTexto, setPesoTexto] = useState<Record<number, string>>({});
   const [error,        setError]        = useState<string | null>(null);
   const [remitoImage,  setRemitoImage]  = useState<File | null>(null);
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
@@ -65,6 +67,8 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setNroRemito("");
     setItems([emptyLine()]);
     setAjusteDireccion("sumar");
+    setPesoMode({});
+    setPesoTexto({});
     setError(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setRemitoImage(null);
@@ -111,6 +115,32 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setItems((p) => p.map((item, idx) =>
       idx === i ? { ...item, product_id: productId, precio_unitario: precio != null ? String(precio) : "" } : item
     ));
+    // Al cambiar de producto, la línea vuelve a modo unidades (el peso/gramo era del producto anterior)
+    setPesoMode((p) => ({ ...p, [i]: false }));
+    setPesoTexto((p) => ({ ...p, [i]: "" }));
+  }
+
+  // Productos que se venden por unidad pero se reciben por peso (ej. pan: remito en kg,
+  // se vende por bolsa) — necesitan "Peso por unidad (gramos)" cargado en la ficha.
+  function puedeConvertirPeso(prod: Product | undefined) {
+    return !!prod && prod.unit_label === "unidad" && !!prod.weight_grams && prod.weight_grams > 0;
+  }
+
+  function togglePesoMode(i: number) {
+    setPesoMode((p) => ({ ...p, [i]: !p[i] }));
+    setPesoTexto((p) => ({ ...p, [i]: "" }));
+    updateLine(i, "cantidad", "");
+  }
+
+  function handlePesoChange(i: number, raw: string, prod: Product) {
+    setPesoTexto((p) => ({ ...p, [i]: raw }));
+    const kg = parseFloat(raw);
+    if (!raw || isNaN(kg) || kg <= 0 || !prod.weight_grams) {
+      updateLine(i, "cantidad", "");
+      return;
+    }
+    const unidades = Math.round((kg * 1000) / prod.weight_grams);
+    updateLine(i, "cantidad", String(unidades));
   }
 
   const total = items.reduce((sum, item) => {
@@ -279,7 +309,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                 const prod = products.find((p) => p.id === item.product_id);
                 const importe = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio_unitario) || 0);
                 return (
-                  <div key={i} className="grid grid-cols-[1fr_80px_100px_100px_auto] gap-2 items-end">
+                  <div key={i} className="grid grid-cols-[1fr_110px_100px_100px_auto] gap-2 items-end">
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                       <Combobox
@@ -290,15 +320,53 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        value={item.cantidad}
-                        onChange={(e) => updateLine(i, "cantidad", e.target.value)}
-                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
-                      />
+                      {puedeConvertirPeso(prod) && tipo === "entrega" ? (() => {
+                        const kgIngresado    = parseFloat(pesoTexto[i] || "0") || 0;
+                        const unidadesExactas = prod!.weight_grams ? (kgIngresado * 1000) / prod!.weight_grams : 0;
+                        const desajuste = !!pesoMode[i] && kgIngresado > 0 && Math.abs(unidadesExactas - Math.round(unidadesExactas)) > 0.05;
+                        return (
+                          <>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                step={pesoMode[i] ? "0.01" : "1"}
+                                placeholder={pesoMode[i] ? "kg" : "0"}
+                                value={pesoMode[i] ? (pesoTexto[i] ?? "") : item.cantidad}
+                                onChange={(e) => pesoMode[i] ? handlePesoChange(i, e.target.value, prod!) : updateLine(i, "cantidad", e.target.value)}
+                                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => togglePesoMode(i)}
+                                title={pesoMode[i] ? "Cargar por unidades" : "Cargar por peso total del remito (kg)"}
+                                className={`shrink-0 h-10 w-9 rounded-lg border text-[11px] font-bold transition-colors ${
+                                  pesoMode[i] ? "border-tierra-700 bg-tierra-50 text-tierra-700" : "border-neutral-300 text-neutral-500"
+                                }`}
+                              >
+                                {pesoMode[i] ? "u" : "kg"}
+                              </button>
+                            </div>
+                            {pesoMode[i] && item.cantidad && (
+                              <p className={`text-[11px] mt-1 ${desajuste ? "text-amber-600" : "text-neutral-400"}`}>
+                                {desajuste
+                                  ? `≈${unidadesExactas.toFixed(2)} unid. exactas → redondeado a ${item.cantidad}`
+                                  : `= ${item.cantidad} unidades`}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })() : (
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          value={item.cantidad}
+                          onChange={(e) => updateLine(i, "cantidad", e.target.value)}
+                          className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                        />
+                      )}
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Precio $</p>}

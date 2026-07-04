@@ -30,6 +30,7 @@ const schema = z.object({
   costo:             nPos,
   precio_dist:       nPos,
   stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
+  weight_grams:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -81,7 +82,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, stock_minimo: 0,
+      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null,
     },
   });
 
@@ -111,10 +112,11 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       costo:             product.costo ?? null,
       precio_dist:       product.precio_dist ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
+      weight_grams:      product.weight_grams ?? null,
     } : {
       sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, stock_minimo: 0,
+      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null,
     });
   }, [open, product, reset, existingSkus]);
 
@@ -132,6 +134,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       price_b2c:         0,
       price_b2b:         values.precio_dist ?? 0,
       stock_minimo:      values.stock_minimo,
+      weight_grams:      values.weight_grams,
       cover_image_url:   imageUrl,
     };
 
@@ -147,8 +150,9 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     });
   }
 
-  const watchedCosto  = watch("costo");
-  const watchedPrecio = watch("precio_dist");
+  const watchedCosto     = watch("costo");
+  const watchedPrecio    = watch("precio_dist");
+  const watchedUnitLabel = watch("unit_label");
   const margen = useMemo(() => {
     if (watchedCosto == null || watchedPrecio == null || watchedCosto <= 0) return null;
     return Math.round(((watchedPrecio - watchedCosto) / watchedCosto) * 100);
@@ -287,6 +291,21 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
               />
               <p className="text-[11px] text-neutral-400 mt-1">Marca "Bajo Stock" al llegar a este valor</p>
             </div>
+            {watchedUnitLabel === "unidad" && (
+              <div>
+                <Input
+                  label="Peso por unidad (gramos)"
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="Ej: 500"
+                  {...register("weight_grams")}
+                />
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  Opcional. Si el remito de entrega viene en kilos (ej. pan), completá esto para poder cargar la entrega por peso total y que convierta solo a unidades/bolsas.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
