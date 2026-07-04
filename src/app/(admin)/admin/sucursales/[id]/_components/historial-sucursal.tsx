@@ -190,6 +190,9 @@ export function HistorialSucursal({
                 <tr key={`retiro-${r.id}`} className="bg-amber-50/40 hover:bg-amber-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-neutral-800 tabular-nums">
                     {new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+                    <span className="block text-[11px] font-normal text-neutral-400">
+                      {new Date(r.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
@@ -218,6 +221,9 @@ export function HistorialSucursal({
                     >
                       <td className="px-4 py-3 font-medium text-neutral-800 tabular-nums">
                         {new Date(m.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
+                        <span className="block text-[11px] font-normal text-neutral-400">
+                          {new Date(m.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1">
