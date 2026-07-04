@@ -619,25 +619,27 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               return (
                 <div
                   key={tile.id}
-                  onClick={() => !agotado && set(tile.id, qty + step(tile.id))}
+                  // "Agotado" es solo informativo (stock calculado incompleto mientras se
+                  // termina de cargar el catálogo real) — no bloquea la venta, igual que
+                  // el chequeo de stock server-side, desactivado temporalmente (ver memoria).
+                  onClick={() => set(tile.id, qty + step(tile.id))}
                   style={{
                     background: "white",
                     border: `1.5px solid ${qty > 0 ? NAVY : "#E6ECF3"}`,
                     borderRadius: 12,
                     padding: "18px 12px",
                     minHeight: 158,
-                    cursor: agotado ? "not-allowed" : "pointer",
+                    cursor: "pointer",
                     textAlign: "center",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     gap: 6,
                     position: "relative",
-                    opacity: agotado ? 0.4 : 1,
                     transition: "all .15s",
                     boxShadow: qty > 0 ? `0 0 0 1px ${NAVY}` : "none",
                   }}
-                  onMouseOver={(e) => { if (!agotado) { e.currentTarget.style.borderColor = NAVY; e.currentTarget.style.boxShadow = "0 3px 12px rgba(30,58,138,.1)"; e.currentTarget.style.transform = "translateY(-2px)"; } }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = NAVY; e.currentTarget.style.boxShadow = "0 3px 12px rgba(30,58,138,.1)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
                   onMouseOut={(e) => { e.currentTarget.style.borderColor = qty > 0 ? NAVY : "#E2E8F0"; e.currentTarget.style.boxShadow = qty > 0 ? `0 0 0 1px ${NAVY}` : "none"; e.currentTarget.style.transform = "none"; }}
                 >
                   {agotado ? (
@@ -678,7 +680,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </div>
                   )}
 
-                  {qty > 0 && !agotado && (
+                  {qty > 0 && (
                     <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => set(tile.id, qty - step(tile.id))}
