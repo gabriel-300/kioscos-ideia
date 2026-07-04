@@ -271,27 +271,28 @@ function StockCell({ qty, hasData, unit, min, sucursalId, productId }: {
   qty: number; hasData: boolean; unit: string; min: number; sucursalId: string; productId: string;
 }) {
   const status = getStatus(qty, min, hasData);
-  if (status === "none") return <span className="text-neutral-200 text-xs">—</span>;
+  const href = `/admin/sucursales/${sucursalId}?ajuste=${productId}`;
+
+  if (status === "none") {
+    return (
+      <Link href={href} className="text-neutral-300 hover:text-tierra-700 text-xs transition-colors" title="Ir a Ajuste de stock">
+        —
+      </Link>
+    );
+  }
+
   const badge = STATUS_BADGE[status as Exclude<Status, "none">];
   const bw    = barWidth(qty, min, status);
-  const badgeEl = (
-    <span
-      className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.cls} ${status === "negative" ? "hover:ring-2 hover:ring-red-300 transition-shadow" : ""}`}
-      title={status === "negative" ? "Ir a Ajuste de stock" : undefined}
-    >
-      {fmtQty(qty, unit)}
-    </span>
-  );
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      {status === "negative" ? (
-        <Link href={`/admin/sucursales/${sucursalId}?ajuste=${productId}`}>{badgeEl}</Link>
-      ) : badgeEl}
+    <Link href={href} className="flex flex-col items-center gap-1.5 group/cell" title="Ir a Ajuste de stock">
+      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.cls} group-hover/cell:ring-2 group-hover/cell:ring-tierra-300 transition-shadow`}>
+        {fmtQty(qty, unit)}
+      </span>
       {min > 0 && <span className="text-[10px] text-neutral-300">mín {fmtQty(min, unit)}</span>}
       <div className="w-full h-1 rounded-full bg-neutral-100 overflow-hidden">
         <div className={`h-full rounded-full transition-all ${STATUS_BAR[status]}`} style={{ width: `${bw}%` }} />
       </div>
-    </div>
+    </Link>
   );
 }
 
