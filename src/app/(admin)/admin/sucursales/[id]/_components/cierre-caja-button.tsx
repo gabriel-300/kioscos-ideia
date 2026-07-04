@@ -37,6 +37,8 @@ export function CierreCajaButton({
   aperturaActual,
   retiros,
   role,
+  abiertaPorNombre,
+  puedeCerrarCaja,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -46,6 +48,8 @@ export function CierreCajaButton({
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
   retiros?:        { monto: number; created_at: string }[];
   role?:           string | null;
+  abiertaPorNombre?: string | null;
+  puedeCerrarCaja?:  boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -87,6 +91,8 @@ export function CierreCajaButton({
         aperturaActual={aperturaActual}
         retiros={retiros}
         role={role}
+        abiertaPorNombre={abiertaPorNombre}
+        puedeCerrarCaja={puedeCerrarCaja}
       />
     </>
   );

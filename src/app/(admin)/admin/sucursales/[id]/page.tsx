@@ -52,14 +52,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const canGoNext  = mes < mesActual;
 
   type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
-  type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string };
+  type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
   const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
       .select(`
-        id, fecha, tipo, notas, canal, personal_id, created_at,
+        id, fecha, tipo, notas, canal, personal_id, created_at, created_by,
         pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
         movimiento_items(
           id, cantidad, precio_unitario, subtotal,
@@ -73,7 +73,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
-    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
+    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
     (supabase as any)
       .from("profiles")
@@ -113,6 +113,21 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   if (role === "vendedor" && !personal.some((p) => p.id === user.id)) {
     redirect("/admin/dashboard");
   }
+
+  // Quién tiene la caja abierta (para mostrarlo y para restringir quién puede cerrarla)
+  let abiertaPorNombre: string | null = null;
+  if (aperturaActual?.created_by) {
+    const abrioLaCaja = personalMap[aperturaActual.created_by];
+    if (abrioLaCaja) {
+      abiertaPorNombre = abrioLaCaja;
+    } else {
+      const { data: perfilApertura } = await (supabase as any)
+        .from("profiles").select("full_name").eq("id", aperturaActual.created_by).maybeSingle();
+      abiertaPorNombre = (perfilApertura as { full_name: string | null } | null)?.full_name ?? null;
+    }
+  }
+  const esMiTurno       = !!aperturaActual?.created_by && aperturaActual.created_by === user.id;
+  const puedeCerrarCaja = role === "admin" || role === "encargado" || esMiTurno;
 
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
@@ -293,6 +308,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               sucursalNombre={sucursal.nombre}
               cajaAbierta={cajaAbierta}
               aperturaActual={aperturaActual}
+              abiertaPorNombre={abiertaPorNombre}
             />
             <CierreCajaButton
               sucursalId={sucursal.id}
@@ -301,6 +317,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               cajaAbierta={cajaAbierta}
               ultimoCierre={ultimoCierre}
               aperturaActual={aperturaActual}
+              abiertaPorNombre={abiertaPorNombre}
+              puedeCerrarCaja={puedeCerrarCaja}
               retiros={todosRetiros}
               role={role}
             />

@@ -10,9 +10,10 @@ interface Props {
   sucursalNombre: string;
   cajaAbierta:    boolean;
   aperturaActual: AperturaActual | null;
+  abiertaPorNombre?: string | null;
 }
 
-export function AperturaCajaButton({ sucursalId, sucursalNombre, cajaAbierta, aperturaActual }: Props) {
+export function AperturaCajaButton({ sucursalId, sucursalNombre, cajaAbierta, aperturaActual, abiertaPorNombre }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -38,6 +39,7 @@ export function AperturaCajaButton({ sucursalId, sucursalNombre, cajaAbierta, ap
         sucursalNombre={sucursalNombre}
         cajaAbierta={cajaAbierta}
         aperturaActual={aperturaActual}
+        abiertaPorNombre={abiertaPorNombre}
       />
     </>
   );

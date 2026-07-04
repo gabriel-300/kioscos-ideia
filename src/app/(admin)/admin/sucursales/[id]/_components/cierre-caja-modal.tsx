@@ -18,6 +18,8 @@ interface Props {
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
   retiros?:        { monto: number; created_at: string }[];
   role?:           string | null;
+  abiertaPorNombre?: string | null;
+  puedeCerrarCaja?:  boolean;
 }
 
 function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, readOnly }: {
@@ -64,7 +66,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role, abiertaPorNombre, puedeCerrarCaja = true }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
   const puedeEditarMedios = role === "admin";
 
@@ -204,7 +206,17 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
             </div>
           )}
 
-          {cajaAbierta ? (
+          {cajaAbierta && !puedeCerrarCaja ? (
+            /* ── Turno abierto por otra persona: no puede cerrarlo ── */
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-800">
+                Esta caja la abrió {abiertaPorNombre ?? "otra persona"}.
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Pedile que la cierre ella, o hacelo como encargado o admin.
+              </p>
+            </div>
+          ) : cajaAbierta ? (
             /* ── Formulario de cierre ── */
             <>
               <MontoInput
@@ -332,7 +344,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
           )}
         </div>
 
-        {cajaAbierta && (
+        {cajaAbierta && puedeCerrarCaja && (
           <div className="px-6 pb-5">
             <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="w-full">
               Cerrar caja

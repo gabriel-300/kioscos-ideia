@@ -15,9 +15,10 @@ interface Props {
   sucursalNombre: string;
   cajaAbierta:    boolean;
   aperturaActual: AperturaActual | null;
+  abiertaPorNombre?: string | null;
 }
 
-export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual }: Props) {
+export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual, abiertaPorNombre }: Props) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [fondo,  setFondo]  = useState("");
@@ -92,7 +93,9 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-selva-800">Caja abierta</p>
-                    <p className="text-xs text-selva-600">Fondo inicial registrado</p>
+                    <p className="text-xs text-selva-600">
+                      {abiertaPorNombre ? `Abierta por ${abiertaPorNombre}` : "Fondo inicial registrado"}
+                    </p>
                   </div>
                 </div>
                 <span className="text-xl font-bold font-display tabular-nums text-selva-700">

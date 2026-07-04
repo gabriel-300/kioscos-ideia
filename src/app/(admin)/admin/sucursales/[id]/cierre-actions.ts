@@ -47,12 +47,18 @@ export async function cerrarCaja(data: {
   if (role !== "admin") {
     const aperturaRes = await (admin as any)
       .from("aperturas_caja")
-      .select("created_at")
+      .select("created_at, created_by")
       .eq("sucursal_id", data.sucursal_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const ultimaApertura = aperturaRes.data as { created_at: string } | null;
+    const ultimaApertura = aperturaRes.data as { created_at: string; created_by: string | null } | null;
+
+    // Un vendedor solo puede cerrar el turno que él mismo abrió (el encargado,
+    // ya validado como dueño de la sucursal arriba, puede cerrar cualquiera).
+    if (role === "vendedor" && ultimaApertura?.created_by && ultimaApertura.created_by !== userId) {
+      throw new Error("Esta caja la abrió otra persona — pedile que la cierre ella, un encargado o un admin.");
+    }
 
     let ventasQuery = (admin as any)
       .from("movimientos")
