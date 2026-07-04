@@ -240,10 +240,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     // Mismo criterio que setGrams: no borrar la cantidad solo porque el campo
     // está vacío o a medio escribir.
     if (!raw || isNaN(monto) || monto <= 0 || !precioKg) return;
-    const kg = Math.round((monto / precioKg) * 1000) / 1000;
-    // Un monto chico (ej. el "2" de "2000" a medio tipear) puede redondear a 0
-    // gramos -- no tocar la cantidad en ese caso, si no el producto se saca del
-    // carrito (y el input con él) apenas se empieza a escribir un número más grande.
+    // Sin redondear a gramos enteros: si se redondea, el total (peso × precio)
+    // ya no da exactamente el monto tipeado (ej. escribir $3500 terminaba
+    // cobrando $3497). El peso que se ve en pantalla sigue mostrándose
+    // redondeado (fmtCant/fmtQty), pero el monto cobrado queda exacto.
+    const kg = monto / precioKg;
     if (kg <= 0) return;
     setCantidades((prev) => ({ ...prev, [id]: kg }));
   }
