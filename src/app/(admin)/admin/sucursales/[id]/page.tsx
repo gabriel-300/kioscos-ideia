@@ -32,9 +32,9 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   );
 }
 
-export default async function SucursalDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ mes?: string; ajuste?: string }> }) {
+export default async function SucursalDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ mes?: string }> }) {
   const { id }        = await params;
-  const { mes: mesParam, ajuste: ajusteProductId } = await searchParams;
+  const { mes: mesParam } = await searchParams;
   const supabase      = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -253,8 +253,6 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                     label="Ajuste de stock"
                     variant="ghost"
                     stockMap={stockActual}
-                    autoOpen={!!ajusteProductId}
-                    preselectProductId={ajusteProductId}
                   />
                 )}
               </>
@@ -287,8 +285,6 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   label="Ajuste de stock"
                   variant="ghost"
                   stockMap={stockActual}
-                  autoOpen={!!ajusteProductId}
-                  preselectProductId={ajusteProductId}
                 />
               </>
             )}

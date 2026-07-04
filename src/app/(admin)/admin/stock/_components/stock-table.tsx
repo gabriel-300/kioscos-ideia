@@ -1,8 +1,124 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
+
+type AjusteTarget = {
+  sucursalId: string; sucursalNombre?: string;
+  productId: string; productName: string;
+  unit: string; currentStock: number;
+};
+
+/* ─── Modal liviano de ajuste, sin salir de la pantalla de Stock ── */
+function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; onClose: () => void }) {
+  const router = useRouter();
+  const [direccion, setDireccion] = useState<"sumar" | "restar">("sumar");
+  const [cantidad,  setCantidad]  = useState("");
+  const [notas,     setNotas]     = useState("");
+  const [error,     setError]     = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setDireccion("sumar"); setCantidad(""); setNotas(""); setError(null);
+  }, [target?.productId, target?.sucursalId]);
+
+  if (!target) return null;
+
+  function handleSubmit() {
+    const qty = parseFloat(cantidad);
+    if (!qty || qty <= 0) { setError("Ingresá una cantidad válida"); return; }
+    setError(null);
+    startTransition(async () => {
+      try {
+        await crearMovimiento({
+          sucursal_id: target!.sucursalId,
+          fecha:       new Date().toISOString().slice(0, 10),
+          tipo:        "ajuste",
+          notas:       notas || null,
+          items: [{
+            product_id:      target!.productId,
+            cantidad:        direccion === "restar" ? -qty : qty,
+            precio_unitario: null,
+          }],
+        });
+        onClose();
+        router.refresh();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    });
+  }
+
+  const unitLabel = target.unit === "unidad" ? "u." : target.unit;
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
+          <h3 className="text-base font-semibold text-neutral-900 mb-1">Ajustar stock</h3>
+          <p className="text-sm text-neutral-500 mb-3">
+            {target.productName}{target.sucursalNombre ? ` · ${target.sucursalNombre}` : ""}
+          </p>
+          <p className="text-xs text-neutral-400 mb-3">
+            Stock actual: <span className="font-semibold text-neutral-700">{target.currentStock} {unitLabel}</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setDireccion("sumar")}
+              className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                direccion === "sumar" ? "border-selva-600 bg-selva-50 text-selva-700" : "border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+              }`}
+            >
+              + Sumar stock
+            </button>
+            <button
+              type="button"
+              onClick={() => setDireccion("restar")}
+              className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                direccion === "restar" ? "border-danger bg-danger/5 text-danger" : "border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+              }`}
+            >
+              − Restar stock
+            </button>
+          </div>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder={`Cantidad (${unitLabel})`}
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm mb-3 focus:outline-none focus:border-tierra-700 tabular-nums"
+          />
+          <textarea
+            placeholder="Motivo del ajuste (opcional)"
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            rows={2}
+            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm mb-3 focus:outline-none focus:border-tierra-700 resize-none"
+          />
+          {error && <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2 mb-3">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="flex-1 h-10 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-600 hover:bg-neutral-50 transition-colors">
+              Cancelar
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={pending}
+              className="flex-1 h-10 rounded-lg bg-tierra-700 text-white text-sm font-medium hover:bg-tierra-800 transition-colors disabled:opacity-50"
+            >
+              {pending ? "Guardando…" : "Guardar ajuste"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 type Sucursal = { id: string; nombre: string };
 type Product  = { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number };
@@ -102,16 +218,17 @@ function Filters({
 }
 
 /* ─── Vista plana (encargado/vendedor — una sucursal) ────── */
-function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap, sucursalId, canAjustar }: {
+function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap, sucursalId, sucursalNombre, canAjustar }: {
   products:     Product[];
   categories:   Category[];
   flatStockMap: Record<string, number>;
   entradaMap:   Record<string, number>;
   salidaMap:    Record<string, number>;
-  sucursalId?:  string;
+  sucursalId?:     string;
+  sucursalNombre?: string;
   canAjustar?:  boolean;
 }) {
-  const router = useRouter();
+  const [ajusteTarget, setAjusteTarget] = useState<AjusteTarget | null>(null);
   const [catFilter,    setCat]      = useState("all");
   const [statusFilter, setStatus]   = useState("all");
   const [search,       setSearch]   = useState("");
@@ -153,13 +270,17 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
             <div className="flex flex-wrap gap-x-4 gap-y-0.5">
               {negatives.map((p) => (
                 canAjustar && sucursalId ? (
-                  <Link
+                  <button
                     key={p.id}
-                    href={`/admin/sucursales/${sucursalId}?ajuste=${p.id}`}
+                    type="button"
+                    onClick={() => setAjusteTarget({
+                      sucursalId, sucursalNombre, productId: p.id, productName: p.name,
+                      unit: p.unit_label, currentStock: flatStockMap[p.id] ?? 0,
+                    })}
                     className="text-xs text-red-500/80 hover:text-red-700 hover:underline"
                   >
                     {p.name}: {fmtQty(flatStockMap[p.id], p.unit_label)} →
-                  </Link>
+                  </button>
                 ) : (
                   <span key={p.id} className="text-xs text-red-500/80">
                     {p.name}: {fmtQty(flatStockMap[p.id], p.unit_label)}
@@ -204,9 +325,12 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
               return (
                 <tr
                   key={p.id}
-                  onClick={ajustable ? () => router.push(`/admin/sucursales/${sucursalId}?ajuste=${p.id}`) : undefined}
+                  onClick={ajustable ? () => setAjusteTarget({
+                    sucursalId, sucursalNombre, productId: p.id, productName: p.name,
+                    unit: p.unit_label, currentStock: qty,
+                  }) : undefined}
                   className={`hover:bg-neutral-50/80 transition-colors ${ajustable ? "cursor-pointer" : ""}`}
-                  title={ajustable ? "Ir a Ajuste de stock" : undefined}
+                  title={ajustable ? "Ajustar stock" : undefined}
                 >
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-800 leading-tight">{p.name}</p>
@@ -262,29 +386,29 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
         </table>
       </div>
       <p className="text-xs text-neutral-400">Stock estimado desde el historial: entregas menos devoluciones y ventas.</p>
+      <AjusteRapidoModal target={ajusteTarget} onClose={() => setAjusteTarget(null)} />
     </div>
   );
 }
 
 /* ─── Vista matriz (admin — todas las sucursales) ─────────── */
-function StockCell({ qty, hasData, unit, min, sucursalId, productId }: {
-  qty: number; hasData: boolean; unit: string; min: number; sucursalId: string; productId: string;
+function StockCell({ qty, hasData, unit, min, onClick }: {
+  qty: number; hasData: boolean; unit: string; min: number; onClick: () => void;
 }) {
   const status = getStatus(qty, min, hasData);
-  const href = `/admin/sucursales/${sucursalId}?ajuste=${productId}`;
 
   if (status === "none") {
     return (
-      <Link href={href} className="text-neutral-300 hover:text-tierra-700 text-xs transition-colors" title="Ir a Ajuste de stock">
+      <button type="button" onClick={onClick} className="text-neutral-300 hover:text-tierra-700 text-xs transition-colors" title="Ajustar stock">
         —
-      </Link>
+      </button>
     );
   }
 
   const badge = STATUS_BADGE[status as Exclude<Status, "none">];
   const bw    = barWidth(qty, min, status);
   return (
-    <Link href={href} className="flex flex-col items-center gap-1.5 group/cell" title="Ir a Ajuste de stock">
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-1.5 group/cell w-full" title="Ajustar stock">
       <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.cls} group-hover/cell:ring-2 group-hover/cell:ring-tierra-300 transition-shadow`}>
         {fmtQty(qty, unit)}
       </span>
@@ -292,7 +416,7 @@ function StockCell({ qty, hasData, unit, min, sucursalId, productId }: {
       <div className="w-full h-1 rounded-full bg-neutral-100 overflow-hidden">
         <div className={`h-full rounded-full transition-all ${STATUS_BAR[status]}`} style={{ width: `${bw}%` }} />
       </div>
-    </Link>
+    </button>
   );
 }
 
@@ -302,6 +426,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
   categories: Category[];
   stockMap:   Record<string, Record<string, number>>;
 }) {
+  const [ajusteTarget, setAjusteTarget] = useState<AjusteTarget | null>(null);
   const [catFilter,    setCat]      = useState("all");
   const [statusFilter, setStatus]   = useState("all");
   const [search,       setSearch]   = useState("");
@@ -357,13 +482,18 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
             <p className="text-xs font-semibold text-red-600 mb-1">Stock negativo — revisá las entregas registradas</p>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5">
               {alerts.map((a, i) => (
-                <Link
+                <button
                   key={i}
-                  href={`/admin/sucursales/${a.sucursalId}?ajuste=${a.productId}`}
+                  type="button"
+                  onClick={() => setAjusteTarget({
+                    sucursalId: a.sucursalId, sucursalNombre: a.nombre,
+                    productId: a.productId, productName: a.product,
+                    unit: a.unit, currentStock: a.qty,
+                  })}
                   className="text-xs text-red-500/80 hover:text-red-700 hover:underline"
                 >
                   {a.product} en <span className="font-medium">{a.nombre}</span>: {fmtQty(a.qty, a.unit)} →
-                </Link>
+                </button>
               ))}
             </div>
           </div>
@@ -409,7 +539,14 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
                     const hasData = qty !== undefined;
                     return (
                       <td key={s.id} className="px-4 py-3">
-                        <StockCell qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={p.stock_minimo} sucursalId={s.id} productId={p.id} />
+                        <StockCell
+                          qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={p.stock_minimo}
+                          onClick={() => setAjusteTarget({
+                            sucursalId: s.id, sucursalNombre: s.nombre,
+                            productId: p.id, productName: p.name,
+                            unit: p.unit_label, currentStock: qty ?? 0,
+                          })}
+                        />
                       </td>
                     );
                   })}
@@ -420,6 +557,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
         </div>
       </div>
       <p className="text-xs text-neutral-400">Stock estimado desde el historial: entregas menos devoluciones y ventas.</p>
+      <AjusteRapidoModal target={ajusteTarget} onClose={() => setAjusteTarget(null)} />
     </div>
   );
 }
@@ -432,6 +570,7 @@ export function StockTable(props:
       entradaMap: Record<string, number>;
       salidaMap:  Record<string, number>;
       sucursalId?: string;
+      sucursalNombre?: string;
       canAjustar?: boolean;
       sucursales?: undefined; stockMap?: undefined; readOnly?: undefined;
     }
@@ -440,7 +579,7 @@ export function StockTable(props:
       stockMap: Record<string, Record<string, number>>;
       readOnly?: boolean;
       flatStockMap?: undefined; entradaMap?: undefined; salidaMap?: undefined;
-      sucursalId?: undefined; canAjustar?: undefined;
+      sucursalId?: undefined; sucursalNombre?: undefined; canAjustar?: undefined;
     }
 ) {
   if (props.flatStockMap !== undefined) {
@@ -452,6 +591,7 @@ export function StockTable(props:
         entradaMap={props.entradaMap}
         salidaMap={props.salidaMap}
         sucursalId={props.sucursalId}
+        sucursalNombre={props.sucursalNombre}
         canAjustar={props.canAjustar}
       />
     );
