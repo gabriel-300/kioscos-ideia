@@ -465,7 +465,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       {/* Análisis del mes */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-neutral-900">Análisis</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Análisis del mes</h2>
           <div className="flex items-center gap-1.5">
             <Link
               href={`/admin/sucursales/${id}?mes=${prevMes}`}
@@ -515,7 +515,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   </div>
                 ))}
                 <div className="pt-2 border-t border-neutral-100 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-neutral-500">Total ventas</span>
+                  <span className="text-xs font-semibold text-neutral-500">Total ventas del mes</span>
                   <span className="text-sm font-bold tabular-nums text-neutral-900">{AR.format(totalVentasMes)}</span>
                 </div>
               </div>
