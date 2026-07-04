@@ -74,26 +74,25 @@ export default async function StockPage() {
     );
   }
 
-  // Vista matriz para admin (todas las sucursales)
+  // Vista matriz para admin (todas las sucursales) — misma fuente que la vista
+  // de encargado/vendedor (stock_sucursal), para no reimplementar la fórmula
+  // de stock a mano (eso hacía que "Ajuste de stock" no se viera acá).
   const [
     { data: sucursales },
-    { data: movimientos },
+    { data: stockRows },
   ] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
-    supabase.from("movimientos")
-      .select("tipo, sucursal_id, movimiento_items(product_id, cantidad)")
-      .in("tipo", ["entrega", "devolucion", "venta"]),
+    (supabase as any)
+      .from("stock_sucursal")
+      .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{
+        data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null;
+      }>,
   ]);
 
   const matrixMap: Record<string, Record<string, number>> = {};
-  for (const m of movimientos ?? []) {
-    if (!m.sucursal_id) continue;
-    if (!matrixMap[m.sucursal_id]) matrixMap[m.sucursal_id] = {};
-    for (const item of m.movimiento_items) {
-      const delta = m.tipo === "entrega" ? item.cantidad : -item.cantidad;
-      matrixMap[m.sucursal_id][item.product_id] =
-        (matrixMap[m.sucursal_id][item.product_id] ?? 0) + delta;
-    }
+  for (const r of stockRows ?? []) {
+    if (!matrixMap[r.sucursal_id]) matrixMap[r.sucursal_id] = {};
+    matrixMap[r.sucursal_id][r.product_id] = r.stock_actual;
   }
 
   return (
