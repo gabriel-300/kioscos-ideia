@@ -13,6 +13,7 @@ export interface ItemInput {
 export interface PromoItemInput {
   promo_id: string;
   cantidad: number;
+  precio_unitario?: number | null; // override manual del precio de la promo (ej. canal "Pedido Ya")
 }
 
 type VentaItemInput = ItemInput | PromoItemInput;
@@ -93,7 +94,8 @@ export async function crearMovimiento(data: {
       if (!promo.promo_items || promo.promo_items.length === 0) {
         throw new Error("La promoción no tiene productos configurados");
       }
-      const subtotalTotal = input.cantidad * promo.price;
+      const precioPromo   = input.precio_unitario ?? promo.price;
+      const subtotalTotal = input.cantidad * precioPromo;
       promo.promo_items.forEach((pi: { product_id: string; cantidad: number }, idx: number) => {
         expandedPromoItems.push({
           product_id:      pi.product_id,

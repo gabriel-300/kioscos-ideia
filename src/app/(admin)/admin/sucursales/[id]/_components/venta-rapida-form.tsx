@@ -112,6 +112,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [showPay, setShowPay] = useState(false);
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
   const [canal,      setCanal]      = useState("consumidor_final");
+  const [precioOverride, setPrecioOverride] = useState<Record<string, string>>({});
   const [personalId, setPersonalId] = useState("");
   const [notas,      setNotas]      = useState("");
   const [error,         setError]         = useState<string | null>(null);
@@ -154,9 +155,21 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     if (isPromoId(id)) return promoMap.get(promoIdOf(id))?.name ?? "—";
     return products.find((p) => p.id === id)?.name ?? "—";
   }
-  function priceOf(id: string) {
+  function basePriceOf(id: string) {
     if (isPromoId(id)) return promoMap.get(promoIdOf(id))?.price ?? 0;
     return products.find((p) => p.id === id)?.precio_dist ?? 0;
+  }
+  // En el canal "Pedido Ya" el encargado puede sobreescribir el precio a mano
+  // (la comisión de la app suele hacer que el precio real cobrado sea otro).
+  function priceOf(id: string) {
+    if (canal === "pedido_ya") {
+      const ov = precioOverride[id];
+      if (ov !== undefined && ov !== "") {
+        const v = parseFloat(ov);
+        if (!isNaN(v) && v >= 0) return v;
+      }
+    }
+    return basePriceOf(id);
   }
 
   const seleccionados = useMemo(
@@ -269,7 +282,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-    setCanal("consumidor_final"); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
+    setCanal("consumidor_final"); setPrecioOverride({}); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -336,8 +349,8 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           pago_transferencia: parseFloat(pagos.transferencia) || null,
           items: seleccionados.map(([id, cantidad]) =>
             isPromoId(id)
-              ? { promo_id: promoIdOf(id), cantidad }
-              : { product_id: id, cantidad, precio_unitario: products.find((p) => p.id === id)?.precio_dist ?? null }
+              ? { promo_id: promoIdOf(id), cantidad, precio_unitario: priceOf(id) }
+              : { product_id: id, cantidad, precio_unitario: priceOf(id) }
           ),
         });
         setShowPay(false);
@@ -807,6 +820,21 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                      {canal === "pedido_ya" && (
+                        <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                          <span style={{ fontSize: 10, color: "#C05621", fontWeight: 700 }}>$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={precioOverride[id] ?? String(basePriceOf(id))}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setPrecioOverride((p) => ({ ...p, [id]: e.target.value }))}
+                            title="Precio para Pedido Ya"
+                            style={{ width: 60, fontSize: 10, fontWeight: 700, color: "#C05621", border: "1px solid #FED7AA", borderRadius: 4, padding: "1px 3px", background: "#FFF7ED" }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>
