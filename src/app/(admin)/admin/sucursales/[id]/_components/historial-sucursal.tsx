@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
-type Retiro = { id: string; fecha: string; monto: number; motivo: string; created_at: string };
+type Retiro = { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url?: string | null };
 
 const TIPO_LABEL: Record<string, string> = { entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" };
 const TIPO_COLOR: Record<string, string> = {
@@ -201,6 +201,17 @@ export function HistorialSucursal({
                   </td>
                   <td className="px-4 py-3 text-neutral-500 hidden md:table-cell">
                     {r.motivo || <span className="text-neutral-300">Sin motivo</span>}
+                    {r.comprobante_image_url && (
+                      <a
+                        href={r.comprobante_image_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="ml-2 text-xs text-tierra-700 hover:underline"
+                      >
+                        Ver comprobante
+                      </a>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums text-amber-700">
                     {AR.format(r.monto)}

@@ -74,7 +74,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
-    (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null }>,
+    (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at, comprobante_image_url").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url: string | null }[] | null }>,
     (supabase as any)
       .from("profiles")
       .select("id, full_name")

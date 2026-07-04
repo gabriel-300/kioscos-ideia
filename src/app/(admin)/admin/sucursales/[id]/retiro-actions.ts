@@ -8,6 +8,7 @@ export async function registrarRetiro(data: {
   sucursal_id: string;
   monto:       number;
   motivo:      string;
+  comprobante_image_url?: string | null;
 }) {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
@@ -38,6 +39,7 @@ export async function registrarRetiro(data: {
     monto:       data.monto,
     motivo:      data.motivo,
     created_by:  userId,
+    comprobante_image_url: data.comprobante_image_url ?? null,
   });
 
   if (error) throw new Error(error.message);
