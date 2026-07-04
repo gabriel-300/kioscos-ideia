@@ -104,7 +104,7 @@ interface Props {
 
 export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [] }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
-  const [montoMode,     setMontoMode]     = useState<Record<string, boolean>>({});
+  const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
   const [montoTexto,    setMontoTexto]    = useState<Record<string, string>>({});
   const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
   const [catFilter,     setCatFilter]     = useState("all");
@@ -212,11 +212,17 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const s = step(id);
     const rounded = Math.round(Math.max(0, value) / s) * s;
     setCantidades((prev) => ({ ...prev, [id]: parseFloat(rounded.toFixed(3)) }));
+    // Los botones -/+ cambian la cantidad de verdad; los inputs de gramos/$ vuelven
+    // a mostrar el valor derivado en vez del texto que se haya tipeado antes.
+    setGramosTexto((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setMontoTexto((prev)  => { const n = { ...prev }; delete n[id]; return n; });
   }
 
   // Setter para productos por peso: el input pide GRAMOS (no kg), para evitar
   // que "100" (pensado como 100g) se cargue como 100 kg por error.
   function setGrams(id: string, raw: string) {
+    setGramosTexto((prev) => ({ ...prev, [id]: raw }));
+    setMontoTexto((prev) => { const n = { ...prev }; delete n[id]; return n; }); // el otro campo pasa a mostrar el valor derivado
     const v = parseFloat(raw);
     if (!raw || isNaN(v) || v <= 0) {
       setCantidades((prev) => { const n = { ...prev }; delete n[id]; return n; });
@@ -225,9 +231,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades((prev) => ({ ...prev, [id]: Math.round(Math.max(0, v)) / 1000 }));
   }
 
-  // Modo "vender por monto": el cajero tipea $ y se calcula el peso solo, según el precio/kg
+  // El cajero tipea $ y se calcula el peso solo, según el precio/kg (ej. "piden $2000 de chipas")
   function setMonto(id: string, raw: string) {
     setMontoTexto((prev) => ({ ...prev, [id]: raw }));
+    setGramosTexto((prev) => { const n = { ...prev }; delete n[id]; return n; }); // el otro campo pasa a mostrar el valor derivado
     const monto = parseFloat(raw);
     const precioKg = priceOf(id);
     if (!raw || isNaN(monto) || monto <= 0 || !precioKg) {
@@ -238,48 +245,51 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades((prev) => ({ ...prev, [id]: kg }));
   }
 
-  function toggleMontoMode(id: string) {
-    setMontoMode((prev) => ({ ...prev, [id]: !prev[id] }));
-    setMontoTexto((prev) => ({ ...prev, [id]: "" }));
-  }
-
-  // Input compartido para productos por kg: gramos por defecto, con toggle a modo "$"
+  // Input compartido para productos por kg: gramos y $ editables al mismo tiempo —
+  // escribís en cualquiera de los dos y el otro se autocompleta solo (ej. si piden
+  // "$2000 de chipas" se carga en el campo $ y acá se ve cuántos gramos son, y viceversa).
   function renderKgInput(id: string, qty: number) {
-    const modo = montoMode[id];
+    const precioKg = priceOf(id);
+    const gramosVal = gramosTexto[id] ?? (qty > 0 ? String(Math.round(qty * 1000)) : "");
+    const montoVal  = montoTexto[id]  ?? (qty > 0 && precioKg ? String(Math.round(qty * precioKg)) : "");
     return (
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
         <input
           type="number"
-          value={modo ? (montoTexto[id] ?? "") : (qty > 0 ? Math.round(qty * 1000) : "")}
-          min={1}
+          value={gramosVal}
+          min={0}
           step={1}
-          placeholder={modo ? "$" : "g"}
-          onChange={(e) => (modo ? setMonto(id, e.target.value) : setGrams(id, e.target.value))}
+          placeholder="g"
+          title="Gramos"
+          onChange={(e) => setGrams(id, e.target.value)}
           onFocus={(e) => e.target.select()}
           style={{
-            fontSize: 13, fontWeight: 800, width: 70, textAlign: "center",
-            border: `1.5px solid ${modo ? GREEN : "#CBD5E1"}`, borderRadius: 5, outline: "none",
-            color: "#0F172A", background: "white", padding: "4px 4px",
+            fontSize: 11, fontWeight: 800, width: 40, textAlign: "center",
+            border: "1.5px solid #CBD5E1", borderRadius: 5, outline: "none",
+            color: "#0F172A", background: "white", padding: "3px 2px",
           }}
         />
-        <button
-          type="button"
-          onClick={() => toggleMontoMode(id)}
-          title={modo ? "Cambiar a gramos" : "Vender por monto ($)"}
+        <input
+          type="number"
+          value={montoVal}
+          min={0}
+          step={1}
+          placeholder="$"
+          title="Monto ($)"
+          onChange={(e) => setMonto(id, e.target.value)}
+          onFocus={(e) => e.target.select()}
           style={{
-            fontSize: 10, fontWeight: 800, width: 22, height: 22, borderRadius: 4, flexShrink: 0,
-            border: `1px solid ${modo ? GREEN : "#CBD5E1"}`, background: modo ? GREEN : "#F8FAFC",
-            color: modo ? "white" : "#64748B", cursor: "pointer",
+            fontSize: 11, fontWeight: 800, width: 44, textAlign: "center",
+            border: `1.5px solid ${GREEN}`, borderRadius: 5, outline: "none",
+            color: "#0F172A", background: "white", padding: "3px 2px",
           }}
-        >
-          {modo ? "g" : "$"}
-        </button>
+        />
       </div>
     );
   }
 
   function resetForm() {
-    setCantidades({}); setFecha(new Date().toISOString().slice(0, 10));
+    setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(new Date().toISOString().slice(0, 10));
     setSearch(""); setCatFilter("all"); setShowPay(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
