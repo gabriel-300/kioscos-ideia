@@ -40,8 +40,8 @@ export async function crearMovimiento(data: {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
 
-  // Encargados no pueden hacer ajustes de stock
-  if (role === "encargado" && data.tipo === "ajuste") {
+  // Vendedores no pueden hacer ajustes de stock (solo admin y encargado)
+  if (role === "vendedor" && data.tipo === "ajuste") {
     throw new Error("No tenés permisos para realizar ajustes de stock");
   }
 

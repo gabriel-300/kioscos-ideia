@@ -40,9 +40,10 @@ interface Props {
   defaultTipo?:       TipoMov;
   formTitle?:         string;
   preselectProductId?: string;
+  stockMap?:          Record<string, number>;
 }
 
-export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, preselectProductId }: Props) {
+export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, preselectProductId, stockMap }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
@@ -320,6 +321,13 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                         value={item.product_id}
                         onChange={(v) => autoPrecio(i, v)}
                       />
+                      {tipo === "ajuste" && prod && stockMap && (
+                        <p className="text-[11px] text-neutral-400 mt-1">
+                          Stock actual: <span className="font-semibold text-neutral-600">
+                            {stockMap[prod.id] ?? 0} {prod.unit_label === "unidad" ? "u." : prod.unit_label}
+                          </span>
+                        </p>
+                      )}
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}

@@ -87,6 +87,7 @@ export function NuevaEntregaButton({
           defaultTipo={defaultTipo}
           formTitle={btnLabel}
           preselectProductId={preselectProductId}
+          stockMap={stockMap}
           onClose={handleClose}
         />
       )}

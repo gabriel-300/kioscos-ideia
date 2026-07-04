@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Sucursal = { id: string; nombre: string };
 type Product  = { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number };
@@ -101,13 +102,16 @@ function Filters({
 }
 
 /* ─── Vista plana (encargado/vendedor — una sucursal) ────── */
-function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap }: {
+function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap, sucursalId, canAjustar }: {
   products:     Product[];
   categories:   Category[];
   flatStockMap: Record<string, number>;
   entradaMap:   Record<string, number>;
   salidaMap:    Record<string, number>;
+  sucursalId?:  string;
+  canAjustar?:  boolean;
 }) {
+  const router = useRouter();
   const [catFilter,    setCat]      = useState("all");
   const [statusFilter, setStatus]   = useState("all");
   const [search,       setSearch]   = useState("");
@@ -148,9 +152,19 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
             <p className="text-xs font-semibold text-red-600 mb-1">Stock negativo — revisá las entregas registradas</p>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5">
               {negatives.map((p) => (
-                <span key={p.id} className="text-xs text-red-500/80">
-                  {p.name}: {fmtQty(flatStockMap[p.id], p.unit_label)}
-                </span>
+                canAjustar && sucursalId ? (
+                  <Link
+                    key={p.id}
+                    href={`/admin/sucursales/${sucursalId}?ajuste=${p.id}`}
+                    className="text-xs text-red-500/80 hover:text-red-700 hover:underline"
+                  >
+                    {p.name}: {fmtQty(flatStockMap[p.id], p.unit_label)} →
+                  </Link>
+                ) : (
+                  <span key={p.id} className="text-xs text-red-500/80">
+                    {p.name}: {fmtQty(flatStockMap[p.id], p.unit_label)}
+                  </span>
+                )
               ))}
             </div>
           </div>
@@ -186,8 +200,14 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
               const badge   = status !== "none" ? STATUS_BADGE[status as Exclude<Status, "none">] : null;
               const bw      = barWidth(qty, p.stock_minimo, status);
 
+              const ajustable = !!(canAjustar && sucursalId);
               return (
-                <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors">
+                <tr
+                  key={p.id}
+                  onClick={ajustable ? () => router.push(`/admin/sucursales/${sucursalId}?ajuste=${p.id}`) : undefined}
+                  className={`hover:bg-neutral-50/80 transition-colors ${ajustable ? "cursor-pointer" : ""}`}
+                  title={ajustable ? "Ir a Ajuste de stock" : undefined}
+                >
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-800 leading-tight">{p.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -219,16 +239,21 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {badge && (
-                      <div className="flex flex-col gap-1.5">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls} whitespace-nowrap`}>
-                          {badge.label}
-                        </span>
-                        <div className="h-1 rounded-full bg-neutral-100 overflow-hidden">
-                          <div className={`h-full rounded-full ${STATUS_BAR[status]}`} style={{ width: `${bw}%` }} />
+                    <div className="flex items-center justify-between gap-2">
+                      {badge && (
+                        <div className="flex flex-col gap-1.5 flex-1">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.cls} whitespace-nowrap`}>
+                            {badge.label}
+                          </span>
+                          <div className="h-1 rounded-full bg-neutral-100 overflow-hidden">
+                            <div className={`h-full rounded-full ${STATUS_BAR[status]}`} style={{ width: `${bw}%` }} />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {ajustable && (
+                        <span className="text-[11px] font-medium text-tierra-700 whitespace-nowrap shrink-0">Ajustar →</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -405,6 +430,8 @@ export function StockTable(props:
       flatStockMap: Record<string, number>;
       entradaMap: Record<string, number>;
       salidaMap:  Record<string, number>;
+      sucursalId?: string;
+      canAjustar?: boolean;
       sucursales?: undefined; stockMap?: undefined; readOnly?: undefined;
     }
   | {
@@ -412,6 +439,7 @@ export function StockTable(props:
       stockMap: Record<string, Record<string, number>>;
       readOnly?: boolean;
       flatStockMap?: undefined; entradaMap?: undefined; salidaMap?: undefined;
+      sucursalId?: undefined; canAjustar?: undefined;
     }
 ) {
   if (props.flatStockMap !== undefined) {
@@ -422,6 +450,8 @@ export function StockTable(props:
         flatStockMap={props.flatStockMap}
         entradaMap={props.entradaMap}
         salidaMap={props.salidaMap}
+        sucursalId={props.sucursalId}
+        canAjustar={props.canAjustar}
       />
     );
   }
