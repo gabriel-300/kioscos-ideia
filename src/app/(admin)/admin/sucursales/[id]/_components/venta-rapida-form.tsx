@@ -241,6 +241,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     // está vacío o a medio escribir.
     if (!raw || isNaN(monto) || monto <= 0 || !precioKg) return;
     const kg = Math.round((monto / precioKg) * 1000) / 1000;
+    // Un monto chico (ej. el "2" de "2000" a medio tipear) puede redondear a 0
+    // gramos -- no tocar la cantidad en ese caso, si no el producto se saca del
+    // carrito (y el input con él) apenas se empieza a escribir un número más grande.
+    if (kg <= 0) return;
     setCantidades((prev) => ({ ...prev, [id]: kg }));
   }
 
