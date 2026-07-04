@@ -248,42 +248,50 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   // Input compartido para productos por kg: gramos y $ editables al mismo tiempo —
   // escribís en cualquiera de los dos y el otro se autocompleta solo (ej. si piden
   // "$2000 de chipas" se carga en el campo $ y acá se ve cuántos gramos son, y viceversa).
+  // Apilados verticalmente (en vez de uno al lado del otro) para que cada campo tenga
+  // ancho suficiente y no se corte el número al escribir.
   function renderKgInput(id: string, qty: number) {
     const precioKg = priceOf(id);
     const gramosVal = gramosTexto[id] ?? (qty > 0 ? String(Math.round(qty * 1000)) : "");
     const montoVal  = montoTexto[id]  ?? (qty > 0 && precioKg ? String(Math.round(qty * precioKg)) : "");
     return (
-      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-        <input
-          type="number"
-          value={gramosVal}
-          min={0}
-          step={1}
-          placeholder="g"
-          title="Gramos"
-          onChange={(e) => setGrams(id, e.target.value)}
-          onFocus={(e) => e.target.select()}
-          style={{
-            fontSize: 11, fontWeight: 800, width: 40, textAlign: "center",
-            border: "1.5px solid #CBD5E1", borderRadius: 5, outline: "none",
-            color: "#0F172A", background: "white", padding: "3px 2px",
-          }}
-        />
-        <input
-          type="number"
-          value={montoVal}
-          min={0}
-          step={1}
-          placeholder="$"
-          title="Monto ($)"
-          onChange={(e) => setMonto(id, e.target.value)}
-          onFocus={(e) => e.target.select()}
-          style={{
-            fontSize: 11, fontWeight: 800, width: 44, textAlign: "center",
-            border: `1.5px solid ${GREEN}`, borderRadius: 5, outline: "none",
-            color: "#0F172A", background: "white", padding: "3px 2px",
-          }}
-        />
+      <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            value={gramosVal}
+            min={0}
+            step={1}
+            placeholder="0"
+            title="Gramos"
+            onChange={(e) => setGrams(id, e.target.value)}
+            onFocus={(e) => e.target.select()}
+            style={{
+              fontSize: 12, fontWeight: 800, width: 58, textAlign: "center",
+              border: "1.5px solid #CBD5E1", borderRadius: 5, outline: "none",
+              color: "#0F172A", background: "white", padding: "4px 2px",
+            }}
+          />
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>g</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            value={montoVal}
+            min={0}
+            step={1}
+            placeholder="0"
+            title="Monto ($)"
+            onChange={(e) => setMonto(id, e.target.value)}
+            onFocus={(e) => e.target.select()}
+            style={{
+              fontSize: 12, fontWeight: 800, width: 58, textAlign: "center",
+              border: `1.5px solid ${GREEN}`, borderRadius: 5, outline: "none",
+              color: "#0F172A", background: "white", padding: "4px 2px",
+            }}
+          />
+          <span style={{ fontSize: 10, fontWeight: 700, color: GREEN }}>$</span>
+        </div>
       </div>
     );
   }
