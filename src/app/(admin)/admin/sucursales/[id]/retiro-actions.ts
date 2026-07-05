@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
+import { fechaHoyAR } from "@/lib/fecha";
 
 export async function registrarRetiro(data: {
   sucursal_id: string;
@@ -31,7 +32,7 @@ export async function registrarRetiro(data: {
     }
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaHoyAR();
 
   const { error } = await (admin as any).from("retiros_caja").insert({
     sucursal_id: data.sucursal_id,

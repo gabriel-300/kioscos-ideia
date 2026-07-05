@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { cerrarCaja } from "../cierre-actions";
 import { type MovimientoCierre, type UltimoCierre } from "./cierre-caja-button";
+import { fechaHoyAR } from "@/lib/fecha";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -67,7 +68,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
 }
 
 export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role, abiertaPorNombre, puedeCerrarCaja = true }: Props) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaHoyAR();
   const puedeEditarMedios = role === "admin";
 
   const [efectivo,       setEfectivo]       = useState("");

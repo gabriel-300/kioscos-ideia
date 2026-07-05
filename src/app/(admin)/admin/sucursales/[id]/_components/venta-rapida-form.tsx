@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
+import { fechaHoyAR } from "@/lib/fecha";
 import type { Database } from "@/types/database";
 import type { CSSProperties } from "react";
 
@@ -106,7 +107,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
   const [montoTexto,    setMontoTexto]    = useState<Record<string, string>>({});
-  const [fecha,         setFecha]         = useState(() => new Date().toISOString().slice(0, 10));
+  const [fecha,         setFecha]         = useState(() => fechaHoyAR());
   const [catFilter,     setCatFilter]     = useState("all");
   const [search,        setSearch]        = useState("");
   const [showPay, setShowPay] = useState(false);
@@ -301,7 +302,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   }
 
   function resetForm() {
-    setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(new Date().toISOString().slice(0, 10));
+    setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(fechaHoyAR());
     setSearch(""); setCatFilter("all"); setShowPay(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);

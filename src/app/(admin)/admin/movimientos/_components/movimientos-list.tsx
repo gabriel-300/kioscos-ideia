@@ -7,6 +7,7 @@ import { MovimientoForm } from "./movimiento-form";
 import { ExportButton } from "./export-button";
 import { eliminarMovimiento, actualizarMovimientoMetadata } from "../actions";
 import { Button, Badge } from "@/components/ui";
+import { fechaHoyAR } from "@/lib/fecha";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -124,8 +125,7 @@ export function MovimientosList({
   products:    Product[];
   proveedores?: Proveedor[];
 }) {
-  const hoy   = new Date();
-  const mesDefault = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+  const mesDefault = fechaHoyAR().slice(0, 7);
 
   const [formOpen,        setFormOpen]        = useState(false);
   const [search,          setSearch]          = useState("");

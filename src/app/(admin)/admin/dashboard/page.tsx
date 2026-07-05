@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { fechaHoyAR, primerDiaMesAR, fmtFechaLarga } from "@/lib/fecha";
 
 export const metadata: Metadata = { title: "Dashboard — Kioscos IDEIA" };
 export const revalidate = 0;
@@ -95,9 +96,9 @@ export default async function DashboardPage() {
   }
 
   const admin = createAdminClient();
-  const now       = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const hoy       = new Date().toISOString().slice(0, 10);
-  const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const now       = fmtFechaLarga(new Date());
+  const hoy       = fechaHoyAR();
+  const mesInicio = primerDiaMesAR();
 
   const [
     { count: totalSucursales },

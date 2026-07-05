@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { registrarPagoCTC, eliminarPagoCTC } from "../actions";
 import { Button } from "@/components/ui";
+import { fechaHoyAR } from "@/lib/fecha";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -42,7 +43,7 @@ export function PagoBtn({
 }) {
   const [open, setOpen]     = useState(false);
   const [monto, setMonto]   = useState("");
-  const [fecha, setFecha]   = useState(new Date().toISOString().slice(0, 10));
+  const [fecha, setFecha]   = useState(fechaHoyAR());
   const [notas, setNotas]   = useState("");
   const [error, setError]   = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

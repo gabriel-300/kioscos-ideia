@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { fechaHoyAR } from "@/lib/fecha";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
@@ -171,7 +172,7 @@ export async function GET(req: NextRequest) {
   const buffer = await wb.xlsx.writeBuffer();
 
   const desde_label = desde ?? "inicio";
-  const hasta_label = hasta ?? new Date().toISOString().slice(0, 10);
+  const hasta_label = hasta ?? fechaHoyAR();
   const filename    = `kioscos-ideia_${desde_label}_${hasta_label}.xlsx`;
 
   return new NextResponse(buffer, {

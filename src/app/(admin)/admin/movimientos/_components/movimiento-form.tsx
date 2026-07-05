@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
 import { crearMovimiento, type ItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { fechaHoyAR } from "@/lib/fecha";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -45,7 +46,7 @@ interface Props {
 export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
-  const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
+  const [fecha,      setFecha]      = useState(fechaHoyAR());
   const [tipo,       setTipo]       = useState<TipoMov>(defaultTipo ?? "entrega");
   const [notas,      setNotas]      = useState("");
   const [proveedor,  setProveedor]  = useState("");
@@ -61,7 +62,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
 
   function resetForm() {
     setSucursalId(defaultSucursalId ?? "");
-    setFecha(new Date().toISOString().slice(0, 10));
+    setFecha(fechaHoyAR());
     setTipo(defaultTipo ?? "entrega");
     setNotas("");
     setProveedor("");

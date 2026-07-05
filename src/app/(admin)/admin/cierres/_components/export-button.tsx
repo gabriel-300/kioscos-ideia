@@ -1,5 +1,7 @@
 "use client";
 
+import { fechaHoyAR } from "@/lib/fecha";
+
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 type CierreExport = {
@@ -43,7 +45,7 @@ export function CierresExportButton({ cierres }: { cierres: CierreExport[] }) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href     = url;
-    a.download = `cierres-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `cierres-${fechaHoyAR()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

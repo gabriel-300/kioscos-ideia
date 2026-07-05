@@ -8,6 +8,7 @@ import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
 import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
+import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
 
@@ -40,7 +41,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const hoy       = new Date().toISOString().slice(0, 10);
+  const hoy       = fechaHoyAR();
   const mesActual = hoy.slice(0, 7);
   const mes       = mesParam ?? mesActual;
   const [mesYear, mesMonth] = mes.split("-").map(Number);

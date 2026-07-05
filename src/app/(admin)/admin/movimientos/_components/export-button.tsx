@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
+import { fechaHoyAR, primerDiaMesAR } from "@/lib/fecha";
 
 type Sucursal = { id: string; nombre: string };
 
@@ -12,11 +13,8 @@ export function ExportButton({ sucursales }: { sucursales: Sucursal[] }) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Mes actual como defaults
-  const hoy   = new Date();
-  const y     = hoy.getFullYear();
-  const m     = String(hoy.getMonth() + 1).padStart(2, "0");
-  const [desde, setDesde] = useState(`${y}-${m}-01`);
-  const [hasta, setHasta] = useState(hoy.toISOString().slice(0, 10));
+  const [desde, setDesde] = useState(primerDiaMesAR());
+  const [hasta, setHasta] = useState(fechaHoyAR());
 
   useEffect(() => {
     function onClick(e: MouseEvent) {

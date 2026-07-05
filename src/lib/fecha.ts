@@ -36,3 +36,19 @@ export function fmtHora(date: string | Date): string {
 export function ahoraAR(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
 }
+
+/**
+ * Fecha de "hoy" (o de cualquier instante) en formato YYYY-MM-DD, según el
+ * calendario de Argentina — NO usar `new Date().toISOString().slice(0, 10)`
+ * para esto: toISOString() siempre da la fecha en UTC, así que entre las
+ * 21:00 y las 23:59 hora Argentina ya cae en el día siguiente en UTC,
+ * guardando/filtrando movimientos con la fecha equivocada.
+ */
+export function fechaHoyAR(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(date);
+}
+
+/** Primer día del mes de `date` (o de hoy), en formato YYYY-MM-DD, según Argentina. */
+export function primerDiaMesAR(date: Date = new Date()): string {
+  return `${fechaHoyAR(date).slice(0, 7)}-01`;
+}

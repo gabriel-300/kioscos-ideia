@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CierresExportButton } from "./_components/export-button";
+import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe de cierres — Kioscos IDEIA" };
@@ -33,8 +34,8 @@ export default async function CierresPage({
   if (role !== "admin") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
-  const hoy   = new Date().toISOString().slice(0, 10);
-  const desde = sp.desde ?? new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  const hoy   = fechaHoyAR();
+  const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 29 * 86400000));
   const hasta = sp.hasta ?? hoy;
   const sucFilter = sp.sucursal ?? "all";
 

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PagoBtn } from "./_components/pago-form";
+import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
 
@@ -31,8 +32,7 @@ export default async function CtaCorrientePage({
 
   const role = user.app_metadata?.role as string | undefined;
 
-  const hoy = new Date();
-  const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+  const mesActual = fechaHoyAR().slice(0, 7);
   const mes = mesParam ?? mesActual;
   const [year, month] = mes.split("-").map(Number);
   const mesInicio = `${mes}-01`;

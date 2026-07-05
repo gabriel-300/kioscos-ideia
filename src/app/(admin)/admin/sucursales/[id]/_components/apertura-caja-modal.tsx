@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { abrirCaja } from "../apertura-actions";
+import { fechaHoyAR } from "@/lib/fecha";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual, abiertaPorNombre }: Props) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaHoyAR();
 
   const [fondo,  setFondo]  = useState("");
   const [notas,  setNotas]  = useState("");

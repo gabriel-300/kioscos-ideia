@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
+import { fechaHoyAR } from "@/lib/fecha";
 
 type AjusteTarget = {
   sucursalId: string; sucursalNombre?: string;
@@ -34,7 +35,7 @@ function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; o
       try {
         await crearMovimiento({
           sucursal_id: target!.sucursalId,
-          fecha:       new Date().toISOString().slice(0, 10),
+          fecha:       fechaHoyAR(),
           tipo:        "ajuste",
           notas:       notas || null,
           items: [{
