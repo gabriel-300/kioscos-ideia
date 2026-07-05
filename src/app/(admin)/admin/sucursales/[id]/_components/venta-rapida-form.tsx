@@ -340,7 +340,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     //   }
     // }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
-    if (Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) { setError("El monto ingresado no cubre el total"); return; }
+    // Cta. Corriente no cobra en el momento -- no tiene sentido pedir monto/medio de pago.
+    if (canal !== "cuenta_corriente" && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
+      setError("El monto ingresado no cubre el total");
+      return;
+    }
     setError(null);
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -933,6 +937,16 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <span style={{ fontSize: 22, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{AR.format(totalPrecio)}</span>
             </div>
 
+            {/* Cta. Corriente: no cobra en el momento, no tiene sentido pedir medio de pago */}
+            {canal === "cuenta_corriente" ? (
+              <div style={{ background: "#F5F3FF", border: "1.5px solid #DDD6FE", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#5B21B6", margin: 0 }}>
+                  Se carga a la cuenta corriente de {personal.find((p) => p.id === personalId)?.nombre ?? "el beneficiario"}.
+                </p>
+                <p style={{ fontSize: 12, color: "#7C6BAE", marginTop: 2 }}>No requiere cobro ahora.</p>
+              </div>
+            ) : (
+            <>
             {/* Medios de pago — uno por fila con input de monto */}
             <div style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}>
               {PAY_METHODS.map((m, i) => {
@@ -991,6 +1005,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 </div>
               )}
             </div>
+            </>
+            )}
 
             {/* Notas */}
             <textarea
@@ -1008,11 +1024,17 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 onClick={() => setShowPay(false)}
                 style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: "white", color: "#64748B", border: "1.5px solid #E2E8F0", cursor: "pointer" }}
               >Cancelar</button>
-              <button
-                onClick={handleConfirm}
-                disabled={pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)}
-                style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "#E2E8F0" : NAVY, color: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "#94A3B8" : "white", border: "none", cursor: (pending || Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) ? "not-allowed" : "pointer" }}
-              >{pending ? "Guardando…" : "Confirmar venta"}</button>
+              {(() => {
+                const montoInsuficiente = canal !== "cuenta_corriente" && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100);
+                const disabled = pending || montoInsuficiente;
+                return (
+                  <button
+                    onClick={handleConfirm}
+                    disabled={disabled}
+                    style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: disabled ? "#E2E8F0" : NAVY, color: disabled ? "#94A3B8" : "white", border: "none", cursor: disabled ? "not-allowed" : "pointer" }}
+                  >{pending ? "Guardando…" : "Confirmar venta"}</button>
+                );
+              })()}
             </div>
           </div>
         </div>
