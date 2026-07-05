@@ -43,6 +43,7 @@ export async function cerrarCaja(data: {
   let billeteraDeclarada     = data.billetera_declarada;
   let tarjetaDeclarada       = data.tarjeta_declarada;
   let transferenciaDeclarada = data.transferencia_declarada;
+  let totalVentas            = data.total_ventas;
 
   if (role !== "admin") {
     const aperturaRes = await (admin as any)
@@ -62,17 +63,26 @@ export async function cerrarCaja(data: {
 
     let ventasQuery = (admin as any)
       .from("movimientos")
-      .select("pago_billetera, pago_tarjeta, pago_transferencia")
+      .select("pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)")
       .eq("sucursal_id", data.sucursal_id)
       .eq("tipo", "venta");
     if (ultimaApertura) ventasQuery = ventasQuery.gte("created_at", ultimaApertura.created_at);
     else ventasQuery = ventasQuery.eq("fecha", data.fecha);
 
-    const { data: ventasTurno } = await ventasQuery as { data: { pago_billetera: number | null; pago_tarjeta: number | null; pago_transferencia: number | null }[] | null };
+    const { data: ventasTurno } = await ventasQuery as { data: {
+      pago_billetera: number | null; pago_tarjeta: number | null; pago_transferencia: number | null;
+      movimiento_items: { subtotal: number | null }[];
+    }[] | null };
 
     billeteraDeclarada     = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
     tarjetaDeclarada       = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
     transferenciaDeclarada = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+    // total_ventas tampoco se confía del cliente -- se recalcula desde los movimientos
+    // reales del turno (mismo criterio que el resto: no se puede manipular con devtools
+    // para que la diferencia "cuadre" ocultando un faltante real).
+    totalVentas = (ventasTurno ?? []).reduce(
+      (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
+    );
   }
 
   // Cierre atómico: la RPC lockea por sucursal, valida el ciclo y calcula
@@ -81,7 +91,7 @@ export async function cerrarCaja(data: {
     p_sucursal_id:             data.sucursal_id,
     p_fecha:                   data.fecha,
     p_fondo_inicial:           data.fondo_inicial,
-    p_total_ventas:            data.total_ventas,
+    p_total_ventas:            totalVentas,
     p_efectivo_declarado:      data.efectivo_declarado,
     p_billetera_declarada:     billeteraDeclarada,
     p_tarjeta_declarada:       tarjetaDeclarada,

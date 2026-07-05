@@ -346,6 +346,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       setError("El monto ingresado no cubre el total");
       return;
     }
+    // Billetera/tarjeta/transferencia no dan vuelto (el vuelto solo existe en efectivo) --
+    // si esos medios solos ya superan el total, es casi seguro un error de tipeo.
+    if (canal !== "cuenta_corriente" && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100)) {
+      setError("El monto en billetera/tarjeta/transferencia no puede superar el total (ahí no se da vuelto)");
+      return;
+    }
     setError(null);
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -991,7 +997,13 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 <span style={{ color: "#64748B" }}>Ingresado</span>
                 <span style={{ fontWeight: 700, color: totalIngresado >= totalPrecio ? "#0F172A" : "#94A3B8" }}>{AR.format(totalIngresado)}</span>
               </div>
-              {totalIngresado > 0 && totalIngresado !== totalPrecio && (
+              {Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100) ? (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: RED_L, borderRadius: 6, padding: "9px 13px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: RED }}>
+                    Billetera/tarjeta/transferencia no puede superar el total — ahí no se da vuelto
+                  </span>
+                </div>
+              ) : totalIngresado > 0 && totalIngresado !== totalPrecio && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: totalIngresado >= totalPrecio ? GREEN_L : RED_L, borderRadius: 6, padding: "9px 13px" }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: totalIngresado >= totalPrecio ? GREEN : RED }}>
                     {totalIngresado >= totalPrecio
@@ -1027,7 +1039,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               >Cancelar</button>
               {(() => {
                 const montoInsuficiente = canal !== "cuenta_corriente" && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100);
-                const disabled = pending || montoInsuficiente;
+                const otrosMediosDeMas  = canal !== "cuenta_corriente" && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100);
+                const disabled = pending || montoInsuficiente || otrosMediosDeMas;
                 return (
                   <button
                     onClick={handleConfirm}
