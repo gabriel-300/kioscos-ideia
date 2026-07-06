@@ -132,7 +132,42 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
-  const retirosHoyFilt = todosRetiros.filter((r) => r.fecha === hoy);
+
+  // Encargado/vendedor: de HOY, solo ven lo que pasó durante SU propio turno (no el de
+  // un compañero que abrió/cerró antes o después en el mismo día). Días anteriores no
+  // se tocan. Admin ve todo, sin restricción.
+  let miTurnoInicio: string | null = null;
+  let miTurnoFin:    string | null = null;
+  if (role === "encargado" || role === "vendedor") {
+    const { data: miAperturaHoy } = await (supabase as any)
+      .from("aperturas_caja")
+      .select("created_at")
+      .eq("sucursal_id", id)
+      .eq("created_by", user.id)
+      .eq("fecha", hoy)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (miAperturaHoy?.created_at) {
+      miTurnoInicio = miAperturaHoy.created_at;
+      const cierresPosteriores = historicosCierres
+        .filter((c) => c.created_at > miAperturaHoy.created_at)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      miTurnoFin = cierresPosteriores[0]?.created_at ?? null;
+    }
+  }
+  function enMiTurnoHoy(fecha: string, createdAt: string): boolean {
+    if (role === "admin") return true;
+    if (fecha !== hoy) return true; // no se restringen días anteriores
+    if (!miTurnoInicio) return false; // no abrí ningún turno hoy -> no veo nada de hoy todavía
+    if (createdAt < miTurnoInicio) return false;
+    if (miTurnoFin && createdAt > miTurnoFin) return false;
+    return true;
+  }
+
+  const movsVisibles      = movs.filter((m) => enMiTurnoHoy(m.fecha, m.created_at));
+  const retirosVisibles   = todosRetiros.filter((r) => enMiTurnoHoy(r.fecha, r.created_at));
+  const retirosHoyFilt    = retirosVisibles.filter((r) => r.fecha === hoy);
 
   // Detalle por cierre: fondo inicial + retiros de efectivo del turno (entre el cierre anterior y este)
   const cierresConDetalle: CierreConDetalle[] = historicosCierres.map((c, i) => {
@@ -142,8 +177,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     );
     return { ...c, retiros: retirosDelTurno };
   });
-  // El encargado solo ve el historial de cierres del día; el admin ve todo el histórico
-  const cierresVisibles = role === "encargado" ? cierresConDetalle.filter((c) => c.fecha === hoy) : cierresConDetalle;
+  // No-admin: solo ve los cierres de hoy, y dentro de hoy solo el propio (no el de un compañero)
+  const cierresVisibles = role === "admin"
+    ? cierresConDetalle
+    : cierresConDetalle.filter((c) => c.fecha === hoy && enMiTurnoHoy(c.fecha, c.created_at));
 
   // Totales
   const totalEntregado = movs
@@ -165,7 +202,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const retiros        = retirosHoyFilt;
   const totalRetiros   = retiros.reduce((sum, r) => sum + r.monto, 0);
 
-  const ventasHoy      = movs.filter((m) => m.tipo === "venta" && m.fecha === hoy);
+  const ventasHoy      = movsVisibles.filter((m) => m.tipo === "venta" && m.fecha === hoy);
   const totalVentasHoy = ventasHoy.reduce(
     (sum, m) => sum + m.movimiento_items.reduce((s: number, i: { subtotal: number | null }) => s + (i.subtotal ?? 0), 0),
     0
@@ -580,12 +617,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-neutral-900">Historial de movimientos</h2>
-          <span className="text-xs text-neutral-400">{movs.length} registros</span>
+          <span className="text-xs text-neutral-400">{movsVisibles.length} registros</span>
         </div>
         <HistorialSucursal
-          movimientos={movs as Parameters<typeof HistorialSucursal>[0]["movimientos"]}
+          movimientos={movsVisibles as Parameters<typeof HistorialSucursal>[0]["movimientos"]}
           sucursalNombre={sucursal.nombre}
-          retiros={todosRetiros}
+          retiros={retirosVisibles}
           personalMap={personalMap}
         />
       </div>
