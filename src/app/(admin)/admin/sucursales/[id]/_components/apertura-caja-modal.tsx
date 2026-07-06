@@ -17,9 +17,10 @@ interface Props {
   cajaAbierta:    boolean;
   aperturaActual: AperturaActual | null;
   abiertaPorNombre?: string | null;
+  fondoSugerido?: number | null;
 }
 
-export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual, abiertaPorNombre }: Props) {
+export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, cajaAbierta, aperturaActual, abiertaPorNombre, fondoSugerido }: Props) {
   const hoy = fechaHoyAR();
 
   const [fondo,  setFondo]  = useState("");
@@ -29,7 +30,13 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
   const fondoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open && !cajaAbierta) setTimeout(() => fondoRef.current?.focus(), 80);
+    if (open && !cajaAbierta) {
+      // Precarga el fondo que declaró quien cerró el turno anterior, pero queda
+      // editable — si al contar la plata real no coincide, se corrige acá mismo.
+      if (fondoSugerido != null && fondoSugerido > 0) setFondo(String(fondoSugerido));
+      setTimeout(() => fondoRef.current?.focus(), 80);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cajaAbierta]);
 
   function handleClose() {
@@ -116,12 +123,22 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
               </p>
 
               <div>
-                <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
-                  <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
-                  </svg>
-                  Fondo inicial (efectivo)
+                <label className="flex items-center justify-between mb-2">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                    <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
+                    </svg>
+                    Fondo inicial (efectivo)
+                  </span>
+                  {fondoSugerido != null && fondoSugerido > 0 && (
+                    <span className="text-xs text-neutral-400">Sugerido: {AR.format(fondoSugerido)}</span>
+                  )}
                 </label>
+                {fondoSugerido != null && fondoSugerido > 0 && (
+                  <p className="text-xs text-neutral-400 mb-1.5">
+                    Es lo que declaró quien cerró el turno anterior — contá la plata real y corregilo si no coincide.
+                  </p>
+                )}
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base font-semibold text-neutral-400">$</span>
                   <input
@@ -129,6 +146,7 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
                     type="number"
                     value={fondo}
                     onChange={(e) => setFondo(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     placeholder="0"
                     min={0}
                     className="w-full h-12 pl-8 pr-4 rounded-xl border-2 border-neutral-300 text-lg font-bold tabular-nums text-neutral-900 focus:outline-none focus:border-tierra-700 transition-colors"

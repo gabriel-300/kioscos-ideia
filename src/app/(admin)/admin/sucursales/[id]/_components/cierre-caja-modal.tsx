@@ -75,6 +75,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const [mp,             setMp]             = useState("");
   const [tarjeta,        setTarjeta]        = useState("");
   const [transferencia,  setTransferencia]  = useState("");
+  const [fondoSiguiente, setFondoSiguiente] = useState("");
   const [notas,          setNotas]          = useState("");
   const [error,          setError]          = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -109,13 +110,15 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
       if (sugeridoBilletera > 0)     setMp(String(sugeridoBilletera));
       if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
       if (sugeridoTransferencia > 0) setTransferencia(String(sugeridoTransferencia));
+      // Por defecto sugiere dejar el mismo fondo con el que se abrió — editable si se deja otra cosa.
+      if (fondo > 0) setFondoSiguiente(String(fondo));
       setTimeout(() => efectivoRef.current?.focus(), 80);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cajaAbierta]);
 
   function handleClose() {
-    setEfectivo(""); setMp(""); setTarjeta(""); setTransferencia(""); setNotas(""); setError(null);
+    setEfectivo(""); setMp(""); setTarjeta(""); setTransferencia(""); setFondoSiguiente(""); setNotas(""); setError(null);
     onClose();
   }
 
@@ -143,6 +146,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
           tarjeta_declarada:       tarjetaNum,
           transferencia_declarada: transferenciaNum,
           notas:                    notas || null,
+          fondo_siguiente:          fondoSiguiente ? parseFloat(fondoSiguiente) : null,
         });
         handleClose();
       } catch (e) {
@@ -280,6 +284,33 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 </div>
               )}
 
+              <div>
+                <label className="flex items-center justify-between mb-2">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                    <span className="text-base">🔄</span>Dejás en el cajón (próximo turno)
+                  </span>
+                </label>
+                <p className="text-xs text-neutral-400 mb-1.5">
+                  Cuánto de ese efectivo se queda adentro como fondo para el que abra después — el resto se entiende que se retira/entrega.
+                </p>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base font-semibold text-neutral-400">$</span>
+                  <input
+                    type="number"
+                    value={fondoSiguiente}
+                    onChange={(e) => setFondoSiguiente(e.target.value)}
+                    placeholder="0"
+                    min={0}
+                    className="w-full h-12 pl-8 pr-4 rounded-xl border-2 border-neutral-300 text-lg font-bold tabular-nums text-neutral-900 focus:outline-none focus:border-tierra-700 transition-colors"
+                  />
+                </div>
+                {efectivoNum > 0 && fondoSiguiente !== "" && (
+                  <p className="text-xs text-neutral-400 mt-1.5">
+                    Se entrega/retira: <span className="font-semibold text-neutral-600">{AR.format(Math.max(0, efectivoNum - (parseFloat(fondoSiguiente) || 0)))}</span>
+                  </p>
+                )}
+              </div>
+
               <textarea
                 placeholder="Observaciones del cierre (opcional)…"
                 value={notas}
@@ -334,6 +365,11 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                   </div>
                 )}
 
+                {ultimoCierre.fondo_siguiente != null && (
+                  <p className="text-xs text-neutral-500 px-1">
+                    🔄 Dejó <span className="font-semibold">{AR.format(ultimoCierre.fondo_siguiente)}</span> en el cajón para el próximo turno.
+                  </p>
+                )}
                 {ultimoCierre.notas && (
                   <p className="text-xs text-neutral-400 italic px-1">{ultimoCierre.notas}</p>
                 )}

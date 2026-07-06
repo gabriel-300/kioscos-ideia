@@ -52,7 +52,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const mesLabel   = new Date(mesYear, mesMonth - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const canGoNext  = mes < mesActual;
 
-  type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string };
+  type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
   const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
@@ -336,6 +336,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               cajaAbierta={cajaAbierta}
               aperturaActual={aperturaActual}
               abiertaPorNombre={abiertaPorNombre}
+              fondoSugerido={ultimoCierre?.fondo_siguiente ?? null}
             />
             <CierreCajaButton
               sucursalId={sucursal.id}

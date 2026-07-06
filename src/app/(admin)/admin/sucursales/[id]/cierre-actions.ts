@@ -14,6 +14,7 @@ export async function cerrarCaja(data: {
   tarjeta_declarada:       number;
   transferencia_declarada: number;
   notas:                    string | null;
+  fondo_siguiente:          number | null;
 }) {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
@@ -98,6 +99,7 @@ export async function cerrarCaja(data: {
     p_transferencia_declarada: transferenciaDeclarada,
     p_notas:                   data.notas,
     p_created_by:              userId,
+    p_fondo_siguiente:         data.fondo_siguiente,
   });
 
   if (error) throw new Error(error.message);

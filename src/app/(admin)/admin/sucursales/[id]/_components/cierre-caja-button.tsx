@@ -26,6 +26,7 @@ export type UltimoCierre = {
   diferencia:              number | null;
   notas:                   string | null;
   created_at:              string;
+  fondo_siguiente:         number | null;
 } | null;
 
 export function CierreCajaButton({

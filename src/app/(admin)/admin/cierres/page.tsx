@@ -47,10 +47,10 @@ export default async function CierresPage({
     .order("nombre");
 
   // Fetch cierres con join a sucursales y aperturas
-  let query = admin
+  let query = (admin as any)
     .from("cierres_caja")
     .select(`
-      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, diferencia, notas, created_by, created_at,
+      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente,
       sucursales(id, nombre)
     `)
     .gte("fecha", desde)
@@ -62,7 +62,23 @@ export default async function CierresPage({
     query = query.eq("sucursal_id", sucFilter);
   }
 
-  const { data: cierresRaw } = await query;
+  type CierreRow = {
+    id: string;
+    fecha: string;
+    total_ventas: number | null;
+    efectivo_declarado: number | null;
+    billetera_declarada: number | null;
+    tarjeta_declarada: number | null;
+    transferencia_declarada: number | null;
+    diferencia: number | null;
+    notas: string | null;
+    created_by: string | null;
+    created_at: string;
+    fondo_siguiente: number | null;
+    sucursales: { id: string; nombre: string } | null;
+  };
+
+  const { data: cierresRaw } = (await query) as { data: CierreRow[] | null };
   const cierres = cierresRaw ?? [];
 
   // Fetch aperturas del mismo rango para cruzar fondo_inicial (con created_at para multi-turno)
@@ -85,6 +101,36 @@ export default async function CierresPage({
     return candidates.sort((a, b) => b.created_at.localeCompare(a.created_at))[0].fondo_inicial;
   }
 
+  // Fetch retiros del mismo rango, para mostrar cuánto se retiró durante cada turno
+  const { data: retirosRaw } = await ((admin as any)
+    .from("retiros_caja")
+    .select("sucursal_id, fecha, monto, motivo, created_at")
+    .gte("fecha", desde)
+    .lte("fecha", hasta)) as unknown as { data: { sucursal_id: string; fecha: string; monto: number; motivo: string; created_at: string }[] | null };
+
+  const retirosBySuc: Record<string, { fecha: string; monto: number; motivo: string; created_at: string }[]> = {};
+  for (const r of retirosRaw ?? []) {
+    if (!retirosBySuc[r.sucursal_id]) retirosBySuc[r.sucursal_id] = [];
+    retirosBySuc[r.sucursal_id].push(r);
+  }
+  // Cierres ordenados ascendente por sucursal, para encontrar "el cierre anterior" y acotar la ventana del turno
+  const cierresBySucAsc: Record<string, string[]> = {};
+  for (const c of cierres) {
+    const suc = c.sucursales as { id: string } | null;
+    if (!suc) continue;
+    if (!cierresBySucAsc[suc.id]) cierresBySucAsc[suc.id] = [];
+    cierresBySucAsc[suc.id].push(c.created_at);
+  }
+  for (const key in cierresBySucAsc) cierresBySucAsc[key].sort();
+
+  function retirosDelTurno(sucId: string, cierreCreatedAt: string) {
+    const anteriores = (cierresBySucAsc[sucId] ?? []).filter((ts) => ts < cierreCreatedAt);
+    const cotaInferior = anteriores.length > 0 ? anteriores[anteriores.length - 1] : null;
+    return (retirosBySuc[sucId] ?? []).filter(
+      (r) => r.created_at <= cierreCreatedAt && (cotaInferior === null || r.created_at > cotaInferior)
+    );
+  }
+
   // Fetch nombres de usuarios (created_by)
   const userIds = [...new Set(cierres.map((c) => c.created_by).filter(Boolean))] as string[];
   let profileMap: Record<string, string> = {};
@@ -105,20 +151,29 @@ export default async function CierresPage({
   const totalTarjeta       = cierres.reduce((s, c) => s + ((c as any).tarjeta_declarada ?? 0), 0);
   const totalTransferencia = cierres.reduce((s, c) => s + ((c as any).transferencia_declarada ?? 0), 0);
   const totalDiferencia    = cierres.reduce((s, c) => s + (c.diferencia ?? 0), 0);
+  const totalRetiros       = cierres.reduce((s, c) => {
+    const suc = c.sucursales as { id: string } | null;
+    if (!suc) return s;
+    return s + retirosDelTurno(suc.id, c.created_at).reduce((ss, r) => ss + r.monto, 0);
+  }, 0);
 
   const cierresExport = cierres.map((c) => {
     const suc = c.sucursales as { id: string; nombre: string } | null;
+    const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
     return {
-      fecha:          c.fecha,
-      sucursal:       suc?.nombre ?? "—",
-      fondo_inicial:  suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
-      ventas:         c.total_ventas ?? 0,
-      efectivo:       c.efectivo_declarado ?? 0,
-      billetera:      (c as any).billetera_declarada ?? 0,
-      tarjeta:        (c as any).tarjeta_declarada ?? 0,
-      transferencia:  (c as any).transferencia_declarada ?? 0,
-      diferencia:     c.diferencia,
-      encargado:      c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
+      fecha:            c.fecha,
+      sucursal:         suc?.nombre ?? "—",
+      fondo_inicial:    suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
+      ventas:           c.total_ventas ?? 0,
+      efectivo:         c.efectivo_declarado ?? 0,
+      billetera:        (c as any).billetera_declarada ?? 0,
+      tarjeta:          (c as any).tarjeta_declarada ?? 0,
+      transferencia:    (c as any).transferencia_declarada ?? 0,
+      diferencia:       c.diferencia,
+      retiros:          retirosTurno.reduce((s, r) => s + r.monto, 0),
+      fondo_siguiente:  (c as any).fondo_siguiente ?? null,
+      notas:            c.notas ?? "",
+      encargado:        c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
     };
   });
 
@@ -225,13 +280,16 @@ export default async function CierresPage({
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Retiros</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo sig.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
+                <th className="px-4 py-3 w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
               {cierres.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-neutral-400">
+                  <td colSpan={13} className="px-4 py-12 text-center text-sm text-neutral-400">
                     Sin cierres en el período seleccionado.
                   </td>
                 </tr>
@@ -240,6 +298,9 @@ export default async function CierresPage({
                   const suc = c.sucursales as { id: string; nombre: string } | null;
                   const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
                   const encargado = c.created_by ? (profileMap[c.created_by] ?? "—") : "—";
+                  const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
+                  const totalRetirosTurno = retirosTurno.reduce((s, r) => s + r.monto, 0);
+                  const fondoSiguiente = (c as any).fondo_siguiente as number | null;
                   const fechaDisplay = new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", {
                     weekday: "short", day: "numeric", month: "short",
                   });
@@ -277,7 +338,18 @@ export default async function CierresPage({
                       <td className="px-4 py-3 text-center">
                         <DiferenciaBadge d={c.diferencia} />
                       </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-xs" title={retirosTurno.map((r) => `${r.motivo}: ${AR.format(r.monto)}`).join(" | ") || undefined}>
+                        {totalRetirosTurno > 0 ? <span className="text-amber-600 font-medium">{AR.format(totalRetirosTurno)}</span> : <span className="text-neutral-200">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-xs text-neutral-500">
+                        {fondoSiguiente != null ? AR.format(fondoSiguiente) : <span className="text-neutral-200">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-xs text-neutral-500">{encargado}</td>
+                      <td className="px-4 py-3 text-center">
+                        {c.notas && (
+                          <span className="text-sm cursor-help" title={c.notas}>📝</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -287,7 +359,7 @@ export default async function CierresPage({
             {cierres.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
-                  <td className="px-4 py-3 text-xs uppercase tracking-wide text-neutral-500" colSpan={4}>
+                  <td className="px-4 py-3 text-xs uppercase tracking-wide text-neutral-500" colSpan={3}>
                     Total ({cierres.length} cierres)
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
@@ -298,6 +370,9 @@ export default async function CierresPage({
                   <td className="px-4 py-3 text-center">
                     <DiferenciaBadge d={totalDiferencia} />
                   </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalRetiros)}</td>
+                  <td />
+                  <td />
                   <td />
                 </tr>
               </tfoot>
