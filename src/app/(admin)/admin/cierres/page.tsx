@@ -178,7 +178,7 @@ export default async function CierresPage({
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-[1600px]">
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -271,19 +271,19 @@ export default async function CierresPage({
           <table className="w-full text-sm" style={{ minWidth: "700px" }}>
             <thead>
               <tr className="bg-neutral-50 border-b border-neutral-200">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo ini.</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Retiros</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo sig.</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
-                <th className="px-4 py-3 w-8" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo ini.</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
+                <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Retiros</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo sig.</th>
+                <th className="px-3 py-2.5 w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
@@ -307,45 +307,45 @@ export default async function CierresPage({
 
                   return (
                     <tr key={c.id} className="hover:bg-neutral-50/80 transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5">
                         <span className="font-medium text-neutral-800 capitalize">{fechaDisplay}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5">
                         {suc ? (
                           <Link href={`/admin/sucursales/${suc.id}`} className="text-tierra-700 hover:underline font-medium">
                             {suc.nombre}
                           </Link>
                         ) : <span className="text-neutral-400">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
+                      <td className="px-3 py-2.5 text-xs text-neutral-500">{encargado}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
                         {fondo !== null ? AR.format(fondo) : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-neutral-800">
+                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-neutral-800">
                         {AR.format(c.total_ventas ?? 0)}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-600">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">
                         {AR.format(c.efectivo_declarado ?? 0)}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-600">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">
                         {AR.format((c as any).billetera_declarada ?? 0)}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
                         {((c as any).tarjeta_declarada ?? 0) > 0 ? AR.format((c as any).tarjeta_declarada) : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
                         {((c as any).transferencia_declarada ?? 0) > 0 ? AR.format((c as any).transferencia_declarada) : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2.5 text-center">
                         <DiferenciaBadge d={c.diferencia} />
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-xs" title={retirosTurno.map((r) => `${r.motivo}: ${AR.format(r.monto)}`).join(" | ") || undefined}>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-xs" title={retirosTurno.map((r) => `${r.motivo}: ${AR.format(r.monto)}`).join(" | ") || undefined}>
                         {totalRetirosTurno > 0 ? <span className="text-amber-600 font-medium">{AR.format(totalRetirosTurno)}</span> : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-xs text-neutral-500">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
                         {fondoSiguiente != null ? AR.format(fondoSiguiente) : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs text-neutral-500">{encargado}</td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2.5 text-center">
                         {c.notas && (
                           <span className="text-sm cursor-help" title={c.notas}>📝</span>
                         )}
@@ -359,19 +359,18 @@ export default async function CierresPage({
             {cierres.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
-                  <td className="px-4 py-3 text-xs uppercase tracking-wide text-neutral-500" colSpan={3}>
+                  <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-neutral-500" colSpan={4}>
                     Total ({cierres.length} cierres)
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalEfectivo)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalBilletera)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTarjeta)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalTransferencia)}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalEfectivo)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalBilletera)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalTarjeta)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalTransferencia)}</td>
+                  <td className="px-3 py-2.5 text-center">
                     <DiferenciaBadge d={totalDiferencia} />
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(totalRetiros)}</td>
-                  <td />
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalRetiros)}</td>
                   <td />
                   <td />
                 </tr>
