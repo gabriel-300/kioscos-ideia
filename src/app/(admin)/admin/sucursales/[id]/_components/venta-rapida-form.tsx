@@ -771,7 +771,15 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               {CANALES.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => { setCanal(c.id); if (c.id !== "cuenta_corriente") setPersonalId(""); }}
+                  onClick={() => {
+                    setCanal(c.id);
+                    if (c.id !== "cuenta_corriente") setPersonalId("");
+                    // Evita que montos tipeados para otro canal (ej. efectivo cargado
+                    // y cancelado) queden pegados si el cajero cambia de canal y
+                    // confirma sin darse cuenta -- especialmente grave hacia/desde
+                    // Cta. Corriente, que no debería llevar ningún medio de pago.
+                    setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+                  }}
                   style={{
                     padding: "6px 4px",
                     borderRadius: 7,

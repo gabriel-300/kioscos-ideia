@@ -8,6 +8,7 @@ export type MovimientoCierre = {
   fecha:              string;
   created_at:         string;
   tipo:               string;
+  canal:              string | null;
   pago_efectivo:      number | null;
   pago_billetera:     number | null;
   pago_tarjeta:       number | null;

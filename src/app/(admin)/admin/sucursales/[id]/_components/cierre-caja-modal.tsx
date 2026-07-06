@@ -88,12 +88,20 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
     return m.fecha === hoy;
   });
 
-  const sugeridoEfectivo      = ventasHoy.reduce((s, m) => s + (m.pago_efectivo      ?? 0), 0);
-  const sugeridoBilletera     = ventasHoy.reduce((s, m) => s + (m.pago_billetera     ?? 0), 0);
-  const sugeridoTarjeta       = ventasHoy.reduce((s, m) => s + (m.pago_tarjeta       ?? 0), 0);
-  const sugeridoTransferencia = ventasHoy.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+  // Las ventas a Cta. Corriente no se cobran en el momento -- no tienen ninguna
+  // contraparte en efectivo/billetera/tarjeta/transferencia, así que no deben
+  // sumar a lo que se concilia contra la caja (si no, generan un faltante ficticio
+  // por el mismo monto fiado).
+  const ventasCobradas = ventasHoy.filter((m) => m.canal !== "cuenta_corriente");
+  const ventasFiado     = ventasHoy.filter((m) => m.canal === "cuenta_corriente");
 
-  const totalVentas  = ventasHoy.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
+  const sugeridoEfectivo      = ventasCobradas.reduce((s, m) => s + (m.pago_efectivo      ?? 0), 0);
+  const sugeridoBilletera     = ventasCobradas.reduce((s, m) => s + (m.pago_billetera     ?? 0), 0);
+  const sugeridoTarjeta       = ventasCobradas.reduce((s, m) => s + (m.pago_tarjeta       ?? 0), 0);
+  const sugeridoTransferencia = ventasCobradas.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+
+  const totalVentas  = ventasCobradas.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
+  const totalFiado   = ventasFiado.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const registrosHoy = ventasHoy.length;
 
   const fondo = aperturaActual?.fondo_inicial ?? 0;
@@ -191,6 +199,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
               <div className="flex items-center justify-between">
                 <span className="text-sm text-neutral-500">{registrosHoy} {registrosHoy === 1 ? "registro" : "registros"}</span>
                 <span className="text-xl font-bold font-display tabular-nums text-neutral-900">{AR.format(totalVentas)}</span>
+              </div>
+            )}
+            {totalFiado > 0 && (
+              <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-200">
+                <span className="text-xs font-medium text-purple-600">Cta. Corriente (no concilia contra caja)</span>
+                <span className="text-xs font-semibold tabular-nums text-purple-600">{AR.format(totalFiado)}</span>
               </div>
             )}
           </div>

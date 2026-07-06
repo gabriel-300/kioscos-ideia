@@ -69,8 +69,49 @@ export async function crearMovimiento(data: {
     }
   }
 
+  // Cantidad negativa/cero solo tiene sentido para "ajuste" (resta manual de stock).
+  // En venta/entrega/devolución invertiría el efecto sobre el stock -- una "venta"
+  // con cantidad negativa SUMARÍA stock en vez de restarlo (y el futuro chequeo de
+  // stock insuficiente nunca lo va a detectar, porque nunca deja el stock negativo).
+  if (data.tipo !== "ajuste" && data.items.some((i) => i.cantidad <= 0)) {
+    throw new Error("La cantidad debe ser mayor a 0");
+  }
+
+  // Cta. Corriente no se cobra en el momento -- ningún medio de pago debería
+  // quedar asociado al movimiento, sin importar lo que mande el cliente (si no,
+  // ese monto contamina la conciliación del cierre de caja).
+  const esCtaCorriente    = data.canal === "cuenta_corriente";
+  const pagoEfectivo      = esCtaCorriente ? null : data.pago_efectivo      ?? null;
+  const pagoBilletera     = esCtaCorriente ? null : data.pago_billetera     ?? null;
+  const pagoTarjeta       = esCtaCorriente ? null : data.pago_tarjeta       ?? null;
+  const pagoTransferencia = esCtaCorriente ? null : data.pago_transferencia ?? null;
+
   const promoInputs   = data.items.filter(esPromoItem);
   const productInputs = data.items.filter((i): i is ItemInput => !esPromoItem(i));
+
+  // El precio de cada línea NUNCA se confía del cliente -- se resuelve server-side
+  // contra el precio real de catálogo. "Pedido Ya" permite un override manual (la
+  // comisión de la app suele hacer que el precio cobrado sea otro), acotado a no
+  // menos de la mitad del precio de catálogo para que no se pueda vender por
+  // centavos con devtools.
+  const esVenta = data.tipo === "venta";
+  let precioProductoMap = new Map<string, number | null>();
+  if (esVenta && productInputs.length > 0) {
+    const productIds = [...new Set(productInputs.map((i) => i.product_id))];
+    const { data: prods, error: prodsError } = await (supabase as any)
+      .from("products").select("id, precio_dist").in("id", productIds);
+    if (prodsError) throw new Error(prodsError.message);
+    precioProductoMap = new Map(
+      (prods ?? []).map((p: { id: string; precio_dist: number | null }) => [p.id, p.precio_dist])
+    );
+  }
+  function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
+    if (!esVenta || precioCatalogo == null) return precioCliente ?? null;
+    if (data.canal === "pedido_ya" && precioCliente != null && precioCliente >= precioCatalogo * 0.5) {
+      return precioCliente;
+    }
+    return precioCatalogo;
+  }
 
   const expandedPromoItems: {
     product_id: string; cantidad: number; precio_unitario: number | null; subtotal: number | null; promo_id: string;
@@ -94,7 +135,7 @@ export async function crearMovimiento(data: {
       if (!promo.promo_items || promo.promo_items.length === 0) {
         throw new Error("La promoción no tiene productos configurados");
       }
-      const precioPromo   = input.precio_unitario ?? promo.price;
+      const precioPromo   = precioAutorizado(promo.price, input.precio_unitario) ?? promo.price;
       const subtotalTotal = input.cantidad * precioPromo;
       promo.promo_items.forEach((pi: { product_id: string; cantidad: number }, idx: number) => {
         expandedPromoItems.push({
@@ -109,13 +150,16 @@ export async function crearMovimiento(data: {
   }
 
   const items = [
-    ...productInputs.map((item) => ({
-      product_id:      item.product_id,
-      cantidad:        item.cantidad,
-      precio_unitario: item.precio_unitario ?? null,
-      subtotal:        item.precio_unitario != null ? item.cantidad * item.precio_unitario : null,
-      promo_id:        null as string | null,
-    })),
+    ...productInputs.map((item) => {
+      const precio = precioAutorizado(precioProductoMap.get(item.product_id) ?? null, item.precio_unitario);
+      return {
+        product_id:      item.product_id,
+        cantidad:        item.cantidad,
+        precio_unitario: precio,
+        subtotal:        precio != null ? item.cantidad * precio : null,
+        promo_id:        null as string | null,
+      };
+    }),
     ...expandedPromoItems,
   ];
 
@@ -128,10 +172,10 @@ export async function crearMovimiento(data: {
     p_nro_remito:         data.nro_remito         ?? null,
     p_canal:              data.canal              ?? "consumidor_final",
     p_personal_id:        data.personal_id        ?? null,
-    p_pago_efectivo:      data.pago_efectivo      ?? null,
-    p_pago_billetera:     data.pago_billetera     ?? null,
-    p_pago_tarjeta:       data.pago_tarjeta       ?? null,
-    p_pago_transferencia: data.pago_transferencia ?? null,
+    p_pago_efectivo:      pagoEfectivo,
+    p_pago_billetera:     pagoBilletera,
+    p_pago_tarjeta:       pagoTarjeta,
+    p_pago_transferencia: pagoTransferencia,
     p_created_by:         userId,
     p_items:              items,
   });

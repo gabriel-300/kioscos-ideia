@@ -64,24 +64,30 @@ export async function cerrarCaja(data: {
 
     let ventasQuery = (admin as any)
       .from("movimientos")
-      .select("pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)")
+      .select("canal, pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)")
       .eq("sucursal_id", data.sucursal_id)
       .eq("tipo", "venta");
     if (ultimaApertura) ventasQuery = ventasQuery.gte("created_at", ultimaApertura.created_at);
     else ventasQuery = ventasQuery.eq("fecha", data.fecha);
 
-    const { data: ventasTurno } = await ventasQuery as { data: {
+    const { data: ventasTurnoRaw } = await ventasQuery as { data: {
+      canal: string | null;
       pago_billetera: number | null; pago_tarjeta: number | null; pago_transferencia: number | null;
       movimiento_items: { subtotal: number | null }[];
     }[] | null };
 
-    billeteraDeclarada     = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
-    tarjetaDeclarada       = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
-    transferenciaDeclarada = (ventasTurno ?? []).reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+    // Las ventas a Cta. Corriente no se cobran en el momento -- no tienen contraparte
+    // en ningún medio de pago, así que no deben sumar al total que se concilia contra
+    // caja (si no, generan un faltante ficticio por el mismo monto fiado).
+    const ventasTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal !== "cuenta_corriente");
+
+    billeteraDeclarada     = ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
+    tarjetaDeclarada       = ventasTurno.reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
+    transferenciaDeclarada = ventasTurno.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
     // total_ventas tampoco se confía del cliente -- se recalcula desde los movimientos
     // reales del turno (mismo criterio que el resto: no se puede manipular con devtools
     // para que la diferencia "cuadre" ocultando un faltante real).
-    totalVentas = (ventasTurno ?? []).reduce(
+    totalVentas = ventasTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
     );
   }
