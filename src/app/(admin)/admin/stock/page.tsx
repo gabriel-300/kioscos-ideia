@@ -71,7 +71,7 @@ export default async function StockPage() {
           salidaMap={salidaMap}
           sucursalId={staffSucursalId ?? undefined}
           sucursalNombre={sucursal?.nombre ?? undefined}
-          canAjustar={role === "encargado"}
+          canAjustar={false}
         />
       </div>
     );
