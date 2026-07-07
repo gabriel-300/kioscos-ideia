@@ -339,6 +339,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
             /* ── Último cierre registrado ── */
             ultimoCierre ? (
               <div className="space-y-3">
+                {ultimoCierre.numero_liquidacion != null && (
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Liquidación</span>
+                    <span className="text-sm font-bold tabular-nums text-neutral-700">N° {ultimoCierre.numero_liquidacion}</span>
+                  </div>
+                )}
                 <div className="rounded-xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
                   {[
                     { icon: "💵", label: "Efectivo",          v: ultimoCierre.efectivo_declarado },
@@ -380,9 +386,16 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 )}
 
                 {ultimoCierre.fondo_siguiente != null && (
-                  <p className="text-xs text-neutral-500 px-1">
-                    🔄 Dejó <span className="font-semibold">{AR.format(ultimoCierre.fondo_siguiente)}</span> en el cajón para el próximo turno.
-                  </p>
+                  <>
+                    <p className="text-xs text-neutral-500 px-1">
+                      📦 Va en el sobre: <span className="font-semibold text-neutral-700">
+                        {AR.format(Math.max(0, ultimoCierre.efectivo_declarado - ultimoCierre.fondo_siguiente))}
+                      </span>
+                    </p>
+                    <p className="text-xs text-neutral-500 px-1">
+                      🔄 Dejó <span className="font-semibold">{AR.format(ultimoCierre.fondo_siguiente)}</span> en el cajón para el próximo turno.
+                    </p>
+                  </>
                 )}
                 {ultimoCierre.notas && (
                   <p className="text-xs text-neutral-400 italic px-1">{ultimoCierre.notas}</p>

@@ -50,7 +50,7 @@ export default async function CierresPage({
   let query = (admin as any)
     .from("cierres_caja")
     .select(`
-      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente,
+      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente, numero_liquidacion,
       sucursales(id, nombre)
     `)
     .gte("fecha", desde)
@@ -75,6 +75,7 @@ export default async function CierresPage({
     created_by: string | null;
     created_at: string;
     fondo_siguiente: number | null;
+    numero_liquidacion: number | null;
     sucursales: { id: string; nombre: string } | null;
   };
 
@@ -160,20 +161,23 @@ export default async function CierresPage({
   const cierresExport = cierres.map((c) => {
     const suc = c.sucursales as { id: string; nombre: string } | null;
     const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
+    const fondoSig = c.fondo_siguiente;
     return {
-      fecha:            c.fecha,
-      sucursal:         suc?.nombre ?? "—",
-      fondo_inicial:    suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
-      ventas:           c.total_ventas ?? 0,
-      efectivo:         c.efectivo_declarado ?? 0,
-      billetera:        (c as any).billetera_declarada ?? 0,
-      tarjeta:          (c as any).tarjeta_declarada ?? 0,
-      transferencia:    (c as any).transferencia_declarada ?? 0,
-      diferencia:       c.diferencia,
-      retiros:          retirosTurno.reduce((s, r) => s + r.monto, 0),
-      fondo_siguiente:  (c as any).fondo_siguiente ?? null,
-      notas:            c.notas ?? "",
-      encargado:        c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
+      fecha:               c.fecha,
+      numero_liquidacion:  c.numero_liquidacion,
+      sucursal:            suc?.nombre ?? "—",
+      fondo_inicial:       suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
+      ventas:              c.total_ventas ?? 0,
+      efectivo:            c.efectivo_declarado ?? 0,
+      billetera:           (c as any).billetera_declarada ?? 0,
+      tarjeta:             (c as any).tarjeta_declarada ?? 0,
+      transferencia:       (c as any).transferencia_declarada ?? 0,
+      diferencia:          c.diferencia,
+      retiros:             retirosTurno.reduce((s, r) => s + r.monto, 0),
+      fondo_siguiente:     fondoSig,
+      monto_sobre:         fondoSig != null ? Math.max(0, (c.efectivo_declarado ?? 0) - fondoSig) : null,
+      notas:               c.notas ?? "",
+      encargado:           c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
     };
   });
 
@@ -273,6 +277,7 @@ export default async function CierresPage({
               <tr className="bg-neutral-50 border-b border-neutral-200">
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">N° Liq.</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo ini.</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
@@ -283,13 +288,14 @@ export default async function CierresPage({
                 <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Retiros</th>
                 <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo sig.</th>
+                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">En sobre</th>
                 <th className="px-3 py-2.5 w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
               {cierres.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-sm text-neutral-400">
+                  <td colSpan={15} className="px-4 py-12 text-center text-sm text-neutral-400">
                     Sin cierres en el período seleccionado.
                   </td>
                 </tr>
@@ -301,6 +307,7 @@ export default async function CierresPage({
                   const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
                   const totalRetirosTurno = retirosTurno.reduce((s, r) => s + r.monto, 0);
                   const fondoSiguiente = (c as any).fondo_siguiente as number | null;
+                  const montoSobre = fondoSiguiente != null ? Math.max(0, (c.efectivo_declarado ?? 0) - fondoSiguiente) : null;
                   const fechaDisplay = new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", {
                     weekday: "short", day: "numeric", month: "short",
                   });
@@ -316,6 +323,9 @@ export default async function CierresPage({
                             {suc.nombre}
                           </Link>
                         ) : <span className="text-neutral-400">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
+                        {c.numero_liquidacion != null ? `#${c.numero_liquidacion}` : <span className="text-neutral-200">—</span>}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-neutral-500">{encargado}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
@@ -345,6 +355,9 @@ export default async function CierresPage({
                       <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
                         {fondoSiguiente != null ? AR.format(fondoSiguiente) : <span className="text-neutral-200">—</span>}
                       </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-xs font-medium text-neutral-700">
+                        {montoSobre != null ? AR.format(montoSobre) : <span className="text-neutral-200 font-normal">—</span>}
+                      </td>
                       <td className="px-3 py-2.5 text-center">
                         {c.notas && (
                           <span className="text-sm cursor-help" title={c.notas}>📝</span>
@@ -359,7 +372,7 @@ export default async function CierresPage({
             {cierres.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
-                  <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-neutral-500" colSpan={4}>
+                  <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-neutral-500" colSpan={5}>
                     Total ({cierres.length} cierres)
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
@@ -371,6 +384,7 @@ export default async function CierresPage({
                     <DiferenciaBadge d={totalDiferencia} />
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalRetiros)}</td>
+                  <td />
                   <td />
                   <td />
                 </tr>

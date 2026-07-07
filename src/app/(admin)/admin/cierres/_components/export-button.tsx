@@ -6,6 +6,7 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 
 type CierreExport = {
   fecha: string;
+  numero_liquidacion: number | null;
   sucursal: string;
   fondo_inicial: number | null;
   ventas: number;
@@ -16,17 +17,19 @@ type CierreExport = {
   diferencia: number | null;
   retiros: number;
   fondo_siguiente: number | null;
+  monto_sobre: number | null;
   notas: string;
   encargado: string;
 };
 
 function toCSV(rows: CierreExport[]): string {
-  const headers = ["Fecha", "Sucursal", "Fondo inicial", "Ventas sistema", "Efectivo", "Billetera", "Tarjeta", "Transferencia", "Diferencia", "Retiros del turno", "Fondo siguiente", "Notas", "Encargado"];
+  const headers = ["Fecha", "N° Liquidación", "Sucursal", "Fondo inicial", "Ventas sistema", "Efectivo", "Billetera", "Tarjeta", "Transferencia", "Diferencia", "Retiros del turno", "Fondo siguiente", "Monto en sobre", "Notas", "Encargado"];
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const lines = [
     headers.join(","),
     ...rows.map((r) => [
       escape(r.fecha),
+      r.numero_liquidacion ?? "",
       escape(r.sucursal),
       r.fondo_inicial ?? "",
       r.ventas,
@@ -37,6 +40,7 @@ function toCSV(rows: CierreExport[]): string {
       r.diferencia ?? "",
       r.retiros,
       r.fondo_siguiente ?? "",
+      r.monto_sobre ?? "",
       escape(r.notas),
       escape(r.encargado),
     ].join(",")),

@@ -28,6 +28,7 @@ export type UltimoCierre = {
   notas:                   string | null;
   created_at:              string;
   fondo_siguiente:         number | null;
+  numero_liquidacion:      number | null;
 } | null;
 
 export function CierreCajaButton({
