@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CierresExportButton } from "./_components/export-button";
+import { NotaBadge } from "./_components/nota-badge";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -359,9 +360,7 @@ export default async function CierresPage({
                         {montoSobre != null ? AR.format(montoSobre) : <span className="text-neutral-200 font-normal">—</span>}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        {c.notas && (
-                          <span className="text-sm cursor-help" title={c.notas}>📝</span>
-                        )}
+                        {c.notas && <NotaBadge nota={c.notas} />}
                       </td>
                     </tr>
                   );
