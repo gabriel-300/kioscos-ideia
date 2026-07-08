@@ -28,7 +28,8 @@ function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
   );
 }
 
-export function ProductsTable({ products, categories }: { products: ProductWithCat[]; categories: Category[] }) {
+export function ProductsTable({ products, categories, role }: { products: ProductWithCat[]; categories: Category[]; role?: string }) {
+  const esAdmin = role === "admin";
   const [search, setSearch]         = useState("");
   const [catFilter, setCat]         = useState("all");
   const [status, setStatus]         = useState<"all" | "activo" | "inactivo">("all");
@@ -80,8 +81,8 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
             <option value="inactivo">Inactivos</option>
           </select>
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} productos</span>
-          <CostearVentaDrawer categories={categories} />
-          <AjustePreciosDrawer categories={categories} />
+          {esAdmin && <CostearVentaDrawer categories={categories} />}
+          <AjustePreciosDrawer categories={categories} soloVenta={!esAdmin} />
           <Button size="sm" onClick={openNew}>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -100,8 +101,8 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Categoría</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">P. Kiosco</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Margen</th>
+                  {esAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>}
+                  {esAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Margen</th>}
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activo</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -109,7 +110,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
               <tbody className="divide-y divide-neutral-100">
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <td colSpan={esAdmin ? 8 : 6} className="px-4 py-10 text-center text-sm text-neutral-400">
                       {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
                     </td>
                   </tr>
@@ -142,15 +143,19 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
                       {p.precio_dist != null ? AR.format(p.precio_dist) : <span className="text-neutral-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
-                      {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right hidden lg:table-cell">
-                      {margen != null
-                        ? <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>{margen}%</span>
-                        : <span className="text-neutral-300">—</span>
-                      }
-                    </td>
+                    {esAdmin && (
+                      <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
+                        {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}
+                      </td>
+                    )}
+                    {esAdmin && (
+                      <td className="px-4 py-3 text-right hidden lg:table-cell">
+                        {margen != null
+                          ? <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>{margen}%</span>
+                          : <span className="text-neutral-300">—</span>
+                        }
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-center">
                       <ToggleActivo id={p.id} activo={p.is_active} />
                     </td>
@@ -174,6 +179,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
         categories={categories}
         existingSkus={products.map((p) => p.sku)}
         onClose={closeDrawer}
+        role={role}
       />
     </>
   );

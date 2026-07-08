@@ -49,6 +49,7 @@ interface Props {
   categories:   Category[];
   existingSkus: string[];
   onClose:      () => void;
+  role?:        string;
 }
 
 function nextSku(existing: string[]): string {
@@ -72,7 +73,8 @@ type PriceHistoryEntry = {
   changed_at: string;
 };
 
-export function ProductoDrawer({ open, product, categories, existingSkus, onClose }: Props) {
+export function ProductoDrawer({ open, product, categories, existingSkus, onClose, role }: Props) {
+  const esAdmin = role === "admin";
   const [pending,      startTransition] = useTransition();
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
@@ -87,7 +89,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
   });
 
   useEffect(() => {
-    if (!open || !product) { setPriceHistory([]); return; }
+    if (!open || !product || !esAdmin) { setPriceHistory([]); return; }
     const supabase = createBrowserClient();
     (supabase as any)
       .from("product_price_history")
@@ -212,17 +214,19 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
           {/* Precios */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precios</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Input
-                  label="Costo $"
-                  type="number"
-                  step="1"
-                  placeholder="0"
-                  {...register("costo")}
-                />
-                <p className="text-[11px] text-neutral-400 mt-1">Lo que paga IDEIA</p>
-              </div>
+            <div className={esAdmin ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
+              {esAdmin && (
+                <div>
+                  <Input
+                    label="Costo $"
+                    type="number"
+                    step="1"
+                    placeholder="0"
+                    {...register("costo")}
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">Lo que paga IDEIA</p>
+                </div>
+              )}
               <div>
                 <Input
                   label="Precio kiosco $"
@@ -233,22 +237,24 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
                 />
                 <p className="text-[11px] text-neutral-400 mt-1">Lo que cobra IDEIA</p>
               </div>
-              <div>
-                <p className="text-xs font-medium text-neutral-600 mb-1.5">Margen</p>
-                {margen != null ? (
-                  <p className={`text-xl font-bold font-display tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
-                    {margen}%
-                  </p>
-                ) : (
-                  <p className="text-xl text-neutral-300 font-bold">—</p>
-                )}
-                <p className="text-[11px] text-neutral-400 mt-1">Ganancia estimada</p>
-              </div>
+              {esAdmin && (
+                <div>
+                  <p className="text-xs font-medium text-neutral-600 mb-1.5">Margen</p>
+                  {margen != null ? (
+                    <p className={`text-xl font-bold font-display tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                      {margen}%
+                    </p>
+                  ) : (
+                    <p className="text-xl text-neutral-300 font-bold">—</p>
+                  )}
+                  <p className="text-[11px] text-neutral-400 mt-1">Ganancia estimada</p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Historial de precios */}
-          {product && priceHistory.length > 0 && (
+          {esAdmin && product && priceHistory.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Historial de precios</p>
               <div className="rounded-xl border border-neutral-100 overflow-hidden divide-y divide-neutral-100">

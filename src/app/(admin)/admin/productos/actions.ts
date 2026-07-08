@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireAdminOrEncargado } from "@/lib/auth/require-role";
+import { requireAdmin, requireAdminOrEncargado } from "@/lib/auth/require-role";
 import type { Database } from "@/types/database";
 
 type Insert = Database["public"]["Tables"]["products"]["Insert"];
@@ -31,8 +31,12 @@ function friendlyDbError(error: { code?: string; message: string }): string {
 }
 
 export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }): Promise<{ error?: string }> {
-  await requireAdminOrEncargado();
+  const { role } = await requireAdminOrEncargado();
   const supabase = createAdminClient();
+
+  // El costo es información sensible del negocio -- un encargado no puede
+  // cargarlo ni viendo el campo oculto en la UI ni pegándole directo a la action.
+  if (role !== "admin") delete (data as Record<string, unknown>).costo;
 
   const baseSlug = data.slug || slugify(data.name) || "producto";
   const { data: existing } = await (supabase as any)
@@ -55,8 +59,12 @@ export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "up
 }
 
 export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>): Promise<{ error?: string }> {
-  await requireAdminOrEncargado();
+  const { role } = await requireAdminOrEncargado();
   const supabase = createAdminClient();
+
+  // El costo es información sensible del negocio -- un encargado no puede
+  // cargarlo ni viendo el campo oculto en la UI ni pegándole directo a la action.
+  if (role !== "admin") delete (data as Record<string, unknown>).costo;
 
   // Leer precios actuales para detectar cambios
   const { data: current } = await supabase.from("products").select("precio_dist, costo").eq("id", id).single();
@@ -106,7 +114,10 @@ export async function ajustarPrecios({
   campos:       CamposPrecio;
   categoria_id: string | null;
 }): Promise<{ actualizados: number }> {
-  await requireAdminOrEncargado();
+  const { role } = await requireAdminOrEncargado();
+  // El costo es información sensible del negocio -- un encargado no puede
+  // tocarlo aunque mande "costo" en campos desde devtools.
+  if (role !== "admin") campos = campos.filter((c) => c !== "costo");
   if (porcentaje === 0 || campos.length === 0) return { actualizados: 0 };
 
   const supabase = createAdminClient();
@@ -169,7 +180,7 @@ export async function costearDesdePrecioVenta({
   porcentajePago: number;
   categoria_id:   string | null;
 }): Promise<{ actualizados: number }> {
-  await requireAdminOrEncargado();
+  await requireAdmin();
   if (porcentajePago <= 0 || porcentajePago > 100) return { actualizados: 0 };
 
   const supabase = createAdminClient();

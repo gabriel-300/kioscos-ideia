@@ -14,7 +14,8 @@ const CAMPOS = [
 
 type Campo = typeof CAMPOS[number]["key"];
 
-export function AjustePreciosDrawer({ categories }: { categories: Category[] }) {
+export function AjustePreciosDrawer({ categories, soloVenta }: { categories: Category[]; soloVenta?: boolean }) {
+  const camposVisibles = soloVenta ? CAMPOS.filter((c) => c.key !== "costo") : CAMPOS;
   const [open,        setOpen]       = useState(false);
   const [pending,     startTransition] = useTransition();
   const [porcentaje,  setPorcentaje] = useState("");
@@ -125,7 +126,7 @@ export function AjustePreciosDrawer({ categories }: { categories: Category[] }) 
               <div>
                 <p className="text-sm font-medium text-neutral-700 mb-2">Campos a actualizar *</p>
                 <div className="space-y-2">
-                  {CAMPOS.map(({ key, label }) => (
+                  {camposVisibles.map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
                       <input
                         type="checkbox"

@@ -12,6 +12,7 @@ export default async function ProductosPage() {
   const admin    = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const role = user.app_metadata?.role as string | undefined;
 
   const [{ data: products }, { data: categories }, stockActivoRes] = await Promise.all([
     supabase.from("products").select("*, category:categories(*)").order("name"),
@@ -70,6 +71,7 @@ export default async function ProductosPage() {
       <ProductsTable
         products={(products ?? []) as Parameters<typeof ProductsTable>[0]["products"]}
         categories={categories ?? []}
+        role={role}
       />
     </div>
   );
