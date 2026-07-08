@@ -227,7 +227,7 @@ export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
         <button type="submit" className="h-9 px-4 rounded-lg bg-tierra-700 text-white text-sm font-medium hover:bg-tierra-800 transition-colors">
           Ver mes
         </button>
-        <Button size="sm" onClick={openNew} className="ml-auto">
+        <Button type="button" size="sm" onClick={openNew} className="ml-auto">
           <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
