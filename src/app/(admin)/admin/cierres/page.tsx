@@ -148,7 +148,17 @@ export default async function CierresPage({
 
   // Totales del período
   const totalVentas        = cierres.reduce((s, c) => s + (c.total_ventas ?? 0), 0);
-  const totalEfectivo      = cierres.reduce((s, c) => s + (c.efectivo_declarado ?? 0), 0);
+  // El efectivo declarado incluye el fondo inicial que ya estaba en el cajón --
+  // sumar ese monto crudo a través de varios cierres cuenta la misma plata
+  // (el fondo se recicla de un turno al siguiente) varias veces. Para el total
+  // se usa el mismo neto que ya calcula "Diferencia" por fila: efectivo - fondo
+  // inicial + retiros del turno = plata real que entró por ventas en efectivo.
+  const totalEfectivo      = cierres.reduce((s, c) => {
+    const suc = c.sucursales as { id: string } | null;
+    const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
+    const retiros = suc ? retirosDelTurno(suc.id, c.created_at).reduce((ss, r) => ss + r.monto, 0) : 0;
+    return s + (c.efectivo_declarado ?? 0) - (fondo ?? 0) + retiros;
+  }, 0);
   const totalBilletera     = cierres.reduce((s, c) => s + ((c as any).billetera_declarada ?? 0), 0);
   const totalTarjeta       = cierres.reduce((s, c) => s + ((c as any).tarjeta_declarada ?? 0), 0);
   const totalTransferencia = cierres.reduce((s, c) => s + ((c as any).transferencia_declarada ?? 0), 0);
@@ -246,7 +256,7 @@ export default async function CierresPage({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         {[
           { label: "Ventas sistema", value: AR.format(totalVentas), sub: `${cierres.length} cierres` },
-          { label: "Efectivo", value: AR.format(totalEfectivo) },
+          { label: "Efectivo", value: AR.format(totalEfectivo), sub: "Neto de fondo" },
           { label: "Billetera", value: AR.format(totalBilletera) },
           { label: "Tarjeta", value: AR.format(totalTarjeta) },
           { label: "Transferencia", value: AR.format(totalTransferencia) },
@@ -396,6 +406,8 @@ export default async function CierresPage({
       <p className="text-xs text-neutral-400 mt-3">
         Diferencia = suma de todos los medios declarados − ventas registradas en el sistema.
         Positivo indica sobrante, negativo indica faltante.
+        El total de Efectivo (tarjeta y pie de tabla) es neto del fondo inicial de cada turno — la columna
+        "Efectivo" de cada fila sigue mostrando lo contado en el cajón (incluye el fondo).
       </p>
     </div>
   );
