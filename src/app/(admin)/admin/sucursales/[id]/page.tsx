@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
@@ -37,6 +37,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const { id }        = await params;
   const { mes: mesParam } = await searchParams;
   const supabase      = await createClient();
+  const admin         = createAdminClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -55,7 +56,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: products }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -70,7 +71,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
-    supabase.from("products").select("*").eq("is_active", true).order("name"),
+    (admin as any).from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
@@ -114,6 +115,16 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   if (role === "vendedor" && !personal.some((p) => p.id === user.id)) {
     redirect("/admin/dashboard");
   }
+
+  // Costo/margen es informacion sensible del negocio -- se saca del payload
+  // para encargado/vendedor antes de que llegue a ningun componente cliente
+  // (nadie de esta pantalla necesita costo, solo Productos lo edita).
+  const products: any[] = role === "admin"
+    ? (productsRaw ?? [])
+    : (productsRaw ?? []).map((p: any) => {
+        const { costo, margen_dist, margen_gastro, margen_min, ...safe } = p;
+        return safe;
+      });
 
   // Quién tiene la caja abierta (para mostrarlo y para restringir quién puede cerrarla)
   let abiertaPorNombre: string | null = null;

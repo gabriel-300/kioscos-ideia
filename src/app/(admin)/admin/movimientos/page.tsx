@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { MovimientosList } from "./_components/movimientos-list";
 
@@ -8,6 +8,7 @@ export const revalidate = 0;
 
 export default async function MovimientosPage() {
   const supabase = await createClient();
+  const admin    = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -33,7 +34,7 @@ export default async function MovimientosPage() {
       .select("id, nombre")
       .eq("is_active", true)
       .order("nombre"),
-    supabase
+    (admin as any)
       .from("products")
       .select("id, name, sku, precio_dist, costo")
       .eq("is_active", true)

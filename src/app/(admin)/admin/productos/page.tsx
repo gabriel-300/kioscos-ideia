@@ -14,8 +14,8 @@ export default async function ProductosPage() {
   if (!user) redirect("/login");
   const role = user.app_metadata?.role as string | undefined;
 
-  const [{ data: products }, { data: categories }, stockActivoRes] = await Promise.all([
-    supabase.from("products").select("*, category:categories(*)").order("name"),
+  const [{ data: productsRaw }, { data: categories }, stockActivoRes] = await Promise.all([
+    (admin as any).from("products").select("*, category:categories(*)").order("name"),
     supabase.from("categories").select("*").eq("is_active", true).order("sort_order"),
     (admin as any)
       .from("stock_sucursal")
@@ -24,6 +24,16 @@ export default async function ProductosPage() {
         data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null;
       }>,
   ]);
+
+  // Costo/margen es informacion sensible del negocio -- se saca del payload
+  // antes de mandarlo al cliente si quien mira no es admin (la UI ya lo oculta,
+  // pero el objeto completo igual viajaba en el RSC payload sin esto).
+  const products = role === "admin"
+    ? (productsRaw ?? [])
+    : (productsRaw ?? []).map((p: any) => {
+        const { costo, margen_dist, margen_gastro, margen_min, ...safe } = p;
+        return safe;
+      });
 
   // Detectar productos inactivos con stock remanente
   const inactivosMap: Record<string, string> = {};
