@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
+import { formatKg } from "@/lib/utils";
 
 type AjusteTarget = {
   sucursalId: string; sucursalNombre?: string;
@@ -152,11 +153,7 @@ const STATUS_BAR: Record<Status, string> = {
 };
 
 function fmtQty(qty: number, unit: string) {
-  if (unit === "kg") {
-    return qty % 1 === 0
-      ? `${qty} kg`
-      : `${qty.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })} kg`;
-  }
+  if (unit === "kg") return `${formatKg(qty)} kg`;
   return `${qty} ${unit === "unidad" ? "u." : unit}`;
 }
 

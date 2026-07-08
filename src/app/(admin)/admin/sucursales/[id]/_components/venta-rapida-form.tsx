@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
+import { formatKg } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { CSSProperties } from "react";
 
@@ -203,9 +204,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   function isKg(id: string) { if (isPromoId(id)) return false; return products.find((p) => p.id === id)?.unit_label === "kg"; }
   function step(id: string) { return isKg(id) ? 0.1 : 1; }
   function fmtCant(id: string, qty: number) {
-    return isKg(id)
-      ? `${qty.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 3 })} kg`
-      : `${qty}`;
+    return isKg(id) ? `${formatKg(qty)} kg` : `${qty}`;
   }
 
   /* ── handlers ── */
@@ -376,7 +375,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           notas:              notasFinal,
           canal,
           personal_id:        canal === "cuenta_corriente" && personalId ? personalId : null,
-          pago_efectivo:      efectivoNum > 0 ? Math.max(0, efectivoNum - (vuelto ?? 0)) || null : null,
+          // Redondeado a centavos -- restar el vuelto (float) puede dejar arrastres
+          // tipo 1200.0000000000002 que no se ven en el formateo pero quedan guardados así.
+          pago_efectivo:      efectivoNum > 0 ? Math.round(Math.max(0, efectivoNum - (vuelto ?? 0)) * 100) / 100 || null : null,
           pago_billetera:     parseFloat(pagos.mp)            || null,
           pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
           pago_transferencia: parseFloat(pagos.transferencia) || null,

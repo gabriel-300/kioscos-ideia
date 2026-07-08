@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Cantidad en kg: sin ceros de relleno (2 -> "2", 2.5 -> "2.5", 2.567 -> "2.567").
+// Antes cada pantalla (venta rápida, stock, informe de ventas) redondeaba/formateaba
+// distinto y el mismo peso se veía con una cantidad de decimales distinta según
+// dónde se mirara.
+export function formatKg(qty: number): string {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 }).format(qty);
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",

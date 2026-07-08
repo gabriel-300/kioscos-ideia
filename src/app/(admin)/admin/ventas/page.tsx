@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { VentasExportButton } from "./_components/export-button";
 import { fechaHoyAR } from "@/lib/fecha";
+import { formatKg } from "@/lib/utils";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe de ventas — Kioscos IDEIA" };
@@ -12,7 +13,7 @@ const AR  = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS",
 const NUM = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 function fmtCantidad(cantidad: number, unitLabel: string | null) {
-  return unitLabel === "kg" ? `${NUM.format(cantidad)} kg` : `${NUM.format(cantidad)} u.`;
+  return unitLabel === "kg" ? `${formatKg(cantidad)} kg` : `${NUM.format(cantidad)} u.`;
 }
 
 type ProductoFila = {
