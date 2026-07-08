@@ -23,6 +23,13 @@ export default async function StockPage() {
     staffSucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
   }
 
+  // Sin esto, un encargado/vendedor sin sucursal asignada (o cualquier rol
+  // inesperado) caía por defecto en la vista matriz de TODAS las sucursales
+  // más abajo, pensada solo para admin.
+  if (role !== "admin" && !(isStaff && staffSucursalId)) {
+    redirect("/admin/dashboard");
+  }
+
   const [
     { data: products },
     { data: categories },
