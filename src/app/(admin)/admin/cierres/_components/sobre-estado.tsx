@@ -98,22 +98,28 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
 
   if (!montoSobre || montoSobre <= 0) return <span className="text-neutral-200 text-xs">—</span>;
 
+  const monto = <span className="tabular-nums text-xs font-medium text-neutral-700">{AR.format(montoSobre)}</span>;
+
   if (montoVerificado != null) {
     const diferencia = montoVerificado - montoSobre;
     const ok = diferencia === 0;
     return (
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ok ? "bg-selva-50 text-selva-700" : "bg-danger/5 text-danger"}`}
-        title={`Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""}`}
-      >
-        {ok ? "OK ✓" : `${diferencia > 0 ? "+" : ""}${AR.format(diferencia)}`}
-      </span>
+      <div className="flex flex-col items-end gap-0.5">
+        {monto}
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ok ? "bg-selva-50 text-selva-700" : "bg-danger/5 text-danger"}`}
+          title={`Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""}`}
+        >
+          {ok ? "OK ✓" : `${diferencia > 0 ? "+" : ""}${AR.format(diferencia)}`}
+        </span>
+      </div>
     );
   }
 
   if (retiradoPorNombre) {
     return (
-      <>
+      <div className="flex flex-col items-end gap-0.5">
+        {monto}
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -123,13 +129,16 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
           Verificar
         </button>
         {modalOpen && <VerificarModal cierreId={cierreId} montoSobre={montoSobre} onClose={() => setModalOpen(false)} />}
-      </>
+      </div>
     );
   }
 
   return (
-    <span className="inline-flex items-center rounded-full bg-neutral-100 text-neutral-500 px-2 py-0.5 text-xs font-medium" title={`En sobre: ${AR.format(montoSobre)}`}>
-      Sin retirar
-    </span>
+    <div className="flex flex-col items-end gap-0.5">
+      {monto}
+      <span className="inline-flex items-center rounded-full bg-neutral-100 text-neutral-500 px-2 py-0.5 text-xs font-medium">
+        Sin retirar
+      </span>
+    </div>
   );
 }
