@@ -8,7 +8,7 @@ import type { CSSProperties } from "react";
 
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = { id: string; name: string };
-type Promo    = { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] };
+type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; promo_items: { product_id: string; cantidad: number }[] };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -497,7 +497,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   const catColorMap: Record<string, string> = {};
   catsConProductos.forEach((c, i) => { catColorMap[c.id] = CAT_COLORS[i % CAT_COLORS.length]; });
 
-  type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean; stock: number | null };
+  type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean; tipoPromo?: "promo" | "receta"; stock: number | null };
 
   const tiles: Tile[] = catFilter === "promos"
     ? filteredPromos.map((promo) => {
@@ -510,6 +510,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           color: PROMO_COLOR,
           coverImageUrl: null,
           isPromo: true,
+          tipoPromo: promo.tipo,
           stock: disp,
         };
       })
@@ -703,7 +704,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </span>
                   ) : tile.isPromo && (
                     <span style={{ position: "absolute", top: 6, left: 6, fontSize: 9, fontWeight: 700, background: "#FEF3C7", color: PROMO_COLOR, borderRadius: 5, padding: "2px 6px" }}>
-                      Promo
+                      {tile.tipoPromo === "receta" ? "Receta" : "Promo"}
                     </span>
                   )}
 

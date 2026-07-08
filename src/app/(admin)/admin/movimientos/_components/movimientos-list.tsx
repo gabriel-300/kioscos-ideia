@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MovimientoForm } from "./movimiento-form";
 import { ExportButton } from "./export-button";
-import { eliminarMovimiento, actualizarMovimientoMetadata } from "../actions";
+import { eliminarMovimiento, actualizarMovimientoMetadata, actualizarCostosItems } from "../actions";
 import { Button, Badge } from "@/components/ui";
 import { fechaHoyAR } from "@/lib/fecha";
 import type { Database } from "@/types/database";
@@ -97,6 +97,57 @@ function EditMetadataForm({ m, onDone }: { m: MovimientoRow; onDone: () => void 
   );
 }
 
+function EditPreciosForm({ m, onDone }: { m: MovimientoRow; onDone: () => void }) {
+  const [precios, setPrecios] = useState<Record<string, string>>(
+    Object.fromEntries(m.movimiento_items.map((i) => [i.id, i.precio_unitario != null ? String(i.precio_unitario) : ""]))
+  );
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleSave() {
+    startTransition(async () => {
+      try {
+        await actualizarCostosItems(
+          m.id,
+          m.movimiento_items.map((i) => ({
+            id: i.id,
+            cantidad: i.cantidad,
+            precio_unitario: precios[i.id] ? parseFloat(precios[i.id]) : null,
+          }))
+        );
+        router.refresh();
+        onDone();
+      } catch (e) { alert((e as Error).message); }
+    });
+  }
+
+  return (
+    <div className="px-10 py-3 bg-amber-50 border-t border-amber-100 space-y-2">
+      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Completar costos</p>
+      <div className="space-y-1.5">
+        {m.movimiento_items.map((item) => (
+          <div key={item.id} className="flex items-center gap-2">
+            <span className="text-sm text-neutral-600 flex-1 min-w-0 truncate">{item.product?.name ?? "—"}</span>
+            <div className="relative w-28 shrink-0">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
+              <input
+                type="number" min="0" step="0.01" placeholder="0.00"
+                value={precios[item.id] ?? ""}
+                onChange={(e) => setPrecios((p) => ({ ...p, [item.id]: e.target.value }))}
+                className="h-8 w-full rounded-lg border border-neutral-300 bg-white pl-5 pr-2 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button variant="primary" size="sm" loading={pending} onClick={handleSave}>Guardar costos</Button>
+        <Button variant="ghost"   size="sm" onClick={onDone}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
 function DeleteBtn({ id }: { id: string }) {
   const [pending, startTransition] = useTransition();
   return (
@@ -131,10 +182,16 @@ export function MovimientosList({
   const [search,          setSearch]          = useState("");
   const [expanded,        setExpanded]        = useState<string | null>(null);
   const [editingId,       setEditingId]       = useState<string | null>(null);
+  const [editingPricesId, setEditingPricesId] = useState<string | null>(null);
   const [tipoFilter,      setTipo]            = useState<"all" | "entrega" | "devolucion" | "venta" | "ajuste">("all");
   const [mes,             setMes]             = useState(mesDefault);
   const [proveedorFilter, setProveedorFilter] = useState("all");
   const [sucursalFilter,  setSucursalFilter]  = useState("all");
+  const [soloPendientes,  setSoloPendientes]  = useState(false);
+
+  function faltaCosto(m: MovimientoRow) {
+    return m.tipo === "entrega" && m.movimiento_items.some((i) => i.precio_unitario == null);
+  }
 
   const proveedoresEnMovs = useMemo(() => {
     const seen = new Set<string>();
@@ -160,9 +217,12 @@ export function MovimientosList({
       if (mes && !m.fecha.startsWith(mes)) return false;
       if (proveedorFilter !== "all" && (m as any).proveedor !== proveedorFilter) return false;
       if (sucursalFilter !== "all" && m.sucursal?.id !== sucursalFilter) return false;
+      if (soloPendientes && !faltaCosto(m)) return false;
       return true;
     });
-  }, [movimientos, search, tipoFilter, mes, proveedorFilter, sucursalFilter]);
+  }, [movimientos, search, tipoFilter, mes, proveedorFilter, sucursalFilter, soloPendientes]);
+
+  const pendientesCount = useMemo(() => movimientos.filter(faltaCosto).length, [movimientos]);
 
   return (
     <>
@@ -216,6 +276,17 @@ export function MovimientosList({
               ))}
             </select>
           )}
+          {pendientesCount > 0 && (
+            <button
+              onClick={() => setSoloPendientes((p) => !p)}
+              className={`h-9 px-3 rounded-lg border text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                soloPendientes ? "border-amber-400 bg-amber-50 text-amber-700" : "border-amber-200 text-amber-600 hover:bg-amber-50"
+              }`}
+            >
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              {pendientesCount} sin costo
+            </button>
+          )}
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} movimientos</span>
           <ExportButton sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))} />
           <Button size="sm" onClick={() => setFormOpen(true)}>
@@ -267,6 +338,9 @@ export function MovimientosList({
                       </span>
                     </div>
                     <Badge className={TIPO_COLOR[m.tipo]}>{TIPO_LABEL[m.tipo]}</Badge>
+                    {faltaCosto(m) && (
+                      <Badge className="bg-amber-50 text-amber-700 border-amber-200">Sin costo</Badge>
+                    )}
                     {(m as any).remito_image_url && (
                       <svg className="size-4 text-neutral-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
@@ -327,18 +401,29 @@ export function MovimientosList({
                       {m.notas && (
                         <p className="mt-1.5 text-xs text-neutral-500 italic">{m.notas}</p>
                       )}
-                      <div className="mt-2 pt-2 border-t border-neutral-100">
+                      <div className="mt-2 pt-2 border-t border-neutral-100 flex items-center gap-3">
                         <button
                           onClick={() => setEditingId(editingId === m.id ? null : m.id)}
                           className="text-xs text-tierra-700 hover:underline font-medium"
                         >
                           {editingId === m.id ? "Cancelar edición" : "Editar datos"}
                         </button>
+                        {m.tipo === "entrega" && (
+                          <button
+                            onClick={() => setEditingPricesId(editingPricesId === m.id ? null : m.id)}
+                            className={`text-xs hover:underline font-medium ${faltaCosto(m) ? "text-amber-700" : "text-tierra-700"}`}
+                          >
+                            {editingPricesId === m.id ? "Cancelar" : "Completar costos"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
                   {isOpen && editingId === m.id && (
                     <EditMetadataForm m={m} onDone={() => setEditingId(null)} />
+                  )}
+                  {isOpen && editingPricesId === m.id && (
+                    <EditPreciosForm m={m} onDone={() => setEditingPricesId(null)} />
                   )}
                 </div>
               );

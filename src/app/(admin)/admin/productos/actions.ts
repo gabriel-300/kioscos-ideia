@@ -157,3 +157,49 @@ export async function ajustarPrecios({
   revalidatePath("/admin/productos");
   return { actualizados: products.length };
 }
+
+// Para proveedores que facturan al precio de venta al público (ej. panificados):
+// el costo no es un monto fijo, es "el precio de venta menos un %". Esto calcula
+// costo = precio_dist * (porcentajePago / 100) para toda una categoría de una vez,
+// en vez de tener que tipear un costo producto por producto.
+export async function costearDesdePrecioVenta({
+  porcentajePago,
+  categoria_id,
+}: {
+  porcentajePago: number;
+  categoria_id:   string | null;
+}): Promise<{ actualizados: number }> {
+  await requireAdminOrEncargado();
+  if (porcentajePago <= 0 || porcentajePago > 100) return { actualizados: 0 };
+
+  const supabase = createAdminClient();
+  const factor = porcentajePago / 100;
+
+  let query = supabase.from("products").select("id, precio_dist, costo").not("precio_dist", "is", null);
+  if (categoria_id) query = query.eq("category_id", categoria_id);
+
+  const { data: products, error } = await query;
+  if (error) throw new Error(error.message);
+  if (!products || products.length === 0) return { actualizados: 0 };
+
+  const updates = products.map((p) => ({ id: p.id, costo: Math.round((p.precio_dist ?? 0) * factor) }));
+
+  const errors = (
+    await Promise.all(
+      updates.map(({ id, costo }) => supabase.from("products").update({ costo }).eq("id", id))
+    )
+  ).filter((r) => r.error);
+  if (errors.length > 0) throw new Error(errors[0].error!.message);
+
+  const historyItems = products.map((p) => ({
+    product_id:           p.id,
+    precio_dist_anterior: null,
+    precio_dist_nuevo:    null,
+    costo_anterior:       p.costo,
+    costo_nuevo:          updates.find((u) => u.id === p.id)!.costo,
+  }));
+  await (supabase as any).from("product_price_history").insert(historyItems);
+
+  revalidatePath("/admin/productos");
+  return { actualizados: products.length };
+}

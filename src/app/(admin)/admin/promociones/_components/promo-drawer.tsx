@@ -26,6 +26,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
   const [name,      setName]      = useState("");
   const [price,     setPrice]     = useState("");
   const [isActive,  setIsActive]  = useState(true);
+  const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
   const [items,     setItems]     = useState<LineItem[]>([emptyLine()]);
   const [error,     setError]     = useState<string | null>(null);
 
@@ -35,13 +36,14 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setName(promo.name);
       setPrice(String(promo.price));
       setIsActive(promo.is_active);
+      setTipo(promo.tipo);
       setItems(
         promo.promo_items.length > 0
           ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
           : [emptyLine()]
       );
     } else {
-      setName(""); setPrice(""); setIsActive(true); setItems([emptyLine()]);
+      setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
     }
     setError(null);
   }, [open, promo]);
@@ -70,9 +72,9 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
     startTransition(async () => {
       try {
         if (promo) {
-          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, items: parsedItems });
+          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, items: parsedItems });
         } else {
-          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, items: parsedItems });
+          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, items: parsedItems });
         }
         onClose();
       } catch (e) {
@@ -89,7 +91,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       <aside className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-xl bg-white shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
           <h2 className="text-base font-semibold font-display text-neutral-900">
-            {promo ? "Editar promoción" : "Nueva promoción"}
+            {promo ? `Editar ${promo.tipo === "receta" ? "receta" : "promoción"}` : "Nueva promoción / receta"}
           </h2>
           <button onClick={handleClose} className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors">
             <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -99,9 +101,31 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Tipo *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "promo" as const,  title: "Promo",   desc: "Combo con precio de oferta" },
+                { value: "receta" as const, title: "Receta",  desc: "Cómo se arma un producto preparado" },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTipo(opt.value)}
+                  className={`text-left rounded-lg border-2 px-3 py-2 transition-colors ${
+                    tipo === opt.value ? "border-tierra-700 bg-tierra-50" : "border-neutral-200 hover:border-neutral-300"
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-neutral-900">{opt.title}</p>
+                  <p className="text-xs text-neutral-500">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <Input label="Nombre *" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Combo Simple" />
+              <Input label="Nombre *" value={name} onChange={(e) => setName(e.target.value)} placeholder={tipo === "receta" ? "Ej: Hamburguesa Completa" : "Ej: Combo Simple"} />
             </div>
             <div>
               <Input label="Precio *" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
@@ -117,7 +141,9 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Productos que componen la promo</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                {tipo === "receta" ? "Insumos que lleva la receta" : "Productos que componen la promo"}
+              </p>
               <button onClick={addLine} className="text-xs text-tierra-700 hover:underline font-medium">
                 + Agregar línea
               </button>
@@ -167,7 +193,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
         <div className="px-6 py-4 border-t border-neutral-200 flex gap-3 shrink-0">
           <Button variant="ghost" size="sm" onClick={handleClose} type="button" className="flex-1">Cancelar</Button>
           <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="flex-1">
-            {promo ? "Guardar cambios" : "Crear promoción"}
+            {promo ? "Guardar cambios" : tipo === "receta" ? "Crear receta" : "Crear promoción"}
           </Button>
         </div>
       </aside>

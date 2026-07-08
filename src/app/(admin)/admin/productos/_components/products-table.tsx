@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo } from "react";
 import { toggleProductoActivo } from "../actions";
 import { ProductoDrawer } from "./producto-drawer";
 import { AjustePreciosDrawer } from "./ajuste-precios-drawer";
+import { CostearVentaDrawer } from "./costear-venta-drawer";
 import type { Database } from "@/types/database";
 import { Badge, Button } from "@/components/ui";
 
@@ -79,6 +80,7 @@ export function ProductsTable({ products, categories }: { products: ProductWithC
             <option value="inactivo">Inactivos</option>
           </select>
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} productos</span>
+          <CostearVentaDrawer categories={categories} />
           <AjustePreciosDrawer categories={categories} />
           <Button size="sm" onClick={openNew}>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

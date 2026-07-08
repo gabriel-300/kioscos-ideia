@@ -173,11 +173,11 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
-        className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md"
+        className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
           <div>
             <h2 className="text-base font-semibold font-display text-neutral-900">Cierre de caja</h2>
             <p className="text-xs text-neutral-400 mt-0.5">{sucursalNombre} · {fechaLabel}</p>
@@ -189,7 +189,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Ventas del día */}
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Ventas del turno</p>
@@ -409,7 +409,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         </div>
 
         {cajaAbierta && puedeCerrarCaja && (
-          <div className="px-6 pb-5">
+          <div className="px-6 py-4 border-t border-neutral-200 shrink-0">
             <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="w-full">
               Cerrar caja
             </Button>

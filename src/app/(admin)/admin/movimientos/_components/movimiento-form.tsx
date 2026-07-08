@@ -113,7 +113,10 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   function autoPrecio(i: number, productId: string) {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
-    const precio = tipo === "entrega" ? (prod.precio_dist ?? null) : null;
+    // En entregas el precio es el COSTO real pagado al proveedor, no el precio de
+    // venta -- se sugiere el costo ya cargado en el producto (si hay), pero queda
+    // en blanco (pendiente) si todavía no se cargó, en vez de asumir cualquier valor.
+    const precio = tipo === "entrega" ? (prod.costo ?? null) : null;
     setItems((p) => p.map((item, idx) =>
       idx === i ? { ...item, product_id: productId, precio_unitario: precio != null ? String(precio) : "" } : item
     ));
@@ -378,7 +381,11 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                       )}
                     </div>
                     <div>
-                      {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Precio $</p>}
+                      {i === 0 && (
+                        <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">
+                          {tipo === "entrega" ? "Costo $" : "Precio $"}
+                        </p>
+                      )}
                       <input
                         type="number"
                         min="0"
@@ -388,6 +395,9 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                         onChange={(e) => updateLine(i, "precio_unitario", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
+                      {tipo === "entrega" && !item.precio_unitario && item.product_id && (
+                        <p className="text-[11px] text-amber-600 mt-1">Sin costo — queda pendiente</p>
+                      )}
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Importe</p>}

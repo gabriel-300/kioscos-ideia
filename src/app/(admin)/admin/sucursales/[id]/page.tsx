@@ -87,9 +87,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string }[] | null }>,
     (supabase as any)
       .from("promos")
-      .select("id, name, price, promo_items(product_id, cantidad)")
+      .select("id, name, price, tipo, promo_items(product_id, cantidad)")
       .eq("is_active", true)
-      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
+      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
   ]);
 
   const promos = promosResult.data ?? [];

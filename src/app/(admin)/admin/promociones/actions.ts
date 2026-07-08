@@ -13,6 +13,7 @@ export interface PromoInput {
   name:      string;
   price:     number;
   is_active: boolean;
+  tipo:      "promo" | "receta";
   items:     PromoItemInput[];
 }
 
@@ -22,7 +23,7 @@ export async function crearPromo(data: PromoInput) {
 
   const { data: promo, error } = await (supabase as any)
     .from("promos")
-    .insert({ name: data.name, price: data.price, is_active: data.is_active })
+    .insert({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -43,7 +44,7 @@ export async function actualizarPromo(id: string, data: PromoInput) {
 
   const { error } = await (supabase as any)
     .from("promos")
-    .update({ name: data.name, price: data.price, is_active: data.is_active, updated_at: new Date().toISOString() })
+    .update({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
 

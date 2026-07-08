@@ -227,6 +227,35 @@ export async function actualizarMovimientoMetadata(
   }
 }
 
+// Completa/corrige el costo de items de una entrega ya cargada -- cubre el caso
+// de quien recibe la mercadería (encargado/vendedor) sin tener la factura a mano
+// todavía; el admin lo completa después desde el historial.
+export async function actualizarCostosItems(
+  movimientoId: string,
+  items: { id: string; cantidad: number; precio_unitario: number | null }[]
+) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: mov } = await supabase.from("movimientos").select("sucursal_id").eq("id", movimientoId).single();
+
+  const errors = (
+    await Promise.all(
+      items.map((i) => (supabase as any).from("movimiento_items").update({
+        precio_unitario: i.precio_unitario,
+        subtotal: i.precio_unitario != null ? i.cantidad * i.precio_unitario : null,
+      }).eq("id", i.id).eq("movimiento_id", movimientoId))
+    )
+  ).filter((r) => r.error);
+  if (errors.length > 0) throw new Error(errors[0].error!.message);
+
+  revalidatePath("/admin/movimientos");
+  if (mov?.sucursal_id) {
+    revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
+    revalidatePath("/admin/stock");
+  }
+}
+
 export async function eliminarMovimiento(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();

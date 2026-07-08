@@ -12,6 +12,9 @@ export default async function PromocionesPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const role = user.app_metadata?.role as string | undefined;
+  if (role !== "admin") redirect("/admin/dashboard");
+
   const [{ data: promos }, { data: products }] = await Promise.all([
     (supabase as any)
       .from("promos")
@@ -24,8 +27,8 @@ export default async function PromocionesPage() {
     <div className="p-4 md:p-8 max-w-6xl">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Promociones</h1>
-          <p className="text-sm text-neutral-400 mt-0.5">Combos de venta que descuentan stock de sus productos componentes</p>
+          <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Promociones y recetas</h1>
+          <p className="text-sm text-neutral-400 mt-0.5">Combos y productos preparados que descuentan stock de sus productos componentes</p>
         </div>
       </div>
 

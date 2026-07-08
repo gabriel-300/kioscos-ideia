@@ -8,7 +8,7 @@ import type { Database } from "@/types/database";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta";
-type Promo = { id: string; name: string; price: number; promo_items: { product_id: string; cantidad: number }[] };
+type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; promo_items: { product_id: string; cantidad: number }[] };
 
 export function NuevaEntregaButton({
   sucursalId,
