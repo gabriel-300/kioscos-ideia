@@ -3,23 +3,13 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CierresExportButton } from "./_components/export-button";
-import { NotaBadge } from "./_components/nota-badge";
-import { SobreEstado } from "./_components/sobre-estado";
+import { InformeCierresTable, type FilaCierre } from "./_components/informe-cierres-table";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe de cierres — Kioscos IDEIA" };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
-
-function DiferenciaBadge({ d }: { d: number | null }) {
-  if (d === null) return <span className="text-neutral-300 text-xs">—</span>;
-  if (d === 0)
-    return <span className="text-xs font-semibold text-selva-600 bg-selva-50 px-2 py-0.5 rounded-full">Exacto</span>;
-  if (d > 0)
-    return <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">+{AR.format(d)}</span>;
-  return <span className="text-xs font-semibold text-danger bg-danger/5 px-2 py-0.5 rounded-full">{AR.format(d)}</span>;
-}
 
 export default async function CierresPage({
   searchParams,
@@ -189,6 +179,40 @@ export default async function CierresPage({
     return s + retirosDelTurno(suc.id, c.created_at).reduce((ss, r) => ss + r.monto, 0);
   }, 0);
 
+  const filas: FilaCierre[] = cierres.map((c) => {
+    const suc = c.sucursales as { id: string; nombre: string } | null;
+    const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
+    const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
+    const fondoSiguiente = c.fondo_siguiente;
+    const montoSobre = fondoSiguiente != null ? Math.max(0, (c.efectivo_declarado ?? 0) - fondoSiguiente) : null;
+    return {
+      id:                       c.id,
+      fechaDisplay:             new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }),
+      sucursalId:               suc?.id ?? null,
+      sucursalNombre:           suc?.nombre ?? null,
+      numeroLiquidacion:        c.numero_liquidacion,
+      encargado:                c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
+      fondoInicial:             fondo,
+      ventas:                   c.total_ventas ?? 0,
+      efectivo:                 c.efectivo_declarado ?? 0,
+      billetera:                c.billetera_declarada ?? 0,
+      tarjeta:                  c.tarjeta_declarada ?? 0,
+      transferencia:            c.transferencia_declarada ?? 0,
+      diferencia:               c.diferencia,
+      retiros:                  retirosTurno.map((r) => ({ motivo: r.motivo, monto: r.monto })),
+      totalRetiros:             retirosTurno.reduce((s, r) => s + r.monto, 0),
+      fondoSiguiente:           fondoSiguiente,
+      montoSobre:               montoSobre,
+      sobreRetiradoPorNombre:   c.sobre_retirado_por ? (profileMap[c.sobre_retirado_por] ?? "—") : null,
+      sobreRetiradoEn:          c.sobre_retirado_en,
+      sobreMontoVerificado:     c.sobre_monto_verificado,
+      sobreVerificadoPorNombre: c.sobre_verificado_por ? (profileMap[c.sobre_verificado_por] ?? "—") : null,
+      sobreVerificadoEn:        c.sobre_verificado_en,
+      sobreNotas:               c.sobre_notas,
+      notas:                    c.notas,
+    };
+  });
+
   const cierresExport = cierres.map((c) => {
     const suc = c.sucursales as { id: string; nombre: string } | null;
     const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
@@ -301,142 +325,25 @@ export default async function CierresPage({
       </div>
 
       {/* Tabla */}
-      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: "700px" }}>
-            <thead>
-              <tr className="bg-neutral-50 border-b border-neutral-200">
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">N° Liq.</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo ini.</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transfer.</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Retiros</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Fondo sig.</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">En sobre</th>
-                <th className="px-3 py-2.5 w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-50">
-              {cierres.length === 0 ? (
-                <tr>
-                  <td colSpan={15} className="px-4 py-12 text-center text-sm text-neutral-400">
-                    Sin cierres en el período seleccionado.
-                  </td>
-                </tr>
-              ) : (
-                cierres.map((c) => {
-                  const suc = c.sucursales as { id: string; nombre: string } | null;
-                  const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
-                  const encargado = c.created_by ? (profileMap[c.created_by] ?? "—") : "—";
-                  const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
-                  const totalRetirosTurno = retirosTurno.reduce((s, r) => s + r.monto, 0);
-                  const fondoSiguiente = (c as any).fondo_siguiente as number | null;
-                  const montoSobre = fondoSiguiente != null ? Math.max(0, (c.efectivo_declarado ?? 0) - fondoSiguiente) : null;
-                  const fechaDisplay = new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", {
-                    weekday: "short", day: "numeric", month: "short",
-                  });
-
-                  return (
-                    <tr key={c.id} className="hover:bg-neutral-50/80 transition-colors">
-                      <td className="px-3 py-2.5">
-                        <span className="font-medium text-neutral-800 capitalize">{fechaDisplay}</span>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {suc ? (
-                          <Link href={`/admin/sucursales/${suc.id}`} className="text-tierra-700 hover:underline font-medium">
-                            {suc.nombre}
-                          </Link>
-                        ) : <span className="text-neutral-400">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
-                        {c.numero_liquidacion != null ? `#${c.numero_liquidacion}` : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-500">{encargado}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
-                        {fondo !== null ? AR.format(fondo) : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-neutral-800">
-                        {AR.format(c.total_ventas ?? 0)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">
-                        {AR.format(c.efectivo_declarado ?? 0)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">
-                        {AR.format((c as any).billetera_declarada ?? 0)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
-                        {((c as any).tarjeta_declarada ?? 0) > 0 ? AR.format((c as any).tarjeta_declarada) : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 text-xs">
-                        {((c as any).transferencia_declarada ?? 0) > 0 ? AR.format((c as any).transferencia_declarada) : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <DiferenciaBadge d={c.diferencia} />
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-xs" title={retirosTurno.map((r) => `${r.motivo}: ${AR.format(r.monto)}`).join(" | ") || undefined}>
-                        {totalRetirosTurno > 0 ? <span className="text-amber-600 font-medium">{AR.format(totalRetirosTurno)}</span> : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
-                        {fondoSiguiente != null ? AR.format(fondoSiguiente) : <span className="text-neutral-200">—</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <SobreEstado
-                          cierreId={c.id}
-                          montoSobre={montoSobre}
-                          retiradoPorNombre={c.sobre_retirado_por ? (profileMap[c.sobre_retirado_por] ?? "—") : null}
-                          retiradoEn={c.sobre_retirado_en}
-                          montoVerificado={c.sobre_monto_verificado}
-                          verificadoPorNombre={c.sobre_verificado_por ? (profileMap[c.sobre_verificado_por] ?? "—") : null}
-                          verificadoEn={c.sobre_verificado_en}
-                          notas={c.sobre_notas}
-                        />
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {c.notas && <NotaBadge nota={c.notas} />}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-
-            {cierres.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
-                  <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-neutral-500" colSpan={5}>
-                    Total ({cierres.length} cierres)
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-800">{AR.format(totalVentas)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalEfectivo)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalBilletera)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalTarjeta)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalTransferencia)}</td>
-                  <td className="px-3 py-2.5 text-center">
-                    <DiferenciaBadge d={totalDiferencia} />
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totalRetiros)}</td>
-                  <td />
-                  <td />
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </div>
+      <InformeCierresTable
+        filas={filas}
+        totales={{
+          ventas: totalVentas,
+          efectivo: totalEfectivo,
+          billetera: totalBilletera,
+          tarjeta: totalTarjeta,
+          transferencia: totalTransferencia,
+          diferencia: totalDiferencia,
+          retiros: totalRetiros,
+        }}
+      />
 
       <p className="text-xs text-neutral-400 mt-3">
+        Tocá una fila para ver el detalle completo (medios de pago, fondo, retiros).
         Diferencia = suma de todos los medios declarados − ventas registradas en el sistema.
         Positivo indica sobrante, negativo indica faltante.
-        El total de Efectivo (tarjeta y pie de tabla) es neto del fondo inicial de cada turno — la columna
-        "Efectivo" de cada fila sigue mostrando lo contado en el cajón (incluye el fondo).
+        La tarjeta de Efectivo (arriba) es neta del fondo inicial de cada turno — el "Efectivo contado" del detalle
+        de cada fila sigue mostrando lo contado en el cajón (incluye el fondo).
       </p>
     </div>
   );
