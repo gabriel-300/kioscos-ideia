@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CierresExportButton } from "./_components/export-button";
 import { NotaBadge } from "./_components/nota-badge";
+import { SobreEstado } from "./_components/sobre-estado";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -52,6 +53,7 @@ export default async function CierresPage({
     .from("cierres_caja")
     .select(`
       id, fecha, total_ventas, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente, numero_liquidacion,
+      sobre_retirado_por, sobre_retirado_en, sobre_monto_verificado, sobre_verificado_por, sobre_verificado_en, sobre_notas,
       sucursales(id, nombre)
     `)
     .gte("fecha", desde)
@@ -77,6 +79,12 @@ export default async function CierresPage({
     created_at: string;
     fondo_siguiente: number | null;
     numero_liquidacion: number | null;
+    sobre_retirado_por: string | null;
+    sobre_retirado_en: string | null;
+    sobre_monto_verificado: number | null;
+    sobre_verificado_por: string | null;
+    sobre_verificado_en: string | null;
+    sobre_notas: string | null;
     sucursales: { id: string; nombre: string } | null;
   };
 
@@ -133,8 +141,10 @@ export default async function CierresPage({
     );
   }
 
-  // Fetch nombres de usuarios (created_by)
-  const userIds = [...new Set(cierres.map((c) => c.created_by).filter(Boolean))] as string[];
+  // Fetch nombres de usuarios (created_by, y quién retiró/verificó el sobre)
+  const userIds = [...new Set(
+    cierres.flatMap((c) => [c.created_by, c.sobre_retirado_por, c.sobre_verificado_por]).filter(Boolean)
+  )] as string[];
   let profileMap: Record<string, string> = {};
   if (userIds.length > 0) {
     const { data: profiles } = await admin
@@ -143,6 +153,16 @@ export default async function CierresPage({
       .in("id", userIds);
     for (const p of profiles ?? []) {
       if (p.full_name) profileMap[p.id] = p.full_name;
+    }
+    // Los socios (admin) pueden no tener full_name en profiles -- se completa
+    // con el nombre/email de auth.users para no mostrar "—" para ellos.
+    const faltantes = userIds.filter((id) => !profileMap[id]);
+    if (faltantes.length > 0) {
+      const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ perPage: 200 });
+      for (const id of faltantes) {
+        const u = (authUsers ?? []).find((au) => au.id === id);
+        if (u) profileMap[id] = (u.user_metadata?.full_name as string | undefined) ?? u.email ?? id;
+      }
     }
   }
 
@@ -366,8 +386,17 @@ export default async function CierresPage({
                       <td className="px-3 py-2.5 text-right tabular-nums text-xs text-neutral-500">
                         {fondoSiguiente != null ? AR.format(fondoSiguiente) : <span className="text-neutral-200">—</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-xs font-medium text-neutral-700">
-                        {montoSobre != null ? AR.format(montoSobre) : <span className="text-neutral-200 font-normal">—</span>}
+                      <td className="px-3 py-2.5 text-right">
+                        <SobreEstado
+                          cierreId={c.id}
+                          montoSobre={montoSobre}
+                          retiradoPorNombre={c.sobre_retirado_por ? (profileMap[c.sobre_retirado_por] ?? "—") : null}
+                          retiradoEn={c.sobre_retirado_en}
+                          montoVerificado={c.sobre_monto_verificado}
+                          verificadoPorNombre={c.sobre_verificado_por ? (profileMap[c.sobre_verificado_por] ?? "—") : null}
+                          verificadoEn={c.sobre_verificado_en}
+                          notas={c.sobre_notas}
+                        />
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         {c.notas && <NotaBadge nota={c.notas} />}

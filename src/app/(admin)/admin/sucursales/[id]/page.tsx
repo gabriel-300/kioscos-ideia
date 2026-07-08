@@ -53,7 +53,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const mesLabel   = new Date(mesYear, mesMonth - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const canGoNext  = mes < mesActual;
 
-  type CierreRow = { fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null };
+  type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
   const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
@@ -94,6 +94,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   ]);
 
   const promos = promosResult.data ?? [];
+
+  // Socios/tesorero (usuarios admin) para el selector de "quién retiró el sobre"
+  const { data: { users: adminUsers } } = await admin.auth.admin.listUsers({ perPage: 200 });
+  const socios = (adminUsers ?? [])
+    .filter((u) => u.app_metadata?.role === "admin")
+    .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) ?? u.email ?? "—" }));
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -232,10 +238,16 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     .sort((a, b) => (stockActual[a.id] ?? 0) - (stockActual[b.id] ?? 0))
     .slice(0, 8);
 
-  // Analytics del mes seleccionado
-  const ventasDelMes = movs.filter(
+  // Analytics del mes seleccionado -- encargado/vendedor solo ven SUS PROPIAS
+  // ventas del mes (por created_by), no las de un compañero; admin ve todo.
+  // A diferencia de "Ventas Hoy"/Historial (que se acotan por turno de HOY, sin
+  // tocar días anteriores), acá el corte es por persona a lo largo de todo el mes.
+  const ventasDelMesTodas = movs.filter(
     (m) => m.tipo === "venta" && m.fecha >= mesInicio && m.fecha <= mesFin
   );
+  const ventasDelMes = role === "admin"
+    ? ventasDelMesTodas
+    : ventasDelMesTodas.filter((m) => m.created_by === user.id);
   const totalesPago = {
     efectivo:      ventasDelMes.reduce((s: number, m: any) => s + (m.pago_efectivo      ?? 0), 0),
     billetera:     ventasDelMes.reduce((s: number, m: any) => s + (m.pago_billetera     ?? 0), 0),
@@ -518,7 +530,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       {/* Análisis del mes */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-neutral-900">Análisis del mes</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">
+            Análisis del mes{role !== "admin" && <span className="text-neutral-400 font-normal"> · tus ventas</span>}
+          </h2>
           <div className="flex items-center gap-1.5">
             <Link
               href={`/admin/sucursales/${id}?mes=${prevMes}`}
@@ -622,7 +636,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
             {cierresVisibles.length} registros{role === "encargado" ? " (hoy)" : ""}
           </span>
         </div>
-        <HistorialCierres cierres={cierresVisibles} />
+        <HistorialCierres cierres={cierresVisibles} sucursalId={sucursal.id} socios={socios} />
       </div>
 
       {/* Historial */}

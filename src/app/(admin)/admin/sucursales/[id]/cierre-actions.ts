@@ -114,6 +114,42 @@ export async function cerrarCaja(data: {
   revalidatePath("/admin/cierres");
 }
 
+// El encargado o vendedor que le entrega el sobre a un socio marca acá quién
+// se lo llevó -- así queda registro de dónde está esa plata hasta que el
+// tesorero la verifique (ver verificarSobre en /admin/cierres/actions.ts).
+export async function marcarSobreRetirado(cierreId: string, sucursalId: string, retiradoPor: string) {
+  const { userId, role } = await requireStaff();
+  const admin = createAdminClient();
+
+  if (role === "encargado") {
+    const { data: suc } = await admin
+      .from("sucursales")
+      .select("encargado_user_id")
+      .eq("id", sucursalId)
+      .single();
+    if (suc?.encargado_user_id !== userId) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
+  if (role === "vendedor") {
+    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
+    if (profile?.sucursal_id !== sucursalId) {
+      throw new Error("No tenés permisos para esta sucursal");
+    }
+  }
+
+  const { error } = await (admin as any)
+    .from("cierres_caja")
+    .update({ sobre_retirado_por: retiradoPor, sobre_retirado_en: new Date().toISOString() })
+    .eq("id", cierreId)
+    .eq("sucursal_id", sucursalId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/admin/sucursales/${sucursalId}`);
+  revalidatePath("/admin/cierres");
+}
+
 export async function getCierreDelDia(sucursalId: string, fecha: string) {
   const { userId, role } = await requireStaff();
   const supabase = createAdminClient();
