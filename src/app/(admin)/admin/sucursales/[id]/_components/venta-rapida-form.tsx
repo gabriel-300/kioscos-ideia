@@ -112,6 +112,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [catFilter,     setCatFilter]     = useState("all");
   const [search,        setSearch]        = useState("");
   const [showPay, setShowPay] = useState(false);
+  const [mobileTicketOpen, setMobileTicketOpen] = useState(false);
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
   const [canal,      setCanal]      = useState("consumidor_final");
   const [precioOverride, setPrecioOverride] = useState<Record<string, string>>({});
@@ -302,7 +303,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
   function resetForm() {
     setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(fechaHoyAR());
-    setSearch(""); setCatFilter("all"); setShowPay(false);
+    setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
   }
@@ -533,34 +534,34 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 14 }}>
       {/* TOPBAR */}
-      <div className="flex items-center h-[60px] shrink-0" style={{ background: NAVY }}>
+      <div className="flex items-center h-[52px] md:h-[60px] shrink-0" style={{ background: NAVY }}>
         {/* Logo */}
-        <div className="flex items-center gap-2 px-4 h-full border-r" style={{ borderColor: "rgba(255,255,255,.12)" }}>
+        <div className="flex items-center gap-2 px-2.5 md:px-4 h-full border-r shrink-0" style={{ borderColor: "rgba(255,255,255,.12)" }}>
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5}>
             <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
           </svg>
-          <span className="font-bold text-white text-[15px]" style={{ letterSpacing: "-0.3px" }}>
+          <span className="font-bold text-white text-[15px] hidden sm:inline" style={{ letterSpacing: "-0.3px" }}>
             Kioscos IDEIA <small className="font-normal text-[11px]" style={{ opacity: .55 }}>· POS</small>
           </span>
         </div>
 
         {/* Fecha */}
-        <div className="flex items-center h-full px-4 border-r" style={{ borderColor: "rgba(255,255,255,.12)" }}>
+        <div className="flex items-center h-full px-2 md:px-4 border-r shrink-0" style={{ borderColor: "rgba(255,255,255,.12)" }}>
           <input
             type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-            className="text-[12px] font-medium rounded-full px-3 py-1 border-0 outline-none bg-transparent text-white/80 cursor-pointer"
+            className="text-[11px] md:text-[12px] font-medium rounded-full px-2 md:px-3 py-1 border-0 outline-none bg-transparent text-white/80 cursor-pointer"
             style={{ background: "rgba(255,255,255,.10)" }}
           />
         </div>
 
         {/* Search */}
-        <div className="flex-1 flex items-center px-4">
-          <div className="relative max-w-xs w-full">
+        <div className="flex-1 flex items-center px-2.5 md:px-4 min-w-0">
+          <div className="relative w-full md:max-w-xs">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             <input
-              type="text" placeholder="Buscar producto…" value={search} onChange={(e) => setSearch(e.target.value)}
+              type="text" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full h-8 pl-8 pr-3 rounded-full text-xs text-white placeholder-white/40 border-0 outline-none focus:ring-1 focus:ring-white/30"
               style={{ background: "rgba(255,255,255,.12)" }}
             />
@@ -568,9 +569,9 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
         </div>
 
         {/* Sucursal + cerrar */}
-        <div className="flex items-center gap-3 px-4 h-full">
+        <div className="flex items-center gap-2 md:gap-3 px-2.5 md:px-4 h-full shrink-0">
           {sucursalNombre && (
-            <div className="flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}>
+            <div className="hidden md:flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}>
               <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
               </svg>
@@ -579,7 +580,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           )}
           <button
             onClick={handleClose}
-            className="size-8 rounded-lg flex items-center justify-center transition-all"
+            className="size-8 rounded-lg flex items-center justify-center transition-all shrink-0"
             style={{ color: "rgba(255,255,255,.6)" }}
             onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.12)")}
             onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
@@ -749,15 +750,49 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               );
             })}
           </div>
+
+          {/* Barra flotante "Ver pedido" — solo mobile, cuando hay algo en el carrito */}
+          {seleccionados.length > 0 && !mobileTicketOpen && (
+            <button
+              onClick={() => setMobileTicketOpen(true)}
+              className="md:hidden shrink-0 flex items-center justify-between gap-3 px-4 h-14"
+              style={{ background: NAVY, color: "white" }}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span
+                  className="flex items-center justify-center size-6 rounded-full text-xs font-bold"
+                  style={{ background: "rgba(255,255,255,.2)" }}
+                >
+                  {totalUnidades}
+                </span>
+                Ver pedido
+              </span>
+              <span className="text-base font-black tabular-nums" style={{ letterSpacing: -0.5 }}>{AR.format(totalPrecio)}</span>
+            </button>
+          )}
         </div>
 
-        {/* DERECHO: ticket */}
-        <div className="flex flex-col shrink-0" style={{ width: 340, background: "white", borderLeft: "1px solid #E6ECF3" }}>
+        {/* DERECHO: ticket — overlay full-screen en mobile (toggle), sidebar fija en desktop */}
+        <div
+          className={`${mobileTicketOpen ? "flex" : "hidden"} md:flex fixed md:static inset-0 md:inset-auto z-30 md:z-auto flex-col shrink-0 md:w-[340px] w-full`}
+          style={{ background: "white", borderLeft: "1px solid #E6ECF3" }}
+        >
 
           {/* Header */}
           <div className="shrink-0 px-3.5 py-3.5" style={{ borderBottom: "1px solid #E2E8F0" }}>
             <div className="flex items-center justify-between">
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>Ticket en curso</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMobileTicketOpen(false)}
+                  className="md:hidden -ml-1 p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+                  aria-label="Volver a productos"
+                >
+                  <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>Ticket en curso</span>
+              </div>
               {totalUnidades > 0 && (
                 <span style={{ fontSize: 11, background: NAVY, color: "white", borderRadius: 20, padding: "2px 9px", fontWeight: 600 }}>
                   {totalUnidades}
@@ -942,10 +977,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
       </div>
 
       {/* ── MODAL CONFIRMAR COBRO ── */}
+      {/* z-40: tiene que quedar arriba del ticket en mobile (z-30, fixed inset-0 cuando está abierto) */}
       {showPay && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: "rgba(15,23,42,.55)" }} onClick={() => setShowPay(false)}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-3" style={{ background: "rgba(15,23,42,.55)" }} onClick={() => setShowPay(false)}>
           <div
-            style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
+            style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 380, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
