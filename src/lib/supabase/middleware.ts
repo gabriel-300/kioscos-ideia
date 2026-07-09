@@ -9,10 +9,6 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/categorias",
   "/admin/staff",
   "/admin/movimientos",
-];
-
-// Bloqueadas solo para vendedor (encargado sí puede)
-const VENDEDOR_BLOCKED_PREFIXES = [
   "/admin/productos",
 ];
 
@@ -69,11 +65,6 @@ export async function updateSession(request: NextRequest) {
 
       // Encargados y vendedores no pueden acceder a rutas exclusivas de admin
       if ((role === "encargado" || role === "vendedor") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
-        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-      }
-
-      // Productos: encargado sí, vendedor no
-      if (role === "vendedor" && VENDEDOR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
       }
     }

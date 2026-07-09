@@ -52,7 +52,7 @@ const NAV: NavItem[] = [
   { href: "/admin/ventas",      label: "Ventas",     roles: ["admin"],                          icon: "ventas" },
   { href: "/admin/gastos",      label: "Finanzas",   roles: ["admin"],                          icon: "gastos" },
   { href: "/admin/categorias",  label: "Categorías", roles: ["admin"],                          icon: "categorias" },
-  { href: "/admin/productos",   label: "Productos",  roles: ["admin", "encargado"],              icon: "productos" },
+  { href: "/admin/productos",   label: "Productos",  roles: ["admin"],                          icon: "productos" },
   { href: "/admin/promociones", label: "Promociones", roles: ["admin"],                         icon: "promociones" },
   { href: "/admin/proveedores",  label: "Proveedores", roles: ["admin"],                         icon: "proveedores" },
   { href: "/admin/staff",       label: "Staff",      roles: ["admin"],                          icon: "staff" },
