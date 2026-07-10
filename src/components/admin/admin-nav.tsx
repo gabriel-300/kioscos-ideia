@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
 /* ─── Tokens ─────────────────────────────────── */
@@ -29,6 +29,7 @@ const PATHS: Record<string, React.ReactNode> = {
   signout:     <><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></>,
   menu:        <><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></>,
   close:       <><path d="M6 18L18 6M6 6l12 12" /></>,
+  chevron:     <><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></>,
 };
 
 function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
@@ -44,24 +45,49 @@ function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
 }
 
 /* ─── Nav items ──────────────────────────────── */
-type NavItem = { href: string; label: string; roles: string[]; icon: string };
+type NavItem  = { href: string; label: string; roles: string[]; icon: string };
+type NavGroup = { label: string; icon: string; children: NavItem[] };
 
-const NAV: NavItem[] = [
-  { href: "/admin/dashboard",   label: "Dashboard",  roles: ["admin"],                          icon: "dashboard" },
-  { href: "/admin/sucursales",  label: "Kioscos",    roles: ["admin", "encargado", "vendedor"], icon: "sucursales" },
-  { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],                          icon: "movimientos" },
-  { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor"], icon: "stock" },
-  { href: "/admin/cierres",     label: "Cierres",    roles: ["admin"],                          icon: "cierres" },
-  { href: "/admin/ventas",      label: "Ventas",     roles: ["admin"],                          icon: "ventas" },
-  { href: "/admin/pronostico",  label: "Pronóstico", roles: ["admin", "encargado"],              icon: "pronostico" },
-  { href: "/admin/mermas",      label: "Mermas",     roles: ["admin"],                          icon: "mermas" },
-  { href: "/admin/gastos",      label: "Finanzas",   roles: ["admin"],                          icon: "gastos" },
-  { href: "/admin/categorias",  label: "Categorías", roles: ["admin"],                          icon: "categorias" },
-  { href: "/admin/productos",   label: "Productos",  roles: ["admin"],                          icon: "productos" },
-  { href: "/admin/promociones", label: "Promociones", roles: ["admin"],                         icon: "promociones" },
-  { href: "/admin/proveedores",  label: "Proveedores", roles: ["admin"],                         icon: "proveedores" },
-  { href: "/admin/staff",       label: "Staff",      roles: ["admin"],                          icon: "staff" },
-  { href: "/admin/ayuda",       label: "Ayuda",      roles: ["admin", "encargado", "vendedor"], icon: "ayuda" },
+// Ítems sueltos que van antes de los grupos
+const NAV_HEAD: NavItem[] = [
+  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                          icon: "dashboard" },
+  { href: "/admin/sucursales", label: "Kioscos",   roles: ["admin", "encargado", "vendedor"], icon: "sucursales" },
+];
+
+// Agrupados en dropdown — demasiados módulos sueltos para una barra horizontal
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Ventas", icon: "ventas",
+    children: [
+      { href: "/admin/ventas",  label: "Ventas",  roles: ["admin"], icon: "ventas" },
+      { href: "/admin/cierres", label: "Cierres", roles: ["admin"], icon: "cierres" },
+    ],
+  },
+  {
+    label: "Stock", icon: "stock",
+    children: [
+      { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],                          icon: "movimientos" },
+      { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor"], icon: "stock" },
+      { href: "/admin/mermas",      label: "Mermas",     roles: ["admin"],                          icon: "mermas" },
+      { href: "/admin/pronostico",  label: "Pronóstico", roles: ["admin", "encargado"],              icon: "pronostico" },
+    ],
+  },
+  {
+    label: "Catálogo", icon: "productos",
+    children: [
+      { href: "/admin/productos",   label: "Productos",   roles: ["admin"], icon: "productos" },
+      { href: "/admin/categorias",  label: "Categorías",  roles: ["admin"], icon: "categorias" },
+      { href: "/admin/promociones", label: "Promociones", roles: ["admin"], icon: "promociones" },
+      { href: "/admin/proveedores", label: "Proveedores", roles: ["admin"], icon: "proveedores" },
+    ],
+  },
+];
+
+// Ítems sueltos que van después de los grupos
+const NAV_TAIL: NavItem[] = [
+  { href: "/admin/gastos", label: "Finanzas", roles: ["admin"],                          icon: "gastos" },
+  { href: "/admin/staff",  label: "Staff",    roles: ["admin"],                          icon: "staff" },
+  { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor"], icon: "ayuda" },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -80,12 +106,24 @@ export function AdminNav({ role, email, name, sucursalId }: {
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
 
-  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => { setOpen(false); setOpenGroup(null); }, [pathname]);
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [open]);
+
+  // Cerrar el dropdown abierto al hacer click afuera
+  useEffect(() => {
+    if (!openGroup) return;
+    function handleClick(e: MouseEvent) {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenGroup(null);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [openGroup]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,24 +135,32 @@ export function AdminNav({ role, email, name, sucursalId }: {
     router.push("/login");
   }
 
-  const visibleItems: NavItem[] = NAV
+  function resolveItem(item: NavItem): NavItem {
+    if ((role === "encargado" || role === "vendedor") && sucursalId && item.href === "/admin/sucursales") {
+      return { ...item, href: `/admin/sucursales/${sucursalId}`, label: "Mi Kiosco" };
+    }
+    return item;
+  }
+
+  const visibleHead = NAV_HEAD
     .filter((item) => item.roles.includes(role ?? ""))
-    .filter((item) => {
-      if ((role === "encargado" || role === "vendedor") && item.href === "/admin/dashboard") return false;
-      return true;
-    })
-    .map((item) => {
-      if ((role === "encargado" || role === "vendedor") && sucursalId && item.href === "/admin/sucursales") {
-        return { ...item, href: `/admin/sucursales/${sucursalId}`, label: "Mi Kiosco" };
-      }
-      return item;
-    });
+    .filter((item) => !((role === "encargado" || role === "vendedor") && item.href === "/admin/dashboard"))
+    .map(resolveItem);
+
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ ...g, children: g.children.filter((c) => c.roles.includes(role ?? "")) }))
+    .filter((g) => g.children.length > 0);
+
+  const visibleTail = NAV_TAIL.filter((item) => item.roles.includes(role ?? ""));
 
   const initials = ((name ?? email ?? "?")[0] ?? "?").toUpperCase();
 
   function isActive(href: string) {
     if (href === "/admin/dashboard") return pathname === "/admin/dashboard" || pathname === "/admin";
     return pathname.startsWith(href);
+  }
+  function isGroupActive(group: NavGroup) {
+    return group.children.some((c) => isActive(c.href));
   }
 
   const LogoBox = (size: number, radius: number, fontSize: number) => (
@@ -145,8 +191,100 @@ export function AdminNav({ role, email, name, sucursalId }: {
         </Link>
 
         {/* Nav tabs */}
-        <nav className="flex items-stretch flex-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {visibleItems.map((item) => {
+        <nav ref={navRef} className="flex items-stretch flex-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {visibleHead.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-1.5 shrink-0 transition-all whitespace-nowrap nav-tab"
+                style={{
+                  padding: "0 14px",
+                  height: "100%",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? "#ffffff" : "rgba(255,255,255,0.72)",
+                  background: active ? "rgba(255,255,255,0.10)" : "transparent",
+                  borderBottom: active ? "3px solid white" : "3px solid transparent",
+                }}
+              >
+                <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
+                  <NavIcon name={item.icon} size={15} />
+                </span>
+                {item.label}
+              </Link>
+            );
+          })}
+
+          {visibleGroups.map((group) => {
+            const active   = isGroupActive(group);
+            const isOpen   = openGroup === group.label;
+            return (
+              <div key={group.label} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroup(isOpen ? null : group.label)}
+                  className="flex items-center gap-1.5 shrink-0 transition-all whitespace-nowrap nav-tab"
+                  style={{
+                    padding: "0 14px",
+                    height: 60,
+                    fontSize: 13,
+                    fontWeight: active ? 600 : 400,
+                    color: active ? "#ffffff" : "rgba(255,255,255,0.72)",
+                    background: active || isOpen ? "rgba(255,255,255,0.10)" : "transparent",
+                    borderBottom: active ? "3px solid white" : "3px solid transparent",
+                    border: "none", cursor: "pointer",
+                  }}
+                >
+                  <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
+                    <NavIcon name={group.icon} size={15} />
+                  </span>
+                  {group.label}
+                  <span
+                    style={{
+                      display: "flex", color: "rgba(255,255,255,0.5)",
+                      transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s",
+                    }}
+                  >
+                    <NavIcon name="chevron" size={12} />
+                  </span>
+                </button>
+
+                {isOpen && (
+                  <div
+                    className="absolute left-0 top-full z-50 rounded-b-lg overflow-hidden shadow-xl"
+                    style={{ minWidth: 190, background: "white", border: "1px solid #E2E8F0", borderTop: "none" }}
+                  >
+                    {group.children.map((child) => {
+                      const childActive = isActive(child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className="flex items-center gap-2.5 transition-colors"
+                          style={{
+                            padding: "9px 14px",
+                            fontSize: 13,
+                            fontWeight: childActive ? 600 : 400,
+                            color: childActive ? "#15375E" : "#475569",
+                            background: childActive ? "#EEF2F7" : "white",
+                          }}
+                        >
+                          <span style={{ display: "flex", color: childActive ? "#15375E" : "#94A3B8" }}>
+                            <NavIcon name={child.icon} size={15} />
+                          </span>
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {visibleTail.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
@@ -260,7 +398,7 @@ export function AdminNav({ role, email, name, sucursalId }: {
         </div>
 
         <nav className="flex-1 overflow-y-auto" style={{ padding: "10px 8px" }}>
-          {visibleItems.map((item) => {
+          {visibleHead.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
@@ -284,6 +422,68 @@ export function AdminNav({ role, email, name, sucursalId }: {
               </Link>
             );
           })}
+
+          {visibleGroups.map((group) => (
+            <div key={group.label} style={{ marginTop: 10, marginBottom: 4 }}>
+              <p style={{
+                padding: "4px 12px", fontSize: 11, fontWeight: 700, letterSpacing: ".04em",
+                textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
+              }}>
+                {group.label}
+              </p>
+              {group.children.map((child) => {
+                const active = isActive(child.href);
+                return (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={() => setOpen(false)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "10px 12px", borderRadius: 8, marginBottom: 2,
+                      background: active ? "rgba(255,255,255,0.12)" : "transparent",
+                      color: active ? "white" : "rgba(255,255,255,0.7)",
+                      fontSize: 14, fontWeight: active ? 600 : 400,
+                      transition: "all .12s",
+                    }}
+                  >
+                    <span style={{ color: active ? "white" : "rgba(255,255,255,0.45)", display: "flex" }}>
+                      <NavIcon name={child.icon} size={18} />
+                    </span>
+                    <span style={{ flex: 1 }}>{child.label}</span>
+                    {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.6)", flexShrink: 0 }} />}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+
+          <div style={{ marginTop: 10 }}>
+            {visibleTail.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 12px", borderRadius: 8, marginBottom: 2,
+                    background: active ? "rgba(255,255,255,0.12)" : "transparent",
+                    color: active ? "white" : "rgba(255,255,255,0.7)",
+                    fontSize: 14, fontWeight: active ? 600 : 400,
+                    transition: "all .12s",
+                  }}
+                >
+                  <span style={{ color: active ? "white" : "rgba(255,255,255,0.45)", display: "flex" }}>
+                    <NavIcon name={item.icon} size={18} />
+                  </span>
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.6)", flexShrink: 0 }} />}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
         <div style={{ padding: "12px 8px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
