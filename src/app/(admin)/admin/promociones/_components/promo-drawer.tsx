@@ -39,16 +39,26 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setPrice(String(promo.price));
       setIsActive(promo.is_active);
       setTipo(promo.tipo);
-      setItems(
-        promo.promo_items.length > 0
-          ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
-          : [emptyLine()]
-      );
+      const loadedItems = promo.promo_items.length > 0
+        ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
+        : [emptyLine()];
+      setItems(loadedItems);
+
+      const nextRindeMode: Record<number, boolean> = {};
+      const nextRindeTexto: Record<number, string> = {};
+      if (promo.tipo === "receta") {
+        loadedItems.forEach((item, idx) => {
+          const n = detectRinde(parseFloat(item.cantidad));
+          if (n) { nextRindeMode[idx] = true; nextRindeTexto[idx] = n; }
+        });
+      }
+      setRindeMode(nextRindeMode);
+      setRindeTexto(nextRindeTexto);
     } else {
       setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
+      setRindeMode({});
+      setRindeTexto({});
     }
-    setRindeMode({});
-    setRindeTexto({});
     setError(null);
   }, [open, promo]);
 
@@ -73,7 +83,17 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
     setRindeTexto((p) => ({ ...p, [i]: raw }));
     const n = parseFloat(raw);
     if (!raw || isNaN(n) || n <= 0) { updateLine(i, "cantidad", ""); return; }
-    updateLine(i, "cantidad", String(1 / n));
+    updateLine(i, "cantidad", (1 / n).toFixed(6));
+  }
+  // Si una receta ya guardada tiene una cantidad que es ~1/n para un entero
+  // razonable, precargamos el modo "rinde para" en vez de mostrar el decimal
+  // crudo -- así el toggle no es una sesión de un solo uso.
+  function detectRinde(cantidad: number): string | null {
+    if (!(cantidad > 0) || cantidad >= 1) return null;
+    const n = Math.round(1 / cantidad);
+    if (n < 2 || n > 999) return null;
+    if (Math.abs(1 / n - cantidad) > 0.0005) return null;
+    return String(n);
   }
 
   function handleSubmit() {
