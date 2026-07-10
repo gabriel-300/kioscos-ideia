@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { StockTable } from "./_components/stock-table";
 
@@ -8,6 +8,7 @@ export const revalidate = 0;
 
 export default async function StockPage() {
   const supabase = await createClient();
+  const admin    = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -47,7 +48,15 @@ export default async function StockPage() {
     const { data: sucursal } = await supabase
       .from("sucursales").select("id, nombre").eq("id", staffSucursalId).single();
 
-    const stockRes = await (supabase as any)
+    // Admin client a propósito: stock_sucursal hereda RLS de movimientos/
+    // movimiento_items, y la regla "cada uno ve su turno" (036/041) le
+    // esconde a un vendedor/encargado las entregas o ventas de HOY que no
+    // hizo él mismo -- eso tiene sentido para el Historial (privacidad entre
+    // turnos), pero acá rompe el número: Stock tiene que mostrar el
+    // inventario real, no una porción filtrada por turno. El alcance a la
+    // sucursal propia ya lo garantiza el .eq de abajo con staffSucursalId,
+    // que se resolvió server-side desde la sesión (no viene del cliente).
+    const stockRes = await (admin as any)
       .from("stock_sucursal")
       .select("product_id, entradas, salidas, stock_actual")
       .eq("sucursal_id", staffSucursalId);

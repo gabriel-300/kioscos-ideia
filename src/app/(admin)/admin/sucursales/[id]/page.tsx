@@ -75,7 +75,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     (admin as any).from("products").select("*").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
-    (supabase as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
+    // Admin client a propósito, mismo motivo que /admin/stock: stock_sucursal
+    // hereda RLS de movimientos, y la regla "cada uno ve su turno" le esconde
+    // a un vendedor/encargado las entregas/ventas de HOY que hizo otra
+    // persona -- el stock real (y el "Agotado" de la venta rápida) no puede
+    // depender de eso. El acceso a esta sucursal en particular ya lo valida
+    // el redirect de más abajo (encargado_user_id / personal) antes de
+    // devolver ninguna respuesta.
+    (admin as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at, comprobante_image_url").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url: string | null }[] | null }>,
     (supabase as any)
