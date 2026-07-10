@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { Fragment, useState, useMemo } from "react";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -224,9 +224,8 @@ export function HistorialSucursal({
                 const total  = m.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
                 const isOpen = expanded === m.id;
                 return (
-                  <>
+                  <Fragment key={m.id}>
                     <tr
-                      key={m.id}
                       className="hover:bg-neutral-50 transition-colors cursor-pointer"
                       onClick={() => setExpanded(isOpen ? null : m.id)}
                     >
@@ -282,7 +281,7 @@ export function HistorialSucursal({
                       </td>
                     </tr>
                     {isOpen && (
-                      <tr key={`${m.id}-detail`}>
+                      <tr>
                         <td colSpan={5} className="bg-neutral-50 px-4 py-3">
                           <table className="w-full text-xs">
                             <thead>
@@ -314,7 +313,7 @@ export function HistorialSucursal({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </>

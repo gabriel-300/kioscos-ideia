@@ -64,7 +64,49 @@ export function PromosTable({ promos, products }: { promos: PromoWithItems[]; pr
           </Button>
         </div>
 
-        <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+        {/* Mobile: tarjetas apiladas */}
+        <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
+          {promos.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-neutral-400">Todavía no hay promociones.</p>
+          ) : (
+            promos.map((p) => (
+              <div key={p.id} className="px-3 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-medium text-neutral-900">{p.name}</span>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0 ${
+                      p.tipo === "receta" ? "bg-amber-50 text-amber-700" : "bg-tierra-50 text-tierra-700"
+                    }`}>
+                      {p.tipo === "receta" ? "Receta" : "Promo"}
+                    </span>
+                  </div>
+                  <ToggleActiva id={p.id} activa={p.is_active} />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p.promo_items.map((i) => (
+                    <span key={i.id} className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs text-neutral-600">
+                      {i.cantidad}× {i.product?.name ?? "—"}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                  <span className="tabular-nums text-neutral-700 font-semibold">{AR.format(p.price)}</span>
+                  <div>
+                    <button onClick={() => openEdit(p)} className="text-tierra-700 hover:underline font-medium mr-3">
+                      Editar
+                    </button>
+                    <button onClick={() => handleDelete(p.id)} className="text-danger hover:underline font-medium">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop: tabla */}
+        <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

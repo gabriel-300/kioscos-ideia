@@ -91,8 +91,60 @@ export function ProductsTable({ products, categories, role }: { products: Produc
           </Button>
         </div>
 
-        {/* Tabla */}
-        <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+        {/* Mobile: tarjetas apiladas */}
+        <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
+          {filtered.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-neutral-400">
+              {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
+            </p>
+          ) : (
+            filtered.map((p) => {
+              const margen = p.costo != null && p.precio_dist != null && p.costo > 0
+                ? Math.round(((p.precio_dist - p.costo) / p.costo) * 100)
+                : null;
+              return (
+                <div key={p.id} className="px-3 py-3">
+                  <div className="flex items-center gap-3">
+                    {p.cover_image_url ? (
+                      <img src={p.cover_image_url} alt="" className="size-10 rounded-lg object-cover shrink-0 border border-neutral-100" />
+                    ) : (
+                      <div className="size-10 rounded-lg bg-neutral-100 shrink-0 flex items-center justify-center">
+                        <span className="text-xs font-bold text-neutral-300 uppercase">{p.name.slice(0, 2)}</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-neutral-900 truncate">
+                        {p.name}
+                        {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                      </p>
+                      <p className="text-xs text-neutral-400 font-mono">{p.sku}</p>
+                    </div>
+                    <ToggleActivo id={p.id} activo={p.is_active} />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {p.category && <Badge>{p.category.name}</Badge>}
+                      <span className="tabular-nums text-neutral-700">
+                        {p.precio_dist != null ? AR.format(p.precio_dist) : "—"}
+                      </span>
+                      {esAdmin && margen != null && (
+                        <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                          {margen}%
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={() => openEdit(p)} className="text-tierra-700 hover:underline font-medium shrink-0">
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop: tabla */}
+        <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -14,7 +14,8 @@ export const revalidate = 0;
 
 type StockRow = { product_id: string; product_name: string; sku: string; entradas: number; salidas: number; stock_actual: number };
 
-const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const AR  = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const NUM = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,7 +28,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   return (
     <div className={`rounded-xl border p-4 ${accent ? "border-tierra-200 bg-tierra-50" : "border-neutral-200 bg-white"}`}>
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">{label}</p>
-      <p className={`text-2xl font-bold font-display tabular-nums ${accent ? "text-tierra-700" : "text-neutral-900"}`}>{value}</p>
+      <p className={`text-xl md:text-2xl font-bold font-display tabular-nums break-words ${accent ? "text-tierra-700" : "text-neutral-900"}`}>{value}</p>
       {sub && <p className="text-xs text-neutral-400 mt-0.5">{sub}</p>}
     </div>
   );
@@ -212,7 +213,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   const totalUnidadesVendidas = movs
     .filter((m) => m.tipo === "venta")
-    .reduce((sum, m) => sum + m.movimiento_items.reduce((s: number, i: { cantidad: number }) => s + i.cantidad, 0), 0);
+    .reduce((sum, m) => sum + m.movimiento_items.reduce((s: number, i: { cantidad: number }) => s + Number(i.cantidad), 0), 0);
 
   const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
 
@@ -262,7 +263,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     for (const item of v.movimiento_items as any[]) {
       const name = item.product?.name ?? "Sin nombre";
       if (!prodMap[name]) prodMap[name] = { name, cantidad: 0, total: 0 };
-      prodMap[name].cantidad += item.cantidad;
+      prodMap[name].cantidad += Number(item.cantidad);
       prodMap[name].total    += item.subtotal ?? 0;
     }
   }
@@ -284,7 +285,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           </Link>
         )}
 
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col md:flex-row md:items-start gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">{sucursal.nombre}</h1>
@@ -487,7 +488,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           />
           <StatCard
             label="Ventas registradas"
-            value={totalUnidadesVendidas > 0 ? `${totalUnidadesVendidas} u.` : "—"}
+            value={totalUnidadesVendidas > 0 ? `${NUM.format(totalUnidadesVendidas)} u.` : "—"}
             sub={`${cantidadRegistrosVenta} registros`}
           />
           <StatCard

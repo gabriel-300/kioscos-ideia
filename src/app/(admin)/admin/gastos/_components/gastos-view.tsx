@@ -267,8 +267,52 @@ export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
         </div>
       )}
 
-      {/* Tabla de gastos */}
-      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+      {/* Mobile: tarjetas apiladas */}
+      <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
+        {gastos.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-neutral-400">Sin gastos cargados en {mesLabel}.</p>
+        ) : (
+          gastos.map((g) => (
+            <div key={g.id} className="px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${CATEGORIA_COLOR[g.categoria]}`}>
+                    {CATEGORIA_LABEL[g.categoria]}
+                  </span>
+                  <span className="text-xs text-neutral-500 tabular-nums">
+                    {new Date(g.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </span>
+                </div>
+                <span className="tabular-nums font-semibold text-neutral-800 shrink-0">{AR.format(g.monto)}</span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                <span className="text-neutral-600 truncate">
+                  {g.proveedor ?? "—"}
+                  {g.sucursal && (
+                    <>
+                      {" · "}
+                      <Link href={`/admin/sucursales/${g.sucursal.id}`} className="text-tierra-700 hover:underline">{g.sucursal.nombre}</Link>
+                    </>
+                  )}
+                </span>
+                <div className="shrink-0">
+                  <button onClick={() => openEdit(g)} className="text-tierra-700 hover:underline font-medium mr-3">Editar</button>
+                  <button onClick={() => handleDelete(g.id)} className="text-danger hover:underline font-medium">Eliminar</button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        {gastos.length > 0 && (
+          <div className="px-3 py-3 bg-neutral-50 font-semibold flex items-center justify-between">
+            <span className="text-xs uppercase tracking-wide text-neutral-500">Total</span>
+            <span className="tabular-nums text-neutral-800">{AR.format(totalGastos)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: tabla */}
+      <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

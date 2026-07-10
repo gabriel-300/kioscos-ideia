@@ -85,7 +85,7 @@ export default async function PronosticoPage({
     for (const item of v.movimiento_items) {
       if (!porProductoFecha.has(item.product_id)) porProductoFecha.set(item.product_id, new Map());
       const m = porProductoFecha.get(item.product_id)!;
-      m.set(v.fecha, (m.get(v.fecha) ?? 0) + item.cantidad);
+      m.set(v.fecha, (m.get(v.fecha) ?? 0) + Number(item.cantidad));
     }
   }
 
@@ -147,7 +147,36 @@ export default async function PronosticoPage({
         </p>
       </div>
 
-      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+      {/* Mobile: tarjetas apiladas */}
+      <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
+        {filas.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-neutral-400">
+            Todavía no hay suficiente historial de ventas para {mananaLabel} en esta sucursal.
+            A medida que se registren más semanas, acá van a aparecer sugerencias.
+          </p>
+        ) : (
+          filas.map((f) => (
+            <div key={f.id} className="px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium text-neutral-800">{f.nombre}</span>
+                <span className="tabular-nums font-semibold text-neutral-800 shrink-0">{fmtCantidad(f.promedio, f.unitLabel)}</span>
+              </div>
+              <p className="mt-1 text-xs text-neutral-400">
+                {f.puntos.map((p) => {
+                  const d = new Date(p.fecha + "T12:00:00");
+                  return `${d.toLocaleDateString("es-AR", { day: "numeric", month: "numeric" })}: ${fmtCantidad(p.cantidad, f.unitLabel)}`;
+                }).join(" · ")}
+                {f.puntos.length < 3 && (
+                  <span className="text-amber-500 font-medium"> (pocos datos)</span>
+                )}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: tabla */}
+      <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: "640px" }}>
             <thead>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { marcarSobreRetirado } from "../cierre-actions";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -92,9 +92,8 @@ export function HistorialCierres({ cierres, sucursalId, socios = [] }: { cierres
           {cierres.map((c) => {
             const isOpen = expanded === c.created_at;
             return (
-              <>
+              <Fragment key={c.created_at}>
                 <tr
-                  key={c.created_at}
                   className="hover:bg-neutral-50 transition-colors cursor-pointer"
                   onClick={() => setExpanded(isOpen ? null : c.created_at)}
                 >
@@ -141,7 +140,7 @@ export function HistorialCierres({ cierres, sucursalId, socios = [] }: { cierres
                   </td>
                 </tr>
                 {isOpen && (
-                  <tr key={`${c.created_at}-detail`}>
+                  <tr>
                     <td colSpan={8} className="bg-neutral-50 px-4 py-3">
                       <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-neutral-600 mb-2">
                         <span><span className="text-neutral-400">Fondo inicial:</span> <span className="font-semibold text-neutral-800">{AR.format(c.fondo_inicial)}</span></span>
@@ -195,7 +194,7 @@ export function HistorialCierres({ cierres, sucursalId, socios = [] }: { cierres
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>

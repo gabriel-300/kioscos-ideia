@@ -97,7 +97,7 @@ export default async function VentasPage({
       const nombre    = item.product?.name ?? "Producto eliminado";
       const unitLabel = item.product?.unit_label ?? null;
       const costo     = item.product?.costo ?? null;
-      const cantidad  = item.cantidad;
+      const cantidad  = Number(item.cantidad);
       const facturado = item.subtotal ?? 0;
 
       if (prev) {
@@ -230,8 +230,41 @@ export default async function VentasPage({
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+      {/* Mobile: tarjetas apiladas */}
+      <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
+        {filas.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-neutral-400">Sin ventas en el período seleccionado.</p>
+        ) : (
+          filas.map((f) => (
+            <div key={f.productId} className="px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium text-neutral-800">{f.nombre}</span>
+                <span className="tabular-nums font-semibold text-neutral-800 shrink-0">{AR.format(f.facturado)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+                <span className="text-neutral-500 tabular-nums">{fmtCantidad(f.cantidad, f.unitLabel)}</span>
+                <span className="text-neutral-500">
+                  Costo: {f.costoTotal != null ? AR.format(f.costoTotal) : "—"}
+                  {" · "}
+                  Margen:{" "}
+                  <span className={f.margen == null ? "" : f.margen >= 0 ? "text-selva-600 font-medium" : "text-danger font-medium"}>
+                    {f.margen != null ? AR.format(f.margen) : "—"}
+                  </span>
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+        {filas.length > 0 && (
+          <div className="px-3 py-3 bg-neutral-50 font-semibold flex items-center justify-between">
+            <span className="text-xs uppercase tracking-wide text-neutral-500">Total ({filas.length} productos)</span>
+            <span className="tabular-nums text-neutral-800">{AR.format(totalFacturado)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: tabla */}
+      <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: "640px" }}>
             <thead>

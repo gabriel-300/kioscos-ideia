@@ -7,7 +7,8 @@ import { fechaHoyAR, primerDiaMesAR, fmtFechaLarga } from "@/lib/fecha";
 export const metadata: Metadata = { title: "Dashboard — Kioscos IDEIA" };
 export const revalidate = 0;
 
-const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const AR  = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const NUM = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 const PCT = (v: number) => `${Math.round(v)}%`;
 
 type StatCardProps = {
@@ -36,7 +37,7 @@ function StatCard({ label, value, sub, href, icon, color }: StatCardProps) {
           <span className={iconColor}>{icon}</span>
         </div>
       </div>
-      <p className="text-2xl font-bold font-display text-neutral-900 tabular-nums leading-none mb-1">{value}</p>
+      <p className="text-xl md:text-2xl font-bold font-display text-neutral-900 tabular-nums leading-tight mb-1 break-words">{value}</p>
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{label}</p>
       {sub && <p className="text-xs text-neutral-400 mt-1">{sub}</p>}
     </div>
@@ -217,7 +218,7 @@ export default async function DashboardPage() {
     for (const i of m.movimiento_items) {
       if (!i.product) continue;
       const e = distribMap.get(i.product.id) ?? { name: i.product.name, cantidad: 0 };
-      e.cantidad += i.cantidad;
+      e.cantidad += Number(i.cantidad);
       distribMap.set(i.product.id, e);
     }
   }
@@ -225,7 +226,7 @@ export default async function DashboardPage() {
     for (const i of m.movimiento_items) {
       if (!i.product) continue;
       const e = vendidoMap.get(i.product.id) ?? { name: i.product.name, cantidad: 0 };
-      e.cantidad += i.cantidad;
+      e.cantidad += Number(i.cantidad);
       vendidoMap.set(i.product.id, e);
     }
   }
@@ -503,7 +504,7 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold tabular-nums text-neutral-300 w-4 shrink-0">{i + 1}</span>
                       <span className="flex-1 text-sm font-medium text-neutral-800 truncate">{p.name}</span>
-                      <span className="text-sm font-semibold tabular-nums text-tierra-700">{p.cantidad} u.</span>
+                      <span className="text-sm font-semibold tabular-nums text-tierra-700">{NUM.format(p.cantidad)} u.</span>
                     </div>
                     <div className="pl-7">
                       <div className="h-1 rounded-full bg-neutral-100 overflow-hidden">
@@ -534,7 +535,7 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold tabular-nums text-neutral-300 w-4 shrink-0">{i + 1}</span>
                       <span className="flex-1 text-sm font-medium text-neutral-800 truncate">{p.name}</span>
-                      <span className="text-sm font-semibold tabular-nums text-selva-700">{p.cantidad} u.</span>
+                      <span className="text-sm font-semibold tabular-nums text-selva-700">{NUM.format(p.cantidad)} u.</span>
                     </div>
                     <div className="pl-7">
                       <div className="h-1 rounded-full bg-neutral-100 overflow-hidden">
