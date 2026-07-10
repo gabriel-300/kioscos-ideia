@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { createBrowserClient } from "@supabase/ssr";
 
 /* ─── Tokens ─────────────────────────────────── */
@@ -107,7 +108,10 @@ export function AdminNav({ role, email, name, sucursalId }: {
   const router   = useRouter();
   const [open, setOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const navRef = useRef<HTMLElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const groupBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => { setOpen(false); setOpenGroup(null); }, [pathname]);
   useEffect(() => {
@@ -115,14 +119,41 @@ export function AdminNav({ role, email, name, sucursalId }: {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  // Cerrar el dropdown abierto al hacer click afuera
+  function toggleGroup(label: string) {
+    if (openGroup === label) { setOpenGroup(null); return; }
+    const btn = groupBtnRefs.current[label];
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 2, left: rect.left });
+    }
+    setOpenGroup(label);
+  }
+
+  // Cerrar el dropdown abierto al hacer click afuera (sin cerrar si el click
+  // fue dentro del panel portalled, para que los Links de adentro naveguen)
   useEffect(() => {
     if (!openGroup) return;
     function handleClick(e: MouseEvent) {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenGroup(null);
+      const target = e.target as Node;
+      if (navRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpenGroup(null);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, [openGroup]);
+
+  // La posición del panel se calcula una sola vez al abrir; si la página
+  // se scrollea/redimensiona mientras está abierto, mejor cerrarlo.
+  useEffect(() => {
+    if (!openGroup) return;
+    function close() { setOpenGroup(null); }
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, [openGroup]);
 
   const supabase = createBrowserClient(
@@ -223,8 +254,9 @@ export function AdminNav({ role, email, name, sucursalId }: {
             return (
               <div key={group.label} className="relative shrink-0">
                 <button
+                  ref={(el) => { groupBtnRefs.current[group.label] = el; }}
                   type="button"
-                  onClick={() => setOpenGroup(isOpen ? null : group.label)}
+                  onClick={() => toggleGroup(group.label)}
                   className="flex items-center gap-1.5 shrink-0 transition-all whitespace-nowrap nav-tab"
                   style={{
                     padding: "0 14px",
@@ -251,10 +283,11 @@ export function AdminNav({ role, email, name, sucursalId }: {
                   </span>
                 </button>
 
-                {isOpen && (
+                {isOpen && dropdownPos && createPortal(
                   <div
-                    className="absolute left-0 top-full z-50 rounded-b-lg overflow-hidden shadow-xl"
-                    style={{ minWidth: 190, background: "white", border: "1px solid #E2E8F0", borderTop: "none" }}
+                    ref={dropdownRef}
+                    className="fixed z-50 rounded-lg overflow-hidden shadow-xl"
+                    style={{ top: dropdownPos.top, left: dropdownPos.left, minWidth: 190, background: "white", border: "1px solid #E2E8F0" }}
                   >
                     {group.children.map((child) => {
                       const childActive = isActive(child.href);
@@ -262,6 +295,7 @@ export function AdminNav({ role, email, name, sucursalId }: {
                         <Link
                           key={child.href}
                           href={child.href}
+                          onClick={() => setOpenGroup(null)}
                           className="flex items-center gap-2.5 transition-colors"
                           style={{
                             padding: "9px 14px",
@@ -278,7 +312,8 @@ export function AdminNav({ role, email, name, sucursalId }: {
                         </Link>
                       );
                     })}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             );
