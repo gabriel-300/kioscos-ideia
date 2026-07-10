@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { GastosView, type GastoRow } from "./_components/gastos-view";
+import { GastosFijosView, type GastoFijoRow } from "./_components/gastos-fijos-view";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -34,14 +35,21 @@ export default async function GastosPage({
   const ultimoDia = new Date(Date.UTC(anio, mesNum, 0)).getUTCDate();
   const hasta = `${mes}-${String(ultimoDia).padStart(2, "0")}`;
 
-  const [{ data: sucursales }, { data: proveedores }, { data: gastosRaw }, { data: ventasRaw }] = await Promise.all([
+  const [{ data: sucursales }, { data: proveedores }, { data: gastosRaw }, { data: gastosFijosRaw }, { data: ventasRaw }] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
     (admin as any)
       .from("gastos")
-      .select("id, categoria, monto, fecha, proveedor, sucursal_id, notas, sucursal:sucursales(id, nombre)")
+      .select("id, categoria, monto, fecha, proveedor, sucursal_id, notas, gasto_fijo_id, sucursal:sucursales(id, nombre)")
       .gte("fecha", desde).lte("fecha", hasta)
-      .order("fecha", { ascending: false }) as unknown as Promise<{ data: GastoRow[] | null }>,
+      .order("fecha", { ascending: false }) as unknown as Promise<{ data: (GastoRow & { gasto_fijo_id: string | null })[] | null }>,
+    (admin as any)
+      .from("gastos_fijos")
+      .select("id, categoria, descripcion, monto_estimado, dia_vencimiento, sucursal_id, sucursal:sucursales(id, nombre)")
+      .eq("is_active", true)
+      .order("dia_vencimiento") as unknown as Promise<{
+        data: Omit<GastoFijoRow, "pago">[] | null;
+      }>,
     (admin as any)
       .from("movimientos")
       .select("canal, movimiento_items(subtotal)")
@@ -52,6 +60,15 @@ export default async function GastosPage({
   ]);
 
   const gastos = gastosRaw ?? [];
+
+  const pagosPorFijo = new Map<string, { id: string; monto: number; fecha: string }>();
+  for (const g of gastos) {
+    if (g.gasto_fijo_id) pagosPorFijo.set(g.gasto_fijo_id, { id: g.id, monto: g.monto, fecha: g.fecha });
+  }
+  const gastosFijos: GastoFijoRow[] = (gastosFijosRaw ?? []).map((gf) => ({
+    ...gf,
+    pago: pagosPorFijo.get(gf.id) ?? null,
+  }));
 
   // Mismo criterio que el informe de ventas y el cierre de caja: la Cta.
   // Corriente no se cobra en el momento, no cuenta como ingreso real todavía.
@@ -66,13 +83,22 @@ export default async function GastosPage({
         <p className="text-sm text-neutral-400 mt-0.5">Ingresos, gastos y resultado del mes</p>
       </div>
 
-      <GastosView
-        mes={mes}
-        ingresos={ingresos}
-        gastos={gastos}
-        sucursales={sucursales ?? []}
-        proveedores={proveedores ?? []}
-      />
+      <div className="space-y-10">
+        <GastosFijosView
+          mes={mes}
+          items={gastosFijos}
+          sucursales={sucursales ?? []}
+          proveedores={proveedores ?? []}
+        />
+
+        <GastosView
+          mes={mes}
+          ingresos={ingresos}
+          gastos={gastos}
+          sucursales={sucursales ?? []}
+          proveedores={proveedores ?? []}
+        />
+      </div>
     </div>
   );
 }
