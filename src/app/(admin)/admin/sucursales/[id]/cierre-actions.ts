@@ -15,6 +15,7 @@ export async function cerrarCaja(data: {
   transferencia_declarada: number;
   notas:                    string | null;
   fondo_siguiente:          number | null;
+  total_fiado:              number;
 }) {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
@@ -45,6 +46,7 @@ export async function cerrarCaja(data: {
   let tarjetaDeclarada       = data.tarjeta_declarada;
   let transferenciaDeclarada = data.transferencia_declarada;
   let totalVentas            = data.total_ventas;
+  let totalFiado             = data.total_fiado;
 
   if (role !== "admin") {
     const aperturaRes = await (admin as any)
@@ -80,6 +82,7 @@ export async function cerrarCaja(data: {
     // en ningún medio de pago, así que no deben sumar al total que se concilia contra
     // caja (si no, generan un faltante ficticio por el mismo monto fiado).
     const ventasTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal !== "cuenta_corriente");
+    const ventasFiadoTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "cuenta_corriente");
 
     billeteraDeclarada     = ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
     tarjetaDeclarada       = ventasTurno.reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
@@ -88,6 +91,9 @@ export async function cerrarCaja(data: {
     // reales del turno (mismo criterio que el resto: no se puede manipular con devtools
     // para que la diferencia "cuadre" ocultando un faltante real).
     totalVentas = ventasTurno.reduce(
+      (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
+    );
+    totalFiado = ventasFiadoTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
     );
   }
@@ -106,6 +112,7 @@ export async function cerrarCaja(data: {
     p_notas:                   data.notas,
     p_created_by:              userId,
     p_fondo_siguiente:         data.fondo_siguiente,
+    p_total_fiado:             totalFiado,
   });
 
   if (error) throw new Error(error.message);

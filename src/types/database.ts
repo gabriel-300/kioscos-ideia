@@ -116,6 +116,7 @@ export type Database = {
           sobre_verificado_por: string | null
           sucursal_id: string
           tarjeta_declarada: number
+          total_fiado: number
           total_ventas: number
           transferencia_declarada: number
         }
@@ -140,6 +141,7 @@ export type Database = {
           sobre_verificado_por?: string | null
           sucursal_id: string
           tarjeta_declarada?: number
+          total_fiado?: number
           total_ventas?: number
           transferencia_declarada?: number
         }
@@ -164,6 +166,7 @@ export type Database = {
           sobre_verificado_por?: string | null
           sucursal_id?: string
           tarjeta_declarada?: number
+          total_fiado?: number
           total_ventas?: number
           transferencia_declarada?: number
         }
@@ -939,6 +942,7 @@ export type Database = {
           p_notas: string
           p_sucursal_id: string
           p_tarjeta_declarada: number
+          p_total_fiado?: number
           p_total_ventas: number
           p_transferencia_declarada: number
         }
@@ -965,6 +969,10 @@ export type Database = {
       }
       current_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      movimiento_visible_por_turno: {
+        Args: { p_created_at: string; p_fecha: string; p_sucursal_id: string }
+        Returns: boolean
+      }
       my_sucursal_id: { Args: never; Returns: string }
     }
     Enums: {

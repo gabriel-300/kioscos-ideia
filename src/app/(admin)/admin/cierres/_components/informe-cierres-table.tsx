@@ -16,6 +16,7 @@ export type FilaCierre = {
   encargado:               string;
   fondoInicial:            number | null;
   ventas:                  number;
+  fiado:                   number;
   efectivo:                number;
   billetera:               number;
   tarjeta:                 number;
@@ -79,6 +80,12 @@ function DetalleCierre({ f }: { f: FilaCierre }) {
             {f.totalRetiros > 0 ? AR.format(f.totalRetiros) : "—"}
           </p>
         </div>
+        {f.fiado > 0 && (
+          <div>
+            <p className="text-xs text-purple-500 mb-0.5">Cta. Corriente</p>
+            <p className="text-sm font-semibold text-purple-700 tabular-nums">{AR.format(f.fiado)}</p>
+          </div>
+        )}
       </div>
 
       {f.retiros.length > 0 && (

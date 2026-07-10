@@ -42,7 +42,7 @@ export default async function CierresPage({
   let query = (admin as any)
     .from("cierres_caja")
     .select(`
-      id, fecha, total_ventas, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente, numero_liquidacion,
+      id, fecha, total_ventas, total_fiado, efectivo_declarado, billetera_declarada, tarjeta_declarada, transferencia_declarada, diferencia, notas, created_by, created_at, fondo_siguiente, numero_liquidacion,
       sobre_retirado_por, sobre_retirado_en, sobre_monto_verificado, sobre_verificado_por, sobre_verificado_en, sobre_notas,
       sucursales(id, nombre)
     `)
@@ -59,6 +59,7 @@ export default async function CierresPage({
     id: string;
     fecha: string;
     total_ventas: number | null;
+    total_fiado: number | null;
     efectivo_declarado: number | null;
     billetera_declarada: number | null;
     tarjeta_declarada: number | null;
@@ -158,6 +159,7 @@ export default async function CierresPage({
 
   // Totales del período
   const totalVentas        = cierres.reduce((s, c) => s + (c.total_ventas ?? 0), 0);
+  const totalFiado         = cierres.reduce((s, c) => s + (c.total_fiado ?? 0), 0);
   // El efectivo declarado incluye el fondo inicial que ya estaba en el cajón --
   // sumar ese monto crudo a través de varios cierres cuenta la misma plata
   // (el fondo se recicla de un turno al siguiente) varias veces. Para el total
@@ -194,6 +196,7 @@ export default async function CierresPage({
       encargado:                c.created_by ? (profileMap[c.created_by] ?? "—") : "—",
       fondoInicial:             fondo,
       ventas:                   c.total_ventas ?? 0,
+      fiado:                    c.total_fiado ?? 0,
       efectivo:                 c.efectivo_declarado ?? 0,
       billetera:                c.billetera_declarada ?? 0,
       tarjeta:                  c.tarjeta_declarada ?? 0,
@@ -223,6 +226,7 @@ export default async function CierresPage({
       sucursal:            suc?.nombre ?? "—",
       fondo_inicial:       suc ? findFondo(suc.id, c.fecha, c.created_at) : null,
       ventas:              c.total_ventas ?? 0,
+      cta_corriente:       c.total_fiado ?? 0,
       efectivo:            c.efectivo_declarado ?? 0,
       billetera:           (c as any).billetera_declarada ?? 0,
       tarjeta:             (c as any).tarjeta_declarada ?? 0,
@@ -297,9 +301,10 @@ export default async function CierresPage({
       </form>
 
       {/* Tarjetas resumen */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
         {[
           { label: "Ventas sistema", value: AR.format(totalVentas), sub: `${cierres.length} cierres` },
+          { label: "Cta. Corriente", value: AR.format(totalFiado), sub: "No concilia contra caja", purple: true },
           { label: "Efectivo", value: AR.format(totalEfectivo), sub: "Neto de fondo" },
           { label: "Billetera", value: AR.format(totalBilletera) },
           { label: "Tarjeta", value: AR.format(totalTarjeta) },
@@ -317,6 +322,7 @@ export default async function CierresPage({
             <p className={`text-xl font-bold font-display tabular-nums ${
               "negative" in c && c.negative ? "text-danger"
               : "accent" in c && c.accent ? "text-blue-600"
+              : "purple" in c && c.purple ? "text-purple-600"
               : "text-neutral-900"
             }`}>{c.value}</p>
             {"sub" in c && c.sub && <p className="text-xs text-neutral-400 mt-0.5">{c.sub}</p>}
