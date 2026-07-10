@@ -21,10 +21,13 @@ function fmtFechaHora(iso: string) {
   return `${d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })} ${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-function VerificarModal({ cierreId, montoSobre, onClose }: { cierreId: string; montoSobre: number; onClose: () => void }) {
+function VerificarModal({ cierreId, montoSobre, montoInicial, notasIniciales, onClose }: {
+  cierreId: string; montoSobre: number; montoInicial?: number; notasIniciales?: string | null; onClose: () => void;
+}) {
+  const esCorreccion = montoInicial != null;
   const [pending, startTransition] = useTransition();
-  const [monto, setMonto] = useState("");
-  const [notas, setNotas] = useState("");
+  const [monto, setMonto] = useState(esCorreccion ? String(montoInicial) : "");
+  const [notas, setNotas] = useState(notasIniciales ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function handleSubmit() {
@@ -44,10 +47,13 @@ function VerificarModal({ cierreId, montoSobre, onClose }: { cierreId: string; m
       <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-          <h3 className="text-base font-semibold font-display text-neutral-900 mb-1">Verificar sobre</h3>
+          <h3 className="text-base font-semibold font-display text-neutral-900 mb-1">
+            {esCorreccion ? "Corregir verificación" : "Verificar sobre"}
+          </h3>
           <p className="text-xs text-neutral-400 mb-4">
-            Contá la plata y cargá lo que encontraste — a propósito no se muestra el monto declarado
-            acá, así el conteo es a ciegas y no queda influido por lo que "debería" dar.
+            {esCorreccion
+              ? "Corregí el monto contado (ej. si se cargó al revés entre dos cierres) y guardá de nuevo."
+              : 'Contá la plata y cargá lo que encontraste — a propósito no se muestra el monto declarado acá, así el conteo es a ciegas y no queda influido por lo que "debería" dar.'}
           </p>
 
           <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Monto contado *</label>
@@ -103,12 +109,23 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
     return (
       <div className="flex flex-col items-end gap-0.5">
         {monto}
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${ok ? "bg-selva-50 text-selva-700" : "bg-danger/5 text-danger"}`}
-          title={`Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""}`}
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-opacity hover:opacity-75 ${ok ? "bg-selva-50 text-selva-700" : "bg-danger/5 text-danger"}`}
+          title={`Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""} · click para corregir`}
         >
           {ok ? "OK ✓" : `${diferencia > 0 ? "+" : ""}${AR.format(diferencia)}`}
-        </span>
+        </button>
+        {modalOpen && (
+          <VerificarModal
+            cierreId={cierreId}
+            montoSobre={montoSobre}
+            montoInicial={montoVerificado}
+            notasIniciales={notas}
+            onClose={() => setModalOpen(false)}
+          />
+        )}
       </div>
     );
   }
