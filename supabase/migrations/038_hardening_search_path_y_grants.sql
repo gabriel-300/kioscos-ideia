@@ -33,7 +33,10 @@ alter function public.cerrar_caja(
   uuid, date, numeric, numeric, numeric, numeric, numeric, numeric, text, uuid, numeric
 ) set search_path = 'public';
 
+-- my_sucursal_id() tenía, además del grant implícito a PUBLIC, un grant
+-- EXPLÍCITO separado a `anon` (revocar de PUBLIC no alcanza para sacarlo).
 revoke execute on function public.my_sucursal_id() from public;
+revoke execute on function public.my_sucursal_id() from anon;
 grant  execute on function public.my_sucursal_id() to authenticated;
 
 revoke execute on function public.is_admin() from public;

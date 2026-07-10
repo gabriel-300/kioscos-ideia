@@ -14,5 +14,46 @@
 -- entran exactos en la precisión nueva, más ancha). Las ~84 filas históricas
 -- ya redondeadas quedan como están -- esto solo evita que se repita hacia
 -- adelante.
+--
+-- NOTA: la vista stock_sucursal depende de esta columna (Postgres no deja
+-- alterar el tipo de una columna usada por una vista), así que hay que
+-- dropearla y recrearla idéntica -- incluye `security_invoker = on` (fix de
+-- seguridad de la auditoría 05/07) y el grant de select a `authenticated`
+-- (sin `anon`), ambos preservados tal cual estaban.
+
+drop view public.stock_sucursal;
 
 alter table public.movimiento_items alter column cantidad type numeric(12, 4);
+
+create view public.stock_sucursal
+with (security_invoker = on)
+as
+ select m.sucursal_id,
+    mi.product_id,
+    p.name as product_name,
+    p.sku,
+    sum(
+        case
+            when m.tipo = 'entrega' then mi.cantidad
+            when m.tipo = 'ajuste' and mi.cantidad > 0 then mi.cantidad
+            else 0
+        end) as entradas,
+    sum(
+        case
+            when m.tipo = any (array['devolucion', 'venta']) then mi.cantidad
+            when m.tipo = 'ajuste' and mi.cantidad < 0 then abs(mi.cantidad)
+            else 0
+        end) as salidas,
+    sum(
+        case
+            when m.tipo = 'entrega' then mi.cantidad
+            when m.tipo = 'ajuste' then mi.cantidad
+            when m.tipo = any (array['devolucion', 'venta']) then -mi.cantidad
+            else 0
+        end) as stock_actual
+   from movimiento_items mi
+     join movimientos m on m.id = mi.movimiento_id
+     join products p on p.id = mi.product_id
+  group by m.sucursal_id, mi.product_id, p.name, p.sku;
+
+grant select on public.stock_sucursal to authenticated;
