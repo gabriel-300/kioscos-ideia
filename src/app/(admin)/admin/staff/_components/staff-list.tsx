@@ -38,7 +38,7 @@ const createSchema = z.object({
   nombre:     z.string().min(2, "Mínimo 2 caracteres"),
   email:      z.string().email("Email inválido"),
   password:   z.string().min(8, "Mínimo 8 caracteres"),
-  role:       z.enum(["encargado", "vendedor"]),
+  role:       z.enum(["admin", "encargado", "vendedor"]),
   sucursalId: z.string().optional(),
 });
 
@@ -87,6 +87,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
           >
             <option value="vendedor">Vendedor</option>
             <option value="encargado">Encargado kiosco</option>
+            <option value="admin">Administrador</option>
           </select>
         </div>
         <div>
