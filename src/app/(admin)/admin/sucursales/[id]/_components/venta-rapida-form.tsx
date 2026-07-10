@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = { id: string; name: string };
-type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; promo_items: { product_id: string; cantidad: number }[] };
+type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -510,7 +510,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           price: promo.price,
           agotado: disp !== null && disp <= 0,
           color: PROMO_COLOR,
-          coverImageUrl: null,
+          coverImageUrl: promo.cover_image_url,
           isPromo: true,
           tipoPromo: promo.tipo,
           stock: disp,

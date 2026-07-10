@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 interface Props {
   value:    string | null;
   onChange: (url: string | null) => void;
+  folder?:  string;
 }
 
-export function ImageUploader({ value, onChange }: Props) {
+export function ImageUploader({ value, onChange, folder = "products" }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
   const [showUrl,   setShowUrl]   = useState(false);
@@ -24,7 +25,7 @@ export function ImageUploader({ value, onChange }: Props) {
     try {
       const supabase = createClient();
       const ext  = file.name.split(".").pop() ?? "jpg";
-      const path = `products/${crypto.randomUUID()}.${ext}`;
+      const path = `${folder}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("product-images")

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button, Input, Combobox } from "@/components/ui";
 import { crearPromo, actualizarPromo, type PromoItemInput } from "../actions";
+import { ImageUploader } from "../../productos/_components/image-uploader";
 import type { PromoWithItems } from "./promos-table";
 
 type ProductOption = { id: string; name: string; unit_label: string };
@@ -29,6 +30,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
   const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
   const [items,     setItems]     = useState<LineItem[]>([emptyLine()]);
   const [error,     setError]     = useState<string | null>(null);
+  const [imageUrl,  setImageUrl]  = useState<string | null>(null);
   const [rindeMode,  setRindeMode]  = useState<Record<number, boolean>>({});
   const [rindeTexto, setRindeTexto] = useState<Record<number, string>>({});
 
@@ -39,6 +41,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setPrice(String(promo.price));
       setIsActive(promo.is_active);
       setTipo(promo.tipo);
+      setImageUrl(promo.cover_image_url ?? null);
       const loadedItems = promo.promo_items.length > 0
         ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
         : [emptyLine()];
@@ -56,6 +59,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setRindeTexto(nextRindeTexto);
     } else {
       setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
+      setImageUrl(null);
       setRindeMode({});
       setRindeTexto({});
     }
@@ -112,9 +116,9 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
     startTransition(async () => {
       try {
         if (promo) {
-          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, items: parsedItems });
+          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, items: parsedItems });
         } else {
-          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, items: parsedItems });
+          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, items: parsedItems });
         }
         onClose();
       } catch (e) {
@@ -161,6 +165,11 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium tracking-wide uppercase text-neutral-500 mb-1.5">Imagen</p>
+            <ImageUploader value={imageUrl} onChange={setImageUrl} folder="promos" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

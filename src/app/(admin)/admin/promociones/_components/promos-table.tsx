@@ -6,11 +6,12 @@ import { PromoDrawer } from "./promo-drawer";
 import { Button } from "@/components/ui";
 
 export type PromoWithItems = {
-  id:         string;
-  name:       string;
-  price:      number;
-  is_active:  boolean;
-  tipo:       "promo" | "receta";
+  id:              string;
+  name:            string;
+  price:           number;
+  is_active:       boolean;
+  tipo:            "promo" | "receta";
+  cover_image_url: string | null;
   promo_items: {
     id:         string;
     product_id: string;

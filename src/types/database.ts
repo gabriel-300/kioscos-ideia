@@ -737,6 +737,7 @@ export type Database = {
       }
       promos: {
         Row: {
+          cover_image_url: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -748,6 +749,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -759,6 +761,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
