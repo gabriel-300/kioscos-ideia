@@ -23,7 +23,7 @@ function fmtFechaHora(iso: string) {
 
 function VerificarModal({ cierreId, montoSobre, onClose }: { cierreId: string; montoSobre: number; onClose: () => void }) {
   const [pending, startTransition] = useTransition();
-  const [monto, setMonto] = useState(String(montoSobre));
+  const [monto, setMonto] = useState("");
   const [notas, setNotas] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -39,31 +39,28 @@ function VerificarModal({ cierreId, montoSobre, onClose }: { cierreId: string; m
     });
   }
 
-  const diferencia = parseFloat(monto) - montoSobre;
-
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
           <h3 className="text-base font-semibold font-display text-neutral-900 mb-1">Verificar sobre</h3>
-          <p className="text-xs text-neutral-400 mb-4">Declarado: {AR.format(montoSobre)}</p>
+          <p className="text-xs text-neutral-400 mb-4">
+            Contá la plata y cargá lo que encontraste — a propósito no se muestra el monto declarado
+            acá, así el conteo es a ciegas y no queda influido por lo que "debería" dar.
+          </p>
 
           <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Monto contado *</label>
           <div className="relative mb-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">$</span>
             <input
               type="number" min="0" step="0.01" autoFocus
+              placeholder="0"
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
               className="h-11 w-full rounded-lg border border-neutral-300 bg-white pl-6 pr-3 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
             />
           </div>
-          {!isNaN(diferencia) && diferencia !== 0 && monto !== "" && (
-            <p className={`text-xs font-medium mb-3 ${diferencia > 0 ? "text-blue-600" : "text-danger"}`}>
-              {diferencia > 0 ? "Sobra" : "Falta"} {AR.format(Math.abs(diferencia))}
-            </p>
-          )}
 
           <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5 mt-3">Notas (opcional)</label>
           <textarea
@@ -119,7 +116,8 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
   if (retiradoPorNombre) {
     return (
       <div className="flex flex-col items-end gap-0.5">
-        {monto}
+        {/* No se muestra el monto declarado acá a propósito -- quien verifica
+            tiene que contar a ciegas, sin ver antes cuánto "debería" haber. */}
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -135,7 +133,6 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
 
   return (
     <div className="flex flex-col items-end gap-0.5">
-      {monto}
       <span className="inline-flex items-center rounded-full bg-neutral-100 text-neutral-500 px-2 py-0.5 text-xs font-medium">
         Sin retirar
       </span>
