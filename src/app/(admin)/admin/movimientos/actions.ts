@@ -25,7 +25,7 @@ function esPromoItem(item: VentaItemInput): item is PromoItemInput {
 export async function crearMovimiento(data: {
   sucursal_id:       string;
   fecha:             string;
-  tipo:              "entrega" | "devolucion" | "ajuste" | "venta";
+  tipo:              "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
   notas:             string | null;
   items:             VentaItemInput[];
   proveedor?:        string | null;
@@ -75,6 +75,12 @@ export async function crearMovimiento(data: {
   // stock insuficiente nunca lo va a detectar, porque nunca deja el stock negativo).
   if (data.tipo !== "ajuste" && data.items.some((i) => i.cantidad <= 0)) {
     throw new Error("La cantidad debe ser mayor a 0");
+  }
+
+  // Merma sin motivo no sirve para nada al mirar el reporte después -- el
+  // cliente ya lo exige, pero se refuerza acá por si alguien lo evita con devtools.
+  if (data.tipo === "merma" && !data.notas?.trim()) {
+    throw new Error("Contá el motivo de la pérdida");
   }
 
   // Cta. Corriente no se cobra en el momento -- ningún medio de pago debería

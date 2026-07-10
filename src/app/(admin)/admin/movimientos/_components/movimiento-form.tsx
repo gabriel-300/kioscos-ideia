@@ -17,6 +17,7 @@ const TIPO_OPTIONS = [
   { value: "devolucion", label: "Devolución" },
   { value: "venta",      label: "Venta (salida kiosco)" },
   { value: "ajuste",     label: "Ajuste" },
+  { value: "merma",      label: "Merma / pérdida" },
 ];
 
 interface LineItem {
@@ -27,7 +28,7 @@ interface LineItem {
 
 const emptyLine = (): LineItem => ({ product_id: "", cantidad: "", precio_unitario: "" });
 
-type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta";
+type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
 
 type Proveedor = { id: string; nombre: string };
 
@@ -159,6 +160,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     if (!sucursalId) { setError("Seleccioná una sucursal"); return; }
     const validItems = items.filter((i) => i.product_id && parseFloat(i.cantidad) > 0);
     if (validItems.length === 0) { setError("Agregá al menos un producto con cantidad"); return; }
+    if (tipo === "merma" && !notas.trim()) { setError("Contá el motivo de la pérdida"); return; }
 
     const signo = tipo === "ajuste" && ajusteDireccion === "restar" ? -1 : 1;
     const parsed: ItemInput[] = validItems.map((i) => ({
@@ -200,18 +202,21 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     devolucion: "Registrar devolución",
     venta:      "Registrar venta",
     ajuste:     "Ajuste de stock",
+    merma:      "Registrar merma",
   };
   const TIPO_BTN: Record<TipoMov, string> = {
     entrega:    "Registrar entrega",
     devolucion: "Registrar devolución",
     venta:      "Registrar venta",
     ajuste:     "Guardar ajuste",
+    merma:      "Guardar merma",
   };
   const TIPO_PLACEHOLDER: Record<TipoMov, string> = {
     entrega:    "Observaciones sobre la entrega…",
     devolucion: "Motivo de la devolución…",
     venta:      "Observaciones sobre las ventas…",
     ajuste:     "Motivo del ajuste…",
+    merma:      "Motivo de la pérdida (ej: se venció, se puso duro, se rompió)… *",
   };
 
   const sucursalOptions = [
@@ -322,7 +327,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                         value={item.product_id}
                         onChange={(v) => autoPrecio(i, v)}
                       />
-                      {tipo === "ajuste" && prod && stockMap && (
+                      {(tipo === "ajuste" || tipo === "merma") && prod && stockMap && (
                         <p className="text-[11px] text-neutral-400 mt-1">
                           Stock actual: <span className="font-semibold text-neutral-600">
                             {stockMap[prod.id] ?? 0} {prod.unit_label === "unidad" ? "u." : prod.unit_label}
@@ -474,45 +479,47 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                   />
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Imagen del remito */}
-              <div>
-                <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
-                  Foto de remito / factura
-                </label>
-                {previewUrl ? (
-                  <div className="flex items-start gap-3">
-                    <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={previewUrl}
-                        alt="Preview remito"
-                        className="h-24 rounded-lg border border-neutral-200 object-contain bg-neutral-50"
-                      />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="mt-1 text-xs text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      Quitar imagen
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex items-center gap-2 h-10 px-3 w-full rounded-lg border border-dashed border-neutral-300 bg-white hover:bg-neutral-50 cursor-pointer transition-colors">
-                    <svg className="size-4 text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-                    </svg>
-                    <span className="text-sm text-neutral-500">Agregar imagen</span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="hidden"
-                      onChange={handleImageSelect}
+          {/* Foto — remito en entregas, evidencia opcional en mermas */}
+          {(tipo === "entrega" || tipo === "merma") && (
+            <div className={tipo === "merma" ? "rounded-xl border border-neutral-200 bg-neutral-50 p-4" : ""}>
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
+                {tipo === "merma" ? "Foto de la merma (opcional)" : "Foto de remito / factura"}
+              </label>
+              {previewUrl ? (
+                <div className="flex items-start gap-3">
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="h-24 rounded-lg border border-neutral-200 object-contain bg-neutral-50"
                     />
-                  </label>
-                )}
-              </div>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="mt-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    Quitar imagen
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 h-10 px-3 w-full rounded-lg border border-dashed border-neutral-300 bg-white hover:bg-neutral-50 cursor-pointer transition-colors">
+                  <svg className="size-4 text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                  </svg>
+                  <span className="text-sm text-neutral-500">Agregar imagen</span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={handleImageSelect}
+                  />
+                </label>
+              )}
             </div>
           )}
 

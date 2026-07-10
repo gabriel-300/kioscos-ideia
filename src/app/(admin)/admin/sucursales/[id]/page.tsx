@@ -321,6 +321,15 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                 />
+                <NuevaEntregaButton
+                  sucursalId={sucursal.id}
+                  sucursalNombre={sucursal.nombre}
+                  products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
+                  defaultTipo="merma"
+                  label="Merma"
+                  variant="ghost"
+                  stockMap={stockActual}
+                />
               </>
             ) : (
               <>
@@ -349,6 +358,15 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
                   defaultTipo="ajuste"
                   label="Ajuste de stock"
+                  variant="ghost"
+                  stockMap={stockActual}
+                />
+                <NuevaEntregaButton
+                  sucursalId={sucursal.id}
+                  sucursalNombre={sucursal.nombre}
+                  products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
+                  defaultTipo="merma"
+                  label="Merma"
                   variant="ghost"
                   stockMap={stockActual}
                 />

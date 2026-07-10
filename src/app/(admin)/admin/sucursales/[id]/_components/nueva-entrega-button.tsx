@@ -7,7 +7,7 @@ import { VentaRapidaForm } from "./venta-rapida-form";
 import type { Database } from "@/types/database";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
-type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta";
+type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
 type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; promo_items: { product_id: string; cantidad: number }[] };
 
 export function NuevaEntregaButton({
@@ -39,7 +39,7 @@ export function NuevaEntregaButton({
 }) {
   const [open, setOpen] = useState(false);
 
-  const btnLabel = label ?? (defaultTipo === "venta" ? "Registrar venta" : "Nueva entrega");
+  const btnLabel = label ?? (defaultTipo === "venta" ? "Registrar venta" : defaultTipo === "merma" ? "Merma" : "Nueva entrega");
 
   return (
     <>
