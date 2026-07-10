@@ -17,12 +17,13 @@ function slugify(text: string) {
 }
 
 export async function crearCategoria(data: { name: string; description?: string | null }) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
   const payload: Insert = {
     name:        data.name,
     slug:        slugify(data.name),
     description: data.description || null,
+    created_by:  userId,
   };
   const { error } = await supabase.from("categories").insert(payload);
   if (error) throw new Error(error.message);
@@ -31,12 +32,13 @@ export async function crearCategoria(data: { name: string; description?: string 
 }
 
 export async function actualizarCategoria(id: string, data: { name: string; description?: string | null }) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
   const payload: Update = {
     name:        data.name,
     slug:        slugify(data.name),
     description: data.description || null,
+    updated_by:  userId,
   };
   const { error } = await supabase.from("categories").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
@@ -45,18 +47,18 @@ export async function actualizarCategoria(id: string, data: { name: string; desc
 }
 
 export async function toggleCategoriaActiva(id: string, activa: boolean) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("categories").update({ is_active: !activa }).eq("id", id);
+  const { error } = await supabase.from("categories").update({ is_active: !activa, updated_by: userId }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/categorias");
   revalidatePath("/admin/productos");
 }
 
 export async function reordenarCategoria(id: string, sort_order: number) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await supabase.from("categories").update({ sort_order }).eq("id", id);
+  const { error } = await supabase.from("categories").update({ sort_order, updated_by: userId }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/categorias");
 }

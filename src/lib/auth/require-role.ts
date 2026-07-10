@@ -2,11 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-export async function requireAdmin(): Promise<void> {
+export async function requireAdmin(): Promise<{ userId: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
   if (user.app_metadata?.role !== "admin") throw new Error("Sin permisos de administrador");
+  return { userId: user.id };
 }
 
 export async function requireStaff(): Promise<{ userId: string; role: string }> {

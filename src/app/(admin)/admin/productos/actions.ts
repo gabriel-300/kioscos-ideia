@@ -31,7 +31,7 @@ function friendlyDbError(error: { code?: string; message: string }): string {
 }
 
 export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number }): Promise<{ error?: string }> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
   const baseSlug = data.slug || slugify(data.name) || "producto";
@@ -47,7 +47,7 @@ export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "up
     suffix++;
   }
 
-  const payload = { ...data, slug };
+  const payload = { ...data, slug, created_by: userId };
   const { error } = await (supabase as any).from("products").insert(payload);
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/admin/productos");
@@ -55,13 +55,13 @@ export async function crearProducto(data: Omit<Insert, "id" | "created_at" | "up
 }
 
 export async function actualizarProducto(id: string, data: (Update & { stock_minimo?: number }) | Record<string, unknown>): Promise<{ error?: string }> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
   // Leer precios actuales para detectar cambios
   const { data: current } = await supabase.from("products").select("precio_dist, costo").eq("id", id).single();
 
-  const { error } = await (supabase as any).from("products").update(data).eq("id", id);
+  const { error } = await (supabase as any).from("products").update({ ...data, updated_by: userId }).eq("id", id);
   if (error) return { error: friendlyDbError(error) };
 
   // Registrar historial si algún precio cambió
@@ -76,6 +76,7 @@ export async function actualizarProducto(id: string, data: (Update & { stock_min
         precio_dist_nuevo:    precioChanged ? d.precio_dist       : null,
         costo_anterior:       costoChanged  ? current.costo       : null,
         costo_nuevo:          costoChanged  ? d.costo             : null,
+        changed_by:           userId,
       });
     }
   }
@@ -85,11 +86,11 @@ export async function actualizarProducto(id: string, data: (Update & { stock_min
 }
 
 export async function toggleProductoActivo(id: string, activo: boolean) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("products")
-    .update({ is_active: !activo })
+    .update({ is_active: !activo, updated_by: userId } as Update)
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/productos");
@@ -106,7 +107,7 @@ export async function ajustarPrecios({
   campos:       CamposPrecio;
   categoria_id: string | null;
 }): Promise<{ actualizados: number }> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (porcentaje === 0 || campos.length === 0) return { actualizados: 0 };
 
   const supabase = createAdminClient();
@@ -131,7 +132,7 @@ export async function ajustarPrecios({
   const errors = (
     await Promise.all(
       updates.map(({ id, ...fields }) =>
-        supabase.from("products").update(fields as Update).eq("id", id)
+        supabase.from("products").update({ ...fields, updated_by: userId } as Update).eq("id", id)
       )
     )
   ).filter((r) => r.error);
@@ -148,6 +149,7 @@ export async function ajustarPrecios({
         precio_dist_nuevo:    campos.includes("precio_dist") && patch.precio_dist != null ? patch.precio_dist : null,
         costo_anterior:       campos.includes("costo") && p.costo != null ? p.costo : null,
         costo_nuevo:          campos.includes("costo") && patch.costo != null ? patch.costo : null,
+        changed_by:           userId,
       };
     });
   if (historyItems.length > 0) {
@@ -169,7 +171,7 @@ export async function costearDesdePrecioVenta({
   porcentajePago: number;
   categoria_id:   string | null;
 }): Promise<{ actualizados: number }> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (porcentajePago <= 0 || porcentajePago > 100) return { actualizados: 0 };
 
   const supabase = createAdminClient();
@@ -186,7 +188,7 @@ export async function costearDesdePrecioVenta({
 
   const errors = (
     await Promise.all(
-      updates.map(({ id, costo }) => supabase.from("products").update({ costo }).eq("id", id))
+      updates.map(({ id, costo }) => supabase.from("products").update({ costo, updated_by: userId } as Update).eq("id", id))
     )
   ).filter((r) => r.error);
   if (errors.length > 0) throw new Error(errors[0].error!.message);
@@ -197,6 +199,7 @@ export async function costearDesdePrecioVenta({
     precio_dist_nuevo:    null,
     costo_anterior:       p.costo,
     costo_nuevo:          updates.find((u) => u.id === p.id)!.costo,
+    changed_by:           userId,
   }));
   await (supabase as any).from("product_price_history").insert(historyItems);
 

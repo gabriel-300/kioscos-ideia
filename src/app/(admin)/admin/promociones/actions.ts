@@ -18,12 +18,12 @@ export interface PromoInput {
 }
 
 export async function crearPromo(data: PromoInput) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
   const { data: promo, error } = await (supabase as any)
     .from("promos")
-    .insert({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo })
+    .insert({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, created_by: userId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -39,12 +39,12 @@ export async function crearPromo(data: PromoInput) {
 }
 
 export async function actualizarPromo(id: string, data: PromoInput) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
   const { error } = await (supabase as any)
     .from("promos")
-    .update({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, updated_at: new Date().toISOString() })
+    .update({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, updated_at: new Date().toISOString(), updated_by: userId })
     .eq("id", id);
   if (error) throw new Error(error.message);
 
@@ -70,9 +70,9 @@ export async function eliminarPromo(id: string) {
 }
 
 export async function togglePromoActiva(id: string, activa: boolean) {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
-  const { error } = await (supabase as any).from("promos").update({ is_active: !activa }).eq("id", id);
+  const { error } = await (supabase as any).from("promos").update({ is_active: !activa, updated_by: userId }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/admin/promociones");
 }

@@ -58,6 +58,7 @@ export type Database = {
       categories: {
         Row: {
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           image_url: string | null
@@ -65,9 +66,11 @@ export type Database = {
           name: string
           slug: string
           sort_order: number
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -75,9 +78,11 @@ export type Database = {
           name: string
           slug: string
           sort_order?: number
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -85,6 +90,7 @@ export type Database = {
           name?: string
           slug?: string
           sort_order?: number
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -97,8 +103,17 @@ export type Database = {
           efectivo_declarado: number
           fecha: string
           fondo_inicial: number
+          fondo_siguiente: number | null
           id: string
           notas: string | null
+          numero_liquidacion: number | null
+          retiros_turno: number
+          sobre_monto_verificado: number | null
+          sobre_notas: string | null
+          sobre_retirado_en: string | null
+          sobre_retirado_por: string | null
+          sobre_verificado_en: string | null
+          sobre_verificado_por: string | null
           sucursal_id: string
           tarjeta_declarada: number
           total_ventas: number
@@ -112,8 +127,17 @@ export type Database = {
           efectivo_declarado?: number
           fecha: string
           fondo_inicial?: number
+          fondo_siguiente?: number | null
           id?: string
           notas?: string | null
+          numero_liquidacion?: number | null
+          retiros_turno?: number
+          sobre_monto_verificado?: number | null
+          sobre_notas?: string | null
+          sobre_retirado_en?: string | null
+          sobre_retirado_por?: string | null
+          sobre_verificado_en?: string | null
+          sobre_verificado_por?: string | null
           sucursal_id: string
           tarjeta_declarada?: number
           total_ventas?: number
@@ -127,8 +151,17 @@ export type Database = {
           efectivo_declarado?: number
           fecha?: string
           fondo_inicial?: number
+          fondo_siguiente?: number | null
           id?: string
           notas?: string | null
+          numero_liquidacion?: number | null
+          retiros_turno?: number
+          sobre_monto_verificado?: number | null
+          sobre_notas?: string | null
+          sobre_retirado_en?: string | null
+          sobre_retirado_por?: string | null
+          sobre_verificado_en?: string | null
+          sobre_verificado_por?: string | null
           sucursal_id?: string
           tarjeta_declarada?: number
           total_ventas?: number
@@ -178,6 +211,113 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cta_corriente_pagos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos: {
+        Row: {
+          categoria: string
+          created_at: string
+          created_by: string | null
+          fecha: string
+          gasto_fijo_id: string | null
+          id: string
+          monto: number
+          notas: string | null
+          proveedor: string | null
+          sucursal_id: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          gasto_fijo_id?: string | null
+          id?: string
+          monto: number
+          notas?: string | null
+          proveedor?: string | null
+          sucursal_id?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          gasto_fijo_id?: string | null
+          id?: string
+          monto?: number
+          notas?: string | null
+          proveedor?: string | null
+          sucursal_id?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_gasto_fijo_id_fkey"
+            columns: ["gasto_fijo_id"]
+            isOneToOne: false
+            referencedRelation: "gastos_fijos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gastos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gastos_fijos: {
+        Row: {
+          categoria: string
+          created_at: string
+          created_by: string | null
+          descripcion: string
+          dia_vencimiento: number
+          id: string
+          is_active: boolean
+          monto_estimado: number
+          sucursal_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          created_by?: string | null
+          descripcion: string
+          dia_vencimiento: number
+          id?: string
+          is_active?: boolean
+          monto_estimado: number
+          sucursal_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string
+          dia_vencimiento?: number
+          id?: string
+          is_active?: boolean
+          monto_estimado?: number
+          sucursal_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gastos_fijos_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
@@ -348,6 +488,7 @@ export type Database = {
       product_price_history: {
         Row: {
           changed_at: string
+          changed_by: string | null
           costo_anterior: number | null
           costo_nuevo: number | null
           id: string
@@ -357,6 +498,7 @@ export type Database = {
         }
         Insert: {
           changed_at?: string
+          changed_by?: string | null
           costo_anterior?: number | null
           costo_nuevo?: number | null
           id?: string
@@ -366,6 +508,7 @@ export type Database = {
         }
         Update: {
           changed_at?: string
+          changed_by?: string | null
           costo_anterior?: number | null
           costo_nuevo?: number | null
           id?: string
@@ -382,6 +525,7 @@ export type Database = {
           costo: number | null
           cover_image_url: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           freezer_required: boolean
           gallery_urls: Json
@@ -408,6 +552,7 @@ export type Database = {
           stock_minimo: number
           unit_label: string
           updated_at: string
+          updated_by: string | null
           weight_grams: number | null
         }
         Insert: {
@@ -416,6 +561,7 @@ export type Database = {
           costo?: number | null
           cover_image_url?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           freezer_required?: boolean
           gallery_urls?: Json
@@ -442,6 +588,7 @@ export type Database = {
           stock_minimo?: number
           unit_label?: string
           updated_at?: string
+          updated_by?: string | null
           weight_grams?: number | null
         }
         Update: {
@@ -450,6 +597,7 @@ export type Database = {
           costo?: number | null
           cover_image_url?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           freezer_required?: boolean
           gallery_urls?: Json
@@ -476,6 +624,7 @@ export type Database = {
           stock_minimo?: number
           unit_label?: string
           updated_at?: string
+          updated_by?: string | null
           weight_grams?: number | null
         }
         Relationships: [
@@ -586,27 +735,36 @@ export type Database = {
       promos: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           is_active: boolean
           name: string
           price: number
+          tipo: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           is_active?: boolean
           name: string
           price: number
+          tipo?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           is_active?: boolean
           name?: string
           price?: number
+          tipo?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -614,28 +772,35 @@ export type Database = {
         Row: {
           contacto: string | null
           created_at: string
+          created_by: string | null
           id: string
           is_active: boolean
           nombre: string
+          updated_by: string | null
         }
         Insert: {
           contacto?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           is_active?: boolean
           nombre: string
+          updated_by?: string | null
         }
         Update: {
           contacto?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           is_active?: boolean
           nombre?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
       retiros_caja: {
         Row: {
+          comprobante_image_url: string | null
           created_at: string
           created_by: string | null
           fecha: string
@@ -645,6 +810,7 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
+          comprobante_image_url?: string | null
           created_at?: string
           created_by?: string | null
           fecha?: string
@@ -654,6 +820,7 @@ export type Database = {
           sucursal_id: string
         }
         Update: {
+          comprobante_image_url?: string | null
           created_at?: string
           created_by?: string | null
           fecha?: string
@@ -751,6 +918,32 @@ export type Database = {
       }
     }
     Functions: {
+      abrir_caja: {
+        Args: {
+          p_created_by: string
+          p_fecha: string
+          p_fondo_inicial: number
+          p_notas: string
+          p_sucursal_id: string
+        }
+        Returns: string
+      }
+      cerrar_caja: {
+        Args: {
+          p_billetera_declarada: number
+          p_created_by: string
+          p_efectivo_declarado: number
+          p_fecha: string
+          p_fondo_inicial: number
+          p_fondo_siguiente?: number
+          p_notas: string
+          p_sucursal_id: string
+          p_tarjeta_declarada: number
+          p_total_ventas: number
+          p_transferencia_declarada: number
+        }
+        Returns: string
+      }
       crear_movimiento_con_items: {
         Args: {
           p_canal?: string
@@ -772,6 +965,7 @@ export type Database = {
       }
       current_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      my_sucursal_id: { Args: never; Returns: string }
     }
     Enums: {
       b2b_status: "pending" | "approved" | "rejected" | "suspended"

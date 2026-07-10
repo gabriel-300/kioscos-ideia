@@ -4,7 +4,9 @@
       "Bash(ls -la \"c:\\\\claude-proyecto\" 2>&1)",
       "Read(//c/claude-proyecto/**)",
       "WebSearch",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "mcp__supabase__execute_sql",
+      "Bash(npx next *)"
     ]
   },
   "hooks": {
