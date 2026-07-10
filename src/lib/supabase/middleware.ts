@@ -12,6 +12,11 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/productos",
 ];
 
+// Bloqueadas solo para vendedor (encargado sí puede)
+const VENDEDOR_BLOCKED_PREFIXES = [
+  "/admin/pronostico",
+];
+
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -65,6 +70,11 @@ export async function updateSession(request: NextRequest) {
 
       // Encargados y vendedores no pueden acceder a rutas exclusivas de admin
       if ((role === "encargado" || role === "vendedor") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
+        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      }
+
+      // Pronóstico: encargado sí, vendedor no
+      if (role === "vendedor" && VENDEDOR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
       }
     }
