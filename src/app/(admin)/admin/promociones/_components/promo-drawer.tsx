@@ -29,6 +29,8 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
   const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
   const [items,     setItems]     = useState<LineItem[]>([emptyLine()]);
   const [error,     setError]     = useState<string | null>(null);
+  const [rindeMode,  setRindeMode]  = useState<Record<number, boolean>>({});
+  const [rindeTexto, setRindeTexto] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +47,8 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
     } else {
       setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
     }
+    setRindeMode({});
+    setRindeTexto({});
     setError(null);
   }, [open, promo]);
 
@@ -54,6 +58,22 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
   function removeLine(i: number)  { setItems((p) => p.filter((_, idx) => idx !== i)); }
   function updateLine(i: number, field: keyof LineItem, value: string) {
     setItems((p) => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
+  }
+
+  // Para insumos que se compran en un paquete y se usan de a fracciones por
+  // receta (ej: bolsita de 6 panes para pancho) -- en vez de hacer la cuenta a
+  // mano y tipear un decimal, se ingresa "para cuántas unidades rinde" y acá
+  // se calcula la fracción sola.
+  function toggleRindeMode(i: number) {
+    setRindeMode((p) => ({ ...p, [i]: !p[i] }));
+    setRindeTexto((p) => ({ ...p, [i]: "" }));
+    updateLine(i, "cantidad", "");
+  }
+  function handleRindeChange(i: number, raw: string) {
+    setRindeTexto((p) => ({ ...p, [i]: raw }));
+    const n = parseFloat(raw);
+    if (!raw || isNaN(n) || n <= 0) { updateLine(i, "cantidad", ""); return; }
+    updateLine(i, "cantidad", String(1 / n));
   }
 
   function handleSubmit() {
@@ -151,7 +171,10 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
 
             <div className="space-y-2">
               {items.map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_100px_auto] gap-2 items-end">
+                <div
+                  key={i}
+                  className={`grid gap-2 items-end ${tipo === "receta" ? "grid-cols-[1fr_140px_auto]" : "grid-cols-[1fr_100px_auto]"}`}
+                >
                   <div>
                     {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                     <Combobox
@@ -162,15 +185,44 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
                   </div>
                   <div>
                     {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0"
-                      value={item.cantidad}
-                      onChange={(e) => updateLine(i, "cantidad", e.target.value)}
-                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
-                    />
+                    {tipo === "receta" ? (
+                      <>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step={rindeMode[i] ? "1" : "0.01"}
+                            placeholder={rindeMode[i] ? "ej: 6" : "0"}
+                            value={rindeMode[i] ? (rindeTexto[i] ?? "") : item.cantidad}
+                            onChange={(e) => rindeMode[i] ? handleRindeChange(i, e.target.value) : updateLine(i, "cantidad", e.target.value)}
+                            className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleRindeMode(i)}
+                            title={rindeMode[i] ? "Cargar la cantidad directa" : "Esto rinde para varias unidades (ej: una bolsita de 6 panes)"}
+                            className={`shrink-0 h-10 w-9 rounded-lg border text-[10px] font-bold transition-colors ${
+                              rindeMode[i] ? "border-tierra-700 bg-tierra-50 text-tierra-700" : "border-neutral-300 text-neutral-500"
+                            }`}
+                          >
+                            {rindeMode[i] ? "1x" : "1/n"}
+                          </button>
+                        </div>
+                        {rindeMode[i] && rindeTexto[i] && parseFloat(rindeTexto[i]) > 0 && (
+                          <p className="text-[11px] text-neutral-400 mt-1">Cada unidad usa 1/{rindeTexto[i]} de esto</p>
+                        )}
+                      </>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0"
+                        value={item.cantidad}
+                        onChange={(e) => updateLine(i, "cantidad", e.target.value)}
+                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                      />
+                    )}
                   </div>
                   <button
                     onClick={() => removeLine(i)}
