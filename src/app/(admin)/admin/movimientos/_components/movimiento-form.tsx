@@ -5,6 +5,7 @@ import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
 import { crearMovimiento, type ItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { fechaHoyAR } from "@/lib/fecha";
+import { formatKg } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -56,6 +57,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [ajusteDireccion, setAjusteDireccion] = useState<"sumar" | "restar">("sumar");
   const [pesoMode,  setPesoMode]  = useState<Record<number, boolean>>({});
   const [pesoTexto, setPesoTexto] = useState<Record<number, string>>({});
+  const [gramosTexto, setGramosTexto] = useState<Record<number, string>>({});
   const [error,        setError]        = useState<string | null>(null);
   const [remitoImage,  setRemitoImage]  = useState<File | null>(null);
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
@@ -72,6 +74,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setAjusteDireccion("sumar");
     setPesoMode({});
     setPesoTexto({});
+    setGramosTexto({});
     setError(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setRemitoImage(null);
@@ -124,12 +127,24 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     // Al cambiar de producto, la línea vuelve a modo unidades (el peso/gramo era del producto anterior)
     setPesoMode((p) => ({ ...p, [i]: false }));
     setPesoTexto((p) => ({ ...p, [i]: "" }));
+    setGramosTexto((p) => ({ ...p, [i]: "" }));
+    updateLine(i, "cantidad", "");
   }
 
   // Productos que se venden por unidad pero se reciben por peso (ej. pan: remito en kg,
   // se vende por bolsa) — necesitan "Peso por unidad (gramos)" cargado en la ficha.
   function puedeConvertirPeso(prod: Product | undefined) {
     return !!prod && prod.unit_label === "unidad" && !!prod.weight_grams && prod.weight_grams > 0;
+  }
+
+  // Productos que se trackean directo en kg (ej. chipa a granel) -- se pide en
+  // gramos, no en kg, mismo criterio que la venta rápida: si el cajero tipea
+  // "100" pensando en 100g, no puede terminar cargado como 100 kg por error.
+  function handleGramosChange(i: number, raw: string) {
+    setGramosTexto((p) => ({ ...p, [i]: raw }));
+    const g = parseFloat(raw);
+    if (!raw || isNaN(g) || g <= 0) { updateLine(i, "cantidad", ""); return; }
+    updateLine(i, "cantidad", String(g / 1000));
   }
 
   function togglePesoMode(i: number) {
@@ -319,7 +334,12 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                 const prod = products.find((p) => p.id === item.product_id);
                 const importe = (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio_unitario) || 0);
                 return (
-                  <div key={i} className="grid grid-cols-[1fr_110px_100px_100px_auto] gap-2 items-end">
+                  <div
+                    key={i}
+                    className={`grid gap-2 items-end ${
+                      tipo === "merma" ? "grid-cols-[1fr_140px_auto]" : "grid-cols-[1fr_110px_100px_100px_auto]"
+                    }`}
+                  >
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                       <Combobox
@@ -373,7 +393,26 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                             )}
                           </>
                         );
-                      })() : (
+                      })() : prod?.unit_label === "kg" ? (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="0"
+                              value={gramosTexto[i] ?? (parseFloat(item.cantidad) > 0 ? String(Math.round(parseFloat(item.cantidad) * 1000)) : "")}
+                              onChange={(e) => handleGramosChange(i, e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                            />
+                            <span className="shrink-0 text-xs font-semibold text-neutral-400">g</span>
+                          </div>
+                          {item.cantidad && (
+                            <p className="text-[11px] text-neutral-400 mt-1">= {formatKg(parseFloat(item.cantidad))} kg</p>
+                          )}
+                        </>
+                      ) : (
                         <input
                           type="number"
                           min="0"
@@ -385,31 +424,35 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                         />
                       )}
                     </div>
-                    <div>
-                      {i === 0 && (
-                        <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">
-                          {tipo === "entrega" ? "Costo $" : "Precio $"}
-                        </p>
-                      )}
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={item.precio_unitario}
-                        onChange={(e) => updateLine(i, "precio_unitario", e.target.value)}
-                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
-                      />
-                      {tipo === "entrega" && !item.precio_unitario && item.product_id && (
-                        <p className="text-[11px] text-amber-600 mt-1">Sin costo — queda pendiente</p>
-                      )}
-                    </div>
-                    <div>
-                      {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Importe</p>}
-                      <div className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 text-sm tabular-nums flex items-center text-neutral-600">
-                        {importe > 0 ? AR.format(importe) : "—"}
-                      </div>
-                    </div>
+                    {tipo !== "merma" && (
+                      <>
+                        <div>
+                          {i === 0 && (
+                            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">
+                              {tipo === "entrega" ? "Costo $" : "Precio $"}
+                            </p>
+                          )}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={item.precio_unitario}
+                            onChange={(e) => updateLine(i, "precio_unitario", e.target.value)}
+                            className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                          />
+                          {tipo === "entrega" && !item.precio_unitario && item.product_id && (
+                            <p className="text-[11px] text-amber-600 mt-1">Sin costo — queda pendiente</p>
+                          )}
+                        </div>
+                        <div>
+                          {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Importe</p>}
+                          <div className="h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 text-sm tabular-nums flex items-center text-neutral-600">
+                            {importe > 0 ? AR.format(importe) : "—"}
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <button
                       onClick={() => removeLine(i)}
                       disabled={items.length === 1}
