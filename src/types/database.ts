@@ -538,6 +538,7 @@ export type Database = {
           margen_dist: number | null
           margen_gastro: number | null
           margen_min: number | null
+          merma_coccion_pct: number | null
           metadata: Json
           min_quantity_b2b: number
           mult_bolsas: boolean | null
@@ -556,6 +557,7 @@ export type Database = {
           unit_label: string
           updated_at: string
           updated_by: string | null
+          vendible_pos: boolean
           weight_grams: number | null
         }
         Insert: {
@@ -574,6 +576,7 @@ export type Database = {
           margen_dist?: number | null
           margen_gastro?: number | null
           margen_min?: number | null
+          merma_coccion_pct?: number | null
           metadata?: Json
           min_quantity_b2b?: number
           mult_bolsas?: boolean | null
@@ -592,6 +595,7 @@ export type Database = {
           unit_label?: string
           updated_at?: string
           updated_by?: string | null
+          vendible_pos?: boolean
           weight_grams?: number | null
         }
         Update: {
@@ -610,6 +614,7 @@ export type Database = {
           margen_dist?: number | null
           margen_gastro?: number | null
           margen_min?: number | null
+          merma_coccion_pct?: number | null
           metadata?: Json
           min_quantity_b2b?: number
           mult_bolsas?: boolean | null
@@ -628,6 +633,7 @@ export type Database = {
           unit_label?: string
           updated_at?: string
           updated_by?: string | null
+          vendible_pos?: boolean
           weight_grams?: number | null
         }
         Relationships: [

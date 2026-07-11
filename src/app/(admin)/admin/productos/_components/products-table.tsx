@@ -116,6 +116,9 @@ export function ProductsTable({ products, categories, role }: { products: Produc
                       <p className="font-medium text-neutral-900 truncate">
                         {p.name}
                         {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                        {!p.vendible_pos && (
+                          <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Insumo</span>
+                        )}
                       </p>
                       <p className="text-xs text-neutral-400 font-mono">{p.sku}</p>
                     </div>
@@ -186,6 +189,9 @@ export function ProductsTable({ products, categories, role }: { products: Produc
                         <div>
                           <span className="font-medium text-neutral-900">{p.name}</span>
                           {p.unit_label && <span className="ml-1.5 text-xs text-neutral-400">/ {p.unit_label}</span>}
+                          {!p.vendible_pos && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Insumo</span>
+                          )}
                         </div>
                       </div>
                     </td>

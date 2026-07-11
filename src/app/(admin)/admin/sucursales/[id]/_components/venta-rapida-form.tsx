@@ -123,20 +123,24 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [pending, startTransition] = useTransition();
 
   /* ── derivados ── */
+  // Insumos (vendible_pos = false, ej. salchicha, pan de pancho) no se muestran
+  // como tile vendible: solo se usan armando recetas/promos.
+  const sellableProducts = useMemo(() => products.filter((p) => p.vendible_pos !== false), [products]);
+
   const catsConProductos = useMemo(() => {
     if (!categories?.length) return [];
-    const ids = new Set(products.map((p) => p.category_id));
+    const ids = new Set(sellableProducts.map((p) => p.category_id));
     return categories.filter((c) => ids.has(c.id));
-  }, [categories, products]);
+  }, [categories, sellableProducts]);
 
   const filtered = useMemo(() => {
-    let list = catFilter === "all" || catFilter === "promos" ? products : products.filter((p) => p.category_id === catFilter);
+    let list = catFilter === "all" || catFilter === "promos" ? sellableProducts : sellableProducts.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
     return list;
-  }, [products, catFilter, search]);
+  }, [sellableProducts, catFilter, search]);
 
   const promoMap = useMemo(() => new Map(promos.map((p) => [p.id, p])), [promos]);
 

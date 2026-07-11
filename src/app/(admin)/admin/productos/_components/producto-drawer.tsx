@@ -27,10 +27,12 @@ const schema = z.object({
   unit_label:        z.string().min(1, "Requerido"),
   freezer_required:  z.boolean(),
   is_active:         z.boolean(),
+  vendible_pos:      z.boolean(),
   costo:             nPos,
   precio_dist:       nPos,
   stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
   weight_grams:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
+  merma_pct:         z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().min(0).max(99).nullable()),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -83,8 +85,8 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
-      unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null,
+      unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
+      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null, merma_pct: null,
     },
   });
 
@@ -111,14 +113,16 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       unit_label:        product.unit_label,
       freezer_required:  product.freezer_required,
       is_active:         product.is_active,
+      vendible_pos:      (product as any).vendible_pos ?? true,
       costo:             product.costo ?? null,
       precio_dist:       product.precio_dist ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
       weight_grams:      product.weight_grams ?? null,
+      merma_pct:         product.merma_coccion_pct != null ? Math.round(product.merma_coccion_pct * 1000) / 10 : null,
     } : {
       sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
-      unit_label: "unidad", freezer_required: false, is_active: true,
-      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null,
+      unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
+      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null, merma_pct: null,
     });
   }, [open, product, reset, existingSkus]);
 
@@ -131,12 +135,14 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       unit_label:        values.unit_label,
       freezer_required:  values.freezer_required,
       is_active:         values.is_active,
+      vendible_pos:      values.vendible_pos,
       costo:             values.costo,
       precio_dist:       values.precio_dist,
       price_b2c:         0,
       price_b2b:         values.precio_dist ?? 0,
       stock_minimo:      values.stock_minimo,
       weight_grams:      values.weight_grams,
+      merma_coccion_pct: values.merma_pct != null ? values.merma_pct / 100 : null,
       cover_image_url:   imageUrl,
     };
 
@@ -199,7 +205,7 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
             <Input label="Nombre *" placeholder="Empanadas de carne x12" error={errors.name?.message} {...register("name")} />
             <Input label="Descripción corta" placeholder="Descripción breve" {...register("short_description")} />
             <Select label="Categoría" options={catOptions} {...register("category_id")} />
-            <div className="flex gap-6 pt-1">
+            <div className="flex gap-6 pt-1 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" {...register("freezer_required")} />
                 <span className="text-sm text-neutral-700">Requiere freezer</span>
@@ -209,6 +215,13 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
                 <span className="text-sm text-neutral-700">Activo</span>
               </label>
             </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" {...register("vendible_pos")} />
+              <span className="text-sm text-neutral-700">Vendible en el POS</span>
+            </label>
+            <p className="text-[11px] text-neutral-400 -mt-2">
+              Desmarcalo para insumos (ej. salchicha, pan de pancho) que no se venden sueltos al público — sigue contando stock y disponible para armar recetas/promos, pero no aparece como tile en Registrar venta.
+            </p>
           </div>
 
           {/* Precios */}
@@ -309,6 +322,23 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
                 />
                 <p className="text-[11px] text-neutral-400 mt-1">
                   Opcional. Si el remito de entrega viene en kilos (ej. pan), completá esto para poder cargar la entrega por peso total y que convierta solo a unidades/bolsas.
+                </p>
+              </div>
+            )}
+            {esAdmin && (
+              <div>
+                <Input
+                  label="% de merma al preparar"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="99"
+                  placeholder="Ej: 15"
+                  error={errors.merma_pct?.message}
+                  {...register("merma_pct")}
+                />
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  Opcional. Si lo que se carga en stock no es lo mismo que se vende (ej: se compra congelado y se vende cocido), esa diferencia se descuenta sola en cada venta, sin que el vendedor haga nada.
                 </p>
               </div>
             )}
