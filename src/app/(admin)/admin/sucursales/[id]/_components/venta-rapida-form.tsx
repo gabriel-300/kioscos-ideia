@@ -52,10 +52,11 @@ function getCatIcon(name: string, size = 18) {
 const CAT_COLORS = [NAVY, "#065F46", "#92400E", "#475569", "#0C447C", "#7C3AED", "#B45309"];
 
 const CANALES = [
-  { id: "consumidor_final", label: "Consumidor Final", color: NAVY,      bg: NAVY_L },
-  { id: "pedido_ya",        label: "Pedido Ya",        color: "#C05621",  bg: "#FFF7ED" },
-  { id: "cuenta_corriente", label: "Cta. Corriente",   color: "#5B21B6",  bg: "#F5F3FF" },
-  { id: "ambulante",        label: "Ambulante",        color: "#065F46",  bg: "#ECFDF5" },
+  { id: "consumidor_final",     label: "Consumidor Final",     color: NAVY,      bg: NAVY_L },
+  { id: "pedido_ya_efectivo",   label: "Pedido Ya Efectivo",   color: "#C05621", bg: "#FFF7ED" },
+  { id: "pedido_ya_plataforma", label: "Pedido Ya Plataforma", color: "#0369A1", bg: "#F0F9FF" },
+  { id: "cuenta_corriente",     label: "Cta. Corriente",       color: "#5B21B6", bg: "#F5F3FF" },
+  { id: "ambulante",            label: "Ambulante",            color: "#065F46", bg: "#ECFDF5" },
 ] as const;
 
 type PayMethod = "efectivo" | "mp" | "tarjeta" | "transferencia";
@@ -166,10 +167,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     if (isPromoId(id)) return promoMap.get(promoIdOf(id))?.price ?? 0;
     return products.find((p) => p.id === id)?.precio_dist ?? 0;
   }
-  // En el canal "Pedido Ya" el encargado puede sobreescribir el precio a mano
-  // (la comisión de la app suele hacer que el precio real cobrado sea otro).
+  // En los canales "Pedido Ya" (efectivo o plataforma) el encargado puede
+  // sobreescribir el precio a mano (la comisión de la app suele hacer que el
+  // precio real cobrado sea otro).
   function priceOf(id: string) {
-    if (canal === "pedido_ya") {
+    if (canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") {
       const ov = precioOverride[id];
       if (ov !== undefined && ov !== "") {
         const v = parseFloat(ov);
@@ -198,6 +200,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     return req;
   }, [seleccionados, promoMap]);
 
+  // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no muestran el
+  // selector de medios de pago (el primero porque no cobra ahora, los otros dos
+  // porque el medio ya está definido por el canal mismo).
+  const sinMedioPago   = canal === "cuenta_corriente" || canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma";
   const totalPrecio    = seleccionados.reduce((s, [id, qty]) => s + qty * priceOf(id), 0);
   const totalUnidades  = seleccionados.reduce((s, [, qty]) => s + qty, 0);
   const totalIngresado = (Object.values(pagos) as string[]).reduce((s, v) => s + (parseFloat(v) || 0), 0);
@@ -345,14 +351,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     //   }
     // }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
-    // Cta. Corriente no cobra en el momento -- no tiene sentido pedir monto/medio de pago.
-    if (canal !== "cuenta_corriente" && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
+    // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden monto/medio de pago.
+    if (!sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
       setError("El monto ingresado no cubre el total");
       return;
     }
     // Billetera/tarjeta/transferencia no dan vuelto (el vuelto solo existe en efectivo) --
     // si esos medios solos ya superan el total, es casi seguro un error de tipeo.
-    if (canal !== "cuenta_corriente" && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100)) {
+    if (!sinMedioPago && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100)) {
       setError("El monto en billetera/tarjeta/transferencia no puede superar el total (ahí no se da vuelto)");
       return;
     }
@@ -363,9 +369,13 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       const precioUnit = priceOf(id);
       return { name: nameOf(id), qty, precioUnit, sub: qty * precioUnit };
     });
-    const pagosList = PAY_METHODS
-      .map((m) => ({ label: m.label, monto: parseFloat(pagos[m.id]) || 0 }))
-      .filter((p) => p.monto > 0);
+    // Pedido Ya Efectivo no pasa por el selector de medios -- se cobra 100% en
+    // efectivo por definición del canal, así que el comprobante lo refleja directo.
+    const pagosList = canal === "pedido_ya_efectivo"
+      ? [{ label: "Efectivo", monto: totalPrecio }]
+      : PAY_METHODS
+          .map((m) => ({ label: m.label, monto: parseFloat(pagos[m.id]) || 0 }))
+          .filter((p) => p.monto > 0);
     const notasMedios = pagosList.map((p) => `${p.label}: ${AR.format(p.monto)}`).join(" | ");
     const notasFinal  = [notasMedios, notas || null].filter(Boolean).join(" — ") || null;
 
@@ -902,7 +912,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-                      {canal === "pedido_ya" && (
+                      {(canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") && (
                         <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
                           <span style={{ fontSize: 10, color: "#C05621", fontWeight: 700 }}>$</span>
                           <input
@@ -994,13 +1004,27 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <span style={{ fontSize: 22, fontWeight: 900, color: NAVY, letterSpacing: -1 }}>{AR.format(totalPrecio)}</span>
             </div>
 
-            {/* Cta. Corriente: no cobra en el momento, no tiene sentido pedir medio de pago */}
+            {/* Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden medio de pago */}
             {canal === "cuenta_corriente" ? (
               <div style={{ background: "#F5F3FF", border: "1.5px solid #DDD6FE", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#5B21B6", margin: 0 }}>
                   Se carga a la cuenta corriente de {personal.find((p) => p.id === personalId)?.nombre ?? "el beneficiario"}.
                 </p>
                 <p style={{ fontSize: 12, color: "#7C6BAE", marginTop: 2 }}>No requiere cobro ahora.</p>
+              </div>
+            ) : canal === "pedido_ya_efectivo" ? (
+              <div style={{ background: "#FFF7ED", border: "1.5px solid #FED7AA", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#C05621", margin: 0 }}>
+                  Pago en efectivo al entregar el pedido.
+                </p>
+                <p style={{ fontSize: 12, color: "#C2703A", marginTop: 2 }}>Suma a la caja como venta en efectivo.</p>
+              </div>
+            ) : canal === "pedido_ya_plataforma" ? (
+              <div style={{ background: "#F0F9FF", border: "1.5px solid #BAE6FD", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#0369A1", margin: 0 }}>
+                  Pedido Ya paga después, no se cobra ahora.
+                </p>
+                <p style={{ fontSize: 12, color: "#0C6690", marginTop: 2 }}>No concilia contra la caja de este turno.</p>
               </div>
             ) : (
             <>
@@ -1088,8 +1112,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: "white", color: "#64748B", border: "1.5px solid #E2E8F0", cursor: "pointer" }}
               >Cancelar</button>
               {(() => {
-                const montoInsuficiente = canal !== "cuenta_corriente" && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100);
-                const otrosMediosDeMas  = canal !== "cuenta_corriente" && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100);
+                const montoInsuficiente = !sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100);
+                const otrosMediosDeMas  = !sinMedioPago && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100);
                 const disabled = pending || montoInsuficiente || otrosMediosDeMas;
                 return (
                   <button

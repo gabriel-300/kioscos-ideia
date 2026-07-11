@@ -85,12 +85,18 @@ export async function crearMovimiento(data: {
 
   // Cta. Corriente no se cobra en el momento -- ningún medio de pago debería
   // quedar asociado al movimiento, sin importar lo que mande el cliente (si no,
-  // ese monto contamina la conciliación del cierre de caja).
-  const esCtaCorriente    = data.canal === "cuenta_corriente";
-  const pagoEfectivo      = esCtaCorriente ? null : data.pago_efectivo      ?? null;
-  const pagoBilletera     = esCtaCorriente ? null : data.pago_billetera     ?? null;
-  const pagoTarjeta       = esCtaCorriente ? null : data.pago_tarjeta       ?? null;
-  const pagoTransferencia = esCtaCorriente ? null : data.pago_transferencia ?? null;
+  // ese monto contamina la conciliación del cierre de caja). Pedido Ya Plataforma
+  // es el mismo caso: la plata la paga la app después, no hay contraparte todavía
+  // en ningún medio. Pedido Ya Efectivo es al revés -- se cobra en efectivo en el
+  // momento, se fuerza más abajo una vez que se conoce el total de la venta.
+  const esCtaCorriente       = data.canal === "cuenta_corriente";
+  const esPedidoYaPlataforma = data.canal === "pedido_ya_plataforma";
+  const esPedidoYaEfectivo   = data.canal === "pedido_ya_efectivo";
+  const sinConciliacion      = esCtaCorriente || esPedidoYaPlataforma;
+  let pagoEfectivo      = sinConciliacion ? null : data.pago_efectivo      ?? null;
+  let pagoBilletera     = sinConciliacion ? null : data.pago_billetera     ?? null;
+  let pagoTarjeta       = sinConciliacion ? null : data.pago_tarjeta       ?? null;
+  let pagoTransferencia = sinConciliacion ? null : data.pago_transferencia ?? null;
 
   const promoInputs   = data.items.filter(esPromoItem);
   const productInputs = data.items.filter((i): i is ItemInput => !esPromoItem(i));
@@ -113,7 +119,7 @@ export async function crearMovimiento(data: {
   }
   function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
     if (!esVenta || precioCatalogo == null) return precioCliente ?? null;
-    if (data.canal === "pedido_ya" && precioCliente != null && precioCliente >= precioCatalogo * 0.5) {
+    if ((esPedidoYaEfectivo || esPedidoYaPlataforma) && precioCliente != null && precioCliente >= precioCatalogo * 0.5) {
       return precioCliente;
     }
     return precioCatalogo;
@@ -168,6 +174,18 @@ export async function crearMovimiento(data: {
     }),
     ...expandedPromoItems,
   ];
+
+  // Pedido Ya Efectivo: el cliente paga en efectivo al recibir el pedido -- se
+  // fuerza server-side a que el 100% del total quede como pago_efectivo (sin
+  // importar qué mande el cliente en el resto de los medios), así entra a la
+  // conciliación de caja como una venta en efectivo más, igual que Consumidor Final.
+  if (esVenta && esPedidoYaEfectivo) {
+    const totalVentaEfectivo = items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    pagoEfectivo      = totalVentaEfectivo || null;
+    pagoBilletera     = null;
+    pagoTarjeta       = null;
+    pagoTransferencia = null;
+  }
 
   // Sobrepago: la suma de billetera+tarjeta+transferencia no puede superar el
   // total vendido (a diferencia del efectivo, que puede superarlo -- es vuelto).

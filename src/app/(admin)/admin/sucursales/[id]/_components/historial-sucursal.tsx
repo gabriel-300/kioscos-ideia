@@ -22,17 +22,23 @@ type Item = {
   product: { name: string; sku: string } | null;
 };
 
+// "pedido_ya" (sin sufijo) queda para ventas históricas de antes del split en
+// dos canales -- no se reescribe la data vieja, solo se sigue mostrando.
 const CANAL_LABEL: Record<string, string> = {
-  consumidor_final: "Consumidor Final",
-  pedido_ya:        "Pedido Ya",
-  cuenta_corriente: "Cta. Cte.",
-  ambulante:        "Ambulante",
+  consumidor_final:     "Consumidor Final",
+  pedido_ya:             "Pedido Ya",
+  pedido_ya_efectivo:    "Pedido Ya Efectivo",
+  pedido_ya_plataforma:  "Pedido Ya Plataforma",
+  cuenta_corriente:      "Cta. Cte.",
+  ambulante:              "Ambulante",
 };
 const CANAL_COLOR: Record<string, string> = {
-  consumidor_final: "bg-blue-50 text-blue-700",
-  pedido_ya:        "bg-orange-50 text-orange-700",
-  cuenta_corriente: "bg-purple-50 text-purple-700",
-  ambulante:        "bg-emerald-50 text-emerald-700",
+  consumidor_final:     "bg-blue-50 text-blue-700",
+  pedido_ya:             "bg-orange-50 text-orange-700",
+  pedido_ya_efectivo:    "bg-orange-50 text-orange-700",
+  pedido_ya_plataforma:  "bg-sky-50 text-sky-700",
+  cuenta_corriente:      "bg-purple-50 text-purple-700",
+  ambulante:              "bg-emerald-50 text-emerald-700",
 };
 
 type Movimiento = {

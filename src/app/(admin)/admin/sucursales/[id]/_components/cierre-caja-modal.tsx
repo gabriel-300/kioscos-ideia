@@ -91,9 +91,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   // Las ventas a Cta. Corriente no se cobran en el momento -- no tienen ninguna
   // contraparte en efectivo/billetera/tarjeta/transferencia, así que no deben
   // sumar a lo que se concilia contra la caja (si no, generan un faltante ficticio
-  // por el mismo monto fiado).
-  const ventasCobradas = ventasHoy.filter((m) => m.canal !== "cuenta_corriente");
-  const ventasFiado     = ventasHoy.filter((m) => m.canal === "cuenta_corriente");
+  // por el mismo monto fiado). Pedido Ya Plataforma es el mismo caso (la app paga
+  // después), pero se muestra en su propia línea -- no se mezcla con totalFiado,
+  // que es específicamente la deuda de Cta. Corriente.
+  const ventasCobradas          = ventasHoy.filter((m) => m.canal !== "cuenta_corriente" && m.canal !== "pedido_ya_plataforma");
+  const ventasFiado              = ventasHoy.filter((m) => m.canal === "cuenta_corriente");
+  const ventasPedidoYaPlataforma = ventasHoy.filter((m) => m.canal === "pedido_ya_plataforma");
 
   const sugeridoEfectivo      = ventasCobradas.reduce((s, m) => s + (m.pago_efectivo      ?? 0), 0);
   const sugeridoBilletera     = ventasCobradas.reduce((s, m) => s + (m.pago_billetera     ?? 0), 0);
@@ -102,6 +105,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   const totalVentas  = ventasCobradas.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const totalFiado   = ventasFiado.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
+  const totalPedidoYaPlataforma = ventasPedidoYaPlataforma.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const registrosHoy = ventasHoy.length;
 
   const fondo = aperturaActual?.fondo_inicial ?? 0;
@@ -206,6 +210,12 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
               <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-200">
                 <span className="text-xs font-medium text-purple-600">Cta. Corriente (no concilia contra caja)</span>
                 <span className="text-xs font-semibold tabular-nums text-purple-600">{AR.format(totalFiado)}</span>
+              </div>
+            )}
+            {totalPedidoYaPlataforma > 0 && (
+              <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-200">
+                <span className="text-xs font-medium text-sky-600">Pedido Ya Plataforma (no concilia contra caja)</span>
+                <span className="text-xs font-semibold tabular-nums text-sky-600">{AR.format(totalPedidoYaPlataforma)}</span>
               </div>
             )}
           </div>

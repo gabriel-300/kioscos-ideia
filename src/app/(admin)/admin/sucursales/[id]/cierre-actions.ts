@@ -80,8 +80,11 @@ export async function cerrarCaja(data: {
 
     // Las ventas a Cta. Corriente no se cobran en el momento -- no tienen contraparte
     // en ningún medio de pago, así que no deben sumar al total que se concilia contra
-    // caja (si no, generan un faltante ficticio por el mismo monto fiado).
-    const ventasTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal !== "cuenta_corriente");
+    // caja (si no, generan un faltante ficticio por el mismo monto fiado). Pedido Ya
+    // Plataforma es el mismo caso (la app paga después), pero NO se mezcla con
+    // total_fiado -- ese campo alimenta el informe de descuento a personal y Pedido
+    // Ya Plataforma no es deuda de nadie del staff.
+    const ventasTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal !== "cuenta_corriente" && m.canal !== "pedido_ya_plataforma");
     const ventasFiadoTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "cuenta_corriente");
 
     billeteraDeclarada     = ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0);

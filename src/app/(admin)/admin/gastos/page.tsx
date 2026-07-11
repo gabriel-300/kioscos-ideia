@@ -71,9 +71,10 @@ export default async function GastosPage({
   }));
 
   // Mismo criterio que el informe de ventas y el cierre de caja: la Cta.
-  // Corriente no se cobra en el momento, no cuenta como ingreso real todavía.
+  // Corriente y Pedido Ya Plataforma no se cobran en el momento, no cuentan
+  // como ingreso real todavía.
   const ingresos = (ventasRaw ?? [])
-    .filter((m) => m.canal !== "cuenta_corriente")
+    .filter((m) => m.canal !== "cuenta_corriente" && m.canal !== "pedido_ya_plataforma")
     .reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
 
   return (
