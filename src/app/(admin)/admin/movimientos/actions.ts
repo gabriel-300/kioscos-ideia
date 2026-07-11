@@ -242,6 +242,10 @@ export async function crearMovimiento(data: {
 
   if (rpcRes.error) throw new Error(rpcRes.error.message ?? "Error al crear movimiento");
 
+  // Nota: la merma de cocción automática (productos con products.merma_coccion_pct,
+  // ej. congelado → cocido) se genera DENTRO de crear_movimiento_con_items, no acá
+  // -- así queda en la misma transacción que la venta, sin round-trip extra.
+
   // Asociar imagen si se proporcionó — intentamos con el ID devuelto por la función
   if (data.remito_image_url) {
     const newId = typeof rpcRes.data === "string" ? rpcRes.data : null;
