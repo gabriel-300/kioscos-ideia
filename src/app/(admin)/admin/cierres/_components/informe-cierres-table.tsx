@@ -46,6 +46,24 @@ function DiferenciaBadge({ d }: { d: number | null }) {
   return <span className="text-xs font-semibold text-danger bg-danger/5 px-2 py-0.5 rounded-full">{AR.format(d)}</span>;
 }
 
+// Cuando el fondo con el que se dejó el turno siguiente es distinto del que
+// arrancó este turno, Efectivo (neto del fondo inicial) y Sobre (neto del
+// fondo siguiente) se despegan por esa diferencia -- sin esto no se entiende
+// por qué esos dos números no coinciden.
+function FondoNota({ f }: { f: FilaCierre }) {
+  if (f.fondoInicial == null || f.fondoSiguiente == null) return null;
+  const cambio = f.fondoSiguiente - f.fondoInicial;
+  if (cambio === 0) return null;
+  return (
+    <p
+      className="text-[11px] text-neutral-400 whitespace-nowrap"
+      title={`El fondo pasó de ${AR.format(f.fondoInicial)} a ${AR.format(f.fondoSiguiente)} de un turno al siguiente -- por eso Efectivo y Sobre no coinciden.`}
+    >
+      Fondo {cambio > 0 ? "+" : ""}{AR.format(cambio)}
+    </p>
+  );
+}
+
 function DetalleCierre({ f }: { f: FilaCierre }) {
   return (
     <div>
@@ -171,7 +189,7 @@ export function InformeCierresTable({ filas, totales }: {
                   💵 {AR.format(f.efectivo)} · 📱 {AR.format(f.billetera)} · 💳 {AR.format(f.tarjeta)} · 🏦 {AR.format(f.transferencia)}
                   {f.plataforma > 0 && <span className="text-sky-600"> · 🛵 {AR.format(f.plataforma)}</span>}
                 </p>
-                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-2 flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                   <SobreEstado
                     cierreId={f.id}
                     montoSobre={f.montoSobre}
@@ -182,6 +200,7 @@ export function InformeCierresTable({ filas, totales }: {
                     verificadoEn={f.sobreVerificadoEn}
                     notas={f.sobreNotas}
                   />
+                  <FondoNota f={f} />
                 </div>
               </button>
               {isOpen && (
@@ -263,16 +282,19 @@ export function InformeCierresTable({ filas, totales }: {
                         <DiferenciaBadge d={f.diferencia} />
                       </td>
                       <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                        <SobreEstado
-                          cierreId={f.id}
-                          montoSobre={f.montoSobre}
-                          retiradoPorNombre={f.sobreRetiradoPorNombre}
-                          retiradoEn={f.sobreRetiradoEn}
-                          montoVerificado={f.sobreMontoVerificado}
-                          verificadoPorNombre={f.sobreVerificadoPorNombre}
-                          verificadoEn={f.sobreVerificadoEn}
-                          notas={f.sobreNotas}
-                        />
+                        <div className="flex flex-col items-end gap-0.5">
+                          <SobreEstado
+                            cierreId={f.id}
+                            montoSobre={f.montoSobre}
+                            retiradoPorNombre={f.sobreRetiradoPorNombre}
+                            retiradoEn={f.sobreRetiradoEn}
+                            montoVerificado={f.sobreMontoVerificado}
+                            verificadoPorNombre={f.sobreVerificadoPorNombre}
+                            verificadoEn={f.sobreVerificadoEn}
+                            notas={f.sobreNotas}
+                          />
+                          <FondoNota f={f} />
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-neutral-400">
                         <svg
