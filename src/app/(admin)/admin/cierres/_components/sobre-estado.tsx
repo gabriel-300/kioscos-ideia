@@ -113,9 +113,9 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
           type="button"
           onClick={() => setModalOpen(true)}
           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-opacity hover:opacity-75 ${ok ? "bg-selva-50 text-selva-700" : "bg-danger/5 text-danger"}`}
-          title={`Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""} · click para corregir`}
+          title={`Dif. del sobre (contado al verificar vs. declarado) — Verificado por ${verificadoPorNombre ?? "—"}${verificadoEn ? ` el ${fmtFechaHora(verificadoEn)}` : ""}${notas ? ` — ${notas}` : ""} · click para corregir`}
         >
-          {ok ? "OK ✓" : `${diferencia > 0 ? "+" : ""}${AR.format(diferencia)}`}
+          {ok ? "✉ OK" : `✉ ${diferencia > 0 ? "+" : ""}${AR.format(diferencia)}`}
         </button>
         {modalOpen && (
           <VerificarModal

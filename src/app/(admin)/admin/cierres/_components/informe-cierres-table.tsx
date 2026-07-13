@@ -55,20 +55,6 @@ function DetalleCierre({ f }: { f: FilaCierre }) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-neutral-400 mb-0.5">Efectivo contado</p>
-          <p className="text-sm font-semibold text-neutral-800 tabular-nums">{AR.format(f.efectivo)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400 mb-0.5">Billetera</p>
-          <p className="text-sm font-semibold text-neutral-800 tabular-nums">{AR.format(f.billetera)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-neutral-400 mb-0.5">Tarjeta / Transfer.</p>
-          <p className="text-sm font-semibold text-neutral-800 tabular-nums">
-            {AR.format(f.tarjeta)} / {AR.format(f.transferencia)}
-          </p>
-        </div>
-        <div>
           <p className="text-xs text-neutral-400 mb-0.5">Fondo siguiente</p>
           <p className="text-sm font-semibold text-neutral-800 tabular-nums">
             {f.fondoSiguiente != null ? AR.format(f.fondoSiguiente) : "—"}
@@ -173,6 +159,9 @@ export function InformeCierresTable({ filas, totales }: {
                   <span className="tabular-nums font-semibold text-neutral-800">{AR.format(f.ventas)}</span>
                   <DiferenciaBadge d={f.diferencia} />
                 </div>
+                <p className="mt-1 text-[11px] text-neutral-400 tabular-nums truncate">
+                  💵 {AR.format(f.efectivo)} · 📱 {AR.format(f.billetera)} · 💳 {AR.format(f.tarjeta)} · 🏦 {AR.format(f.transferencia)}
+                </p>
                 <div className="mt-2" onClick={(e) => e.stopPropagation()}>
                   <SobreEstado
                     cierreId={f.id}
@@ -209,8 +198,12 @@ export function InformeCierresTable({ filas, totales }: {
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transf.</th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ventas</th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Diferencia</th>
+              <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Dif. caja</th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Sobre</th>
               <th className="px-3 py-2.5 w-8" />
             </tr>
@@ -242,6 +235,10 @@ export function InformeCierresTable({ filas, totales }: {
                         ) : <span className="text-neutral-400">—</span>}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-neutral-500">{f.encargado}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{AR.format(f.efectivo)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{AR.format(f.billetera)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{AR.format(f.tarjeta)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{AR.format(f.transferencia)}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-neutral-800">
                         {AR.format(f.ventas)}
                       </td>
@@ -271,7 +268,7 @@ export function InformeCierresTable({ filas, totales }: {
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} className="bg-neutral-50 px-4 py-4">
+                        <td colSpan={11} className="bg-neutral-50 px-4 py-4">
                           <DetalleCierre f={f} />
                         </td>
                       </tr>
@@ -286,6 +283,10 @@ export function InformeCierresTable({ filas, totales }: {
               <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-neutral-500" colSpan={3}>
                 Total ({filas.length} cierres)
               </td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totales.efectivo)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totales.billetera)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totales.tarjeta)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{AR.format(totales.transferencia)}</td>
               <td className="px-3 py-2.5 text-right tabular-nums text-neutral-800">{AR.format(totales.ventas)}</td>
               <td className="px-3 py-2.5 text-center">
                 <DiferenciaBadge d={totales.diferencia} />
