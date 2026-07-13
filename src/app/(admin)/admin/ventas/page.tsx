@@ -27,6 +27,14 @@ type ProductoFila = {
   margen:        number | null;
 };
 
+const CANAL_LABELS: Record<string, string> = {
+  consumidor_final:     "Consumidor Final",
+  pedido_ya_efectivo:   "Pedido Ya Efectivo",
+  pedido_ya_plataforma: "Pedido Ya Plataforma",
+  cuenta_corriente:     "Cta. Corriente",
+  ambulante:            "Ambulante",
+};
+
 export default async function VentasPage({
   searchParams,
 }: {
@@ -56,7 +64,7 @@ export default async function VentasPage({
   let query = (admin as any)
     .from("movimientos")
     .select(`
-      id, fecha, sucursal_id,
+      id, fecha, sucursal_id, canal,
       movimiento_items(
         product_id, cantidad, subtotal, promo_id,
         product:products(name, costo, unit_label)
@@ -77,7 +85,7 @@ export default async function VentasPage({
     promo_id:   string | null;
     product:    { name: string; costo: number | null; unit_label: string | null } | null;
   };
-  type VentaRow = { id: string; fecha: string; sucursal_id: string; movimiento_items: ItemRow[] };
+  type VentaRow = { id: string; fecha: string; sucursal_id: string; canal: string | null; movimiento_items: ItemRow[] };
 
   const { data: ventasRaw, error } = (await query) as { data: VentaRow[] | null; error: any };
   if (error) throw new Error(error.message);
@@ -88,9 +96,11 @@ export default async function VentasPage({
   // cantidad real). El costo se calcula sobre el costo ACTUAL del producto, no
   // el histórico al momento de la venta.
   const porProducto = new Map<string, ProductoFila>();
+  const porCanal    = new Map<string, number>();
   let cantidadVentasConPromo = 0;
 
   for (const venta of ventas) {
+    const canal = venta.canal ?? "consumidor_final";
     for (const item of venta.movimiento_items) {
       if (item.promo_id) cantidadVentasConPromo++;
       const prev = porProducto.get(item.product_id);
@@ -109,8 +119,13 @@ export default async function VentasPage({
           cantidad, facturado, costoUnitario: costo, costoTotal: null, margen: null,
         });
       }
+      porCanal.set(canal, (porCanal.get(canal) ?? 0) + facturado);
     }
   }
+
+  const filasCanal = [...porCanal.entries()]
+    .map(([canal, facturado]) => ({ canal, label: CANAL_LABELS[canal] ?? canal, facturado }))
+    .sort((a, b) => b.facturado - a.facturado);
 
   const filas: ProductoFila[] = [...porProducto.values()].map((f) => {
     const costoTotal = f.costoUnitario != null ? f.cantidad * f.costoUnitario : null;
@@ -229,6 +244,26 @@ export default async function VentasPage({
           )}
         </div>
       </div>
+
+      {/* Por canal de venta -- para saber cuánto fue Pedido Ya, Cta. Corriente, etc. */}
+      {filasCanal.length > 0 && (
+        <div className="rounded-xl border border-neutral-200 bg-white p-4 mb-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Por canal de venta</p>
+          <div className="flex flex-wrap gap-3">
+            {filasCanal.map((c) => (
+              <div key={c.canal} className="rounded-lg bg-neutral-50 px-3 py-2 min-w-[150px]">
+                <p className="text-xs text-neutral-500">{c.label}</p>
+                <p className="text-sm font-semibold text-neutral-800 tabular-nums">{AR.format(c.facturado)}</p>
+              </div>
+            ))}
+          </div>
+          {(porCanal.get("pedido_ya_plataforma") ?? 0) > 0 && (
+            <p className="text-[11px] text-neutral-400 mt-2">
+              Pedido Ya Plataforma no pasa por caja (paga la app aparte) — no aparece en el Informe de cierres.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Mobile: tarjetas apiladas */}
       <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
