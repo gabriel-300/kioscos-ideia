@@ -16,6 +16,7 @@ export async function cerrarCaja(data: {
   notas:                    string | null;
   fondo_siguiente:          number | null;
   total_fiado:              number;
+  total_plataforma:         number;
 }) {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
@@ -47,6 +48,7 @@ export async function cerrarCaja(data: {
   let transferenciaDeclarada = data.transferencia_declarada;
   let totalVentas            = data.total_ventas;
   let totalFiado             = data.total_fiado;
+  let totalPlataforma        = data.total_plataforma;
 
   if (role !== "admin") {
     const aperturaRes = await (admin as any)
@@ -86,6 +88,7 @@ export async function cerrarCaja(data: {
     // Ya Plataforma no es deuda de nadie del staff.
     const ventasTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal !== "cuenta_corriente" && m.canal !== "pedido_ya_plataforma");
     const ventasFiadoTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "cuenta_corriente");
+    const ventasPlataformaTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "pedido_ya_plataforma");
 
     billeteraDeclarada     = ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
     tarjetaDeclarada       = ventasTurno.reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
@@ -97,6 +100,9 @@ export async function cerrarCaja(data: {
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
     );
     totalFiado = ventasFiadoTurno.reduce(
+      (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
+    );
+    totalPlataforma = ventasPlataformaTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
     );
   }
@@ -116,6 +122,7 @@ export async function cerrarCaja(data: {
     p_created_by:              userId,
     p_fondo_siguiente:         data.fondo_siguiente,
     p_total_fiado:             totalFiado,
+    p_total_plataforma:        totalPlataforma,
   });
 
   if (error) throw new Error(error.message);

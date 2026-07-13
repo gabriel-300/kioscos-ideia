@@ -117,6 +117,7 @@ export type Database = {
           sucursal_id: string
           tarjeta_declarada: number
           total_fiado: number
+          total_plataforma: number
           total_ventas: number
           transferencia_declarada: number
         }
@@ -142,6 +143,7 @@ export type Database = {
           sucursal_id: string
           tarjeta_declarada?: number
           total_fiado?: number
+          total_plataforma?: number
           total_ventas?: number
           transferencia_declarada?: number
         }
@@ -167,6 +169,7 @@ export type Database = {
           sucursal_id?: string
           tarjeta_declarada?: number
           total_fiado?: number
+          total_plataforma?: number
           total_ventas?: number
           transferencia_declarada?: number
         }
@@ -952,6 +955,7 @@ export type Database = {
           p_sucursal_id: string
           p_tarjeta_declarada: number
           p_total_fiado?: number
+          p_total_plataforma?: number
           p_total_ventas: number
           p_transferencia_declarada: number
         }

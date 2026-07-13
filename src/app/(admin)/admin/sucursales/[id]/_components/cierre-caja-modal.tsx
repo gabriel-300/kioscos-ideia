@@ -160,6 +160,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
           notas:                    notas || null,
           fondo_siguiente:          fondoSiguiente ? parseFloat(fondoSiguiente) : null,
           total_fiado:              totalFiado,
+          total_plataforma:         totalPedidoYaPlataforma,
         });
         handleClose();
       } catch (e) {
