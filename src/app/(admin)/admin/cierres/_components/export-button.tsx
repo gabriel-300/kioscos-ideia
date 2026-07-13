@@ -25,7 +25,7 @@ type CierreExport = {
 };
 
 function toCSV(rows: CierreExport[]): string {
-  const headers = ["Fecha", "N° Liquidación", "Sucursal", "Fondo inicial", "Ventas sistema", "Cta. Corriente", "Pedido Ya Plataforma", "Efectivo", "Billetera", "Tarjeta", "Transferencia", "Diferencia", "Retiros del turno", "Fondo siguiente", "Monto en sobre", "Notas", "Encargado"];
+  const headers = ["Fecha", "N° Liquidación", "Sucursal", "Fondo inicial", "Ventas sistema", "Cta. Corriente", "Pedido Ya Plataforma", "Efectivo contado (incluye fondo)", "Billetera", "Tarjeta", "Transferencia", "Diferencia", "Retiros del turno", "Fondo siguiente", "Monto en sobre", "Notas", "Encargado"];
   const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const lines = [
     headers.join(","),

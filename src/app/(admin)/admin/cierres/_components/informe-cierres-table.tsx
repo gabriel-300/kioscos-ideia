@@ -19,6 +19,7 @@ export type FilaCierre = {
   fiado:                   number;
   plataforma:              number;
   efectivo:                number;
+  efectivoContado:         number;
   billetera:               number;
   tarjeta:                 number;
   transferencia:           number;
@@ -49,6 +50,12 @@ function DetalleCierre({ f }: { f: FilaCierre }) {
   return (
     <div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+        <div>
+          <p className="text-xs text-neutral-400 mb-0.5">Efectivo contado</p>
+          <p className="text-sm font-semibold text-neutral-800 tabular-nums" title="Lo que había físicamente en el cajón al cerrar — incluye el fondo inicial">
+            {AR.format(f.efectivoContado)}
+          </p>
+        </div>
         <div>
           <p className="text-xs text-neutral-400 mb-0.5">Fondo inicial</p>
           <p className="text-sm font-semibold text-neutral-800 tabular-nums">
@@ -200,7 +207,9 @@ export function InformeCierresTable({ filas, totales }: {
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Fecha</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Encargado</th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Efectivo</th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500" title="Venta real en efectivo — ya descontado el fondo inicial y los retiros del turno">
+                Efectivo
+              </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Billetera</th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Tarjeta</th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Transf.</th>

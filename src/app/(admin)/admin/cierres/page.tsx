@@ -187,8 +187,15 @@ export default async function CierresPage({
     const suc = c.sucursales as { id: string; nombre: string } | null;
     const fondo = suc ? findFondo(suc.id, c.fecha, c.created_at) : null;
     const retirosTurno = suc ? retirosDelTurno(suc.id, c.created_at) : [];
+    const totalRetirosTurno = retirosTurno.reduce((s, r) => s + r.monto, 0);
     const fondoSiguiente = c.fondo_siguiente;
     const montoSobre = fondoSiguiente != null ? Math.max(0, (c.efectivo_declarado ?? 0) - fondoSiguiente) : null;
+    // El efectivo contado en el cajón incluye el fondo inicial que ya estaba ahí
+    // (se recicla de un turno al siguiente) -- mostrar ese número crudo como "lo
+    // que vendí en efectivo" mezcla las dos cosas. Acá se muestra neto (mismo
+    // cálculo que ya usa el total de la tarjeta resumen y la Diferencia): venta
+    // real en efectivo = contado - fondo inicial + retiros del turno.
+    const efectivoNeto = (c.efectivo_declarado ?? 0) - (fondo ?? 0) + totalRetirosTurno;
     return {
       id:                       c.id,
       fechaDisplay:             new Date(c.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }),
@@ -200,13 +207,14 @@ export default async function CierresPage({
       ventas:                   c.total_ventas ?? 0,
       fiado:                    c.total_fiado ?? 0,
       plataforma:               c.total_plataforma ?? 0,
-      efectivo:                 c.efectivo_declarado ?? 0,
+      efectivo:                 efectivoNeto,
+      efectivoContado:          c.efectivo_declarado ?? 0,
       billetera:                c.billetera_declarada ?? 0,
       tarjeta:                  c.tarjeta_declarada ?? 0,
       transferencia:            c.transferencia_declarada ?? 0,
       diferencia:               c.diferencia,
       retiros:                  retirosTurno.map((r) => ({ motivo: r.motivo, monto: r.monto })),
-      totalRetiros:             retirosTurno.reduce((s, r) => s + r.monto, 0),
+      totalRetiros:             totalRetirosTurno,
       fondoSiguiente:           fondoSiguiente,
       montoSobre:               montoSobre,
       sobreRetiradoPorNombre:   c.sobre_retirado_por ? (profileMap[c.sobre_retirado_por] ?? "—") : null,
@@ -351,11 +359,12 @@ export default async function CierresPage({
       />
 
       <p className="text-xs text-neutral-400 mt-3">
-        Tocá una fila para ver el detalle completo (medios de pago, fondo, retiros).
+        Tocá una fila para ver el detalle completo (fondo, retiros, efectivo contado).
         Diferencia = suma de todos los medios declarados − ventas registradas en el sistema.
         Positivo indica sobrante, negativo indica faltante.
-        La tarjeta de Efectivo (arriba) es neta del fondo inicial de cada turno — el "Efectivo contado" del detalle
-        de cada fila sigue mostrando lo contado en el cajón (incluye el fondo).
+        La columna Efectivo (arriba y en cada fila) ya está neta del fondo inicial y los retiros del turno —
+        es la venta real en efectivo, no lo que había físicamente en el cajón. Ese monto crudo ("Efectivo contado",
+        que incluye el fondo) se puede ver en el detalle de cada fila.
       </p>
     </div>
   );
