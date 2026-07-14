@@ -1,12 +1,10 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
-import { marcarSobreRetirado } from "../cierre-actions";
+import { Fragment, useState } from "react";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 type Retiro = { id: string; monto: number; motivo: string; created_at: string };
-type Socio  = { id: string; nombre: string };
 
 export type CierreConDetalle = {
   id:                       string;
@@ -26,47 +24,7 @@ export type CierreConDetalle = {
   sobre_retirado_en:        string | null;
 };
 
-function SobreRetiro({ cierreId, sucursalId, socios }: { cierreId: string; sucursalId: string; socios: Socio[] }) {
-  const [pending, startTransition] = useTransition();
-  const [socioId, setSocioId] = useState(socios[0]?.id ?? "");
-  const [error, setError]     = useState<string | null>(null);
-
-  function handleClick() {
-    if (!socioId) { setError("Elegí quién se lo lleva"); return; }
-    setError(null);
-    startTransition(async () => {
-      try { await marcarSobreRetirado(cierreId, sucursalId, socioId); }
-      catch (e) { setError((e as Error).message); }
-    });
-  }
-
-  if (socios.length === 0) {
-    return <p className="text-xs text-amber-600">No hay socios con usuario admin cargados todavía.</p>;
-  }
-
-  return (
-    <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-      <select
-        value={socioId}
-        onChange={(e) => setSocioId(e.target.value)}
-        className="h-8 rounded-lg border border-neutral-300 bg-white px-2 text-xs focus:outline-none focus:border-tierra-700"
-      >
-        {socios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-      </select>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={handleClick}
-        className="h-8 px-3 rounded-lg bg-tierra-700 text-white text-xs font-semibold hover:bg-tierra-800 transition-colors disabled:opacity-50"
-      >
-        {pending ? "Guardando…" : "Marcar retirado"}
-      </button>
-      {error && <span className="text-xs text-danger">{error}</span>}
-    </div>
-  );
-}
-
-export function HistorialCierres({ cierres, sucursalId, socios = [] }: { cierres: CierreConDetalle[]; sucursalId: string; socios?: Socio[] }) {
+export function HistorialCierres({ cierres }: { cierres: CierreConDetalle[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (cierres.length === 0) {
@@ -186,7 +144,9 @@ export function HistorialCierres({ cierres, sucursalId, socios = [] }: { cierres
                                 ✓ Retirado {c.sobre_retirado_en && `el ${new Date(c.sobre_retirado_en).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} a las ${new Date(c.sobre_retirado_en).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`}
                               </p>
                             ) : (
-                              <SobreRetiro cierreId={c.id} sucursalId={sucursalId} socios={socios} />
+                              // El kiosco ya no "declara" quién se lo lleva -- ahora confirma el
+                              // propio socio que lo retira, desde /admin/cierres, con su sesión.
+                              <p className="text-xs text-amber-600">Pendiente de retiro</p>
                             )}
                           </div>
                         );

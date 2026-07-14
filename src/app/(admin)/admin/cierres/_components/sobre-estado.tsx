@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { verificarSobre } from "../actions";
+import { verificarSobre, confirmarRetiroSobre } from "../actions";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -148,11 +148,37 @@ export function SobreEstado({ cierreId, montoSobre, retiradoPorNombre, retiradoE
     );
   }
 
+  return <ConfirmarRetiroButton cierreId={cierreId} />;
+}
+
+// Solo lo puede confirmar quien físicamente tiene el sobre en la mano, con su
+// propia sesión -- nadie puede marcarlo "retirado" en nombre de otro (antes
+// lo hacía el kiosco eligiendo un nombre de una lista, sin que esa persona
+// confirmara nada).
+function ConfirmarRetiroButton({ cierreId }: { cierreId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleClick() {
+    setError(null);
+    startTransition(async () => {
+      try { await confirmarRetiroSobre(cierreId); }
+      catch (e) { setError((e as Error).message); }
+    });
+  }
+
   return (
     <div className="flex flex-col items-end gap-0.5">
-      <span className="inline-flex items-center rounded-full bg-neutral-100 text-neutral-500 px-2 py-0.5 text-xs font-medium">
-        Sin retirar
-      </span>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={handleClick}
+        className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-xs font-semibold hover:bg-amber-100 transition-colors disabled:opacity-50"
+        title="Confirmá esto solo si vos mismo tenés el sobre en la mano ahora"
+      >
+        {pending ? "Guardando…" : "Confirmar retiro"}
+      </button>
+      {error && <span className="text-[10px] text-danger">{error}</span>}
     </div>
   );
 }

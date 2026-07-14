@@ -103,12 +103,6 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   const promos = promosResult.data ?? [];
 
-  // Socios/tesorero (usuarios admin) para el selector de "quién retiró el sobre"
-  const { data: { users: adminUsers } } = await admin.auth.admin.listUsers({ perPage: 200 });
-  const socios = (adminUsers ?? [])
-    .filter((u) => u.app_metadata?.role === "admin")
-    .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) ?? u.email ?? "—" }));
-
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
   const ultimoCierre     = cierresData?.[0] ?? null;
@@ -662,7 +656,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
             {cierresVisibles.length} registros{role === "encargado" ? " (hoy)" : ""}
           </span>
         </div>
-        <HistorialCierres cierres={cierresVisibles} sucursalId={sucursal.id} socios={socios} />
+        <HistorialCierres cierres={cierresVisibles} />
       </div>
 
       {/* Historial */}
