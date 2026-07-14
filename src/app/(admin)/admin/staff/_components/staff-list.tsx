@@ -414,17 +414,15 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
                       }
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {u.role !== "admin" && (
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            onClick={() => setEditing(u)}
-                            className="text-xs text-tierra-700 hover:underline font-medium"
-                          >
-                            Editar
-                          </button>
-                          <DeleteBtn id={u.id} email={u.email} />
-                        </div>
-                      )}
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => setEditing(u)}
+                          className="text-xs text-tierra-700 hover:underline font-medium"
+                        >
+                          Editar
+                        </button>
+                        {u.role !== "admin" && <DeleteBtn id={u.id} email={u.email} />}
+                      </div>
                     </td>
                   </tr>
                 );
