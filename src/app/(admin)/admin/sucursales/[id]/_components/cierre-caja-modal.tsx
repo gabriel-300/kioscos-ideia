@@ -78,6 +78,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const [fondoSiguiente, setFondoSiguiente] = useState("");
   const [notas,          setNotas]          = useState("");
   const [error,          setError]          = useState<string | null>(null);
+  const [confirmando,    setConfirmando]    = useState(false);
   const [pending, startTransition] = useTransition();
   const efectivoRef = useRef<HTMLInputElement>(null);
 
@@ -131,8 +132,16 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   function handleClose() {
     setEfectivo(""); setMp(""); setTarjeta(""); setTransferencia(""); setFondoSiguiente(""); setNotas(""); setError(null);
+    setConfirmando(false);
     onClose();
   }
+
+  // Si toca cualquier monto después de haber pedido confirmación, hay que
+  // volver a confirmar -- si no, un cambio de último momento (ej. corregir el
+  // fondo que deja) podría quedar "aprobado" con el mensaje viejo.
+  useEffect(() => {
+    setConfirmando(false);
+  }, [efectivo, mp, tarjeta, transferencia, fondoSiguiente]);
 
   const efectivoNum      = parseFloat(efectivo)      || 0;
   const mpNum            = parseFloat(mp)            || 0;
@@ -142,6 +151,16 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const hayAlgo          = totalDeclarado > 0;
   // diferencia = (efectivo − fondo + retiros del turno) + resto − ventas (espejea la RPC cerrar_caja)
   const diferencia       = hayAlgo ? (efectivoNum - fondo + retirosTurno) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
+
+  // Primer click: valida y pide confirmación (sin someter nada todavía).
+  // Segundo click (ya confirmando): recién ahí se cierra la caja de verdad --
+  // pedido explícito después de que a alguien se le escapó un cierre sin querer.
+  function handleCerrarClick() {
+    if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
+    setError(null);
+    if (!confirmando) { setConfirmando(true); return; }
+    handleSubmit();
+  }
 
   function handleSubmit() {
     if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
@@ -421,10 +440,29 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         </div>
 
         {cajaAbierta && puedeCerrarCaja && (
-          <div className="px-6 py-4 border-t border-neutral-200 shrink-0">
-            <Button variant="primary" size="sm" loading={pending} onClick={handleSubmit} className="w-full">
-              Cerrar caja
-            </Button>
+          <div className="px-6 py-4 border-t border-neutral-200 shrink-0 space-y-2">
+            {confirmando && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-semibold text-amber-800">¿Seguro que querés cerrar la caja?</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  No se puede deshacer. Vas a dejar <span className="font-semibold">{AR.format(parseFloat(fondoSiguiente) || 0)}</span> en el cajón
+                  {" "}y entregar <span className="font-semibold">{AR.format(Math.max(0, efectivoNum - (parseFloat(fondoSiguiente) || 0)))}</span> en el sobre.
+                </p>
+              </div>
+            )}
+            <div className="flex gap-2">
+              {confirmando && (
+                <button
+                  onClick={() => setConfirmando(false)}
+                  className="flex-1 h-10 rounded-lg border border-neutral-300 text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              )}
+              <Button variant="primary" size="sm" loading={pending} onClick={handleCerrarClick} className="flex-1">
+                {confirmando ? "Sí, cerrar caja" : "Cerrar caja"}
+              </Button>
+            </div>
           </div>
         )}
       </div>
