@@ -30,10 +30,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     sucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
   }
 
+  let auditoriaPendientes = 0;
+  if (role === "admin") {
+    const { count } = await (supabase as any)
+      .from("auditoria_stock_items")
+      .select("id", { count: "exact", head: true })
+      .neq("diferencia", 0)
+      .is("revisado_por", null);
+    auditoriaPendientes = count ?? 0;
+  }
+
   return (
     <div className="h-screen flex flex-col bg-neutral-50">
       <NumberInputWheelGuard />
-      <AdminNav role={role} email={email} name={name} sucursalId={sucursalId} />
+      <AdminNav role={role} email={email} name={name} sucursalId={sucursalId} auditoriaPendientes={auditoriaPendientes} />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>
   );

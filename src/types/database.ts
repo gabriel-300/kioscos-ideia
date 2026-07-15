@@ -55,6 +55,98 @@ export type Database = {
           },
         ]
       }
+      auditoria_stock_items: {
+        Row: {
+          ajuste_aplicado: boolean
+          auditoria_id: string
+          created_at: string
+          diferencia: number
+          id: string
+          nota_admin: string | null
+          observacion: string | null
+          product_id: string
+          revisado_en: string | null
+          revisado_por: string | null
+          stock_contado: number
+          stock_sistema: number
+        }
+        Insert: {
+          ajuste_aplicado?: boolean
+          auditoria_id: string
+          created_at?: string
+          diferencia?: number
+          id?: string
+          nota_admin?: string | null
+          observacion?: string | null
+          product_id: string
+          revisado_en?: string | null
+          revisado_por?: string | null
+          stock_contado: number
+          stock_sistema: number
+        }
+        Update: {
+          ajuste_aplicado?: boolean
+          auditoria_id?: string
+          created_at?: string
+          diferencia?: number
+          id?: string
+          nota_admin?: string | null
+          observacion?: string | null
+          product_id?: string
+          revisado_en?: string | null
+          revisado_por?: string | null
+          stock_contado?: number
+          stock_sistema?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auditoria_stock_items_auditoria_id_fkey"
+            columns: ["auditoria_id"]
+            isOneToOne: false
+            referencedRelation: "auditorias_stock"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auditoria_stock_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auditorias_stock: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          sucursal_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          id?: string
+          sucursal_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auditorias_stock_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string

@@ -8,6 +8,7 @@ import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
 import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
+import { AuditoriaButton } from "./_components/auditoria-button";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -57,7 +58,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, auditoriaHoyResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -99,9 +100,46 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .select("id, name, price, tipo, cover_image_url, promo_items(product_id, cantidad)")
       .eq("is_active", true)
       .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
+    // Admin client -- lo mismo que stock_sucursal más arriba, no depende del turno.
+    (admin as any)
+      .from("auditorias_stock")
+      .select(`
+        id,
+        auditoria_stock_items(
+          stock_sistema, stock_contado, observacion, revisado_por, revisado_en, ajuste_aplicado,
+          product:products(name, sku)
+        )
+      `)
+      .eq("sucursal_id", id)
+      .eq("fecha", hoy)
+      .maybeSingle() as unknown as Promise<{
+        data: {
+          id: string;
+          auditoria_stock_items: {
+            stock_sistema: number; stock_contado: number; observacion: string | null;
+            revisado_por: string | null; revisado_en: string | null; ajuste_aplicado: boolean;
+            product: { name: string; sku: string } | null;
+          }[];
+        } | null;
+      }>,
   ]);
 
   const promos = promosResult.data ?? [];
+
+  const auditoriaHoy = auditoriaHoyResult.data
+    ? {
+        items: auditoriaHoyResult.data.auditoria_stock_items.map((i) => ({
+          productName:    i.product?.name ?? "Producto eliminado",
+          sku:            i.product?.sku ?? "",
+          stockSistema:   i.stock_sistema,
+          stockContado:   i.stock_contado,
+          diferencia:     i.stock_contado - i.stock_sistema,
+          observacion:    i.observacion,
+          revisado:       i.revisado_por != null,
+          ajusteAplicado: i.ajuste_aplicado,
+        })),
+      }
+    : null;
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -373,6 +411,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                 />
               </>
             )}
+            <AuditoriaButton
+              sucursalId={sucursal.id}
+              products={(products ?? []) as Parameters<typeof AuditoriaButton>[0]["products"]}
+              stockMap={stockActual}
+              auditoriaHoy={auditoriaHoy}
+            />
             <AperturaCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
