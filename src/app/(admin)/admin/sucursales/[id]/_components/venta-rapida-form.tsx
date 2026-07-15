@@ -168,17 +168,31 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     return products.find((p) => p.id === id)?.precio_dist ?? 0;
   }
   // En los canales "Pedido Ya" (efectivo o plataforma) el encargado puede
-  // sobreescribir el precio a mano (la comisión de la app suele hacer que el
-  // precio real cobrado sea otro).
+  // sobreescribir el precio a mano -- la comisión de la app hace que el precio
+  // real cobrado sea otro, pero SIEMPRE por encima del de catálogo, nunca por
+  // debajo (así funciona en la realidad). Un valor menor al de catálogo se
+  // ignora acá mismo -- si no, la pantalla mostraría un total que el servidor
+  // después pisa en silencio, y esa diferencia terminaba como faltante fantasma.
   function priceOf(id: string) {
     if (canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") {
       const ov = precioOverride[id];
       if (ov !== undefined && ov !== "") {
         const v = parseFloat(ov);
-        if (!isNaN(v) && v >= 0) return v;
+        if (!isNaN(v) && v >= basePriceOf(id)) return v;
       }
     }
     return basePriceOf(id);
+  }
+
+  // Para avisarle al cajero en el momento -- no basta con que priceOf() ignore
+  // el valor inválido puertas adentro, hay que decirle por qué el total no se
+  // movió cuando tipeó un número menor al de catálogo.
+  function overridePedidoYaInvalido(id: string) {
+    if (canal !== "pedido_ya_efectivo" && canal !== "pedido_ya_plataforma") return false;
+    const ov = precioOverride[id];
+    if (ov === undefined || ov === "") return false;
+    const v = parseFloat(ov);
+    return !isNaN(v) && v < basePriceOf(id);
   }
 
   const seleccionados = useMemo(
@@ -350,6 +364,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     //     return;
     //   }
     // }
+    if ((canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") && seleccionados.some(([id]) => overridePedidoYaInvalido(id))) {
+      setError("Hay precios de Pedido Ya por debajo del de catálogo -- corregilos antes de cobrar");
+      return;
+    }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden monto/medio de pago.
     if (!sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
@@ -912,21 +930,36 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-                      {(canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") && (
-                        <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                          <span style={{ fontSize: 10, color: "#C05621", fontWeight: 700 }}>$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={precioOverride[id] ?? String(basePriceOf(id))}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => setPrecioOverride((p) => ({ ...p, [id]: e.target.value }))}
-                            title="Precio para Pedido Ya"
-                            style={{ width: 60, fontSize: 10, fontWeight: 700, color: "#C05621", border: "1px solid #FED7AA", borderRadius: 4, padding: "1px 3px", background: "#FFF7ED" }}
-                          />
-                        </div>
-                      )}
+                      {(canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") && (() => {
+                        const invalido = overridePedidoYaInvalido(id);
+                        return (
+                          <div className="flex flex-col gap-0.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <span style={{ fontSize: 10, color: invalido ? "#9B2222" : "#C05621", fontWeight: 700 }}>$</span>
+                              <input
+                                type="number"
+                                min={basePriceOf(id)}
+                                step="1"
+                                value={precioOverride[id] ?? String(basePriceOf(id))}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setPrecioOverride((p) => ({ ...p, [id]: e.target.value }))}
+                                title="Precio para Pedido Ya -- no puede ser menor al de catálogo"
+                                style={{
+                                  width: 60, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "1px 3px",
+                                  color: invalido ? "#9B2222" : "#C05621",
+                                  border: `1px solid ${invalido ? "#9B2222" : "#FED7AA"}`,
+                                  background: invalido ? "#FDE4E2" : "#FFF7ED",
+                                }}
+                              />
+                            </div>
+                            {invalido && (
+                              <span style={{ fontSize: 9, color: "#9B2222", fontWeight: 600, lineHeight: 1.2 }}>
+                                No puede ser menor a {AR.format(basePriceOf(id))}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => set(id, qty - step(id))} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #CBD5E1", background: "#F8FAFC", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 600, color: "#1E293B" }}>−</button>

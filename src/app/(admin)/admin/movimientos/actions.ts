@@ -103,9 +103,12 @@ export async function crearMovimiento(data: {
 
   // El precio de cada línea NUNCA se confía del cliente -- se resuelve server-side
   // contra el precio real de catálogo. "Pedido Ya" permite un override manual (la
-  // comisión de la app suele hacer que el precio cobrado sea otro), acotado a no
-  // menos de la mitad del precio de catálogo para que no se pueda vender por
-  // centavos con devtools.
+  // comisión de la app hace que el precio cobrado sea otro), pero SIEMPRE por
+  // encima del precio de catálogo -- así es como funciona en la realidad, nunca
+  // se cobra menos por esa vía. Un valor por debajo del catálogo se descarta acá
+  // (no se clamea a un piso intermedio): si el cliente ya lo bloqueó en el
+  // formulario esto nunca debería dispararse, pero es la defensa server-side por
+  // si alguien le pega directo a esta action con devtools.
   const esVenta = data.tipo === "venta";
   let precioProductoMap = new Map<string, number | null>();
   if (esVenta && productInputs.length > 0) {
@@ -119,7 +122,7 @@ export async function crearMovimiento(data: {
   }
   function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
     if (!esVenta || precioCatalogo == null) return precioCliente ?? null;
-    if ((esPedidoYaEfectivo || esPedidoYaPlataforma) && precioCliente != null && precioCliente >= precioCatalogo * 0.5) {
+    if ((esPedidoYaEfectivo || esPedidoYaPlataforma) && precioCliente != null && precioCliente >= precioCatalogo) {
       return precioCliente;
     }
     return precioCatalogo;
