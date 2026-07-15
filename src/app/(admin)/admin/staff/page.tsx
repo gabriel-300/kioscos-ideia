@@ -2,11 +2,17 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { StaffList } from "./_components/staff-list";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require-role";
 
 export const metadata: Metadata = { title: "Staff — Kioscos IDEIA" };
 export const revalidate = 0;
 
 export default async function StaffPage() {
+  // Es la página más sensible del sistema (email/rol/límite de crédito de todo
+  // el personal) -- antes dependía 100% de que el middleware la bloqueara, a
+  // diferencia de cada otra página admin-only, que tiene su propio chequeo
+  // como respaldo (ver auditoría 15/07).
+  await requireAdmin();
   const admin   = createAdminClient();
   const supabase = await createClient();
 
