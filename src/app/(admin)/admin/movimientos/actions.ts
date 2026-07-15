@@ -22,6 +22,14 @@ function esPromoItem(item: VentaItemInput): item is PromoItemInput {
   return "promo_id" in item;
 }
 
+// cantidad * precio con floats de JS puede dejar arrastres tipo
+// 1199.9999999999998 grabados de forma permanente en el subtotal -- sobre todo
+// con productos por kg (cantidad fraccionaria). Se redondea acá, antes de
+// insertar, en vez de solo en los totales que se arman sumando esto después.
+function redondearMoneda(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export async function crearMovimiento(data: {
   sucursal_id:       string;
   fecha:             string;
@@ -151,7 +159,7 @@ export async function crearMovimiento(data: {
         throw new Error("La promoción no tiene productos configurados");
       }
       const precioPromo   = precioAutorizado(promo.price, input.precio_unitario) ?? promo.price;
-      const subtotalTotal = input.cantidad * precioPromo;
+      const subtotalTotal = redondearMoneda(input.cantidad * precioPromo);
       promo.promo_items.forEach((pi: { product_id: string; cantidad: number }, idx: number) => {
         expandedPromoItems.push({
           product_id:      pi.product_id,
@@ -171,7 +179,7 @@ export async function crearMovimiento(data: {
         product_id:      item.product_id,
         cantidad:        item.cantidad,
         precio_unitario: precio,
-        subtotal:        precio != null ? item.cantidad * precio : null,
+        subtotal:        precio != null ? redondearMoneda(item.cantidad * precio) : null,
         promo_id:        null as string | null,
       };
     }),
@@ -236,7 +244,7 @@ export async function crearMovimiento(data: {
       const pagado = (pagos ?? []).reduce((s: number, p: { monto: number }) => s + p.monto, 0);
       const saldoActual = deuda - pagado;
 
-      if (saldoActual + totalVenta > limite) {
+      if (Math.round((saldoActual + totalVenta) * 100) > Math.round(limite * 100)) {
         throw new Error(
           `Esta venta supera el límite de crédito de Cta. Corriente (saldo actual ${saldoActual.toFixed(0)} + venta ${totalVenta.toFixed(0)} > límite ${limite.toFixed(0)}).`
         );
@@ -328,7 +336,7 @@ export async function actualizarCostosItems(
     await Promise.all(
       items.map((i) => (supabase as any).from("movimiento_items").update({
         precio_unitario: i.precio_unitario,
-        subtotal: i.precio_unitario != null ? i.cantidad * i.precio_unitario : null,
+        subtotal: i.precio_unitario != null ? redondearMoneda(i.cantidad * i.precio_unitario) : null,
       }).eq("id", i.id).eq("movimiento_id", movimientoId))
     )
   ).filter((r) => r.error);
