@@ -31,15 +31,37 @@ export async function crearAuditoria(
     if (profile?.sucursal_id !== sucursalId) return { error: "No tenés permisos para esta sucursal" };
   }
 
-  const fecha = fechaHoyAR();
+  // La auditoría es "por turno" (una por apertura de caja), no por día --
+  // si en un mismo día hay dos turnos, cada uno audita el suyo. Hace falta
+  // que haya una caja abierta ahora mismo para poder auditar (mismo criterio
+  // de "turno" que usa el resto del sistema: la apertura más reciente sin un
+  // cierre posterior).
+  const [{ data: ultimaApertura }, { data: ultimoCierre }] = await Promise.all([
+    (supabase as any)
+      .from("aperturas_caja")
+      .select("id, created_at")
+      .eq("sucursal_id", sucursalId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    (supabase as any)
+      .from("cierres_caja")
+      .select("created_at")
+      .eq("sucursal_id", sucursalId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const cajaAbierta = ultimaApertura && (!ultimoCierre || ultimaApertura.created_at > ultimoCierre.created_at);
+  if (!cajaAbierta) return { error: "No hay una caja abierta -- abrí un turno antes de auditar" };
+  const aperturaId = ultimaApertura.id as string;
 
   const { data: existing } = await (supabase as any)
     .from("auditorias_stock")
     .select("id")
-    .eq("sucursal_id", sucursalId)
-    .eq("fecha", fecha)
+    .eq("apertura_id", aperturaId)
     .maybeSingle();
-  if (existing) return { error: "Ya se auditó hoy en esta sucursal" };
+  if (existing) return { error: "Ya se auditó este turno" };
 
   const sinObservacion = items.some(
     (i) => i.stock_contado !== i.stock_sistema && !i.observacion?.trim()
@@ -48,7 +70,7 @@ export async function crearAuditoria(
 
   const { data: auditoria, error: errAud } = await (supabase as any)
     .from("auditorias_stock")
-    .insert({ sucursal_id: sucursalId, fecha, created_by: userId })
+    .insert({ sucursal_id: sucursalId, fecha: fechaHoyAR(), apertura_id: aperturaId, created_by: userId })
     .select("id")
     .single();
   if (errAud || !auditoria) return { error: errAud?.message ?? "No se pudo crear la auditoría" };

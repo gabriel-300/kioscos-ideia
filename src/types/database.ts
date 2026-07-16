@@ -1,6 +1,4 @@
 // Generado con: npx supabase gen types typescript --project-id <id> > src/types/database.ts
-// Este archivo se sobreescribe automáticamente. No editar manualmente.
-
 export type Json =
   | string
   | number
@@ -60,7 +58,7 @@ export type Database = {
           ajuste_aplicado: boolean
           auditoria_id: string
           created_at: string
-          diferencia: number
+          diferencia: number | null
           id: string
           nota_admin: string | null
           observacion: string | null
@@ -74,7 +72,7 @@ export type Database = {
           ajuste_aplicado?: boolean
           auditoria_id: string
           created_at?: string
-          diferencia?: number
+          diferencia?: number | null
           id?: string
           nota_admin?: string | null
           observacion?: string | null
@@ -88,7 +86,7 @@ export type Database = {
           ajuste_aplicado?: boolean
           auditoria_id?: string
           created_at?: string
-          diferencia?: number
+          diferencia?: number | null
           id?: string
           nota_admin?: string | null
           observacion?: string | null
@@ -117,6 +115,7 @@ export type Database = {
       }
       auditorias_stock: {
         Row: {
+          apertura_id: string
           created_at: string
           created_by: string | null
           fecha: string
@@ -124,6 +123,7 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
+          apertura_id: string
           created_at?: string
           created_by?: string | null
           fecha: string
@@ -131,6 +131,7 @@ export type Database = {
           sucursal_id: string
         }
         Update: {
+          apertura_id?: string
           created_at?: string
           created_by?: string | null
           fecha?: string
@@ -138,6 +139,13 @@ export type Database = {
           sucursal_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "auditorias_stock_apertura_id_fkey"
+            columns: ["apertura_id"]
+            isOneToOne: false
+            referencedRelation: "aperturas_caja"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "auditorias_stock_sucursal_id_fkey"
             columns: ["sucursal_id"]
@@ -268,6 +276,75 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cierres_caja_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contactos_crm: {
+        Row: {
+          atendido_por: string | null
+          canal: string
+          consulta_mensaje: string | null
+          convertido_pedido: boolean
+          created_at: string
+          created_by: string | null
+          estado: string
+          fecha_hora: string
+          id: string
+          monto: number | null
+          nicho_id: string | null
+          nombre_contacto: string | null
+          notas: string | null
+          sucursal_id: string
+          updated_at: string
+        }
+        Insert: {
+          atendido_por?: string | null
+          canal: string
+          consulta_mensaje?: string | null
+          convertido_pedido?: boolean
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          fecha_hora?: string
+          id?: string
+          monto?: number | null
+          nicho_id?: string | null
+          nombre_contacto?: string | null
+          notas?: string | null
+          sucursal_id: string
+          updated_at?: string
+        }
+        Update: {
+          atendido_por?: string | null
+          canal?: string
+          consulta_mensaje?: string | null
+          convertido_pedido?: boolean
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          fecha_hora?: string
+          id?: string
+          monto?: number | null
+          nicho_id?: string | null
+          nombre_contacto?: string | null
+          notas?: string | null
+          sucursal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contactos_crm_nicho_id_fkey"
+            columns: ["nicho_id"]
+            isOneToOne: false
+            referencedRelation: "nichos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contactos_crm_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
@@ -549,6 +626,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nichos: {
+        Row: {
+          color_tag: string | null
+          created_at: string
+          descripcion: string | null
+          horario_pico: string | null
+          id: string
+          is_active: boolean
+          nombre: string
+        }
+        Insert: {
+          color_tag?: string | null
+          created_at?: string
+          descripcion?: string | null
+          horario_pico?: string | null
+          id?: string
+          is_active?: boolean
+          nombre: string
+        }
+        Update: {
+          color_tag?: string | null
+          created_at?: string
+          descripcion?: string | null
+          horario_pico?: string | null
+          id?: string
+          is_active?: boolean
+          nombre?: string
+        }
+        Relationships: []
       }
       platform_settings: {
         Row: {
@@ -948,6 +1055,7 @@ export type Database = {
       }
       sucursales: {
         Row: {
+          auditoria_obligatoria: boolean
           created_at: string
           direccion: string | null
           encargado_email: string | null
@@ -963,6 +1071,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auditoria_obligatoria?: boolean
           created_at?: string
           direccion?: string | null
           encargado_email?: string | null
@@ -978,6 +1087,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auditoria_obligatoria?: boolean
           created_at?: string
           direccion?: string | null
           encargado_email?: string | null

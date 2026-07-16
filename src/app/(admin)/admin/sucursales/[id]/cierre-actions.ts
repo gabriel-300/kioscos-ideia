@@ -50,16 +50,37 @@ export async function cerrarCaja(data: {
   let totalFiado             = data.total_fiado;
   let totalPlataforma        = data.total_plataforma;
 
-  if (role !== "admin") {
-    const aperturaRes = await (admin as any)
-      .from("aperturas_caja")
-      .select("created_at, created_by")
-      .eq("sucursal_id", data.sucursal_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const ultimaApertura = aperturaRes.data as { created_at: string; created_by: string | null } | null;
+  const aperturaRes = await (admin as any)
+    .from("aperturas_caja")
+    .select("id, created_at, created_by")
+    .eq("sucursal_id", data.sucursal_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const ultimaApertura = aperturaRes.data as { id: string; created_at: string; created_by: string | null } | null;
 
+  // Auditoría de stock obligatoria (por sucursal, ver migración 054): si está
+  // activada, no se puede cerrar sin haber auditado este turno. Arranca en
+  // false en todas las sucursales a propósito -- este chequeo no bloquea a
+  // nadie hasta que el usuario prenda el flag de la sucursal que corresponda,
+  // después de capacitar al personal.
+  const { data: sucAuditoria } = await (admin as any)
+    .from("sucursales")
+    .select("auditoria_obligatoria")
+    .eq("id", data.sucursal_id)
+    .single();
+  if (sucAuditoria?.auditoria_obligatoria && ultimaApertura) {
+    const { data: auditoriaTurno } = await (admin as any)
+      .from("auditorias_stock")
+      .select("id")
+      .eq("apertura_id", ultimaApertura.id)
+      .maybeSingle();
+    if (!auditoriaTurno) {
+      throw new Error("Hay que hacer la auditoría de stock de este turno antes de cerrar la caja.");
+    }
+  }
+
+  if (role !== "admin") {
     // Un vendedor solo puede cerrar el turno que él mismo abrió (el encargado,
     // ya validado como dueño de la sucursal arriba, puede cerrar cualquiera).
     if (role === "vendedor" && ultimaApertura?.created_by && ultimaApertura.created_by !== userId) {

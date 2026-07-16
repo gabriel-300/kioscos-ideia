@@ -22,6 +22,7 @@ const schema = z.object({
   localidad:           z.string().min(2, "Requerido"),
   provincia:           z.string().min(2, "Requerido"),
   notas:               z.string().optional(),
+  auditoria_obligatoria: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -49,6 +50,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       localidad:          "Posadas",
       provincia:          "Misiones",
       notas:              "",
+      auditoria_obligatoria: false,
     },
   });
 
@@ -64,10 +66,12 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
         localidad:          sucursal.localidad,
         provincia:          sucursal.provincia,
         notas:              sucursal.notas             ?? "",
+        auditoria_obligatoria: sucursal.auditoria_obligatoria ?? false,
       } : {
         nombre: "", encargado_nombre: "", encargado_telefono: "",
         encargado_email: "", encargado_user_id: "", direccion: "",
         localidad: "Posadas", provincia: "Misiones", notas: "",
+        auditoria_obligatoria: false,
       });
     }
   }, [open, sucursal, reset]);
@@ -83,6 +87,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       localidad:          values.localidad,
       provincia:          values.provincia,
       notas:              values.notas              || null,
+      auditoria_obligatoria: values.auditoria_obligatoria ?? false,
     };
 
     startTransition(async () => {
@@ -222,6 +227,23 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
             placeholder="Observaciones sobre esta sucursal…"
             {...register("notas")}
           />
+
+          <div className="pt-2 pb-1">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Stock</p>
+          </div>
+          <label className="flex items-start gap-2.5 rounded-lg border border-neutral-200 p-3 cursor-pointer hover:bg-neutral-50 transition-colors">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+              {...register("auditoria_obligatoria")}
+            />
+            <span>
+              <span className="block text-sm font-medium text-neutral-800">Auditoría de stock obligatoria por turno</span>
+              <span className="block text-xs text-neutral-400 mt-0.5">
+                No deja cerrar caja hasta contar el stock de ese turno. Activalo recién después de capacitar al personal.
+              </span>
+            </span>
+          </label>
         </form>
 
         <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">

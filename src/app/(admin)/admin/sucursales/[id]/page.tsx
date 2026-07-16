@@ -56,9 +56,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const canGoNext  = mes < mesActual;
 
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
-  type AperturaRow = { fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
+  type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, auditoriaHoyResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -84,7 +84,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // el redirect de más abajo (encargado_user_id / personal) antes de
     // devolver ninguna respuesta.
     (admin as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
-    (supabase as any).from("aperturas_caja").select("fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
+    (supabase as any).from("aperturas_caja").select("id, fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at, comprobante_image_url").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url: string | null }[] | null }>,
     (supabase as any)
       .from("profiles")
@@ -100,8 +100,23 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .select("id, name, price, tipo, cover_image_url, promo_items(product_id, cantidad)")
       .eq("is_active", true)
       .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
-    // Admin client -- lo mismo que stock_sucursal más arriba, no depende del turno.
-    (admin as any)
+  ]);
+
+  const promos = promosResult.data ?? [];
+
+  const movimientos = movimentos;
+  const aperturaActual   = aperturasData?.[0] ?? null;
+  const ultimoCierre     = cierresData?.[0] ?? null;
+  const historicosCierres = cierresData ?? [];
+  const cajaAbierta      = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
+
+  // La auditoría es "por turno" (apertura_id, ver migración 054), no por
+  // día -- solo tiene sentido buscarla si hay una caja abierta ahora mismo;
+  // recién ahí se sabe qué apertura es "la de este turno". Admin client --
+  // mismo motivo que stock_sucursal más arriba, no depende de RLS por turno.
+  let auditoriaHoy: { items: { productName: string; sku: string; stockSistema: number; stockContado: number; diferencia: number; observacion: string | null; revisado: boolean; ajusteAplicado: boolean }[] } | null = null;
+  if (cajaAbierta && aperturaActual) {
+    const { data: auditoriaTurno } = await (admin as any)
       .from("auditorias_stock")
       .select(`
         id,
@@ -110,25 +125,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           product:products(name, sku)
         )
       `)
-      .eq("sucursal_id", id)
-      .eq("fecha", hoy)
-      .maybeSingle() as unknown as Promise<{
-        data: {
-          id: string;
-          auditoria_stock_items: {
-            stock_sistema: number; stock_contado: number; observacion: string | null;
-            revisado_por: string | null; revisado_en: string | null; ajuste_aplicado: boolean;
-            product: { name: string; sku: string } | null;
-          }[];
-        } | null;
-      }>,
-  ]);
-
-  const promos = promosResult.data ?? [];
-
-  const auditoriaHoy = auditoriaHoyResult.data
-    ? {
-        items: auditoriaHoyResult.data.auditoria_stock_items.map((i) => ({
+      .eq("apertura_id", aperturaActual.id)
+      .maybeSingle();
+    if (auditoriaTurno) {
+      auditoriaHoy = {
+        items: auditoriaTurno.auditoria_stock_items.map((i: any) => ({
           productName:    i.product?.name ?? "Producto eliminado",
           sku:            i.product?.sku ?? "",
           stockSistema:   i.stock_sistema,
@@ -138,14 +139,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           revisado:       i.revisado_por != null,
           ajusteAplicado: i.ajuste_aplicado,
         })),
-      }
-    : null;
-
-  const movimientos = movimentos;
-  const aperturaActual   = aperturasData?.[0] ?? null;
-  const ultimoCierre     = cierresData?.[0] ?? null;
-  const historicosCierres = cierresData ?? [];
-  const cajaAbierta      = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
+      };
+    }
+  }
 
   if (!sucursal) notFound();
 
