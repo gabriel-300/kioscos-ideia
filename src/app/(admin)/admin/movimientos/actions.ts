@@ -41,6 +41,7 @@ export async function crearMovimiento(data: {
   remito_image_url?: string | null;
   canal?:            string | null;
   personal_id?:      string | null;
+  descuento_total?:  number | null;
   pago_efectivo?:      number | null;
   pago_billetera?:     number | null;
   pago_tarjeta?:       number | null;
@@ -205,6 +206,32 @@ export async function crearMovimiento(data: {
     }),
     ...expandedPromoItems,
   ];
+
+  // Descuento de Pedido Ya ("descuento en menú completo" que a veces absorbe
+  // el vendor): se carga como un monto único sobre el pedido, igual que se ve
+  // en la app, y acá se reparte proporcional al subtotal de cada línea -- mismo
+  // criterio que el reparto de combos más arriba, para que el margen por
+  // producto en /admin/ventas no quede inflado (el total vendido tiene que
+  // coincidir con lo que realmente se cobra/concilia).
+  if (esVenta && (esPedidoYaEfectivo || esPedidoYaPlataforma) && data.descuento_total) {
+    const itemsConSubtotal = items.filter((i) => (i.subtotal ?? 0) > 0);
+    const subtotalTotal    = itemsConSubtotal.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    const descuento        = Math.min(data.descuento_total, subtotalTotal);
+    if (subtotalTotal > 0 && descuento > 0) {
+      let acumulado = 0;
+      itemsConSubtotal.forEach((item, idx) => {
+        const esUltimo = idx === itemsConSubtotal.length - 1;
+        const recorte  = esUltimo
+          ? redondearMoneda(descuento - acumulado)
+          : redondearMoneda(descuento * ((item.subtotal ?? 0) / subtotalTotal));
+        acumulado += recorte;
+        item.subtotal = redondearMoneda((item.subtotal ?? 0) - recorte);
+        if (item.precio_unitario != null && item.cantidad) {
+          item.precio_unitario = redondearMoneda(item.subtotal / item.cantidad);
+        }
+      });
+    }
+  }
 
   // Pedido Ya Efectivo: el cliente paga en efectivo al recibir el pedido -- se
   // fuerza server-side a que el 100% del total quede como pago_efectivo (sin

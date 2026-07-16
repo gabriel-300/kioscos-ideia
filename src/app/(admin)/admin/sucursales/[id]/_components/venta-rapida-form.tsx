@@ -85,7 +85,7 @@ type Personal = { id: string; nombre: string };
 type Receipt = {
   fecha: string; hora: string;
   items: { name: string; qty: number; precioUnit: number; sub: number }[];
-  totalPrecio: number; totalUnidades: number;
+  subtotalPrecio: number; descuento: number; totalPrecio: number; totalUnidades: number;
   pagos: { label: string; monto: number }[];
   vuelto: number | null; notas: string | null;
   canal: string;
@@ -117,6 +117,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
   const [canal,      setCanal]      = useState("consumidor_final");
   const [precioOverride, setPrecioOverride] = useState<Record<string, string>>({});
+  const [descuentoPedidoYa, setDescuentoPedidoYa] = useState("");
   const [personalId, setPersonalId] = useState("");
   const [notas,      setNotas]      = useState("");
   const [error,         setError]         = useState<string | null>(null);
@@ -218,7 +219,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   // selector de medios de pago (el primero porque no cobra ahora, los otros dos
   // porque el medio ya está definido por el canal mismo).
   const sinMedioPago   = canal === "cuenta_corriente" || canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma";
-  const totalPrecio    = seleccionados.reduce((s, [id, qty]) => s + qty * priceOf(id), 0);
+  const esPedidoYa     = canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma";
+  const subtotalPrecio = seleccionados.reduce((s, [id, qty]) => s + qty * priceOf(id), 0);
+  // Pedido Ya a veces aplica un descuento sobre el pedido completo (ej. "10% en
+  // menú", promo que a veces absorbe el vendor) -- se carga a mano como en el
+  // comprobante de la app, y acá se resta del subtotal para llegar al total real
+  // cobrado. Solo aplica a los canales Pedido Ya, el resto queda igual que antes.
+  const descuentoPedidoYaNum = esPedidoYa ? (parseFloat(descuentoPedidoYa) || 0) : 0;
+  const totalPrecio    = Math.max(0, subtotalPrecio - descuentoPedidoYaNum);
   const totalUnidades  = seleccionados.reduce((s, [, qty]) => s + qty, 0);
   const totalIngresado = (Object.values(pagos) as string[]).reduce((s, v) => s + (parseFloat(v) || 0), 0);
   const efectivoNum    = parseFloat(pagos.efectivo) || 0;
@@ -329,7 +337,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(fechaHoyAR());
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-    setCanal("consumidor_final"); setPrecioOverride({}); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
+    setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -364,8 +372,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     //     return;
     //   }
     // }
-    if ((canal === "pedido_ya_efectivo" || canal === "pedido_ya_plataforma") && seleccionados.some(([id]) => overridePedidoYaInvalido(id))) {
+    if (esPedidoYa && seleccionados.some(([id]) => overridePedidoYaInvalido(id))) {
       setError("Hay precios de Pedido Ya por debajo del de catálogo -- corregilos antes de cobrar");
+      return;
+    }
+    if (esPedidoYa && descuentoPedidoYaNum > subtotalPrecio) {
+      setError("El descuento no puede superar el subtotal");
       return;
     }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
@@ -394,8 +406,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       : PAY_METHODS
           .map((m) => ({ label: m.label, monto: parseFloat(pagos[m.id]) || 0 }))
           .filter((p) => p.monto > 0);
-    const notasMedios = pagosList.map((p) => `${p.label}: ${AR.format(p.monto)}`).join(" | ");
-    const notasFinal  = [notasMedios, notas || null].filter(Boolean).join(" — ") || null;
+    const notasMedios    = pagosList.map((p) => `${p.label}: ${AR.format(p.monto)}`).join(" | ");
+    const notasDescuento = esPedidoYa && descuentoPedidoYaNum > 0 ? `Descuento Pedido Ya: -${AR.format(descuentoPedidoYaNum)}` : null;
+    const notasFinal     = [notasMedios, notasDescuento, notas || null].filter(Boolean).join(" — ") || null;
 
     const personalNombre = personal.find((p) => p.id === personalId)?.nombre ?? null;
 
@@ -408,6 +421,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           notas:              notasFinal,
           canal,
           personal_id:        canal === "cuenta_corriente" && personalId ? personalId : null,
+          descuento_total:    esPedidoYa && descuentoPedidoYaNum > 0 ? descuentoPedidoYaNum : null,
           // Redondeado a centavos -- restar el vuelto (float) puede dejar arrastres
           // tipo 1200.0000000000002 que no se ven en el formateo pero quedan guardados así.
           pago_efectivo:      efectivoNum > 0 ? Math.round(Math.max(0, efectivoNum - (vuelto ?? 0)) * 100) / 100 || null : null,
@@ -423,7 +437,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
         setShowPay(false);
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-          hora, items: receiptItems, totalPrecio, totalUnidades, pagos: pagosList,
+          hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
           personalNombre: canal === "cuenta_corriente" ? personalNombre : null,
         });
@@ -440,6 +454,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 </head><body>
 <h1>Kioscos IDEIA</h1><div class="sub">${sucursalNombre ?? ""}</div><div class="sub">${r.fecha} · ${r.hora}</div><div class="sub">${canalLabel}</div><div class="divider"></div>
 ${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span>${i.qty} × ${AR.format(i.precioUnit)}</span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span></div>`).join("")}
+${r.descuento > 0 ? `<div class="divider"></div><div class="row"><span>Subtotal</span><span></span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(r.subtotalPrecio)}</span></div><div class="row"><span>Descuento Pedido Ya</span><span></span><span style="margin-left:12px;min-width:80px;text-align:right">-${AR.format(r.descuento)}</span></div>` : ""}
 <div class="divider"></div><div class="total-row"><span>TOTAL (${r.totalUnidades} u.)</span><span>${AR.format(r.totalPrecio)}</span></div><div class="divider"></div>
 ${r.pagos.map((p) => `<div class="pago-row"><span>${p.label}</span><span>${AR.format(p.monto)}</span></div>`).join("")}
 ${r.vuelto !== null ? `<div class="vuelto-row"><span>VUELTO</span><span>${AR.format(r.vuelto)}</span></div>` : ""}
@@ -483,6 +498,18 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               ))}
             </div>
 
+            {receipt.descuento > 0 && (
+              <div className="border-t pt-3 space-y-1" style={{ borderColor: "#E2E8F0" }}>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: "#64748B" }}>Subtotal</span>
+                  <span className="tabular-nums font-semibold" style={{ color: "#1E293B" }}>{AR.format(receipt.subtotalPrecio)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: "#C05621" }}>Descuento Pedido Ya</span>
+                  <span className="tabular-nums font-semibold" style={{ color: "#C05621" }}>-{AR.format(receipt.descuento)}</span>
+                </div>
+              </div>
+            )}
             <div className="border-t pt-3 flex items-center justify-between" style={{ borderColor: "#E2E8F0" }}>
               <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#94A3B8" }}>{receipt.totalUnidades} unidades</span>
               <span className="text-2xl font-black tabular-nums" style={{ color: "#0F172A", letterSpacing: "-1px" }}>{AR.format(receipt.totalPrecio)}</span>
@@ -848,6 +875,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     // confirma sin darse cuenta -- especialmente grave hacia/desde
                     // Cta. Corriente, que no debería llevar ningún medio de pago.
                     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+                    if (c.id !== "pedido_ya_efectivo" && c.id !== "pedido_ya_plataforma") setDescuentoPedidoYa("");
                   }}
                   style={{
                     padding: "6px 4px",
@@ -981,6 +1009,34 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 
           {/* Footer */}
           <div className="shrink-0" style={{ padding: 12, borderTop: "1px solid #E2E8F0" }}>
+            {/* Descuento Pedido Ya -- solo en esos dos canales, replica el
+                "Descuento en menú completo" que a veces muestra la app */}
+            {esPedidoYa && (
+              <div style={{ marginBottom: 8 }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
+                  <span style={{ fontSize: 12, color: "#64748B" }}>Subtotal</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{AR.format(subtotalPrecio)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <label style={{ fontSize: 12, color: "#C05621", fontWeight: 600 }}>Descuento (como en Pedido Ya)</label>
+                  <div style={{ position: "relative", width: 104 }}>
+                    <span style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 700, color: "#C05621", pointerEvents: "none" }}>-$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      value={descuentoPedidoYa}
+                      onChange={(e) => setDescuentoPedidoYa(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      style={{
+                        width: "100%", padding: "5px 6px 5px 22px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                        color: "#C05621", border: "1.5px solid #FED7AA", background: "#FFF7ED", outline: "none", textAlign: "right",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Total */}
             <div className="flex items-baseline justify-between mb-2.5">
               <span style={{ fontSize: 13, color: "#64748B" }}>Total</span>
