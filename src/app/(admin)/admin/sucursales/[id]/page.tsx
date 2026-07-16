@@ -222,7 +222,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     return true;
   }
 
-  const movsVisibles      = movs.filter((m) => enMiTurnoHoy(m.fecha, m.created_at));
+  // La merma de cocción automática (congelado → cocido, ver crear_movimiento_con_items)
+  // es a propósito invisible para encargado/vendedor -- pedido explícito del usuario
+  // ("no debe saber, sino se va a complicar"). No hay columna que la distinga de una
+  // merma cargada a mano, así que se identifica por el texto fijo que le pone el RPC.
+  const NOTAS_MERMA_AUTOMATICA = "Merma de cocción automática (congelado → cocido) generada por la venta";
+  const movsVisibles      = movs
+    .filter((m) => enMiTurnoHoy(m.fecha, m.created_at))
+    .filter((m) => role === "admin" || !(m.tipo === "merma" && m.notas === NOTAS_MERMA_AUTOMATICA));
   const retirosVisibles   = todosRetiros.filter((r) => enMiTurnoHoy(r.fecha, r.created_at));
   const retirosHoyFilt    = retirosVisibles.filter((r) => r.fecha === hoy);
 
