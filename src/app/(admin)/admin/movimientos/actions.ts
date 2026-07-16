@@ -231,46 +231,12 @@ export async function crearMovimiento(data: {
     }
   }
 
-  // Límite de crédito de Cta. Corriente: hasta ahora solo se mostraba en el
-  // informe (visual, "Límite excedido"), nunca bloqueaba una venta nueva -- un
-  // vendedor podía seguir fiando de largo aunque el cliente ya estuviera pasado.
-  // Mismo criterio de saldo que usa /cta-corriente/page.tsx: histórico de ventas
-  // fiado en ESTA sucursal menos pagos registrados, ambos por personal_id.
-  if (esVenta && esCtaCorriente && data.personal_id) {
-    const { data: perfil } = await (supabase as any)
-      .from("profiles").select("credito_limite").eq("id", data.personal_id).single();
-    const limite = perfil?.credito_limite as number | null | undefined;
-
-    if (limite != null) {
-      const totalVenta = items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
-      const [{ data: ventasFiado }, { data: pagos }] = await Promise.all([
-        (supabase as any)
-          .from("movimientos")
-          .select("movimiento_items(subtotal)")
-          .eq("sucursal_id", data.sucursal_id)
-          .eq("personal_id", data.personal_id)
-          .eq("canal", "cuenta_corriente")
-          .eq("tipo", "venta"),
-        (supabase as any)
-          .from("cta_corriente_pagos")
-          .select("monto")
-          .eq("sucursal_id", data.sucursal_id)
-          .eq("personal_id", data.personal_id),
-      ]);
-      const deuda = (ventasFiado ?? []).reduce(
-        (s: number, v: { movimiento_items: { subtotal: number | null }[] }) =>
-          s + v.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
-      );
-      const pagado = (pagos ?? []).reduce((s: number, p: { monto: number }) => s + p.monto, 0);
-      const saldoActual = deuda - pagado;
-
-      if (Math.round((saldoActual + totalVenta) * 100) > Math.round(limite * 100)) {
-        throw new Error(
-          `Esta venta supera el límite de crédito de Cta. Corriente (saldo actual ${saldoActual.toFixed(0)} + venta ${totalVenta.toFixed(0)} > límite ${limite.toFixed(0)}).`
-        );
-      }
-    }
-  }
+  // Límite de crédito de Cta. Corriente: el chequeo vive DENTRO del RPC
+  // (crear_movimiento_con_items, con pg_advisory_xact_lock por personal_id)
+  // para que dos ventas fiado simultáneas del mismo cliente no puedan leer el
+  // mismo saldo "todavía dentro del límite" cada una por separado y terminar
+  // superando el límite entre las dos -- acá haciendo el chequeo en un
+  // round-trip aparte antes del RPC no hay forma de cerrar esa ventana.
 
   const rpcRes = await (supabase as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id:        data.sucursal_id,
