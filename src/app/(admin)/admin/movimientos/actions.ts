@@ -144,11 +144,12 @@ export async function crearMovimiento(data: {
     const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
     const { data: promos, error: promosError } = await (supabase as any)
       .from("promos")
-      .select("id, price, is_active, promo_items(product_id, cantidad)")
+      .select("id, price, is_active, promo_items(product_id, cantidad, product:products(costo))")
       .in("id", promoIds);
     if (promosError) throw new Error(promosError.message);
 
-    type PromoRow = { id: string; price: number; is_active: boolean; promo_items: { product_id: string; cantidad: number }[] };
+    type PromoItemRow = { product_id: string; cantidad: number; product: { costo: number | null } | null };
+    type PromoRow = { id: string; price: number; is_active: boolean; promo_items: PromoItemRow[] };
     const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
 
     for (const input of promoInputs) {
@@ -160,12 +161,31 @@ export async function crearMovimiento(data: {
       }
       const precioPromo   = precioAutorizado(promo.price, input.precio_unitario) ?? promo.price;
       const subtotalTotal = redondearMoneda(input.cantidad * precioPromo);
-      promo.promo_items.forEach((pi: { product_id: string; cantidad: number }, idx: number) => {
+
+      // El facturado del combo se reparte entre sus componentes proporcional
+      // al costo de cada uno (antes se cargaba entero al primer producto y el
+      // resto quedaba en null) -- así el margen por producto en /admin/ventas
+      // no muestra negativos engañosos en los componentes que "no cobraron"
+      // nada pero sí tienen costo. Sin costo cargado en ningún componente, se
+      // reparte en partes iguales.
+      const cantidades = promo.promo_items.map((pi) => input.cantidad * pi.cantidad);
+      const pesos = promo.promo_items.map((pi, i) => cantidades[i] * (pi.product?.costo ?? 0));
+      const pesoTotal = pesos.reduce((s, w) => s + w, 0);
+      const pesosFinal = pesoTotal > 0 ? pesos : cantidades.map(() => 1);
+      const pesoFinalTotal = pesosFinal.reduce((s, w) => s + w, 0);
+
+      let acumulado = 0;
+      promo.promo_items.forEach((pi, idx) => {
+        const esUltimo = idx === promo.promo_items.length - 1;
+        const subtotalItem = esUltimo
+          ? redondearMoneda(subtotalTotal - acumulado)
+          : redondearMoneda(subtotalTotal * (pesosFinal[idx] / pesoFinalTotal));
+        acumulado += subtotalItem;
         expandedPromoItems.push({
           product_id:      pi.product_id,
-          cantidad:        input.cantidad * pi.cantidad,
+          cantidad:        cantidades[idx],
           precio_unitario: null,
-          subtotal:        idx === 0 ? subtotalTotal : null,
+          subtotal:        subtotalItem,
           promo_id:        input.promo_id,
         });
       });
