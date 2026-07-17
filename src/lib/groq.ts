@@ -1,23 +1,27 @@
 // Lectura de facturas/remitos argentinos por foto usando la API de Groq,
-// modelo de visión meta-llama/llama-4-scout-17b-16e-instruct, con JSON mode
-// nativo (response_format: json_schema) para forzar la forma de salida en
-// vez de parsear texto libre después.
+// con JSON mode nativo (response_format: json_schema) para forzar la forma
+// de salida en vez de parsear texto libre después.
 //
-// Groq marca este modelo (y su alternativa qwen/qwen3.6-27b) como
-// "preview"/experimental -- esto alimenta datos contables reales (montos,
-// CUIT), así que NO se confía ciegamente en el resultado: validarFactura()
-// devuelve advertencias de consistencia (CUIT con formato raro, items que no
-// suman el subtotal, subtotal+IVA que no da el total) que hay que revisar
-// antes de dar por buena una lectura, y loguearComprobanteInconsistente()
-// deja rastro server-side (logs de Cloudflare Workers) de los casos con
+// Groq marca sus modelos de visión como "preview"/experimental -- esto
+// alimenta datos contables reales (montos, CUIT), así que NO se confía
+// ciegamente en el resultado: validarComprobante() devuelve advertencias de
+// consistencia que hay que revisar antes de dar por buena una lectura, y
+// loguearComprobanteInconsistente() deja rastro server-side de los casos con
 // advertencias o parseo fallido, para poder auditar la tasa de error real
 // con una muestra antes de confiar el pipeline sin revisión humana.
+//
+// De los 17 modelos activos en la cuenta de Groq usada para probar esto
+// (2026-07-17), SOLO dos aceptan imágenes -- el resto (llama-3.3-70b,
+// qwen3-32b a secas, los gpt-oss-*, groq/compound*, whisper, allam,
+// orpheus, prompt-guard) rechazan el formato con imagen directamente. Por
+// eso el fallback es entre estos dos nomás, no un tercero:
+const MODELO_PRIMARIO  = "meta-llama/llama-4-scout-17b-16e-instruct";
+const MODELO_FALLBACK  = "qwen/qwen3.6-27b"; // tiene modo "thinking" -- antepone <think>...</think>, necesita más max_tokens
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-const GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-// Alternativa si la precisión no convence, mismos límites (5 imágenes/req,
-// 20MB por imagen vía URL o 4MB en base64, hasta 33 megapixels), con modo
-// "thinking" opcional: "qwen/qwen3.6-27b"
+// Códigos de error transitorios de Groq (sobrecarga temporal, rate limit) --
+// vale la pena reintentar el mismo modelo antes de saltar al otro.
+const HTTP_REINTENTABLE = new Set([429, 500, 502, 503, 504]);
 
 export type ItemComprobante = {
   descripcion:     string;
@@ -34,6 +38,7 @@ export type ComprobanteLeido = {
   subtotal:           number | null;
   iva:                number | null;
   total:              number | null;
+  motor:              "llama-4-scout" | "qwen3.6-27b";
 };
 
 const JSON_SCHEMA = {
@@ -77,7 +82,15 @@ const USER_PROMPT = `Extraé de esta factura o remito:
 
 Si no podés leer con claridad algún dato de cabecera, usá null. Los items siempre van con tu mejor estimación, pero no inventes líneas que no existen en la foto.`;
 
-export async function leerComprobanteConGroq(imageBase64: string, mimeType: string): Promise<ComprobanteLeido> {
+class ErrorGroq extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function pedirLectura(model: string, imageBase64: string, mimeType: string, maxTokens: number): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY no está configurada");
 
@@ -88,7 +101,7 @@ export async function leerComprobanteConGroq(imageBase64: string, mimeType: stri
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -100,7 +113,7 @@ export async function leerComprobanteConGroq(imageBase64: string, mimeType: stri
         },
       ],
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       response_format: {
         type: "json_schema",
         json_schema: { name: "comprobante_argentino", schema: JSON_SCHEMA },
@@ -110,25 +123,85 @@ export async function leerComprobanteConGroq(imageBase64: string, mimeType: stri
 
   if (!res.ok) {
     const detalle = await res.text().catch(() => "");
-    throw new Error(`No se pudo leer la foto (Groq respondió ${res.status}): ${detalle.slice(0, 300)}`);
+    throw new ErrorGroq(`Groq (${model}) respondió ${res.status}: ${detalle.slice(0, 300)}`, res.status);
   }
 
   const data = await res.json();
   const raw: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!raw) throw new Error("La foto no devolvió ningún texto legible");
+  if (!raw) throw new ErrorGroq(`Groq (${model}) no devolvió ningún texto legible`);
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    loguearComprobanteInconsistente({ etapa: "parseo_json", detalle: raw.slice(0, 500) });
-    throw new Error("No se pudo interpretar lo que leyó la foto -- cargá el comprobante a mano");
-  }
-
-  return normalizarComprobante(parsed);
+  return raw;
 }
 
-function normalizarComprobante(raw: unknown): ComprobanteLeido {
+// Reintenta el mismo modelo con backoff simple solo ante errores transitorios
+// (rate limit / sobrecarga) -- confirmado en pruebas reales que un 503 de
+// Groq suele resolverse solo al segundo intento.
+async function pedirLecturaConReintento(
+  model: string, imageBase64: string, mimeType: string, maxTokens: number, intentos = 2
+): Promise<string> {
+  let ultimoError: unknown;
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await pedirLectura(model, imageBase64, mimeType, maxTokens);
+    } catch (e) {
+      ultimoError = e;
+      const status = e instanceof ErrorGroq ? e.status : undefined;
+      const reintentable = status != null && HTTP_REINTENTABLE.has(status);
+      if (!reintentable || i === intentos - 1) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw ultimoError;
+}
+
+// El modo "thinking" de qwen3.6-27b puede anteponer un bloque de
+// razonamiento antes del JSON -- se descarta si aparece, mismo criterio
+// defensivo que ya usa openrouter.ts con las marcas de código ```json.
+function limpiarRespuesta(raw: string): string {
+  const sinThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const sinMarkdown = sinThink.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  return sinMarkdown || sinThink || raw;
+}
+
+export async function leerComprobanteConGroq(imageBase64: string, mimeType: string): Promise<ComprobanteLeido> {
+  try {
+    const raw = await pedirLecturaConReintento(MODELO_PRIMARIO, imageBase64, mimeType, 4096);
+    return { ...normalizarComprobante(parsearJson(raw, "llama-4-scout")), motor: "llama-4-scout" };
+  } catch (errorPrimario) {
+    loguearComprobanteInconsistente({
+      etapa: "modelo_primario_fallo",
+      detalle: (errorPrimario as Error).message,
+    });
+
+    try {
+      // El modo thinking de qwen consume tokens en el razonamiento antes de
+      // la respuesta final -- necesita más margen que Llama para no
+      // cortarse a mitad del <think>.
+      const raw = await pedirLecturaConReintento(MODELO_FALLBACK, imageBase64, mimeType, 8192);
+      return { ...normalizarComprobante(parsearJson(limpiarRespuesta(raw), "qwen3.6-27b")), motor: "qwen3.6-27b" };
+    } catch (errorFallback) {
+      loguearComprobanteInconsistente({
+        etapa: "modelo_fallback_fallo",
+        detalle: (errorFallback as Error).message,
+      });
+      throw new Error(
+        "No se pudo leer la foto con ningún motor disponible -- cargá el comprobante a mano. " +
+        `(Primario: ${(errorPrimario as Error).message} · Alternativo: ${(errorFallback as Error).message})`
+      );
+    }
+  }
+}
+
+function parsearJson(raw: string, motor: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    loguearComprobanteInconsistente({ etapa: `parseo_json_${motor}`, detalle: raw.slice(0, 500) });
+    throw new Error("No se pudo interpretar lo que leyó la foto");
+  }
+}
+
+function normalizarComprobante(raw: unknown): Omit<ComprobanteLeido, "motor"> {
   const r = (raw ?? {}) as Record<string, unknown>;
 
   const items: ItemComprobante[] = Array.isArray(r.items)
@@ -204,7 +277,7 @@ export function validarComprobante(datos: ComprobanteLeido): string[] {
 // Deja rastro en los logs del Worker (visible vía `wrangler tail` / dashboard
 // de Cloudflare) de una lectura que falló o quedó con advertencias -- sirve
 // para juntar una muestra real y medir la tasa de error antes de confiar en
-// el pipeline sin revisión humana, tal como advierte Groq sobre el modelo
+// el pipeline sin revisión humana, tal como advierte Groq sobre sus modelos
 // "preview". No persiste en la base a propósito: es una traza de operación,
 // no un dato de negocio que necesite su propia tabla/RLS/UI de revisión.
 export function loguearComprobanteInconsistente(info: { etapa: string; detalle: string; advertencias?: string[] }) {
