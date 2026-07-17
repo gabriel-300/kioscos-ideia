@@ -23,6 +23,7 @@ const schema = z.object({
   provincia:           z.string().min(2, "Requerido"),
   notas:               z.string().optional(),
   auditoria_obligatoria: z.boolean().optional(),
+  pedidoya_store_id:   z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -51,6 +52,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       provincia:          "Misiones",
       notas:              "",
       auditoria_obligatoria: false,
+      pedidoya_store_id:  "",
     },
   });
 
@@ -67,11 +69,13 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
         provincia:          sucursal.provincia,
         notas:              sucursal.notas             ?? "",
         auditoria_obligatoria: sucursal.auditoria_obligatoria ?? false,
+        pedidoya_store_id:  sucursal.pedidoya_store_id  ?? "",
       } : {
         nombre: "", encargado_nombre: "", encargado_telefono: "",
         encargado_email: "", encargado_user_id: "", direccion: "",
         localidad: "Posadas", provincia: "Misiones", notas: "",
         auditoria_obligatoria: false,
+        pedidoya_store_id: "",
       });
     }
   }, [open, sucursal, reset]);
@@ -88,6 +92,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       provincia:          values.provincia,
       notas:              values.notas              || null,
       auditoria_obligatoria: values.auditoria_obligatoria ?? false,
+      pedidoya_store_id:  values.pedidoya_store_id  || null,
     };
 
     startTransition(async () => {
@@ -244,6 +249,19 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
               </span>
             </span>
           </label>
+
+          <div className="pt-2 pb-1">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Integraciones</p>
+          </div>
+          <Input
+            label="ID de tienda en PedidosYa"
+            placeholder="Se completa cuando tengamos acceso al Vendor Portal"
+            error={errors.pedidoya_store_id?.message}
+            {...register("pedidoya_store_id")}
+          />
+          <p className="text-xs text-neutral-400 -mt-3">
+            Mapea esta sucursal con la tienda correspondiente en PedidosYa, para que los pedidos que lleguen por webhook se asignen solos.
+          </p>
         </form>
 
         <div className="px-6 py-4 border-t border-neutral-200 flex gap-3">
