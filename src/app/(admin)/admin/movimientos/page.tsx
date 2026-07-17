@@ -41,7 +41,7 @@ export default async function MovimientosPage() {
       .order("name"),
     supabase
       .from("proveedores")
-      .select("id, nombre")
+      .select("id, nombre, modo_facturacion, porcentaje_descuento")
       .eq("is_active", true)
       .order("nombre"),
   ]);

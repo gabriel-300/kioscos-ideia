@@ -989,7 +989,9 @@ export type Database = {
           created_by: string | null
           id: string
           is_active: boolean
+          modo_facturacion: string
           nombre: string
+          porcentaje_descuento: number | null
           updated_by: string | null
         }
         Insert: {
@@ -998,7 +1000,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          modo_facturacion?: string
           nombre: string
+          porcentaje_descuento?: number | null
           updated_by?: string | null
         }
         Update: {
@@ -1007,7 +1011,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          modo_facturacion?: string
           nombre?: string
+          porcentaje_descuento?: number | null
           updated_by?: string | null
         }
         Relationships: []
@@ -1067,6 +1073,7 @@ export type Database = {
           localidad: string
           nombre: string
           notas: string | null
+          pedidoya_store_id: string | null
           provincia: string
           updated_at: string
         }
@@ -1083,6 +1090,7 @@ export type Database = {
           localidad?: string
           nombre: string
           notas?: string | null
+          pedidoya_store_id?: string | null
           provincia?: string
           updated_at?: string
         }
@@ -1099,6 +1107,7 @@ export type Database = {
           localidad?: string
           nombre?: string
           notas?: string | null
+          pedidoya_store_id?: string | null
           provincia?: string
           updated_at?: string
         }

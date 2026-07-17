@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
+import { extraerRemito } from "@/lib/openrouter";
 
 export interface ItemInput {
   product_id:      string;
@@ -118,7 +119,8 @@ export async function crearMovimiento(data: {
   // (no se clamea a un piso intermedio): si el cliente ya lo bloqueó en el
   // formulario esto nunca debería dispararse, pero es la defensa server-side por
   // si alguien le pega directo a esta action con devtools.
-  const esVenta = data.tipo === "venta";
+  const esVenta   = data.tipo === "venta";
+  const esEntrega = data.tipo === "entrega";
   let precioProductoMap = new Map<string, number | null>();
   if (esVenta && productInputs.length > 0) {
     const productIds = [...new Set(productInputs.map((i) => i.product_id))];
@@ -127,6 +129,19 @@ export async function crearMovimiento(data: {
     if (prodsError) throw new Error(prodsError.message);
     precioProductoMap = new Map(
       (prods ?? []).map((p: { id: string; precio_dist: number | null }) => [p.id, p.precio_dist])
+    );
+  }
+
+  // Costo actual, para comparar contra el precio de la entrega y avisar si el
+  // proveedor cambió el precio (ver alertas_precio más abajo, después del RPC).
+  let costoProductoMap = new Map<string, number | null>();
+  if (esEntrega && productInputs.length > 0) {
+    const productIds = [...new Set(productInputs.map((i) => i.product_id))];
+    const { data: prods, error: prodsError } = await (supabase as any)
+      .from("products").select("id, costo").in("id", productIds);
+    if (prodsError) throw new Error(prodsError.message);
+    costoProductoMap = new Map(
+      (prods ?? []).map((p: { id: string; costo: number | null }) => [p.id, p.costo])
     );
   }
   function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
@@ -288,11 +303,12 @@ export async function crearMovimiento(data: {
   // ej. congelado → cocido) se genera DENTRO de crear_movimiento_con_items, no acá
   // -- así queda en la misma transacción que la venta, sin round-trip extra.
 
+  const movimientoId: string | null = typeof rpcRes.data === "string" ? rpcRes.data : null;
+
   // Asociar imagen si se proporcionó — intentamos con el ID devuelto por la función
   if (data.remito_image_url) {
-    const newId = typeof rpcRes.data === "string" ? rpcRes.data : null;
-    if (newId) {
-      await (supabase as any).from("movimientos").update({ remito_image_url: data.remito_image_url }).eq("id", newId);
+    if (movimientoId) {
+      await (supabase as any).from("movimientos").update({ remito_image_url: data.remito_image_url }).eq("id", movimientoId);
     } else {
       // Fallback: actualizar el movimiento más reciente con los mismos parámetros
       const { data: recent } = await (supabase as any)
@@ -305,10 +321,87 @@ export async function crearMovimiento(data: {
     }
   }
 
+  // Alerta de cambio de precio: si el costo cargado en la entrega difiere del
+  // costo actual del producto, queda para que el admin lo revise en
+  // /admin/alertas-precio -- ver aviso inline equivalente en movimiento-form.tsx.
+  // Sin threshold: cualquier diferencia genera alerta.
+  if (esEntrega && movimientoId) {
+    const alertas = productInputs
+      .map((item) => {
+        const costoAnterior = costoProductoMap.get(item.product_id) ?? null;
+        if (costoAnterior == null || item.precio_unitario == null) return null;
+        if (item.precio_unitario === costoAnterior) return null;
+        return {
+          movimiento_id:  movimientoId,
+          product_id:     item.product_id,
+          proveedor:      data.proveedor ?? null,
+          costo_anterior: costoAnterior,
+          costo_nuevo:    item.precio_unitario,
+        };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
+    if (alertas.length > 0) {
+      await (supabase as any).from("alertas_precio").insert(alertas);
+    }
+  }
+
   revalidatePath("/admin/movimientos");
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/sucursales");
   revalidatePath("/admin/stock");
+  revalidatePath("/admin/alertas-precio");
+}
+
+// Sin acentos, en minúsculas, espacios colapsados -- para comparar "PAN MIÑÓN"
+// contra "Pan Miñon x50" sin que un tilde o un espacio de más rompa el match.
+function normalizarNombre(s: string): string {
+  return s
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export type LineaRemitoLeida = {
+  producto:       string;
+  cantidad:       number;
+  precio:         number;
+  productIdMatch: string | null;
+};
+
+// Lee una foto de remito con IA (Gemini) y devuelve las líneas con el producto
+// del catálogo matcheado cuando hay uno solo claro -- nunca adivina entre
+// varios candidatos, esas líneas quedan sin matchear para elegir a mano.
+export async function leerRemito(imageBase64: string, mimeType: string): Promise<{ error?: string; lineas?: LineaRemitoLeida[] }> {
+  await requireStaff();
+
+  let lineas: Awaited<ReturnType<typeof extraerRemito>>;
+  try {
+    lineas = await extraerRemito(imageBase64, mimeType);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+  if (lineas.length === 0) return { error: "No se pudo leer ninguna línea en la foto" };
+
+  const supabase = createAdminClient();
+  const { data: products, error: prodsError } = await supabase
+    .from("products").select("id, name").eq("is_active", true);
+  if (prodsError) return { error: prodsError.message };
+
+  const catalogo = (products ?? []).map((p) => ({ id: p.id, nombreNorm: normalizarNombre(p.name) }));
+
+  const resultado: LineaRemitoLeida[] = lineas.map((l) => {
+    const nombreNorm = normalizarNombre(l.producto);
+    const exactos = catalogo.filter((p) => p.nombreNorm === nombreNorm);
+    let match = exactos.length === 1 ? exactos[0] : null;
+    if (!match) {
+      const parciales = catalogo.filter((p) => p.nombreNorm.includes(nombreNorm) || nombreNorm.includes(p.nombreNorm));
+      match = parciales.length === 1 ? parciales[0] : null;
+    }
+    return { producto: l.producto, cantidad: l.cantidad, precio: l.precio, productIdMatch: match?.id ?? null };
+  });
+
+  return { lineas: resultado };
 }
 
 export async function actualizarMovimientoMetadata(

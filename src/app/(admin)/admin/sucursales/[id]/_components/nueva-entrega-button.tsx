@@ -34,7 +34,7 @@ export function NuevaEntregaButton({
   categories?:    { id: string; name: string }[];
   personal?:      { id: string; nombre: string }[];
   cajaAbierta?:   boolean;
-  proveedores?:   { id: string; nombre: string }[];
+  proveedores?:   { id: string; nombre: string; modo_facturacion?: "costo" | "precio_sugerido"; porcentaje_descuento?: number | null }[];
   promos?:        Promo[];
 }) {
   const [open, setOpen] = useState(false);

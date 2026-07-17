@@ -92,9 +92,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
     (supabase as any)
       .from("proveedores")
-      .select("id, nombre")
+      .select("id, nombre, modo_facturacion, porcentaje_descuento")
       .eq("is_active", true)
-      .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string }[] | null }>,
+      .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string; modo_facturacion: "costo" | "precio_sugerido"; porcentaje_descuento: number | null }[] | null }>,
     (supabase as any)
       .from("promos")
       .select("id, name, price, tipo, cover_image_url, promo_items(product_id, cantidad)")

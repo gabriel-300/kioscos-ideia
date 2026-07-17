@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
-import { crearMovimiento, type ItemInput } from "../actions";
+import { crearMovimiento, leerRemito, type ItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
@@ -31,7 +31,7 @@ const emptyLine = (): LineItem => ({ product_id: "", cantidad: "", precio_unitar
 
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
 
-type Proveedor = { id: string; nombre: string };
+type Proveedor = { id: string; nombre: string; modo_facturacion?: "costo" | "precio_sugerido"; porcentaje_descuento?: number | null };
 
 interface Props {
   open:               boolean;
@@ -62,6 +62,8 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   const [remitoImage,  setRemitoImage]  = useState<File | null>(null);
   const [previewUrl,   setPreviewUrl]   = useState<string | null>(null);
   const [uploading,    setUploading]    = useState(false);
+  const [leyendoIA,    setLeyendoIA]    = useState(false);
+  const [ocrHints,     setOcrHints]     = useState<Record<number, string>>({});
 
   function resetForm() {
     setSucursalId(defaultSucursalId ?? "");
@@ -79,6 +81,7 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setRemitoImage(null);
     setPreviewUrl(null);
+    setOcrHints({});
   }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -104,6 +107,68 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     if (error) throw new Error(`No se pudo subir la imagen: ${error.message}`);
     const { data } = supabase.storage.from("remitos").getPublicUrl(path);
     return data.publicUrl;
+  }
+
+  // Achica la foto antes de mandarla a leer -- una foto de celular sin achicar
+  // puede pesar varios MB, mucho más lento y más cerca del límite de tamaño
+  // de la API de lectura.
+  async function resizeImageToBase64(file: File, maxDim = 1600, quality = 0.7): Promise<{ base64: string; mimeType: string }> {
+    const bitmap = await createImageBitmap(file);
+    const scale  = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("No se pudo procesar la imagen");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    return { base64: dataUrl.split(",")[1], mimeType: "image/jpeg" };
+  }
+
+  // Lee la foto del remito con IA y precarga las líneas -- la misma foto queda
+  // además como evidencia adjunta (remito_image_url), un solo click sirve para
+  // las dos cosas. Los productos que no matchean claro quedan con la línea en
+  // blanco + el texto original como pista (ocrHints), para elegir a mano.
+  async function handleLeerConIA(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setRemitoImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+
+    setLeyendoIA(true);
+    setError(null);
+    try {
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      const res = await leerRemito(base64, mimeType);
+      if (res.error) { setError(res.error); return; }
+      const lineas = res.lineas ?? [];
+      if (lineas.length === 0) { setError("No se encontraron líneas en la foto"); return; }
+
+      const proveedorActual = proveedores.find((p) => p.nombre === proveedor);
+      const factor = proveedorActual?.modo_facturacion === "precio_sugerido" && proveedorActual.porcentaje_descuento != null
+        ? 1 - proveedorActual.porcentaje_descuento / 100
+        : 1;
+
+      const nuevosItems: LineItem[] = lineas.map((l) => ({
+        product_id:      l.productIdMatch ?? "",
+        cantidad:        String(l.cantidad),
+        precio_unitario: String(Math.round(l.precio * factor * 100) / 100),
+      }));
+      const nuevosHints: Record<number, string> = {};
+      lineas.forEach((l, i) => { if (!l.productIdMatch) nuevosHints[i] = l.producto; });
+
+      setItems(nuevosItems);
+      setOcrHints(nuevosHints);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLeyendoIA(false);
+    }
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -354,6 +419,11 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                           </span>
                         </p>
                       )}
+                      {tipo === "entrega" && !item.product_id && ocrHints[i] && (
+                        <p className="text-[11px] text-amber-600 mt-1">
+                          Remito decía: "{ocrHints[i]}" — elegí el producto
+                        </p>
+                      )}
                     </div>
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Cant.</p>}
@@ -444,6 +514,16 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                           {tipo === "entrega" && !item.precio_unitario && item.product_id && (
                             <p className="text-[11px] text-amber-600 mt-1">Sin costo — queda pendiente</p>
                           )}
+                          {tipo === "entrega" && item.precio_unitario && prod?.costo != null && (() => {
+                            const precioNuevo = parseFloat(item.precio_unitario);
+                            if (isNaN(precioNuevo) || precioNuevo === prod.costo) return null;
+                            const variacion = ((precioNuevo - prod.costo) / prod.costo) * 100;
+                            return (
+                              <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                                ⚠ Antes {AR.format(prod.costo)} · Ahora {AR.format(precioNuevo)} ({variacion > 0 ? "+" : ""}{variacion.toFixed(0)}%)
+                              </p>
+                            );
+                          })()}
                         </div>
                         <div>
                           {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Importe</p>}
@@ -522,6 +602,40 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Leer remito con IA -- precarga las líneas de abajo a partir de la foto */}
+          {tipo === "entrega" && !previewUrl && (
+            <div>
+              <label className={`flex items-center justify-center gap-2 h-10 px-3 w-full rounded-lg border text-sm font-medium transition-colors ${
+                leyendoIA
+                  ? "border-tierra-200 bg-tierra-50 text-tierra-400 cursor-wait"
+                  : "border-tierra-300 bg-tierra-50 text-tierra-700 hover:bg-tierra-100 cursor-pointer"
+              }`}>
+                {leyendoIA ? (
+                  <>
+                    <svg className="size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Leyendo remito…
+                  </>
+                ) : (
+                  <>📷 Leer remito con IA</>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={leyendoIA}
+                  onChange={handleLeerConIA}
+                />
+              </label>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                Precarga los productos, cantidades y precios abajo — revisá antes de guardar. Para remitos escritos a mano, cargá manual.
+              </p>
             </div>
           )}
 
