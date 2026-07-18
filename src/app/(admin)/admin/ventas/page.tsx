@@ -355,7 +355,7 @@ export default async function VentasPage({
 
       <p className="text-xs text-neutral-400 mt-3">
         El costo se calcula con el costo actual cargado en Productos (no el histórico al momento de la venta).
-        {cantidadVentasConPromo > 0 && " El facturado de una promo se contabiliza completo en el primer producto del combo, no repartido entre sus componentes."}
+        {cantidadVentasConPromo > 0 && " El facturado de una promo se reparte proporcional al costo entre sus productos componentes."}
       </p>
     </div>
   );

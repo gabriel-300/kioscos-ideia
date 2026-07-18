@@ -65,10 +65,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Ventas", icon: "ventas",
     children: [
-      { href: "/admin/ventas",         label: "Ventas",    roles: ["admin"], icon: "ventas" },
-      { href: "/admin/ventas-diarias", label: "Por día",   roles: ["admin"], icon: "ventasdiarias" },
-      { href: "/admin/cierres",        label: "Cierres",   roles: ["admin"], icon: "cierres" },
-      { href: "/admin/pedidoya", label: "Pedido Ya", roles: ["admin"], icon: "webhook" },
+      { href: "/admin/ventas",             label: "Ventas",           roles: ["admin"], icon: "ventas" },
+      { href: "/admin/ventas-diarias",      label: "Por día",          roles: ["admin"], icon: "ventasdiarias" },
+      { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin"], icon: "staff" },
+      { href: "/admin/cierres",            label: "Cierres",          roles: ["admin"], icon: "cierres" },
+      { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
     ],
   },
   {
