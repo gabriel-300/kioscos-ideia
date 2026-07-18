@@ -31,6 +31,7 @@ type AuditoriaRow = {
   id:         string;
   sucursal_id: string;
   fecha:      string;
+  created_by: string | null;
   sucursal:   { nombre: string } | null;
   auditoria_stock_items: ItemRow[];
 };
@@ -64,7 +65,7 @@ export default async function AuditoriaPage({
   let query = (admin as any)
     .from("auditorias_stock")
     .select(`
-      id, sucursal_id, fecha,
+      id, sucursal_id, fecha, created_by,
       sucursal:sucursales(nombre),
       auditoria_stock_items(
         id, stock_sistema, stock_contado, diferencia, observacion,
@@ -82,10 +83,32 @@ export default async function AuditoriaPage({
   if (error) throw new Error(error.message);
   const auditorias = auditoriasRaw ?? [];
 
+  // Nombre de quién realizó cada auditoría (created_by) -- mismo patrón que
+  // /admin/ventas-diarias: profiles.full_name con fallback a auth.users.
+  const auditorIds = [...new Set(auditorias.map((a) => a.created_by).filter(Boolean))] as string[];
+  const profileMap: Record<string, string> = {};
+  if (auditorIds.length > 0) {
+    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", auditorIds);
+    for (const p of profiles ?? []) if (p.full_name) profileMap[p.id] = p.full_name;
+    const faltantes = auditorIds.filter((id) => !profileMap[id]);
+    if (faltantes.length > 0) {
+      const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ perPage: 200 });
+      for (const id of faltantes) {
+        const u = (authUsers ?? []).find((au) => au.id === id);
+        if (u) profileMap[id] = (u.user_metadata?.full_name as string | undefined) ?? u.email ?? id;
+      }
+    }
+  }
+
   const diferencias = auditorias.flatMap((a) =>
     a.auditoria_stock_items
       .filter((i) => i.diferencia !== 0)
-      .map((i) => ({ ...i, fecha: a.fecha, sucursalNombre: a.sucursal?.nombre ?? "—" }))
+      .map((i) => ({
+        ...i,
+        fecha: a.fecha,
+        sucursalNombre: a.sucursal?.nombre ?? "—",
+        auditadoPor: a.created_by ? (profileMap[a.created_by] ?? "—") : "—",
+      }))
   ).sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   const sinRevisar = diferencias.filter((d) => !d.revisado_por);
@@ -193,6 +216,7 @@ export default async function AuditoriaPage({
                 itemId={d.id}
                 fecha={d.fecha}
                 sucursalNombre={d.sucursalNombre}
+                auditadoPor={d.auditadoPor}
                 productoNombre={d.product?.name ?? "Producto eliminado"}
                 sku={d.product?.sku ?? ""}
                 diferenciaTexto={fmtCantidad(d.diferencia, d.product?.unit_label ?? null)}

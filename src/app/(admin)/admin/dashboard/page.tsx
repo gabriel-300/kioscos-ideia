@@ -58,6 +58,32 @@ const ICON_TRUCK = <svg className="size-[18px]" fill="none" viewBox="0 0 24 24" 
 const ICON_MONEY = <svg className="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>;
 const ICON_CART  = <svg className="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>;
 
+// PostgREST devuelve como mucho 1000 filas por consulta si no se pagina --
+// "entregas/ventas del mes" cruza todas las sucursales y puede pisar ese
+// límite bien entrado el mes (mismo bug que se encontró y arregló en
+// /admin/ventas, /admin/ventas-por-vendedor y /admin/mermas).
+async function fetchAllMovimientosDelMes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tipo: "entrega" | "venta",
+  desde: string
+) {
+  const PAGE_SIZE = 1000;
+  const rows: unknown[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("movimientos")
+      .select("sucursal:sucursales(id, nombre), movimiento_items(subtotal, cantidad, product:products(id, name))")
+      .eq("tipo", tipo)
+      .gte("fecha", desde)
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const pagina = data ?? [];
+    rows.push(...pagina);
+    if (pagina.length < PAGE_SIZE) break;
+  }
+  return { data: rows };
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -130,17 +156,9 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(8),
     // entregas del mes
-    supabase
-      .from("movimientos")
-      .select("sucursal:sucursales(id, nombre), movimiento_items(subtotal, cantidad, product:products(id, name))")
-      .eq("tipo", "entrega")
-      .gte("fecha", mesInicio),
+    fetchAllMovimientosDelMes(supabase, "entrega", mesInicio),
     // ventas POS del mes
-    supabase
-      .from("movimientos")
-      .select("sucursal:sucursales(id, nombre), movimiento_items(subtotal, cantidad, product:products(id, name))")
-      .eq("tipo", "venta")
-      .gte("fecha", mesInicio),
+    fetchAllMovimientosDelMes(supabase, "venta", mesInicio),
     // sucursales activas para resumen del día
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     // ventas de hoy por sucursal

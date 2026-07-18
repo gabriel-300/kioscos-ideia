@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 import { aprobarAjuste, marcarRevisadoSinAjustar } from "../../sucursales/[id]/auditoria-actions";
 
 export function DiferenciaRow({
-  itemId, fecha, sucursalNombre, productoNombre, sku,
+  itemId, fecha, sucursalNombre, auditadoPor, productoNombre, sku,
   diferenciaTexto, diferenciaPositiva, stockSistemaTexto, stockContadoTexto,
   observacion, revisado, ajusteAplicado, notaAdmin,
 }: {
   itemId:             string;
   fecha:              string;
   sucursalNombre:     string;
+  auditadoPor:        string;
   productoNombre:     string;
   sku:                string;
   diferenciaTexto:    string;
@@ -48,7 +49,7 @@ export function DiferenciaRow({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <p className="font-medium text-neutral-900">{productoNombre} <span className="text-xs text-neutral-400 font-mono">{sku}</span></p>
-          <p className="text-xs text-neutral-400 mt-0.5">{sucursalNombre} · {fechaDisplay}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">{sucursalNombre} · {fechaDisplay} · Auditó: {auditadoPor}</p>
           <p className="text-xs text-neutral-500 mt-1">
             Sistema: {stockSistemaTexto} · Contado: {stockContadoTexto}
           </p>

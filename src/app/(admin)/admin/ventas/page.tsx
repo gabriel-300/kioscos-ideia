@@ -61,23 +61,6 @@ export default async function VentasPage({
     .eq("is_active", true)
     .order("nombre");
 
-  let query = (admin as any)
-    .from("movimientos")
-    .select(`
-      id, fecha, sucursal_id, canal,
-      movimiento_items(
-        product_id, cantidad, subtotal, promo_id,
-        product:products(name, costo, unit_label)
-      )
-    `)
-    .eq("tipo", "venta")
-    .gte("fecha", desde)
-    .lte("fecha", hasta);
-
-  if (sucFilter !== "all") {
-    query = query.eq("sucursal_id", sucFilter);
-  }
-
   type ItemRow = {
     product_id: string;
     cantidad:   number;
@@ -87,9 +70,37 @@ export default async function VentasPage({
   };
   type VentaRow = { id: string; fecha: string; sucursal_id: string; canal: string | null; movimiento_items: ItemRow[] };
 
-  const { data: ventasRaw, error } = (await query) as { data: VentaRow[] | null; error: any };
-  if (error) throw new Error(error.message);
-  const ventas = ventasRaw ?? [];
+  // PostgREST devuelve como mucho 1000 filas si no se pagina -- con un rango
+  // de varios días y varias sucursales esto se pisa (ver el mismo fix en
+  // /admin/ventas-por-vendedor). Se pagina con .range() por las dudas.
+  const PAGE_SIZE = 1000;
+  const ventas: VentaRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = (admin as any)
+      .from("movimientos")
+      .select(`
+        id, fecha, sucursal_id, canal,
+        movimiento_items(
+          product_id, cantidad, subtotal, promo_id,
+          product:products(name, costo, unit_label)
+        )
+      `)
+      .eq("tipo", "venta")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (sucFilter !== "all") {
+      query = query.eq("sucursal_id", sucFilter);
+    }
+
+    const { data, error } = (await query) as { data: VentaRow[] | null; error: any };
+    if (error) throw new Error(error.message);
+    const pagina = data ?? [];
+    ventas.push(...pagina);
+    if (pagina.length < PAGE_SIZE) break;
+  }
 
   // Agregación por producto -- funciona igual para líneas sueltas y componentes
   // de promos (cada componente ya viene expandido a su propia fila con su

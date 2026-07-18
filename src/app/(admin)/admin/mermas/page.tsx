@@ -61,26 +61,6 @@ export default async function MermasPage({
     .eq("is_active", true)
     .order("nombre");
 
-  let query = (admin as any)
-    .from("movimientos")
-    .select(`
-      id, fecha, sucursal_id, notas, remito_image_url,
-      sucursal:sucursales(nombre),
-      movimiento_items(
-        product_id, cantidad,
-        product:products(name, costo, unit_label)
-      )
-    `)
-    .eq("tipo", "merma")
-    .gte("fecha", desde)
-    .lte("fecha", hasta)
-    .order("fecha", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (sucFilter !== "all") {
-    query = query.eq("sucursal_id", sucFilter);
-  }
-
   type ItemRow = {
     product_id: string;
     cantidad:   number;
@@ -92,9 +72,39 @@ export default async function MermasPage({
     movimiento_items: ItemRow[];
   };
 
-  const { data: mermasRaw, error } = (await query) as { data: MermaRow[] | null; error: any };
-  if (error) throw new Error(error.message);
-  const mermas = mermasRaw ?? [];
+  // PostgREST devuelve como mucho 1000 filas si no se pagina (ver el mismo
+  // fix en /admin/ventas y /admin/ventas-por-vendedor) -- se pagina con
+  // .range() por las dudas.
+  const PAGE_SIZE = 1000;
+  const mermas: MermaRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = (admin as any)
+      .from("movimientos")
+      .select(`
+        id, fecha, sucursal_id, notas, remito_image_url,
+        sucursal:sucursales(nombre),
+        movimiento_items(
+          product_id, cantidad,
+          product:products(name, costo, unit_label)
+        )
+      `)
+      .eq("tipo", "merma")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (sucFilter !== "all") {
+      query = query.eq("sucursal_id", sucFilter);
+    }
+
+    const { data, error } = (await query) as { data: MermaRow[] | null; error: any };
+    if (error) throw new Error(error.message);
+    const pagina = data ?? [];
+    mermas.push(...pagina);
+    if (pagina.length < PAGE_SIZE) break;
+  }
 
   const porProducto = new Map<string, ProductoFila>();
   const eventos: EventoFila[] = [];

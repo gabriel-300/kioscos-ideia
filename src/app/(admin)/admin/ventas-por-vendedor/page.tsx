@@ -44,20 +44,6 @@ export default async function VentasPorVendedorPage({
     .eq("is_active", true)
     .order("nombre");
 
-  let query = (admin as any)
-    .from("movimientos")
-    .select(`
-      id, fecha, created_at, canal, created_by,
-      sucursales(nombre),
-      movimiento_items(cantidad, subtotal)
-    `)
-    .eq("tipo", "venta")
-    .gte("fecha", desde)
-    .lte("fecha", hasta)
-    .not("created_by", "is", null);
-
-  if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
-
   type ItemRow  = { cantidad: number; subtotal: number | null };
   type VentaRow = {
     id: string; fecha: string; created_at: string; canal: string | null; created_by: string;
@@ -65,9 +51,35 @@ export default async function VentasPorVendedorPage({
     movimiento_items: ItemRow[];
   };
 
-  const { data: ventasRaw, error } = (await query) as { data: VentaRow[] | null; error: any };
-  if (error) throw new Error(error.message);
-  const ventas = ventasRaw ?? [];
+  // PostgREST devuelve como mucho 1000 filas por consulta si no se pagina --
+  // con 30 días × varias sucursales esto se pisa fácil (fue exactamente lo
+  // que pasó: "1000 ventas" clavado cortaba el período antes de llegar a
+  // "hasta"). Se pagina con .range() hasta que una página vuelve incompleta.
+  const PAGE_SIZE = 1000;
+  const ventas: VentaRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = (admin as any)
+      .from("movimientos")
+      .select(`
+        id, fecha, created_at, canal, created_by,
+        sucursales(nombre),
+        movimiento_items(cantidad, subtotal)
+      `)
+      .eq("tipo", "venta")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .not("created_by", "is", null)
+      .order("fecha", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
+
+    const { data, error } = (await query) as { data: VentaRow[] | null; error: any };
+    if (error) throw new Error(error.message);
+    const pagina = data ?? [];
+    ventas.push(...pagina);
+    if (pagina.length < PAGE_SIZE) break;
+  }
 
   // Nombre de cada vendedor sale de profiles (más prolijo cuando está cargado);
   // el rol SIEMPRE sale de auth.users.app_metadata, no de profiles.role -- ese
