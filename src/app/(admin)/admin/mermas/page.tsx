@@ -16,12 +16,11 @@ function fmtCantidad(cantidad: number, unitLabel: string | null) {
 }
 
 type ProductoFila = {
-  productId:     string;
-  nombre:        string;
-  unitLabel:     string | null;
-  cantidad:      number;
-  costoUnitario: number | null;
-  costoTotal:    number | null;
+  productId:  string;
+  nombre:     string;
+  unitLabel:  string | null;
+  cantidad:   number;
+  costoTotal: number | null;
 };
 
 type EventoFila = {
@@ -64,7 +63,7 @@ export default async function MermasPage({
   type ItemRow = {
     product_id: string;
     cantidad:   number;
-    product:    { name: string; costo: number | null; unit_label: string | null } | null;
+    product:    { name: string; unit_label: string | null } | null;
   };
   type MermaRow = {
     id: string; fecha: string; sucursal_id: string; notas: string | null; remito_image_url: string | null;
@@ -85,7 +84,7 @@ export default async function MermasPage({
         sucursal:sucursales(nombre),
         movimiento_items(
           product_id, cantidad,
-          product:products(name, costo, unit_label)
+          product:products(name, unit_label)
         )
       `)
       .eq("tipo", "merma")
@@ -106,7 +105,11 @@ export default async function MermasPage({
     if (pagina.length < PAGE_SIZE) break;
   }
 
-  const porProducto = new Map<string, ProductoFila>();
+  // Costo por sucursal (migración 059) -- ver mismo criterio en /admin/ventas.
+  const { data: preciosRaw } = await admin.from("product_prices").select("sucursal_id, product_id, costo");
+  const costoMap = new Map((preciosRaw ?? []).map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
+
+  const porProducto = new Map<string, ProductoFila & { costoCompleto: boolean }>();
   const eventos: EventoFila[] = [];
 
   for (const m of mermas) {
@@ -114,16 +117,19 @@ export default async function MermasPage({
     for (const item of m.movimiento_items) {
       const nombre    = item.product?.name ?? "Producto eliminado";
       const unitLabel = item.product?.unit_label ?? null;
-      const costo     = item.product?.costo ?? null;
+      const costo     = costoMap.get(`${m.sucursal_id}:${item.product_id}`) ?? null;
+      const costoLinea = costo != null ? item.cantidad * costo : 0;
       nombresProductos.push(`${nombre} (${fmtCantidad(item.cantidad, unitLabel)})`);
 
       const prev = porProducto.get(item.product_id);
       if (prev) {
-        prev.cantidad += item.cantidad;
+        prev.cantidad     += item.cantidad;
+        prev.costoTotal    = (prev.costoTotal ?? 0) + costoLinea;
+        prev.costoCompleto = prev.costoCompleto && costo != null;
       } else {
         porProducto.set(item.product_id, {
           productId: item.product_id, nombre, unitLabel,
-          cantidad: item.cantidad, costoUnitario: costo, costoTotal: null,
+          cantidad: item.cantidad, costoTotal: costoLinea, costoCompleto: costo != null,
         });
       }
 
@@ -140,10 +146,12 @@ export default async function MermasPage({
     }
   }
 
-  const filas: ProductoFila[] = [...porProducto.values()].map((f) => ({
-    ...f,
-    costoTotal: f.costoUnitario != null ? f.cantidad * f.costoUnitario : null,
-  })).sort((a, b) => (b.costoTotal ?? 0) - (a.costoTotal ?? 0));
+  const filas: ProductoFila[] = [...porProducto.values()]
+    .map((f) => ({
+      productId: f.productId, nombre: f.nombre, unitLabel: f.unitLabel, cantidad: f.cantidad,
+      costoTotal: f.costoCompleto ? f.costoTotal : null,
+    }))
+    .sort((a, b) => (b.costoTotal ?? 0) - (a.costoTotal ?? 0));
 
   const totalCosto        = filas.reduce((s, f) => s + (f.costoTotal ?? 0), 0);
   const productosConCosto = filas.filter((f) => f.costoTotal != null).length;

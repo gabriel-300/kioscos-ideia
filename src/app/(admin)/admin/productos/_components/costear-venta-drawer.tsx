@@ -6,12 +6,14 @@ import { costearDesdePrecioVenta } from "../actions";
 import type { Database } from "@/types/database";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
+type Sucursal = { id: string; nombre: string };
 
-export function CostearVentaDrawer({ categories }: { categories: Category[] }) {
+export function CostearVentaDrawer({ categories, sucursales }: { categories: Category[]; sucursales: Sucursal[] }) {
   const [open,        setOpen]       = useState(false);
   const [pending,     startTransition] = useTransition();
   const [porcentaje,  setPorcentaje] = useState("");
   const [categoriaId, setCategoria]  = useState("");
+  const [sucursalId,  setSucursalId] = useState("");
   const [resultado,   setResultado]  = useState<number | null>(null);
   const [error,       setError]      = useState<string | null>(null);
 
@@ -19,23 +21,27 @@ export function CostearVentaDrawer({ categories }: { categories: Category[] }) {
     setOpen(false);
     setPorcentaje("");
     setCategoria("");
+    setSucursalId("");
     setResultado(null);
     setError(null);
   }
 
   function handleSubmit() {
     const pct = parseFloat(porcentaje);
+    if (!sucursalId) { setError("Elegí a qué sucursal aplicarlo"); return; }
     if (isNaN(pct) || pct <= 0 || pct > 100) { setError("Ingresá un porcentaje entre 1 y 100"); return; }
 
     const scope = categoriaId
       ? categories.find((c) => c.id === categoriaId)?.name ?? "la categoría"
       : "todos los productos con precio de venta cargado";
-    if (!confirm(`¿Calcular el costo como ${pct}% del precio de venta para ${scope}? Esto pisa el costo actual.`)) return;
+    const sucursalNombre = sucursales.find((s) => s.id === sucursalId)?.nombre ?? "la sucursal elegida";
+    if (!confirm(`¿Calcular el costo como ${pct}% del precio de venta para ${scope} en ${sucursalNombre}? Esto pisa el costo actual.`)) return;
 
     setError(null);
     startTransition(async () => {
       try {
         const { actualizados } = await costearDesdePrecioVenta({
+          sucursal_id: sucursalId,
           porcentajePago: pct,
           categoria_id: categoriaId || null,
         });
@@ -88,6 +94,20 @@ export function CostearVentaDrawer({ categories }: { categories: Category[] }) {
                   costo = precio de venta × % que pagan
                 </span>
               </p>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">Sucursal *</label>
+                <select
+                  value={sucursalId}
+                  onChange={(e) => setSucursalId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                >
+                  <option value="" disabled>Elegir sucursal…</option>
+                  {sucursales.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1.5">

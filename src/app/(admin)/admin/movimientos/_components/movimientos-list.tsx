@@ -169,12 +169,13 @@ function DeleteBtn({ id }: { id: string }) {
 type Proveedor = { id: string; nombre: string };
 
 export function MovimientosList({
-  movimientos, sucursales, products, proveedores = [],
+  movimientos, sucursales, products, proveedores = [], costosPorSucursal = {},
 }: {
   movimientos: MovimientoRow[];
   sucursales:  Sucursal[];
   products:    Product[];
   proveedores?: Proveedor[];
+  costosPorSucursal?: Record<string, Record<string, number>>;
 }) {
   const mesDefault = fechaHoyAR().slice(0, 7);
 
@@ -437,6 +438,7 @@ export function MovimientosList({
         sucursales={sucursales}
         products={products}
         proveedores={proveedores}
+        costosPorSucursal={costosPorSucursal}
         onClose={() => setFormOpen(false)}
       />
     </>

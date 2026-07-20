@@ -11,6 +11,8 @@ import { Badge, Button } from "@/components/ui";
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 type ProductWithCat = Product & { category: Category | null };
+type Sucursal = { id: string; nombre: string };
+type PrecioRow = { product_id: string; sucursal_id: string; precio_dist: number; costo: number };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -28,13 +30,34 @@ function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
   );
 }
 
-export function ProductsTable({ products, categories, role }: { products: ProductWithCat[]; categories: Category[]; role?: string }) {
+export function ProductsTable({
+  products, categories, sucursales, precios, role,
+}: {
+  products:   ProductWithCat[];
+  categories: Category[];
+  sucursales: Sucursal[];
+  precios:    PrecioRow[];
+  role?:      string;
+}) {
   const esAdmin = role === "admin";
   const [search, setSearch]         = useState("");
   const [catFilter, setCat]         = useState("all");
   const [status, setStatus]         = useState<"all" | "activo" | "inactivo">("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<Product | null>(null);
+
+  const precioMap = useMemo(() => {
+    const m = new Map<string, PrecioRow>();
+    for (const p of precios) m.set(`${p.product_id}:${p.sucursal_id}`, p);
+    return m;
+  }, [precios]);
+  function precioDe(productId: string, sucursalId: string) {
+    return precioMap.get(`${productId}:${sucursalId}`) ?? null;
+  }
+  function margenDe(precio: PrecioRow | null) {
+    if (!precio || precio.costo <= 0) return null;
+    return Math.round(((precio.precio_dist - precio.costo) / precio.costo) * 100);
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -50,6 +73,8 @@ export function ProductsTable({ products, categories, role }: { products: Produc
   function openNew()              { setEditing(null); setDrawerOpen(true); }
   function openEdit(p: Product)   { setEditing(p);    setDrawerOpen(true); }
   function closeDrawer()          { setDrawerOpen(false); setEditing(null); }
+
+  const totalCols = 3 + sucursales.length + 2; // sku+producto+categoria + N sucursales + activo+accion
 
   return (
     <>
@@ -81,8 +106,8 @@ export function ProductsTable({ products, categories, role }: { products: Produc
             <option value="inactivo">Inactivos</option>
           </select>
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} productos</span>
-          {esAdmin && <CostearVentaDrawer categories={categories} />}
-          <AjustePreciosDrawer categories={categories} soloVenta={!esAdmin} />
+          {esAdmin && <CostearVentaDrawer categories={categories} sucursales={sucursales} />}
+          <AjustePreciosDrawer categories={categories} sucursales={sucursales} soloVenta={!esAdmin} />
           <Button size="sm" onClick={openNew}>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -99,9 +124,6 @@ export function ProductsTable({ products, categories, role }: { products: Produc
             </p>
           ) : (
             filtered.map((p) => {
-              const margen = p.costo != null && p.precio_dist != null && p.costo > 0
-                ? Math.round(((p.precio_dist - p.costo) / p.costo) * 100)
-                : null;
               return (
                 <div key={p.id} className="px-3 py-3">
                   <div className="flex items-center gap-3">
@@ -127,14 +149,20 @@ export function ProductsTable({ products, categories, role }: { products: Produc
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 flex-wrap">
                       {p.category && <Badge>{p.category.name}</Badge>}
-                      <span className="tabular-nums text-neutral-700">
-                        {p.precio_dist != null ? AR.format(p.precio_dist) : "—"}
-                      </span>
-                      {esAdmin && margen != null && (
-                        <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
-                          {margen}%
-                        </span>
-                      )}
+                      {sucursales.map((s) => {
+                        const precio = precioDe(p.id, s.id);
+                        const margen = margenDe(precio);
+                        return (
+                          <span key={s.id} className="tabular-nums text-neutral-700">
+                            {s.nombre}: {precio ? AR.format(precio.precio_dist) : "—"}
+                            {esAdmin && margen != null && (
+                              <span className={`ml-1 font-semibold ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                                ({margen}%)
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
                     <button onClick={() => openEdit(p)} className="text-tierra-700 hover:underline font-medium shrink-0">
                       Editar
@@ -146,7 +174,8 @@ export function ProductsTable({ products, categories, role }: { products: Produc
           )}
         </div>
 
-        {/* Desktop: tabla */}
+        {/* Desktop: tabla -- una columna por sucursal (precio + costo/margen apilados),
+            mismo patrón que la matriz de stock por sucursal en /admin/stock. */}
         <div className="hidden md:block rounded-xl border border-neutral-200 bg-white overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -155,9 +184,11 @@ export function ProductsTable({ products, categories, role }: { products: Produc
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">SKU</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden md:table-cell">Categoría</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">P. Kiosco</th>
-                  {esAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Costo</th>}
-                  {esAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500 hidden lg:table-cell">Margen</th>}
+                  {sucursales.map((s) => (
+                    <th key={s.id} className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      {s.nombre}
+                    </th>
+                  ))}
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activo</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -165,15 +196,12 @@ export function ProductsTable({ products, categories, role }: { products: Produc
               <tbody className="divide-y divide-neutral-100">
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={esAdmin ? 8 : 6} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <td colSpan={totalCols} className="px-4 py-10 text-center text-sm text-neutral-400">
                       {products.length === 0 ? "Todavía no hay productos." : "No hay productos con esos filtros."}
                     </td>
                   </tr>
                 )}
                 {filtered.map((p) => {
-                  const margen = p.costo != null && p.precio_dist != null && p.costo > 0
-                    ? Math.round(((p.precio_dist - p.costo) / p.costo) * 100)
-                    : null;
                   return (
                   <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-neutral-500">{p.sku}</td>
@@ -198,22 +226,27 @@ export function ProductsTable({ products, categories, role }: { products: Produc
                     <td className="px-4 py-3 hidden md:table-cell">
                       {p.category ? <Badge>{p.category.name}</Badge> : <span className="text-neutral-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">
-                      {p.precio_dist != null ? AR.format(p.precio_dist) : <span className="text-neutral-300">—</span>}
-                    </td>
-                    {esAdmin && (
-                      <td className="px-4 py-3 text-right tabular-nums text-neutral-700 hidden lg:table-cell">
-                        {p.costo != null ? AR.format(p.costo) : <span className="text-neutral-300">—</span>}
-                      </td>
-                    )}
-                    {esAdmin && (
-                      <td className="px-4 py-3 text-right hidden lg:table-cell">
-                        {margen != null
-                          ? <span className={`font-semibold tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>{margen}%</span>
-                          : <span className="text-neutral-300">—</span>
-                        }
-                      </td>
-                    )}
+                    {sucursales.map((s) => {
+                      const precio = precioDe(p.id, s.id);
+                      const margen = margenDe(precio);
+                      return (
+                        <td key={s.id} className="px-4 py-3 text-right">
+                          <p className="tabular-nums text-neutral-800 font-medium">
+                            {precio ? AR.format(precio.precio_dist) : <span className="text-neutral-300">—</span>}
+                          </p>
+                          {esAdmin && precio && (
+                            <p className="text-xs text-neutral-400 tabular-nums">
+                              Costo {AR.format(precio.costo)}
+                              {margen != null && (
+                                <span className={`ml-1 font-semibold ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                                  {margen}%
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="px-4 py-3 text-center">
                       <ToggleActivo id={p.id} activo={p.is_active} />
                     </td>
@@ -235,6 +268,8 @@ export function ProductsTable({ products, categories, role }: { products: Produc
         open={drawerOpen}
         product={editing}
         categories={categories}
+        sucursales={sucursales}
+        precios={precios}
         existingSkus={products.map((p) => p.sku)}
         onClose={closeDrawer}
         role={role}

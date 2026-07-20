@@ -58,7 +58,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -100,9 +100,17 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .select("id, name, price, tipo, cover_image_url, promo_items(product_id, cantidad)")
       .eq("is_active", true)
       .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
+    // Precio y costo son por sucursal (ver migración 059) -- se resuelven acá,
+    // antes de armar `products`, para que el resto de la página (venta rápida,
+    // entregas, etc.) siga viendo `precio_dist`/`costo` como si fueran columnas
+    // propias del producto, sin tener que tocar esos componentes.
+    admin.from("product_prices").select("product_id, precio_dist, costo").eq("sucursal_id", id) as unknown as Promise<{
+      data: { product_id: string; precio_dist: number; costo: number }[] | null;
+    }>,
   ]);
 
   const promos = promosResult.data ?? [];
+  const preciosSucursal = new Map((preciosResult.data ?? []).map((p) => [p.product_id, p]));
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -158,12 +166,21 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     redirect("/admin/dashboard");
   }
 
+  // Precio y costo son por sucursal (ver migración 059) -- se mergean acá
+  // antes de cualquier otra cosa, con default 0 si por algún motivo faltara
+  // la fila en product_prices (no debería pasar con el backfill obligatorio,
+  // pero así se ve como "sin precio" en vez de romper la página).
+  const productsConPrecio = (productsRaw ?? []).map((p: any) => {
+    const precio = preciosSucursal.get(p.id);
+    return { ...p, precio_dist: precio?.precio_dist ?? 0, costo: precio?.costo ?? 0 };
+  });
+
   // Costo/margen es informacion sensible del negocio -- se saca del payload
   // para encargado/vendedor antes de que llegue a ningun componente cliente
   // (nadie de esta pantalla necesita costo, solo Productos lo edita).
   const products: any[] = role === "admin"
-    ? (productsRaw ?? [])
-    : (productsRaw ?? []).map((p: any) => {
+    ? productsConPrecio
+    : productsConPrecio.map((p: any) => {
         const { costo, margen_dist, margen_gastro, margen_min, ...safe } = p;
         return safe;
       });

@@ -700,6 +700,7 @@ export type Database = {
           precio_dist_anterior: number | null
           precio_dist_nuevo: number | null
           product_id: string
+          sucursal_id: string | null
         }
         Insert: {
           changed_at?: string
@@ -710,6 +711,7 @@ export type Database = {
           precio_dist_anterior?: number | null
           precio_dist_nuevo?: number | null
           product_id: string
+          sucursal_id?: string | null
         }
         Update: {
           changed_at?: string
@@ -720,6 +722,37 @@ export type Database = {
           precio_dist_anterior?: number | null
           precio_dist_nuevo?: number | null
           product_id?: string
+          sucursal_id?: string | null
+        }
+        Relationships: []
+      }
+      product_prices: {
+        Row: {
+          id: string
+          product_id: string
+          sucursal_id: string
+          precio_dist: number
+          costo: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          sucursal_id: string
+          precio_dist: number
+          costo: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          sucursal_id?: string
+          precio_dist?: number
+          costo?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -727,7 +760,6 @@ export type Database = {
         Row: {
           bolsas_caja: number | null
           category_id: string | null
-          costo: number | null
           cover_image_url: string | null
           created_at: string
           created_by: string | null
@@ -747,7 +779,6 @@ export type Database = {
           name: string
           pkg_bulto: number | null
           pkg_unitario: number | null
-          precio_dist: number | null
           precio_gastro: number | null
           precio_min: number | null
           price_b2b: number
@@ -765,7 +796,6 @@ export type Database = {
         Insert: {
           bolsas_caja?: number | null
           category_id?: string | null
-          costo?: number | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -785,7 +815,6 @@ export type Database = {
           name: string
           pkg_bulto?: number | null
           pkg_unitario?: number | null
-          precio_dist?: number | null
           precio_gastro?: number | null
           precio_min?: number | null
           price_b2b?: number
@@ -803,7 +832,6 @@ export type Database = {
         Update: {
           bolsas_caja?: number | null
           category_id?: string | null
-          costo?: number | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -823,7 +851,6 @@ export type Database = {
           name?: string
           pkg_bulto?: number | null
           pkg_unitario?: number | null
-          precio_dist?: number | null
           precio_gastro?: number | null
           precio_min?: number | null
           price_b2b?: number

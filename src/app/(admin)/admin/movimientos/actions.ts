@@ -121,15 +121,18 @@ export async function crearMovimiento(data: {
   // si alguien le pega directo a esta action con devtools.
   const esVenta   = data.tipo === "venta";
   const esEntrega = data.tipo === "entrega";
+  // Precio y costo son por sucursal (ver migración 059) -- se resuelven
+  // siempre contra product_prices filtrado por data.sucursal_id, nunca
+  // contra products directamente (esta es la fuente de verdad server-side,
+  // "nunca se confía del cliente").
   let precioProductoMap = new Map<string, number | null>();
   if (esVenta && productInputs.length > 0) {
     const productIds = [...new Set(productInputs.map((i) => i.product_id))];
-    const { data: prods, error: prodsError } = await (supabase as any)
-      .from("products").select("id, precio_dist").in("id", productIds);
-    if (prodsError) throw new Error(prodsError.message);
-    precioProductoMap = new Map(
-      (prods ?? []).map((p: { id: string; precio_dist: number | null }) => [p.id, p.precio_dist])
-    );
+    const { data: precios, error: preciosError } = await supabase
+      .from("product_prices").select("product_id, precio_dist")
+      .eq("sucursal_id", data.sucursal_id).in("product_id", productIds);
+    if (preciosError) throw new Error(preciosError.message);
+    precioProductoMap = new Map((precios ?? []).map((p) => [p.product_id, p.precio_dist]));
   }
 
   // Costo actual, para comparar contra el precio de la entrega y avisar si el
@@ -137,12 +140,11 @@ export async function crearMovimiento(data: {
   let costoProductoMap = new Map<string, number | null>();
   if (esEntrega && productInputs.length > 0) {
     const productIds = [...new Set(productInputs.map((i) => i.product_id))];
-    const { data: prods, error: prodsError } = await (supabase as any)
-      .from("products").select("id, costo").in("id", productIds);
-    if (prodsError) throw new Error(prodsError.message);
-    costoProductoMap = new Map(
-      (prods ?? []).map((p: { id: string; costo: number | null }) => [p.id, p.costo])
-    );
+    const { data: precios, error: preciosError } = await supabase
+      .from("product_prices").select("product_id, costo")
+      .eq("sucursal_id", data.sucursal_id).in("product_id", productIds);
+    if (preciosError) throw new Error(preciosError.message);
+    costoProductoMap = new Map((precios ?? []).map((p) => [p.product_id, p.costo]));
   }
   function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
     if (!esVenta || precioCatalogo == null) return precioCliente ?? null;
@@ -160,13 +162,29 @@ export async function crearMovimiento(data: {
     const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
     const { data: promos, error: promosError } = await (supabase as any)
       .from("promos")
-      .select("id, price, is_active, promo_items(product_id, cantidad, product:products(costo))")
+      .select("id, price, is_active, promo_items(product_id, cantidad)")
       .in("id", promoIds);
     if (promosError) throw new Error(promosError.message);
 
-    type PromoItemRow = { product_id: string; cantidad: number; product: { costo: number | null } | null };
+    type PromoItemRow = { product_id: string; cantidad: number };
     type PromoRow = { id: string; price: number; is_active: boolean; promo_items: PromoItemRow[] };
     const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
+
+    // El costo de cada componente para repartir el facturado de la promo
+    // (más abajo) es el costo de ESTA sucursal -- consulta aparte en vez de
+    // anidarla dentro del embed de promo_items, más simple y confiable que
+    // filtrar una tabla relacionada de otra tabla relacionada por PostgREST.
+    const componentProductIds: string[] = [...new Set(
+      (promos ?? []).flatMap((p: PromoRow) => p.promo_items.map((pi) => pi.product_id))
+    )] as string[];
+    let costoComponenteMap = new Map<string, number>();
+    if (componentProductIds.length > 0) {
+      const { data: preciosComponentes, error: preciosCompError } = await supabase
+        .from("product_prices").select("product_id, costo")
+        .eq("sucursal_id", data.sucursal_id).in("product_id", componentProductIds);
+      if (preciosCompError) throw new Error(preciosCompError.message);
+      costoComponenteMap = new Map((preciosComponentes ?? []).map((p) => [p.product_id, p.costo]));
+    }
 
     for (const input of promoInputs) {
       const promo = promoMap.get(input.promo_id);
@@ -185,7 +203,7 @@ export async function crearMovimiento(data: {
       // nada pero sí tienen costo. Sin costo cargado en ningún componente, se
       // reparte en partes iguales.
       const cantidades = promo.promo_items.map((pi) => input.cantidad * pi.cantidad);
-      const pesos = promo.promo_items.map((pi, i) => cantidades[i] * (pi.product?.costo ?? 0));
+      const pesos = promo.promo_items.map((pi, i) => cantidades[i] * (costoComponenteMap.get(pi.product_id) ?? 0));
       const pesoTotal = pesos.reduce((s, w) => s + w, 0);
       const pesosFinal = pesoTotal > 0 ? pesos : cantidades.map(() => 1);
       const pesoFinalTotal = pesosFinal.reduce((s, w) => s + w, 0);

@@ -6,7 +6,10 @@ import { MovimientoForm } from "@/app/(admin)/admin/movimientos/_components/movi
 import { VentaRapidaForm } from "./venta-rapida-form";
 import type { Database } from "@/types/database";
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
+// precio_dist/costo son por sucursal (migración 059) -- este componente
+// siempre corre en el contexto de UNA sucursal fija (la de la URL en
+// sucursales/[id]/page.tsx), que ya los resolvió antes de pasarlos acá.
+type Product = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
 type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] };
 
@@ -73,6 +76,7 @@ export function NuevaEntregaButton({
           defaultTipo={defaultTipo}
           formTitle={btnLabel}
           stockMap={stockMap}
+          costosPorSucursal={{ [sucursalId]: Object.fromEntries(products.map((p) => [p.id, p.costo])) }}
           onClose={() => setOpen(false)}
         />
       )}

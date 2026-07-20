@@ -43,9 +43,13 @@ interface Props {
   defaultTipo?:       TipoMov;
   formTitle?:         string;
   stockMap?:          Record<string, number>;
+  // Costo por sucursal (migración 059) -- sucursal_id -> product_id -> costo.
+  // La sucursal se elige DENTRO de este form (no es fija como en la venta
+  // rápida), así que necesita el costo de todas, no solo de una.
+  costosPorSucursal?: Record<string, Record<string, number>>;
 }
 
-export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap }: Props) {
+export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap, costosPorSucursal = {} }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(fechaHoyAR());
@@ -179,13 +183,19 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     setItems((p) => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   }
 
+  // Costo de un producto en la sucursal actualmente elegida en el form (no
+  // en el producto en general -- costo es por sucursal, ver migración 059).
+  function costoDe(productId: string): number | null {
+    return costosPorSucursal[sucursalId]?.[productId] ?? null;
+  }
+
   function autoPrecio(i: number, productId: string) {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
     // En entregas el precio es el COSTO real pagado al proveedor, no el precio de
     // venta -- se sugiere el costo ya cargado en el producto (si hay), pero queda
     // en blanco (pendiente) si todavía no se cargó, en vez de asumir cualquier valor.
-    const precio = tipo === "entrega" ? (prod.costo ?? null) : null;
+    const precio = tipo === "entrega" ? costoDe(productId) : null;
     setItems((p) => p.map((item, idx) =>
       idx === i ? { ...item, product_id: productId, precio_unitario: precio != null ? String(precio) : "" } : item
     ));
@@ -514,13 +524,14 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                           {tipo === "entrega" && !item.precio_unitario && item.product_id && (
                             <p className="text-[11px] text-amber-600 mt-1">Sin costo — queda pendiente</p>
                           )}
-                          {tipo === "entrega" && item.precio_unitario && prod?.costo != null && (() => {
+                          {tipo === "entrega" && item.precio_unitario && costoDe(item.product_id) != null && (() => {
+                            const costoActual = costoDe(item.product_id)!;
                             const precioNuevo = parseFloat(item.precio_unitario);
-                            if (isNaN(precioNuevo) || precioNuevo === prod.costo) return null;
-                            const variacion = ((precioNuevo - prod.costo) / prod.costo) * 100;
+                            if (isNaN(precioNuevo) || precioNuevo === costoActual) return null;
+                            const variacion = ((precioNuevo - costoActual) / costoActual) * 100;
                             return (
                               <p className="text-[11px] text-amber-600 mt-1 font-medium">
-                                ⚠ Antes {AR.format(prod.costo)} · Ahora {AR.format(precioNuevo)} ({variacion > 0 ? "+" : ""}{variacion.toFixed(0)}%)
+                                ⚠ Antes {AR.format(costoActual)} · Ahora {AR.format(precioNuevo)} ({variacion > 0 ? "+" : ""}{variacion.toFixed(0)}%)
                               </p>
                             );
                           })()}

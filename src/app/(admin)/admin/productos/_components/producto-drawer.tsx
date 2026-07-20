@@ -1,24 +1,23 @@
 "use client";
 
-import { useEffect, useState, useTransition, useCallback, useMemo } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
-import { Input, Textarea, Select } from "@/components/ui";
+import { Input, Select } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearProducto, actualizarProducto } from "../actions";
+import { crearProducto, actualizarProducto, type PrecioSucursalInput } from "../actions";
 import { ImageUploader } from "./image-uploader";
 import type { Database } from "@/types/database";
 
 type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = Database["public"]["Tables"]["categories"]["Row"];
+type Sucursal = { id: string; nombre: string };
+type PrecioRow = { product_id: string; sucursal_id: string; precio_dist: number; costo: number };
 
-const nPos = z.preprocess(
-  (v) => (v === "" || v == null ? null : Number(v)),
-  z.number().positive().nullable()
-) as z.ZodType<number | null>;
-
+// Precio y costo dejaron de ser un campo del form -- son un valor por
+// sucursal, manejados aparte en `preciosPorSucursal` (igual que `imageUrl`).
 const schema = z.object({
   sku:               z.string().min(1, "Requerido"),
   name:              z.string().min(2, "Mínimo 2 caracteres"),
@@ -28,8 +27,6 @@ const schema = z.object({
   freezer_required:  z.boolean(),
   is_active:         z.boolean(),
   vendible_pos:      z.boolean(),
-  costo:             nPos,
-  precio_dist:       nPos,
   stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
   weight_grams:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
   merma_pct:         z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().min(0).max(99).nullable()),
@@ -49,6 +46,8 @@ interface Props {
   open:         boolean;
   product:      Product | null;
   categories:   Category[];
+  sucursales:   Sucursal[];
+  precios:      PrecioRow[];
   existingSkus: string[];
   onClose:      () => void;
   role?:        string;
@@ -68,6 +67,7 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 
 type PriceHistoryEntry = {
   id: string;
+  sucursal_id: string | null;
   precio_dist_anterior: number | null;
   precio_dist_nuevo: number | null;
   costo_anterior: number | null;
@@ -75,18 +75,22 @@ type PriceHistoryEntry = {
   changed_at: string;
 };
 
-export function ProductoDrawer({ open, product, categories, existingSkus, onClose, role }: Props) {
+type PrecioTexto = { precio_dist: string; costo: string };
+
+export function ProductoDrawer({ open, product, categories, sucursales, precios, existingSkus, onClose, role }: Props) {
   const esAdmin = role === "admin";
   const [pending,      startTransition] = useTransition();
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
+  const [preciosForm,  setPreciosForm]  = useState<Record<string, PrecioTexto>>({});
+  const [precioError,  setPrecioError]  = useState<string | null>(null);
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
-      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null, merma_pct: null,
+      stock_minimo: 0, weight_grams: null, merma_pct: null,
     },
   });
 
@@ -95,16 +99,28 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
     const supabase = createBrowserClient();
     (supabase as any)
       .from("product_price_history")
-      .select("id, precio_dist_anterior, precio_dist_nuevo, costo_anterior, costo_nuevo, changed_at")
+      .select("id, sucursal_id, precio_dist_anterior, precio_dist_nuevo, costo_anterior, costo_nuevo, changed_at")
       .eq("product_id", product.id)
       .order("changed_at", { ascending: false })
       .limit(12)
       .then(({ data }: { data: PriceHistoryEntry[] | null }) => setPriceHistory(data ?? []));
-  }, [open, product?.id]);
+  }, [open, product?.id, esAdmin]);
 
   useEffect(() => {
     if (!open) return;
     setImageUrl(product?.cover_image_url ?? null);
+    setPrecioError(null);
+
+    const nuevosPrecios: Record<string, PrecioTexto> = {};
+    for (const s of sucursales) {
+      const actual = product ? precios.find((p) => p.product_id === product.id && p.sucursal_id === s.id) : null;
+      nuevosPrecios[s.id] = {
+        precio_dist: actual ? String(actual.precio_dist) : "",
+        costo:       actual ? String(actual.costo) : "",
+      };
+    }
+    setPreciosForm(nuevosPrecios);
+
     reset(product ? {
       sku:               product.sku,
       name:              product.name,
@@ -114,19 +130,45 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       freezer_required:  product.freezer_required,
       is_active:         product.is_active,
       vendible_pos:      (product as any).vendible_pos ?? true,
-      costo:             product.costo ?? null,
-      precio_dist:       product.precio_dist ?? null,
       stock_minimo:      (product as any).stock_minimo ?? 0,
       weight_grams:      product.weight_grams ?? null,
       merma_pct:         product.merma_coccion_pct != null ? Math.round(product.merma_coccion_pct * 1000) / 10 : null,
     } : {
       sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
-      costo: null, precio_dist: null, stock_minimo: 0, weight_grams: null, merma_pct: null,
+      stock_minimo: 0, weight_grams: null, merma_pct: null,
     });
-  }, [open, product, reset, existingSkus]);
+  }, [open, product, reset, existingSkus, sucursales, precios]);
+
+  function setPrecioCampo(sucursalId: string, campo: keyof PrecioTexto, valor: string) {
+    setPreciosForm((prev) => ({ ...prev, [sucursalId]: { ...prev[sucursalId], [campo]: valor } }));
+  }
+
+  function copiarDeSucursal(destinoId: string, origenId: string) {
+    const origen = preciosForm[origenId];
+    if (!origen) return;
+    setPreciosForm((prev) => ({ ...prev, [destinoId]: { ...origen } }));
+  }
 
   function onSubmit(values: FormValues) {
+    setPrecioError(null);
+
+    const preciosPayload: PrecioSucursalInput[] = [];
+    for (const s of sucursales) {
+      const texto = preciosForm[s.id] ?? { precio_dist: "", costo: "" };
+      const precio_dist = parseFloat(texto.precio_dist);
+      const costo = texto.costo === "" ? 0 : parseFloat(texto.costo);
+      if (!texto.precio_dist || isNaN(precio_dist) || precio_dist <= 0) {
+        setPrecioError(`Falta el precio de venta para "${s.nombre}"`);
+        return;
+      }
+      if (isNaN(costo) || costo < 0) {
+        setPrecioError(`El costo de "${s.nombre}" no es válido`);
+        return;
+      }
+      preciosPayload.push({ sucursal_id: s.id, precio_dist, costo });
+    }
+
     const payload = {
       sku:               values.sku,
       name:              values.name,
@@ -136,14 +178,11 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
       freezer_required:  values.freezer_required,
       is_active:         values.is_active,
       vendible_pos:      values.vendible_pos,
-      costo:             values.costo,
-      precio_dist:       values.precio_dist,
-      price_b2c:         0,
-      price_b2b:         values.precio_dist ?? 0,
       stock_minimo:      values.stock_minimo,
       weight_grams:      values.weight_grams,
       merma_coccion_pct: values.merma_pct != null ? values.merma_pct / 100 : null,
       cover_image_url:   imageUrl,
+      precios:           preciosPayload,
     };
 
     startTransition(async () => {
@@ -151,20 +190,23 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
         ? await actualizarProducto(product.id, payload)
         : await crearProducto({ ...payload, slug: "" });
       if (result.error) {
-        alert(result.error);
+        setPrecioError(result.error);
         return;
       }
       onClose();
     });
   }
 
-  const watchedCosto     = watch("costo");
-  const watchedPrecio    = watch("precio_dist");
   const watchedUnitLabel = watch("unit_label");
-  const margen = useMemo(() => {
-    if (watchedCosto == null || watchedPrecio == null || watchedCosto <= 0) return null;
-    return Math.round(((watchedPrecio - watchedCosto) / watchedCosto) * 100);
-  }, [watchedCosto, watchedPrecio]);
+
+  function margenDe(sucursalId: string): number | null {
+    const texto = preciosForm[sucursalId];
+    if (!texto) return null;
+    const precio = parseFloat(texto.precio_dist);
+    const costo  = parseFloat(texto.costo);
+    if (isNaN(precio) || isNaN(costo) || costo <= 0) return null;
+    return Math.round(((precio - costo) / costo) * 100);
+  }
 
   if (!open) return null;
 
@@ -224,46 +266,74 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
             </p>
           </div>
 
-          {/* Precios */}
+          {/* Precios por sucursal -- cada sucursal es un negocio independiente,
+              no hay un precio "general": las dos son obligatorias. */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precios</p>
-            <div className={esAdmin ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
-              {esAdmin && (
-                <div>
-                  <Input
-                    label="Costo $"
-                    type="number"
-                    step="1"
-                    placeholder="0"
-                    {...register("costo")}
-                  />
-                  <p className="text-[11px] text-neutral-400 mt-1">Lo que paga IDEIA</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precios por sucursal</p>
+            {sucursales.map((s) => {
+              const texto = preciosForm[s.id] ?? { precio_dist: "", costo: "" };
+              const otras = sucursales.filter((o) => o.id !== s.id);
+              const margen = margenDe(s.id);
+              return (
+                <div key={s.id} className="rounded-lg border border-neutral-200 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-neutral-800">{s.nombre}</p>
+                    {otras.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
+                          defaultValue=""
+                          onChange={(e) => {
+                            if (e.target.value) copiarDeSucursal(s.id, e.target.value);
+                            e.target.value = "";
+                          }}
+                        >
+                          <option value="" disabled>Copiar de…</option>
+                          {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div className={esAdmin ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
+                    {esAdmin && (
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-500 mb-1">Costo $</label>
+                        <input
+                          type="number" step="1" placeholder="0"
+                          value={texto.costo}
+                          onChange={(e) => setPrecioCampo(s.id, "costo", e.target.value)}
+                          className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1">Precio kiosco $ *</label>
+                      <input
+                        type="number" step="1" placeholder="0"
+                        value={texto.precio_dist}
+                        onChange={(e) => setPrecioCampo(s.id, "precio_dist", e.target.value)}
+                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                      />
+                    </div>
+                    {esAdmin && (
+                      <div>
+                        <p className="text-xs font-medium text-neutral-500 mb-1">Margen</p>
+                        {margen != null ? (
+                          <p className={`text-lg font-bold font-display tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
+                            {margen}%
+                          </p>
+                        ) : (
+                          <p className="text-lg text-neutral-300 font-bold">—</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div>
-                <Input
-                  label="Precio kiosco $"
-                  type="number"
-                  step="1"
-                  placeholder="0"
-                  {...register("precio_dist")}
-                />
-                <p className="text-[11px] text-neutral-400 mt-1">Lo que cobra IDEIA</p>
-              </div>
-              {esAdmin && (
-                <div>
-                  <p className="text-xs font-medium text-neutral-600 mb-1.5">Margen</p>
-                  {margen != null ? (
-                    <p className={`text-xl font-bold font-display tabular-nums ${margen > 0 ? "text-selva-700" : margen < 0 ? "text-red-600" : "text-neutral-500"}`}>
-                      {margen}%
-                    </p>
-                  ) : (
-                    <p className="text-xl text-neutral-300 font-bold">—</p>
-                  )}
-                  <p className="text-[11px] text-neutral-400 mt-1">Ganancia estimada</p>
-                </div>
-              )}
-            </div>
+              );
+            })}
+            {precioError && (
+              <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{precioError}</p>
+            )}
           </div>
 
           {/* Historial de precios */}
@@ -274,6 +344,8 @@ export function ProductoDrawer({ open, product, categories, existingSkus, onClos
                 {priceHistory.map((h) => (
                   <div key={h.id} className="flex justify-between items-start px-3 py-2 text-xs">
                     <span className="text-neutral-400">
+                      {sucursales.find((s) => s.id === h.sucursal_id)?.nombre ?? "—"}
+                      {" · "}
                       {new Date(h.changed_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}
                     </span>
                     <div className="text-right space-y-0.5">

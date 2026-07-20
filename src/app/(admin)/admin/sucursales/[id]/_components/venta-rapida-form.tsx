@@ -7,7 +7,11 @@ import { formatKg } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { CSSProperties } from "react";
 
-type Product  = Database["public"]["Tables"]["products"]["Row"];
+// precio_dist/costo ya no son columnas de products (ver migración 059,
+// precio por sucursal) -- la página que renderiza este form los resuelve
+// para la sucursal actual antes de pasarlos acá, así que siguen entrando
+// como si fueran parte del producto.
+type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type Category = { id: string; name: string };
 type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] };
 

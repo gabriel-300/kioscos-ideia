@@ -6,6 +6,7 @@ import { ajustarPrecios } from "../actions";
 import type { Database } from "@/types/database";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
+type Sucursal = { id: string; nombre: string };
 
 const CAMPOS = [
   { key: "precio_dist", label: "Precio a kioscos" },
@@ -14,13 +15,14 @@ const CAMPOS = [
 
 type Campo = typeof CAMPOS[number]["key"];
 
-export function AjustePreciosDrawer({ categories, soloVenta }: { categories: Category[]; soloVenta?: boolean }) {
+export function AjustePreciosDrawer({ categories, sucursales, soloVenta }: { categories: Category[]; sucursales: Sucursal[]; soloVenta?: boolean }) {
   const camposVisibles = soloVenta ? CAMPOS.filter((c) => c.key !== "costo") : CAMPOS;
   const [open,        setOpen]       = useState(false);
   const [pending,     startTransition] = useTransition();
   const [porcentaje,  setPorcentaje] = useState("");
   const [campos,      setCampos]     = useState<Campo[]>(["precio_dist"]);
   const [categoriaId, setCategoria]  = useState("");
+  const [sucursalId,  setSucursalId] = useState("");
   const [resultado,   setResultado]  = useState<number | null>(null);
   const [error,       setError]      = useState<string | null>(null);
 
@@ -35,12 +37,14 @@ export function AjustePreciosDrawer({ categories, soloVenta }: { categories: Cat
     setPorcentaje("");
     setCampos(["precio_dist"]);
     setCategoria("");
+    setSucursalId("");
     setResultado(null);
     setError(null);
   }
 
   function handleSubmit() {
     const pct = parseFloat(porcentaje);
+    if (!sucursalId)              { setError("Elegí a qué sucursal aplicarlo"); return; }
     if (isNaN(pct) || pct === 0) { setError("Ingresá un porcentaje válido distinto de 0"); return; }
     if (campos.length === 0)      { setError("Seleccioná al menos un campo de precio"); return; }
 
@@ -48,12 +52,14 @@ export function AjustePreciosDrawer({ categories, soloVenta }: { categories: Cat
     const scope = categoriaId
       ? categories.find((c) => c.id === categoriaId)?.name ?? "la categoría"
       : "todos los productos";
-    if (!confirm(`¿Aplicar ${label} a ${scope}?`)) return;
+    const sucursalNombre = sucursales.find((s) => s.id === sucursalId)?.nombre ?? "la sucursal elegida";
+    if (!confirm(`¿Aplicar ${label} a ${scope} en ${sucursalNombre}?`)) return;
 
     setError(null);
     startTransition(async () => {
       try {
         const { actualizados } = await ajustarPrecios({
+          sucursal_id: sucursalId,
           porcentaje: pct,
           campos,
           categoria_id: categoriaId || null,
@@ -101,6 +107,22 @@ export function AjustePreciosDrawer({ categories, soloVenta }: { categories: Cat
         ) : (
           <>
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Sucursal */}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1.5">Sucursal *</label>
+                <select
+                  value={sucursalId}
+                  onChange={(e) => setSucursalId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                >
+                  <option value="" disabled>Elegir sucursal…</option>
+                  {sucursales.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-neutral-400">Cada sucursal tiene su propio precio -- el ajuste aplica solo a la que elijas.</p>
+              </div>
+
               {/* Porcentaje */}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1.5">

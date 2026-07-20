@@ -15,7 +15,7 @@ export default async function MovimientosPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }] = await Promise.all([
+  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }, preciosRes] = await Promise.all([
     supabase
       .from("movimientos")
       .select(`
@@ -36,7 +36,7 @@ export default async function MovimientosPage() {
       .order("nombre"),
     (admin as any)
       .from("products")
-      .select("id, name, sku, precio_dist, costo")
+      .select("id, name, sku")
       .eq("is_active", true)
       .order("name"),
     supabase
@@ -44,7 +44,19 @@ export default async function MovimientosPage() {
       .select("id, nombre, modo_facturacion, porcentaje_descuento")
       .eq("is_active", true)
       .order("nombre"),
+    // Costo por sucursal (migración 059) -- este form elige la sucursal
+    // adentro, no viene fija por URL como en /admin/sucursales/[id], así que
+    // necesita el costo de TODAS para poder resolverlo recién cuando el
+    // usuario elige una.
+    admin.from("product_prices").select("product_id, sucursal_id, costo") as unknown as Promise<{
+      data: { product_id: string; sucursal_id: string; costo: number }[] | null;
+    }>,
   ]);
+
+  const costosPorSucursal: Record<string, Record<string, number>> = {};
+  for (const p of preciosRes.data ?? []) {
+    (costosPorSucursal[p.sucursal_id] ??= {})[p.product_id] = p.costo;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -58,6 +70,7 @@ export default async function MovimientosPage() {
         sucursales={sucursales ?? []}
         products={(products ?? []) as Parameters<typeof MovimientosList>[0]["products"]}
         proveedores={proveedores ?? []}
+        costosPorSucursal={costosPorSucursal}
       />
     </div>
   );

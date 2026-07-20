@@ -17,14 +17,13 @@ function fmtCantidad(cantidad: number, unitLabel: string | null) {
 }
 
 type ProductoFila = {
-  productId:     string;
-  nombre:        string;
-  unitLabel:     string | null;
-  cantidad:      number;
-  facturado:     number;
-  costoUnitario: number | null;
-  costoTotal:    number | null;
-  margen:        number | null;
+  productId:  string;
+  nombre:     string;
+  unitLabel:  string | null;
+  cantidad:   number;
+  facturado:  number;
+  costoTotal: number | null;
+  margen:     number | null;
 };
 
 const CANAL_LABELS: Record<string, string> = {
@@ -66,7 +65,7 @@ export default async function VentasPage({
     cantidad:   number;
     subtotal:   number | null;
     promo_id:   string | null;
-    product:    { name: string; costo: number | null; unit_label: string | null } | null;
+    product:    { name: string; unit_label: string | null } | null;
   };
   type VentaRow = { id: string; fecha: string; sucursal_id: string; canal: string | null; movimiento_items: ItemRow[] };
 
@@ -82,7 +81,7 @@ export default async function VentasPage({
         id, fecha, sucursal_id, canal,
         movimiento_items(
           product_id, cantidad, subtotal, promo_id,
-          product:products(name, costo, unit_label)
+          product:products(name, unit_label)
         )
       `)
       .eq("tipo", "venta")
@@ -102,11 +101,17 @@ export default async function VentasPage({
     if (pagina.length < PAGE_SIZE) break;
   }
 
+  // Costo por sucursal (migración 059) -- el costo de un producto depende de
+  // en qué sucursal se vendió, así que se resuelve por (sucursal_id, product_id)
+  // y no por producto solo.
+  const { data: preciosRaw } = await admin.from("product_prices").select("sucursal_id, product_id, costo");
+  const costoMap = new Map((preciosRaw ?? []).map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
+
   // Agregación por producto -- funciona igual para líneas sueltas y componentes
   // de promos (cada componente ya viene expandido a su propia fila con su
-  // cantidad real). El costo se calcula sobre el costo ACTUAL del producto, no
-  // el histórico al momento de la venta.
-  const porProducto = new Map<string, ProductoFila>();
+  // cantidad real). El costo se calcula sobre el costo ACTUAL de esa sucursal,
+  // no el histórico al momento de la venta.
+  const porProducto = new Map<string, ProductoFila & { costoCompleto: boolean }>();
   const porCanal    = new Map<string, number>();
   let cantidadVentasConPromo = 0;
 
@@ -117,17 +122,21 @@ export default async function VentasPage({
       const prev = porProducto.get(item.product_id);
       const nombre    = item.product?.name ?? "Producto eliminado";
       const unitLabel = item.product?.unit_label ?? null;
-      const costo     = item.product?.costo ?? null;
+      const costo     = costoMap.get(`${venta.sucursal_id}:${item.product_id}`) ?? null;
       const cantidad  = Number(item.cantidad);
       const facturado = item.subtotal ?? 0;
+      const costoLinea = costo != null ? cantidad * costo : 0;
 
       if (prev) {
-        prev.cantidad  += cantidad;
-        prev.facturado += facturado;
+        prev.cantidad     += cantidad;
+        prev.facturado    += facturado;
+        prev.costoTotal    = (prev.costoTotal ?? 0) + costoLinea;
+        prev.costoCompleto = prev.costoCompleto && costo != null;
       } else {
         porProducto.set(item.product_id, {
           productId: item.product_id, nombre, unitLabel,
-          cantidad, facturado, costoUnitario: costo, costoTotal: null, margen: null,
+          cantidad, facturado, costoTotal: costoLinea, margen: null,
+          costoCompleto: costo != null,
         });
       }
       porCanal.set(canal, (porCanal.get(canal) ?? 0) + facturado);
@@ -139,9 +148,9 @@ export default async function VentasPage({
     .sort((a, b) => b.facturado - a.facturado);
 
   const filas: ProductoFila[] = [...porProducto.values()].map((f) => {
-    const costoTotal = f.costoUnitario != null ? f.cantidad * f.costoUnitario : null;
+    const costoTotal = f.costoCompleto ? f.costoTotal : null;
     const margen     = costoTotal != null ? f.facturado - costoTotal : null;
-    return { ...f, costoTotal, margen };
+    return { productId: f.productId, nombre: f.nombre, unitLabel: f.unitLabel, cantidad: f.cantidad, facturado: f.facturado, costoTotal, margen };
   }).sort((a, b) => b.facturado - a.facturado);
 
   const totalFacturado  = filas.reduce((s, f) => s + f.facturado, 0);

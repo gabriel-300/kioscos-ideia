@@ -15,18 +15,23 @@ export default async function ProductosPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: productsRaw }, { data: categories }, stockActivoRes] = await Promise.all([
+  const [{ data: productsRaw }, { data: categories }, { data: sucursales }, stockActivoRes, preciosRes] = await Promise.all([
     (admin as any).from("products").select("*, category:categories(*)").order("name"),
     supabase.from("categories").select("*").eq("is_active", true).order("sort_order"),
+    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     (admin as any)
       .from("stock_sucursal")
       .select("product_id, sucursal_id, stock_actual")
       .gt("stock_actual", 0) as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null;
       }>,
+    admin.from("product_prices").select("product_id, sucursal_id, precio_dist, costo") as unknown as Promise<{
+      data: { product_id: string; sucursal_id: string; precio_dist: number; costo: number }[] | null;
+    }>,
   ]);
 
   const products = productsRaw ?? [];
+  const precios  = preciosRes.data ?? [];
 
   // Detectar productos inactivos con stock remanente
   const inactivosMap: Record<string, string> = {};
@@ -74,6 +79,8 @@ export default async function ProductosPage() {
       <ProductsTable
         products={(products ?? []) as Parameters<typeof ProductsTable>[0]["products"]}
         categories={categories ?? []}
+        sucursales={sucursales ?? []}
+        precios={precios}
         role={role}
       />
     </div>
