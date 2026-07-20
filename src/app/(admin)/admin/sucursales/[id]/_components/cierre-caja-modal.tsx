@@ -152,11 +152,17 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   // diferencia = (efectivo − fondo + retiros del turno) + resto − ventas (espejea la RPC cerrar_caja)
   const diferencia       = hayAlgo ? (efectivoNum - fondo + retirosTurno) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
 
+  // Si hay diferencia (a favor o en contra) no se puede cerrar sin explicar
+  // qué pasó -- a pedido del usuario, porque encargados/vendedores cerraban
+  // sin más ni menos preocuparse por la diferencia.
+  const notaObligatoria = diferencia !== null && diferencia !== 0 && !notas.trim();
+
   // Primer click: valida y pide confirmación (sin someter nada todavía).
   // Segundo click (ya confirmando): recién ahí se cierra la caja de verdad --
   // pedido explícito después de que a alguien se le escapó un cierre sin querer.
   function handleCerrarClick() {
     if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
+    if (notaObligatoria) { setError("Contá qué pasó con la diferencia antes de cerrar"); return; }
     setError(null);
     if (!confirmando) { setConfirmando(true); return; }
     handleSubmit();
@@ -164,6 +170,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   function handleSubmit() {
     if (!hayAlgo) { setError("Ingresá al menos un monto"); return; }
+    if (notaObligatoria) { setError("Contá qué pasó con la diferencia antes de cerrar"); return; }
     setError(null);
     startTransition(async () => {
       try {
@@ -356,13 +363,24 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 )}
               </div>
 
-              <textarea
-                placeholder="Observaciones del cierre (opcional)…"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                rows={2}
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20 resize-none"
-              />
+              <div>
+                {diferencia !== null && diferencia !== 0 && (
+                  <p className="text-xs font-semibold text-danger mb-1.5">
+                    Hay diferencia — contá qué pasó antes de cerrar *
+                  </p>
+                )}
+                <textarea
+                  placeholder={diferencia !== null && diferencia !== 0 ? "Ej: faltó contar una venta, error de vuelto, etc." : "Observaciones del cierre (opcional)…"}
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  rows={2}
+                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 resize-none ${
+                    notaObligatoria
+                      ? "border-danger/40 focus:border-danger focus:ring-danger/20"
+                      : "border-neutral-300 focus:border-tierra-700 focus:ring-tierra-700/20"
+                  }`}
+                />
+              </div>
 
               {error && <p className="text-xs text-danger">{error}</p>}
             </>
