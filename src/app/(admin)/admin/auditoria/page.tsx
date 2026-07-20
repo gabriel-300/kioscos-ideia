@@ -17,6 +17,7 @@ function fmtCantidad(cantidad: number, unitLabel: string | null) {
 
 type ItemRow = {
   id:              string;
+  product_id:      string | null;
   stock_sistema:   number;
   stock_contado:   number;
   diferencia:      number;
@@ -31,10 +32,12 @@ type AuditoriaRow = {
   id:         string;
   sucursal_id: string;
   fecha:      string;
+  created_at: string;
   created_by: string | null;
   sucursal:   { nombre: string } | null;
   auditoria_stock_items: ItemRow[];
 };
+type TurnoEnMedio = { id: string; createdBy: string | null; createdAt: string };
 
 export default async function AuditoriaPage({
   searchParams,
@@ -65,10 +68,10 @@ export default async function AuditoriaPage({
   let query = (admin as any)
     .from("auditorias_stock")
     .select(`
-      id, sucursal_id, fecha, created_by,
+      id, sucursal_id, fecha, created_at, created_by,
       sucursal:sucursales(nombre),
       auditoria_stock_items(
-        id, stock_sistema, stock_contado, diferencia, observacion,
+        id, product_id, stock_sistema, stock_contado, diferencia, observacion,
         revisado_por, revisado_en, ajuste_aplicado, nota_admin,
         product:products(name, sku, unit_label)
       )
@@ -83,14 +86,87 @@ export default async function AuditoriaPage({
   if (error) throw new Error(error.message);
   const auditorias = auditoriasRaw ?? [];
 
-  // Nombre de quién realizó cada auditoría (created_by) -- mismo patrón que
-  // /admin/ventas-diarias: profiles.full_name con fallback a auth.users.
-  const auditorIds = [...new Set(auditorias.map((a) => a.created_by).filter(Boolean))] as string[];
+  const diferenciasBase = auditorias.flatMap((a) =>
+    a.auditoria_stock_items
+      .filter((i) => i.diferencia !== 0)
+      .map((i) => ({
+        ...i,
+        fecha:              a.fecha,
+        sucursalId:         a.sucursal_id,
+        sucursalNombre:     a.sucursal?.nombre ?? "—",
+        auditadoPorId:      a.created_by,
+        auditoriaCreatedAt: a.created_at,
+      }))
+  ).sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  const sinRevisar = diferenciasBase.filter((d) => !d.revisado_por);
+
+  // Para cada diferencia, buscar la auditoría ANTERIOR de ese mismo producto en
+  // esa sucursal (puede ser de cualquier fecha, no solo del rango filtrado), y
+  // con eso acotar qué cierres_caja (turnos) quedaron en el medio -- son los
+  // turnos donde pudo originarse el faltante, no solo "el turno anterior".
+  const productIds = [...new Set(diferenciasBase.map((d) => d.product_id).filter(Boolean))] as string[];
+  const auditoriasPorProducto = new Map<string, { auditoriaId: string; sucursalId: string; createdAt: string }[]>();
+  if (productIds.length > 0) {
+    const { data: itemsMismoProducto } = await (admin as any)
+      .from("auditoria_stock_items")
+      .select("product_id, auditoria_id")
+      .in("product_id", productIds);
+
+    const auditoriaIdsRelevantes = [...new Set((itemsMismoProducto ?? []).map((x: any) => x.auditoria_id))];
+    const { data: auditoriasRelevantes } = auditoriaIdsRelevantes.length > 0
+      ? await (admin as any).from("auditorias_stock").select("id, sucursal_id, created_at").in("id", auditoriaIdsRelevantes)
+      : { data: [] };
+    const auditoriaInfoById = new Map<string, { sucursal_id: string; created_at: string }>(
+      (auditoriasRelevantes ?? []).map((a: any) => [a.id, a])
+    );
+
+    for (const item of itemsMismoProducto ?? []) {
+      const info = auditoriaInfoById.get(item.auditoria_id);
+      if (!info) continue;
+      const lista = auditoriasPorProducto.get(item.product_id) ?? [];
+      lista.push({ auditoriaId: item.auditoria_id, sucursalId: info.sucursal_id, createdAt: info.created_at });
+      auditoriasPorProducto.set(item.product_id, lista);
+    }
+  }
+
+  function auditoriaAnterior(productId: string, sucursalId: string, antesDe: string) {
+    const candidatas = (auditoriasPorProducto.get(productId) ?? [])
+      .filter((x) => x.sucursalId === sucursalId && x.createdAt < antesDe)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return candidatas[0] ?? null;
+  }
+
+  const diferenciasConTurnos = await Promise.all(diferenciasBase.map(async (d) => {
+    if (!d.product_id) return { ...d, turnos: [] as TurnoEnMedio[] };
+    const anterior = auditoriaAnterior(d.product_id, d.sucursalId, d.auditoriaCreatedAt);
+    if (!anterior) return { ...d, turnos: [] as TurnoEnMedio[] };
+    const { data: cierresEnMedio } = await (admin as any)
+      .from("cierres_caja")
+      .select("id, created_by, created_at")
+      .eq("sucursal_id", d.sucursalId)
+      .gt("created_at", anterior.createdAt)
+      .lte("created_at", d.auditoriaCreatedAt)
+      .order("created_at", { ascending: true });
+    const turnos: TurnoEnMedio[] = (cierresEnMedio ?? []).map((c: any) => ({
+      id: c.id, createdBy: c.created_by, createdAt: c.created_at,
+    }));
+    return { ...d, turnos };
+  }));
+
+  // Nombre de quién realizó cada auditoría y quién cerró cada turno en el medio
+  // -- mismo patrón que /admin/ventas-diarias: profiles.full_name con fallback a auth.users.
+  const idsAResolver = new Set<string>();
+  for (const d of diferenciasConTurnos) {
+    if (d.auditadoPorId) idsAResolver.add(d.auditadoPorId);
+    for (const t of d.turnos) if (t.createdBy) idsAResolver.add(t.createdBy);
+  }
   const profileMap: Record<string, string> = {};
-  if (auditorIds.length > 0) {
-    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", auditorIds);
+  if (idsAResolver.size > 0) {
+    const ids = [...idsAResolver];
+    const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", ids);
     for (const p of profiles ?? []) if (p.full_name) profileMap[p.id] = p.full_name;
-    const faltantes = auditorIds.filter((id) => !profileMap[id]);
+    const faltantes = ids.filter((id) => !profileMap[id]);
     if (faltantes.length > 0) {
       const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ perPage: 200 });
       for (const id of faltantes) {
@@ -100,18 +176,17 @@ export default async function AuditoriaPage({
     }
   }
 
-  const diferencias = auditorias.flatMap((a) =>
-    a.auditoria_stock_items
-      .filter((i) => i.diferencia !== 0)
-      .map((i) => ({
-        ...i,
-        fecha: a.fecha,
-        sucursalNombre: a.sucursal?.nombre ?? "—",
-        auditadoPor: a.created_by ? (profileMap[a.created_by] ?? "—") : "—",
-      }))
-  ).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const fmtTurno = (iso: string) =>
+    new Date(iso).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-  const sinRevisar = diferencias.filter((d) => !d.revisado_por);
+  const diferencias = diferenciasConTurnos.map((d) => ({
+    ...d,
+    auditadoPor: d.auditadoPorId ? (profileMap[d.auditadoPorId] ?? "—") : "—",
+    turnosDesdeUltimaAuditoria: d.turnos.map((t) => ({
+      nombre: t.createdBy ? (profileMap[t.createdBy] ?? "—") : "—",
+      fechaHora: fmtTurno(t.createdAt),
+    })),
+  }));
 
   // Cumplimiento: última auditoría por sucursal (todo el historial, no solo el rango filtrado)
   const { data: todasFechas } = await (admin as any)
@@ -227,6 +302,7 @@ export default async function AuditoriaPage({
                 revisado={d.revisado_por != null}
                 ajusteAplicado={d.ajuste_aplicado}
                 notaAdmin={d.nota_admin}
+                turnosDesdeUltimaAuditoria={d.turnosDesdeUltimaAuditoria}
               />
             ))}
           </div>

@@ -6,7 +6,7 @@ import { aprobarAjuste, marcarRevisadoSinAjustar } from "../../sucursales/[id]/a
 export function DiferenciaRow({
   itemId, fecha, sucursalNombre, auditadoPor, productoNombre, sku,
   diferenciaTexto, diferenciaPositiva, stockSistemaTexto, stockContadoTexto,
-  observacion, revisado, ajusteAplicado, notaAdmin,
+  observacion, revisado, ajusteAplicado, notaAdmin, turnosDesdeUltimaAuditoria,
 }: {
   itemId:             string;
   fecha:              string;
@@ -22,6 +22,7 @@ export function DiferenciaRow({
   revisado:           boolean;
   ajusteAplicado:     boolean;
   notaAdmin:          string | null;
+  turnosDesdeUltimaAuditoria: { nombre: string; fechaHora: string }[];
 }) {
   const [pending, startTransition] = useTransition();
   const [nota, setNota]   = useState("");
@@ -54,6 +55,17 @@ export function DiferenciaRow({
             Sistema: {stockSistemaTexto} · Contado: {stockContadoTexto}
           </p>
           {observacion && <p className="text-xs text-neutral-600 mt-1 italic">"{observacion}"</p>}
+          {turnosDesdeUltimaAuditoria.length > 0 && (
+            <p className="text-xs text-amber-700 mt-1.5">
+              Turnos desde la última auditoría de este producto:{" "}
+              {turnosDesdeUltimaAuditoria.map((t, i) => (
+                <span key={i}>
+                  {i > 0 && ", "}
+                  <span className="font-medium">{t.nombre}</span> ({t.fechaHora})
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <span className={`tabular-nums font-semibold text-sm shrink-0 ${diferenciaPositiva ? "text-blue-600" : "text-danger"}`}>
           {diferenciaTexto}
