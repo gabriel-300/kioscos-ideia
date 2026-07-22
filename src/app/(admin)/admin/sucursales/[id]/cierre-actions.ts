@@ -17,7 +17,7 @@ export async function cerrarCaja(data: {
   fondo_siguiente:          number | null;
   total_fiado:              number;
   total_plataforma:         number;
-}) {
+}): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
 
@@ -28,14 +28,14 @@ export async function cerrarCaja(data: {
       .eq("id", data.sucursal_id)
       .single();
     if (suc?.encargado_user_id !== userId) {
-      throw new Error("No tenés permisos para esta sucursal");
+      return { error: "No tenés permisos para esta sucursal" };
     }
   }
   if (role === "vendedor") {
     const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
     const profile = profileRes.data as { sucursal_id: string | null } | null;
     if (profile?.sucursal_id !== data.sucursal_id) {
-      throw new Error("No tenés permisos para esta sucursal");
+      return { error: "No tenés permisos para esta sucursal" };
     }
   }
 
@@ -76,7 +76,7 @@ export async function cerrarCaja(data: {
       .eq("apertura_id", ultimaApertura.id)
       .maybeSingle();
     if (!auditoriaTurno) {
-      throw new Error("Hay que hacer la auditoría de stock de este turno antes de cerrar la caja.");
+      return { error: "Hay que hacer la auditoría de stock de este turno antes de cerrar la caja." };
     }
   }
 
@@ -84,7 +84,7 @@ export async function cerrarCaja(data: {
     // Un vendedor solo puede cerrar el turno que él mismo abrió (el encargado,
     // ya validado como dueño de la sucursal arriba, puede cerrar cualquiera).
     if (role === "vendedor" && ultimaApertura?.created_by && ultimaApertura.created_by !== userId) {
-      throw new Error("Esta caja la abrió otra persona — pedile que la cierre ella, un encargado o un admin.");
+      return { error: "Esta caja la abrió otra persona — pedile que la cierre ella, un encargado o un admin." };
     }
 
     let ventasQuery = (admin as any)
@@ -146,10 +146,11 @@ export async function cerrarCaja(data: {
     p_total_plataforma:        totalPlataforma,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/cierres");
+  return {};
 }
 
 export async function getCierreDelDia(sucursalId: string, fecha: string) {

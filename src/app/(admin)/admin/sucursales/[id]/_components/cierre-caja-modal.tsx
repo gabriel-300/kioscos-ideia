@@ -173,25 +173,26 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
     if (notaObligatoria) { setError("Contá qué pasó con la diferencia antes de cerrar"); return; }
     setError(null);
     startTransition(async () => {
-      try {
-        await cerrarCaja({
-          sucursal_id:              sucursalId,
-          fecha:                    hoy,
-          fondo_inicial:           fondo,
-          total_ventas:            totalVentas,
-          efectivo_declarado:      efectivoNum,
-          billetera_declarada:     mpNum,
-          tarjeta_declarada:       tarjetaNum,
-          transferencia_declarada: transferenciaNum,
-          notas:                    notas || null,
-          fondo_siguiente:          fondoSiguiente ? parseFloat(fondoSiguiente) : null,
-          total_fiado:              totalFiado,
-          total_plataforma:         totalPedidoYaPlataforma,
-        });
-        handleClose();
-      } catch (e) {
-        setError((e as Error).message);
+      const result = await cerrarCaja({
+        sucursal_id:              sucursalId,
+        fecha:                    hoy,
+        fondo_inicial:           fondo,
+        total_ventas:            totalVentas,
+        efectivo_declarado:      efectivoNum,
+        billetera_declarada:     mpNum,
+        tarjeta_declarada:       tarjetaNum,
+        transferencia_declarada: transferenciaNum,
+        notas:                    notas || null,
+        fondo_siguiente:          fondoSiguiente ? parseFloat(fondoSiguiente) : null,
+        total_fiado:              totalFiado,
+        total_plataforma:         totalPedidoYaPlataforma,
+      });
+      if (result.error) {
+        setError(result.error);
+        setConfirmando(false);
+        return;
       }
+      handleClose();
     });
   }
 
