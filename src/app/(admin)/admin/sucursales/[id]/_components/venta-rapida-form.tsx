@@ -385,6 +385,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       return;
     }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
+    if (canal === "ambulante" && !personalId) { setError("Seleccioná quién hizo la venta ambulante"); return; }
     // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden monto/medio de pago.
     if (!sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
       setError("El monto ingresado no cubre el total");
@@ -424,7 +425,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           tipo:               "venta",
           notas:              notasFinal,
           canal,
-          personal_id:        canal === "cuenta_corriente" && personalId ? personalId : null,
+          personal_id:        (canal === "cuenta_corriente" || canal === "ambulante") && personalId ? personalId : null,
           descuento_total:    esPedidoYa && descuentoPedidoYaNum > 0 ? descuentoPedidoYaNum : null,
           // Redondeado a centavos -- restar el vuelto (float) puede dejar arrastres
           // tipo 1200.0000000000002 que no se ven en el formateo pero quedan guardados así.
@@ -443,7 +444,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
-          personalNombre: canal === "cuenta_corriente" ? personalNombre : null,
+          personalNombre: (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
         });
       } catch (e) { setError((e as Error).message); }
     });
@@ -873,7 +874,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   key={c.id}
                   onClick={() => {
                     setCanal(c.id);
-                    if (c.id !== "cuenta_corriente") setPersonalId("");
+                    if (c.id !== "cuenta_corriente" && c.id !== "ambulante") setPersonalId("");
                     // Evita que montos tipeados para otro canal (ej. efectivo cargado
                     // y cancelado) queden pegados si el cajero cambia de canal y
                     // confirma sin darse cuenta -- especialmente grave hacia/desde
@@ -899,11 +900,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               ))}
             </div>
 
-            {/* Beneficiario — solo para cuenta corriente */}
-            {canal === "cuenta_corriente" && (
+            {/* Beneficiario (Cta. Corriente) / vendedor (Ambulante) */}
+            {(canal === "cuenta_corriente" || canal === "ambulante") && (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E2E8F0" }}>
                 <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-                  Beneficiario
+                  {canal === "cuenta_corriente" ? "Beneficiario" : "¿Quién vendió?"}
                 </p>
                 {personal.length === 0 ? (
                   <p style={{ fontSize: 12, color: "#F59E0B", fontWeight: 600 }}>No hay personal registrado en esta sucursal</p>
@@ -1058,10 +1059,15 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 <p style={{ fontSize: 12, color: "#C2410C", fontWeight: 600, margin: 0 }}>Seleccioná un beneficiario</p>
               </div>
             )}
+            {cajaAbierta !== false && canal === "ambulante" && !personalId && seleccionados.length > 0 && (
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 7, background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
+                <p style={{ fontSize: 12, color: "#065F46", fontWeight: 600, margin: 0 }}>Seleccioná quién hizo la venta</p>
+              </div>
+            )}
 
             {/* Cobrar button */}
             {(() => {
-              const disabled = seleccionados.length === 0 || cajaAbierta === false || (canal === "cuenta_corriente" && !personalId);
+              const disabled = seleccionados.length === 0 || cajaAbierta === false || ((canal === "cuenta_corriente" || canal === "ambulante") && !personalId);
               return (
                 <button
                   onClick={() => { setError(null); setShowPay(true); }}

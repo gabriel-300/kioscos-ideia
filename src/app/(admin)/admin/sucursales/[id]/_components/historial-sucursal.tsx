@@ -251,8 +251,8 @@ export function HistorialSucursal({
                               {CANAL_LABEL[m.canal] ?? m.canal}
                             </span>
                           )}
-                          {m.canal === "cuenta_corriente" && m.personal_id && personalMap[m.personal_id] && (
-                            <span className="text-xs text-purple-700 font-semibold">
+                          {(m.canal === "cuenta_corriente" || m.canal === "ambulante") && m.personal_id && personalMap[m.personal_id] && (
+                            <span className={`text-xs font-semibold ${m.canal === "ambulante" ? "text-emerald-700" : "text-purple-700"}`}>
                               {personalMap[m.personal_id]}
                             </span>
                           )}

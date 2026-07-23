@@ -46,7 +46,7 @@ export default async function VentasPorVendedorPage({
 
   type ItemRow  = { cantidad: number; subtotal: number | null };
   type VentaRow = {
-    id: string; fecha: string; created_at: string; canal: string | null; created_by: string;
+    id: string; fecha: string; created_at: string; canal: string | null; created_by: string; personal_id: string | null;
     sucursales: { nombre: string } | null;
     movimiento_items: ItemRow[];
   };
@@ -61,7 +61,7 @@ export default async function VentasPorVendedorPage({
     let query = (admin as any)
       .from("movimientos")
       .select(`
-        id, fecha, created_at, canal, created_by,
+        id, fecha, created_at, canal, created_by, personal_id,
         sucursales(nombre),
         movimiento_items(cantidad, subtotal)
       `)
@@ -81,11 +81,19 @@ export default async function VentasPorVendedorPage({
     if (pagina.length < PAGE_SIZE) break;
   }
 
+  // A quién se le atribuye cada venta: normalmente quien la cargó en el sistema
+  // (created_by), pero en el canal Ambulante el que vende no es quien está
+  // logueado en la caja del local -- ahí se usa personal_id (quien efectivamente
+  // salió a vender), cargado a mano en el formulario para ese canal puntual.
+  function vendedorIdDe(v: VentaRow) {
+    return v.canal === "ambulante" && v.personal_id ? v.personal_id : v.created_by;
+  }
+
   // Nombre de cada vendedor sale de profiles (más prolijo cuando está cargado);
   // el rol SIEMPRE sale de auth.users.app_metadata, no de profiles.role -- ese
   // campo puede estar desincronizado (el rol real se asigna sobre app_metadata,
   // ver src/app/(admin)/admin/staff/actions.ts).
-  const userIds = [...new Set(ventas.map((v) => v.created_by))];
+  const userIds = [...new Set(ventas.map(vendedorIdDe))];
   const profileMap: Record<string, { nombre: string; role: string | null }> = {};
   if (userIds.length > 0) {
     const { data: profiles } = await admin.from("profiles").select("id, full_name").in("id", userIds);
@@ -104,15 +112,16 @@ export default async function VentasPorVendedorPage({
     }
   }
 
-  // Agrupar por vendedor (created_by = quién procesó la venta, no confundir
-  // con personal_id que es el CLIENTE de Cta. Corriente en esa venta).
+  // Agrupar por vendedor -- ver vendedorIdDe() más arriba para el criterio
+  // (created_by en general, personal_id para el canal Ambulante).
   const porVendedor = new Map<string, VendedorFila>();
   for (const venta of ventas) {
     const monto = venta.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
     const unidades = venta.movimiento_items.reduce((s, i) => s + Number(i.cantidad), 0);
-    const info = profileMap[venta.created_by] ?? { nombre: "Usuario eliminado", role: null };
+    const vendedorId = vendedorIdDe(venta);
+    const info = profileMap[vendedorId] ?? { nombre: "Usuario eliminado", role: null };
 
-    const prev = porVendedor.get(venta.created_by);
+    const prev = porVendedor.get(vendedorId);
     const detalle: VentaDetalle = {
       id:             venta.id,
       fecha:          venta.fecha,
@@ -128,8 +137,8 @@ export default async function VentasPorVendedorPage({
       prev.unidades    += unidades;
       prev.ventas.push(detalle);
     } else {
-      porVendedor.set(venta.created_by, {
-        vendedorId:  venta.created_by,
+      porVendedor.set(vendedorId, {
+        vendedorId,
         nombre:      info.nombre,
         role:        info.role,
         ventasCount: 1,
@@ -207,7 +216,7 @@ export default async function VentasPorVendedorPage({
       <VendedoresTable vendedores={vendedores} />
 
       <p className="text-xs text-neutral-400 mt-3">
-        Se atribuye cada venta a quién la cargó en el sistema (no al beneficiario de una Cta. Corriente, que es el cliente, no quien la vendió).
+        Se atribuye cada venta a quién la cargó en el sistema (no al beneficiario de una Cta. Corriente, que es el cliente, no quien la vendió), excepto en el canal Ambulante, donde se atribuye a quien salió a vender.
       </p>
     </div>
   );
