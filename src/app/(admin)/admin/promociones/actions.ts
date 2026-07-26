@@ -15,6 +15,7 @@ export interface PromoInput {
   is_active:       boolean;
   tipo:            "promo" | "receta";
   cover_image_url: string | null;
+  category_id:     string | null;
   items:           PromoItemInput[];
 }
 
@@ -24,7 +25,7 @@ export async function crearPromo(data: PromoInput) {
 
   const { data: promo, error } = await (supabase as any)
     .from("promos")
-    .insert({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, created_by: userId })
+    .insert({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, category_id: data.category_id, created_by: userId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -45,7 +46,7 @@ export async function actualizarPromo(id: string, data: PromoInput) {
 
   const { error } = await (supabase as any)
     .from("promos")
-    .update({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, updated_at: new Date().toISOString(), updated_by: userId })
+    .update({ name: data.name, price: data.price, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, category_id: data.category_id, updated_at: new Date().toISOString(), updated_by: userId })
     .eq("id", id);
   if (error) throw new Error(error.message);
 

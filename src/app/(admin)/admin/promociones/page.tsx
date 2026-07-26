@@ -15,12 +15,13 @@ export default async function PromocionesPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: promos }, { data: products }] = await Promise.all([
+  const [{ data: promos }, { data: products }, { data: categories }] = await Promise.all([
     (supabase as any)
       .from("promos")
       .select("*, promo_items(id, product_id, cantidad, product:products(id, name, unit_label))")
       .order("name") as unknown as Promise<{ data: PromoWithItems[] | null }>,
     supabase.from("products").select("id, name, unit_label").eq("is_active", true).order("name"),
+    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
   ]);
 
   return (
@@ -35,6 +36,7 @@ export default async function PromocionesPage() {
       <PromosTable
         promos={promos ?? []}
         products={products ?? []}
+        categories={categories ?? []}
       />
     </div>
   );

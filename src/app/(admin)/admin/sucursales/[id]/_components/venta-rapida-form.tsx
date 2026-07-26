@@ -13,7 +13,7 @@ import type { CSSProperties } from "react";
 // como si fueran parte del producto.
 type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type Category = { id: string; name: string };
-type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] };
+type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -133,11 +133,16 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   // como tile vendible: solo se usan armando recetas/promos.
   const sellableProducts = useMemo(() => products.filter((p) => p.vendible_pos !== false), [products]);
 
+  // Una receta con categoría (ej. "Pizza X Horno" que reemplaza a un producto
+  // categorizado) tiene que aparecer en la pestaña de ESA categoría, junto a
+  // los productos -- no en la bolsa genérica "Promos". Solo las recetas/promos
+  // sin categoría siguen viviendo ahí.
   const catsConProductos = useMemo(() => {
     if (!categories?.length) return [];
     const ids = new Set(sellableProducts.map((p) => p.category_id));
+    promos.forEach((p) => { if (p.category_id) ids.add(p.category_id); });
     return categories.filter((c) => ids.has(c.id));
-  }, [categories, sellableProducts]);
+  }, [categories, sellableProducts, promos]);
 
   const filtered = useMemo(() => {
     let list = catFilter === "all" || catFilter === "promos" ? sellableProducts : sellableProducts.filter((p) => p.category_id === catFilter);
@@ -150,14 +155,18 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
   const promoMap = useMemo(() => new Map(promos.map((p) => [p.id, p])), [promos]);
 
+  const promosSinCategoria = useMemo(() => promos.filter((p) => !p.category_id), [promos]);
+
   const filteredPromos = useMemo(() => {
-    let list = promos;
+    let list = catFilter === "promos" ? promosSinCategoria
+      : catFilter === "all" ? []
+      : promos.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
     return list;
-  }, [promos, search]);
+  }, [promos, promosSinCategoria, catFilter, search]);
 
   function promoDisponible(promo: Promo): number | null {
     if (!stockMap || promo.promo_items.length === 0) return null;
@@ -565,34 +574,44 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 
   type Tile = { id: string; name: string; price: number | null; agotado: boolean; color: string; coverImageUrl: string | null; isPromo: boolean; tipoPromo?: "promo" | "receta"; stock: number | null };
 
+  function promoTile(promo: Promo): Tile {
+    const disp = promoDisponible(promo);
+    return {
+      id: `${PROMO_PREFIX}${promo.id}`,
+      name: promo.name,
+      price: promo.price,
+      agotado: disp !== null && disp <= 0,
+      color: PROMO_COLOR,
+      coverImageUrl: promo.cover_image_url,
+      isPromo: true,
+      tipoPromo: promo.tipo,
+      stock: disp,
+    };
+  }
+  function productTile(prod: Product): Tile {
+    const stock = stockMap?.[prod.id] ?? null;
+    return {
+      id: prod.id,
+      name: prod.name,
+      price: prod.precio_dist,
+      agotado: stock !== null && stock <= 0,
+      color: prod.category_id ? (catColorMap[prod.category_id] ?? NAVY) : NAVY,
+      coverImageUrl: prod.cover_image_url,
+      isPromo: false,
+      stock,
+    };
+  }
+
+  // En la pestaña "Promos" solo van las recetas/promos sin categoría -- las
+  // que sí tienen categoría se mezclan con los productos de esa categoría
+  // (ver catsConProductos/filteredPromos más arriba), así una receta que
+  // reemplaza a un producto (ej. "Pizza X Horno") sigue apareciendo donde el
+  // vendedor ya la busca.
   const tiles: Tile[] = catFilter === "promos"
-    ? filteredPromos.map((promo) => {
-        const disp = promoDisponible(promo);
-        return {
-          id: `${PROMO_PREFIX}${promo.id}`,
-          name: promo.name,
-          price: promo.price,
-          agotado: disp !== null && disp <= 0,
-          color: PROMO_COLOR,
-          coverImageUrl: promo.cover_image_url,
-          isPromo: true,
-          tipoPromo: promo.tipo,
-          stock: disp,
-        };
-      })
-    : filtered.map((prod) => {
-        const stock = stockMap?.[prod.id] ?? null;
-        return {
-          id: prod.id,
-          name: prod.name,
-          price: prod.precio_dist,
-          agotado: stock !== null && stock <= 0,
-          color: prod.category_id ? (catColorMap[prod.category_id] ?? NAVY) : NAVY,
-          coverImageUrl: prod.cover_image_url,
-          isPromo: false,
-          stock,
-        };
-      });
+    ? filteredPromos.map(promoTile)
+    : catFilter === "all"
+    ? filtered.map(productTile)
+    : [...filtered.map(productTile), ...filteredPromos.map(promoTile)];
 
   /* ── POS ── */
   return (
@@ -678,7 +697,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </svg>
               Todos
             </button>
-            {promos.length > 0 && (
+            {promosSinCategoria.length > 0 && (
               <button
                 onClick={() => setCatFilter("promos")}
                 className="flex items-center gap-2 px-5 h-[60px] text-[13px] font-semibold shrink-0 transition-all border-b-[3px]"

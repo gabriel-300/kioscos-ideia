@@ -11,7 +11,7 @@ import type { Database } from "@/types/database";
 // sucursales/[id]/page.tsx), que ya los resolvió antes de pasarlos acá.
 type Product = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
-type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] };
+type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] };
 
 export function NuevaEntregaButton({
   sucursalId,

@@ -12,6 +12,7 @@ export type PromoWithItems = {
   is_active:       boolean;
   tipo:            "promo" | "receta";
   cover_image_url: string | null;
+  category_id:     string | null;
   promo_items: {
     id:         string;
     product_id: string;
@@ -20,7 +21,8 @@ export type PromoWithItems = {
   }[];
 };
 
-type ProductOption = { id: string; name: string; unit_label: string };
+type ProductOption  = { id: string; name: string; unit_label: string };
+type CategoryOption = { id: string; name: string };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -38,10 +40,11 @@ function ToggleActiva({ id, activa }: { id: string; activa: boolean }) {
   );
 }
 
-export function PromosTable({ promos, products }: { promos: PromoWithItems[]; products: ProductOption[] }) {
+export function PromosTable({ promos, products, categories }: { promos: PromoWithItems[]; products: ProductOption[]; categories: CategoryOption[] }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<PromoWithItems | null>(null);
   const [, startTransition]         = useTransition();
+  const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   function openNew()             { setEditing(null); setDrawerOpen(true); }
   function openEdit(p: PromoWithItems) { setEditing(p); setDrawerOpen(true); }
@@ -80,6 +83,9 @@ export function PromosTable({ promos, products }: { promos: PromoWithItems[]; pr
                     }`}>
                       {p.tipo === "receta" ? "Receta" : "Promo"}
                     </span>
+                    {p.category_id && (
+                      <span className="text-xs text-neutral-400">{categoryMap.get(p.category_id) ?? "—"}</span>
+                    )}
                   </div>
                   <ToggleActiva id={p.id} activa={p.is_active} />
                 </div>
@@ -137,6 +143,9 @@ export function PromosTable({ promos, products }: { promos: PromoWithItems[]; pr
                         }`}>
                           {p.tipo === "receta" ? "Receta" : "Promo"}
                         </span>
+                        {p.category_id && (
+                          <span className="text-xs text-neutral-400">{categoryMap.get(p.category_id) ?? "—"}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -172,6 +181,7 @@ export function PromosTable({ promos, products }: { promos: PromoWithItems[]; pr
         open={drawerOpen}
         promo={editing}
         products={products}
+        categories={categories}
         onClose={closeDrawer}
       />
     </>

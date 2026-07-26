@@ -97,9 +97,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string; modo_facturacion: "costo" | "precio_sugerido"; porcentaje_descuento: number | null }[] | null }>,
     (supabase as any)
       .from("promos")
-      .select("id, name, price, tipo, cover_image_url, promo_items(product_id, cantidad)")
+      .select("id, name, price, tipo, cover_image_url, category_id, promo_items(product_id, cantidad)")
       .eq("is_active", true)
-      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
+      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
     // Precio y costo son por sucursal (ver migración 059) -- se resuelven acá,
     // antes de armar `products`, para que el resto de la página (venta rápida,
     // entregas, etc.) siga viendo `precio_dist`/`costo` como si fueran columnas

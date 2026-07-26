@@ -972,6 +972,7 @@ export type Database = {
       }
       promos: {
         Row: {
+          category_id: string | null
           cover_image_url: string | null
           created_at: string
           created_by: string | null
@@ -984,6 +985,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          category_id?: string | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -996,6 +998,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          category_id?: string | null
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -1007,7 +1010,15 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "promos_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       proveedores: {
         Row: {

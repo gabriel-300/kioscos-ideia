@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Button, Input, Combobox } from "@/components/ui";
+import { Button, Input, Select, Combobox } from "@/components/ui";
 import { crearPromo, actualizarPromo, type PromoItemInput } from "../actions";
 import { ImageUploader } from "../../productos/_components/image-uploader";
 import type { PromoWithItems } from "./promos-table";
 
 type ProductOption = { id: string; name: string; unit_label: string };
+type CategoryOption = { id: string; name: string };
 
 interface LineItem {
   product_id: string;
@@ -16,18 +17,20 @@ interface LineItem {
 const emptyLine = (): LineItem => ({ product_id: "", cantidad: "" });
 
 interface Props {
-  open:     boolean;
-  promo:    PromoWithItems | null;
-  products: ProductOption[];
-  onClose:  () => void;
+  open:       boolean;
+  promo:      PromoWithItems | null;
+  products:   ProductOption[];
+  categories: CategoryOption[];
+  onClose:    () => void;
 }
 
-export function PromoDrawer({ open, promo, products, onClose }: Props) {
+export function PromoDrawer({ open, promo, products, categories, onClose }: Props) {
   const [pending, startTransition] = useTransition();
   const [name,      setName]      = useState("");
   const [price,     setPrice]     = useState("");
   const [isActive,  setIsActive]  = useState(true);
   const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
+  const [categoryId, setCategoryId] = useState("");
   const [items,     setItems]     = useState<LineItem[]>([emptyLine()]);
   const [error,     setError]     = useState<string | null>(null);
   const [imageUrl,  setImageUrl]  = useState<string | null>(null);
@@ -41,6 +44,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setPrice(String(promo.price));
       setIsActive(promo.is_active);
       setTipo(promo.tipo);
+      setCategoryId(promo.category_id ?? "");
       setImageUrl(promo.cover_image_url ?? null);
       const loadedItems = promo.promo_items.length > 0
         ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
@@ -59,6 +63,7 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
       setRindeTexto(nextRindeTexto);
     } else {
       setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
+      setCategoryId("");
       setImageUrl(null);
       setRindeMode({});
       setRindeTexto({});
@@ -116,9 +121,9 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
     startTransition(async () => {
       try {
         if (promo) {
-          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, items: parsedItems });
+          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, items: parsedItems });
         } else {
-          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, items: parsedItems });
+          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, items: parsedItems });
         }
         onClose();
       } catch (e) {
@@ -165,6 +170,18 @@ export function PromoDrawer({ open, promo, products, onClose }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Select
+              label="Categoría"
+              options={[{ value: "", label: "Sin categoría (aparece en la pestaña Promos)" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            />
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Si le ponés categoría, aparece en el POS junto a los productos de esa categoría en vez de en la pestaña "Promos".
+            </p>
           </div>
 
           <div>
