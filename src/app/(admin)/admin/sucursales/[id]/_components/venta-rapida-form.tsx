@@ -172,9 +172,20 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     return list;
   }, [promos, promosSinCategoria, catFilter, search]);
 
+  // Igual criterio que un producto suelto: si un insumo nunca tuvo una fila
+  // de stock cargada en esta sucursal, el stock es DESCONOCIDO, no cero --
+  // no hay que marcar "Agotado" solo porque falta el dato (antes stockMap[id]
+  // ?? 0 trataba "sin datos" igual que "remató todo", y una receta quedaba
+  // agotada aunque su insumo ni siquiera mostrara Agotado como producto).
   function promoDisponible(promo: Promo): number | null {
     if (!stockMap || promo.promo_items.length === 0) return null;
-    return Math.min(...promo.promo_items.map((pi) => Math.floor((stockMap[pi.product_id] ?? 0) / pi.cantidad)));
+    const disponibles = promo.promo_items.map((pi) => {
+      const stock = stockMap[pi.product_id];
+      if (stock === undefined) return null;
+      return Math.floor(stock / pi.cantidad);
+    });
+    if (disponibles.some((d) => d === null)) return null;
+    return Math.min(...(disponibles as number[]));
   }
 
   function nameOf(id: string) {
