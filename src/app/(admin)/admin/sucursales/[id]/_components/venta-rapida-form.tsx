@@ -157,9 +157,13 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
   const promosSinCategoria = useMemo(() => promos.filter((p) => !p.category_id), [promos]);
 
+  // "Todos" tiene que mostrar TODO lo vendible -- productos y recetas por
+  // igual -- si no, buscar "pizza" desde ahí (el flujo más natural para el
+  // vendedor, sin andar cambiando de pestaña primero) no encontraba las
+  // recetas categorizadas aunque existieran.
   const filteredPromos = useMemo(() => {
     let list = catFilter === "promos" ? promosSinCategoria
-      : catFilter === "all" ? []
+      : catFilter === "all" ? promos
       : promos.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -609,8 +613,6 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
   // vendedor ya la busca.
   const tiles: Tile[] = catFilter === "promos"
     ? filteredPromos.map(promoTile)
-    : catFilter === "all"
-    ? filtered.map(productTile)
     : [...filtered.map(productTile), ...filteredPromos.map(promoTile)];
 
   /* ── POS ── */
