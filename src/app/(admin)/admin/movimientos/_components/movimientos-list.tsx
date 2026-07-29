@@ -168,12 +168,15 @@ function DeleteBtn({ id }: { id: string }) {
 
 type Proveedor = { id: string; nombre: string };
 
+type Promo = { id: string; name: string; tipo: "promo" | "receta" };
+
 export function MovimientosList({
-  movimientos, sucursales, products, proveedores = [], costosPorSucursal = {},
+  movimientos, sucursales, products, promos = [], proveedores = [], costosPorSucursal = {},
 }: {
   movimientos: MovimientoRow[];
   sucursales:  Sucursal[];
   products:    Product[];
+  promos?:     Promo[];
   proveedores?: Proveedor[];
   costosPorSucursal?: Record<string, Record<string, number>>;
 }) {
@@ -437,6 +440,7 @@ export function MovimientosList({
         open={formOpen}
         sucursales={sucursales}
         products={products}
+        promos={promos}
         proveedores={proveedores}
         costosPorSucursal={costosPorSucursal}
         onClose={() => setFormOpen(false)}

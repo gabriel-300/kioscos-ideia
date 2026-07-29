@@ -388,6 +388,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   label="Merma"
                   variant="ghost"
                   stockMap={stockActual}
+                  promos={promos}
                 />
               </>
             ) : (
@@ -428,6 +429,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   label="Merma"
                   variant="ghost"
                   stockMap={stockActual}
+                  promos={promos}
                 />
               </>
             )}

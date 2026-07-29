@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
-import { crearMovimiento, leerRemito, type ItemInput } from "../actions";
+import { crearMovimiento, leerRemito, type ItemInput, type PromoItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
@@ -10,6 +10,14 @@ import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
 type Product  = Database["public"]["Tables"]["products"]["Row"];
+type Promo    = { id: string; name: string; tipo: "promo" | "receta" };
+
+// Las líneas de promo/receta comparten el campo product_id con este prefijo
+// (mismo criterio que venta-rapida-form.tsx) para no duplicar el estado del
+// formulario en dos listas paralelas.
+const PROMO_PREFIX = "promo:";
+function isPromoId(id: string) { return id.startsWith(PROMO_PREFIX); }
+function promoIdOf(id: string) { return id.slice(PROMO_PREFIX.length); }
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -37,6 +45,9 @@ interface Props {
   open:               boolean;
   sucursales:         Sucursal[];
   products:           Product[];
+  // Combos/recetas -- solo se ofrecen para tipo "merma" (perder una porción
+  // de algo armado, ej. una pizza) hasta ahora es el único caso real.
+  promos?:            Promo[];
   proveedores?:       Proveedor[];
   onClose:            () => void;
   defaultSucursalId?: string;
@@ -49,7 +60,7 @@ interface Props {
   costosPorSucursal?: Record<string, Record<string, number>>;
 }
 
-export function MovimientoForm({ open, sucursales, products, proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap, costosPorSucursal = {} }: Props) {
+export function MovimientoForm({ open, sucursales, products, promos = [], proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap, costosPorSucursal = {} }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(fechaHoyAR());
@@ -190,6 +201,16 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
   }
 
   function autoPrecio(i: number, productId: string) {
+    // Promo/receta: no tiene costo/precio de catálogo propio -- el importe se
+    // reparte entre sus componentes recién del lado del servidor.
+    if (isPromoId(productId)) {
+      setItems((p) => p.map((item, idx) => idx === i ? { ...item, product_id: productId, precio_unitario: "" } : item));
+      setPesoMode((p) => ({ ...p, [i]: false }));
+      setPesoTexto((p) => ({ ...p, [i]: "" }));
+      setGramosTexto((p) => ({ ...p, [i]: "" }));
+      updateLine(i, "cantidad", "");
+      return;
+    }
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
     // En entregas el precio es el COSTO real pagado al proveedor, no el precio de
@@ -253,11 +274,15 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
     if (tipo === "merma" && !notas.trim()) { setError("Contá el motivo de la pérdida"); return; }
 
     const signo = tipo === "ajuste" && ajusteDireccion === "restar" ? -1 : 1;
-    const parsed: ItemInput[] = validItems.map((i) => ({
-      product_id:      i.product_id,
-      cantidad:        parseFloat(i.cantidad) * signo,
-      precio_unitario: i.precio_unitario ? parseFloat(i.precio_unitario) : null,
-    }));
+    const parsed: (ItemInput | PromoItemInput)[] = validItems.map((i) =>
+      isPromoId(i.product_id)
+        ? { promo_id: promoIdOf(i.product_id), cantidad: parseFloat(i.cantidad) * signo }
+        : {
+            product_id:      i.product_id,
+            cantidad:        parseFloat(i.cantidad) * signo,
+            precio_unitario: i.precio_unitario ? parseFloat(i.precio_unitario) : null,
+          }
+    );
 
     startTransition(async () => {
       try {
@@ -418,7 +443,12 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                     <div>
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                       <Combobox
-                        options={products.map((p) => ({ value: p.id, label: p.name }))}
+                        options={[
+                          ...products.map((p) => ({ value: p.id, label: p.name })),
+                          ...(tipo === "merma"
+                            ? promos.map((p) => ({ value: `${PROMO_PREFIX}${p.id}`, label: `${p.name} (${p.tipo === "receta" ? "Receta" : "Promo"})` }))
+                            : []),
+                        ]}
                         value={item.product_id}
                         onChange={(v) => autoPrecio(i, v)}
                       />
@@ -428,6 +458,9 @@ export function MovimientoForm({ open, sucursales, products, proveedores = [], o
                             {stockMap[prod.id] ?? 0} {prod.unit_label === "unidad" ? "u." : prod.unit_label}
                           </span>
                         </p>
+                      )}
+                      {tipo === "merma" && isPromoId(item.product_id) && (
+                        <p className="text-[11px] text-neutral-400 mt-1">Se descuenta de cada ingrediente de la receta.</p>
                       )}
                       {tipo === "entrega" && !item.product_id && ocrHints[i] && (
                         <p className="text-[11px] text-amber-600 mt-1">

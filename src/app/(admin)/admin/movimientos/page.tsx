@@ -15,7 +15,7 @@ export default async function MovimientosPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }, preciosRes] = await Promise.all([
+  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }, preciosRes, { data: promos }] = await Promise.all([
     supabase
       .from("movimientos")
       .select(`
@@ -51,6 +51,13 @@ export default async function MovimientosPage() {
     admin.from("product_prices").select("product_id, sucursal_id, costo") as unknown as Promise<{
       data: { product_id: string; sucursal_id: string; costo: number }[] | null;
     }>,
+    // Para poder registrar merma de un combo/receta (ej. una porción de pizza)
+    // -- se expande server-side en sus componentes, no necesita más que esto acá.
+    (admin as any)
+      .from("promos")
+      .select("id, name, tipo")
+      .eq("is_active", true)
+      .order("name") as Promise<{ data: { id: string; name: string; tipo: "promo" | "receta" }[] | null }>,
   ]);
 
   const costosPorSucursal: Record<string, Record<string, number>> = {};
@@ -71,6 +78,7 @@ export default async function MovimientosPage() {
         products={(products ?? []) as Parameters<typeof MovimientosList>[0]["products"]}
         proveedores={proveedores ?? []}
         costosPorSucursal={costosPorSucursal}
+        promos={promos ?? []}
       />
     </div>
   );

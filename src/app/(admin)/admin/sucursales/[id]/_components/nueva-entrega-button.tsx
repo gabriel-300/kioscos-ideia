@@ -71,6 +71,7 @@ export function NuevaEntregaButton({
           open={open}
           sucursales={[{ id: sucursalId, nombre: sucursalNombre } as Database["public"]["Tables"]["sucursales"]["Row"]]}
           products={products}
+          promos={promos}
           proveedores={proveedores}
           defaultSucursalId={sucursalId}
           defaultTipo={defaultTipo}
