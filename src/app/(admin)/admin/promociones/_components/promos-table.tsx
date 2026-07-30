@@ -13,6 +13,7 @@ export type PromoWithItems = {
   tipo:            "promo" | "receta";
   cover_image_url: string | null;
   category_id:     string | null;
+  requiere_termo:  boolean;
   promo_items: {
     id:         string;
     product_id: string;

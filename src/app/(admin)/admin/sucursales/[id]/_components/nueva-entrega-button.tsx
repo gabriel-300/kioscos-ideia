@@ -11,7 +11,8 @@ import type { Database } from "@/types/database";
 // sucursales/[id]/page.tsx), que ya los resolvió antes de pasarlos acá.
 type Product = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
-type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] };
+type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
+type TermoDisponible = { id: string; numero: string };
 
 export function NuevaEntregaButton({
   sucursalId,
@@ -26,6 +27,7 @@ export function NuevaEntregaButton({
   cajaAbierta,
   proveedores = [],
   promos,
+  termosDisponibles,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -39,6 +41,7 @@ export function NuevaEntregaButton({
   cajaAbierta?:   boolean;
   proveedores?:   { id: string; nombre: string; modo_facturacion?: "costo" | "precio_sugerido"; porcentaje_descuento?: number | null }[];
   promos?:        Promo[];
+  termosDisponibles?: TermoDisponible[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -65,6 +68,7 @@ export function NuevaEntregaButton({
           personal={personal}
           cajaAbierta={cajaAbierta}
           promos={promos}
+          termosDisponibles={termosDisponibles}
         />
       ) : (
         <MovimientoForm

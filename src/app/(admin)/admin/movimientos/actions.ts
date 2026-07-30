@@ -47,7 +47,7 @@ export async function crearMovimiento(data: {
   pago_billetera?:     number | null;
   pago_tarjeta?:       number | null;
   pago_transferencia?: number | null;
-}) {
+}): Promise<{ movimiento_id: string | null }> {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
 
@@ -368,6 +368,8 @@ export async function crearMovimiento(data: {
   revalidatePath("/admin/sucursales");
   revalidatePath("/admin/stock");
   revalidatePath("/admin/alertas-precio");
+
+  return { movimiento_id: movimientoId };
 }
 
 // Sin acentos, en minúsculas, espacios colapsados -- para comparar "PAN MIÑÓN"

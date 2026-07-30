@@ -31,6 +31,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
   const [isActive,  setIsActive]  = useState(true);
   const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
   const [categoryId, setCategoryId] = useState("");
+  const [requiereTermo, setRequiereTermo] = useState(false);
   const [items,     setItems]     = useState<LineItem[]>([emptyLine()]);
   const [error,     setError]     = useState<string | null>(null);
   const [imageUrl,  setImageUrl]  = useState<string | null>(null);
@@ -45,6 +46,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
       setIsActive(promo.is_active);
       setTipo(promo.tipo);
       setCategoryId(promo.category_id ?? "");
+      setRequiereTermo(promo.requiere_termo ?? false);
       setImageUrl(promo.cover_image_url ?? null);
       const loadedItems = promo.promo_items.length > 0
         ? promo.promo_items.map((i) => ({ product_id: i.product_id, cantidad: String(i.cantidad) }))
@@ -64,6 +66,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
     } else {
       setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
       setCategoryId("");
+      setRequiereTermo(false);
       setImageUrl(null);
       setRindeMode({});
       setRindeTexto({});
@@ -121,9 +124,9 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
     startTransition(async () => {
       try {
         if (promo) {
-          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, items: parsedItems });
+          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems });
         } else {
-          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, items: parsedItems });
+          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems });
         }
         onClose();
       } catch (e) {
@@ -202,6 +205,15 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" />
                 <span className="text-sm text-neutral-700">{isActive ? "Activa" : "Inactiva"}</span>
               </label>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={requiereTermo} onChange={(e) => setRequiereTermo(e.target.checked)} className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" />
+                <span className="text-sm text-neutral-700">Requiere devolver termo (alquiler con DNI)</span>
+              </label>
+              <p className="text-[11px] text-neutral-400 mt-1 ml-6">
+                Al vender esta promo, el POS va a pedir qué N° de termo se entrega y el DNI, además de descontar los componentes de arriba.
+              </p>
             </div>
           </div>
 

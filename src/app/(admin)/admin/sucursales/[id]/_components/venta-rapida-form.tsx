@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
+import { prestarTermo } from "@/app/(admin)/admin/termos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -13,7 +14,8 @@ import type { CSSProperties } from "react";
 // como si fueran parte del producto.
 type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type Category = { id: string; name: string };
-type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] };
+type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
+type TermoDisponible = { id: string; numero: string };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -107,9 +109,10 @@ interface Props {
   personal?:       Personal[];
   cajaAbierta?:    boolean;
   promos?:         Promo[];
+  termosDisponibles?: TermoDisponible[];
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [] }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [] }: Props) {
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
   const [montoTexto,    setMontoTexto]    = useState<Record<string, string>>({});
@@ -124,6 +127,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [descuentoPedidoYa, setDescuentoPedidoYa] = useState("");
   const [personalId, setPersonalId] = useState("");
   const [notas,      setNotas]      = useState("");
+  const [termoId,     setTermoId]     = useState("");
+  const [dniTermo,    setDniTermo]    = useState("");
+  const [nombreTermo, setNombreTermo] = useState("");
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -228,6 +234,15 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     () => Object.entries(cantidades).filter(([, qty]) => qty > 0),
     [cantidades]
   );
+
+  // Alquiler de termo (ver promos.requiere_termo): si el carrito tiene una de
+  // estas promos, el POS pide además qué N° de termo se entrega y el DNI --
+  // de a un termo por venta, no tiene sentido alquilar más de uno junto.
+  const promoTermoEnCarrito = useMemo(() => {
+    const entry = seleccionados.find(([id]) => isPromoId(id) && promoMap.get(promoIdOf(id))?.requiere_termo);
+    if (!entry) return null;
+    return { id: entry[0], qty: entry[1], promo: promoMap.get(promoIdOf(entry[0]))! };
+  }, [seleccionados, promoMap]);
 
   // Stock requerido por producto real, contemplando tanto líneas sueltas como componentes de promos
   const requeridoPorProducto = useMemo(() => {
@@ -366,6 +381,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
+    setTermoId(""); setDniTermo(""); setNombreTermo("");
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -410,6 +426,11 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (canal === "ambulante" && !personalId) { setError("Seleccioná quién hizo la venta ambulante"); return; }
+    if (promoTermoEnCarrito) {
+      if (promoTermoEnCarrito.qty !== 1) { setError("Alquilá los termos de a uno por venta"); return; }
+      if (!termoId) { setError("Elegí qué termo entregás"); return; }
+      if (!dniTermo.trim()) { setError("Ingresá el DNI de quien se lleva el termo"); return; }
+    }
     // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden monto/medio de pago.
     if (!sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
       setError("El monto ingresado no cubre el total");
@@ -443,7 +464,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
     startTransition(async () => {
       try {
-        await crearMovimiento({
+        const { movimiento_id } = await crearMovimiento({
           sucursal_id:        sucursalId,
           fecha,
           tipo:               "venta",
@@ -463,6 +484,24 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
               : { product_id: id, cantidad, precio_unitario: priceOf(id) }
           ),
         });
+
+        // El termo se presta DESPUÉS de que la venta ya se registró (yerba/hielo
+        // ya se descontaron) -- si esto falla (ej. alguien le ganó de mano al
+        // mismo termo), la venta ya está hecha y no tiene sentido perderla; se
+        // avisa para que se cargue el préstamo a mano desde /admin/termos.
+        if (promoTermoEnCarrito && termoId) {
+          const prestamoRes = await prestarTermo({
+            sucursal_id:    sucursalId,
+            termo_id:       termoId,
+            dni:            dniTermo,
+            nombre:         nombreTermo || null,
+            movimiento_id,
+          });
+          if (prestamoRes.error) {
+            setError(`La venta se registró, pero el termo no se pudo prestar: ${prestamoRes.error}. Cargalo a mano desde Termos.`);
+          }
+        }
+
         setShowPay(false);
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
@@ -966,6 +1005,53 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Alquiler de termo -- solo si el carrito tiene una promo marcada
+                "requiere_termo" (ver /admin/promociones). Independiente del
+                canal: se pide sin importar si es Consumidor Final, Ambulante, etc. */}
+            {promoTermoEnCarrito && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Alquiler de termo — {promoTermoEnCarrito.promo.name}
+                </p>
+                {termosDisponibles.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#F59E0B", fontWeight: 600 }}>No hay termos disponibles en esta sucursal</p>
+                ) : (
+                  <select
+                    value={termoId}
+                    onChange={(e) => setTermoId(e.target.value)}
+                    style={{
+                      width: "100%", height: 36, borderRadius: 7, border: "1.5px solid #E2E8F0",
+                      fontSize: 13, fontWeight: 600, color: "#0F172A", padding: "0 8px", marginBottom: 6,
+                    }}
+                  >
+                    <option value="">Elegí qué termo entregás…</option>
+                    {termosDisponibles.map((t) => <option key={t.id} value={t.id}>Termo N° {t.numero}</option>)}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={dniTermo}
+                  onChange={(e) => setDniTermo(e.target.value)}
+                  placeholder="DNI de quien se lleva el termo *"
+                  style={{
+                    width: "100%", height: 36, borderRadius: 7, border: "1.5px solid #E2E8F0",
+                    fontSize: 13, fontWeight: 600, color: "#0F172A", padding: "0 10px", marginBottom: 6,
+                  }}
+                />
+                <input
+                  type="text"
+                  value={nombreTermo}
+                  onChange={(e) => setNombreTermo(e.target.value)}
+                  placeholder="Nombre (opcional)"
+                  style={{
+                    width: "100%", height: 36, borderRadius: 7, border: "1.5px solid #E2E8F0",
+                    fontSize: 13, fontWeight: 600, color: "#0F172A", padding: "0 10px",
+                  }}
+                />
               </div>
             )}
           </div>
