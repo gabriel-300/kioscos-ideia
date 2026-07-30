@@ -72,6 +72,7 @@ export default async function PronosticoPage({
           .select("fecha, movimiento_items(product_id, cantidad)")
           .eq("sucursal_id", sucursalId)
           .eq("tipo", "venta")
+          .is("anulado_en", null)
           .in("fecha", fechasComparables)
       : Promise.resolve({ data: [] as any[] }),
   ]);

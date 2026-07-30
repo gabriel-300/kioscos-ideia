@@ -85,6 +85,7 @@ export default async function VentasPage({
         )
       `)
       .eq("tipo", "venta")
+      .is("anulado_en", null)
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .order("fecha", { ascending: true })

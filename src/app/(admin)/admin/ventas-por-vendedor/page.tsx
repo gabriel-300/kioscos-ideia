@@ -66,6 +66,7 @@ export default async function VentasPorVendedorPage({
         movimiento_items(cantidad, subtotal)
       `)
       .eq("tipo", "venta")
+      .is("anulado_en", null)
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .not("created_by", "is", null)

@@ -475,6 +475,81 @@ export async function actualizarCostosItems(
   }
 }
 
+// Anular una venta cargada por error (ej. duplicada) -- no la borra, la marca
+// (quién, cuándo, motivo obligatorio) y a partir de ahí queda excluida de
+// stock/caja/informes (ver migración 063), pero sigue visible en el
+// Historial para trazabilidad. Solo mientras la caja de ESE turno siga
+// abierta -- una vez cerrada, la venta queda fija para siempre, igual que
+// todo lo demás del turno.
+export async function anularVenta(id: string, motivo: string): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  const supabase = createAdminClient();
+
+  const motivoTrim = motivo?.trim();
+  if (!motivoTrim) return { error: "Contá por qué anulás esta venta" };
+
+  const { data: mov, error: movError } = await supabase
+    .from("movimientos")
+    .select("sucursal_id, tipo, created_at, anulado_en")
+    .eq("id", id)
+    .single();
+  if (movError || !mov) return { error: "No se encontró la venta" };
+  if (mov.tipo !== "venta") return { error: "Solo se pueden anular ventas" };
+  if (mov.anulado_en) return { error: "Esta venta ya está anulada" };
+
+  // Mismo chequeo de permisos por sucursal que crearMovimiento/cerrarCaja.
+  if (role === "encargado") {
+    const { data: suc } = await supabase.from("sucursales").select("encargado_user_id").eq("id", mov.sucursal_id).single();
+    if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
+  }
+  if (role === "vendedor") {
+    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
+    if (profile?.sucursal_id !== mov.sucursal_id) return { error: "No tenés permisos para esta sucursal" };
+  }
+
+  // La caja de ese turno tiene que seguir abierta -- como abrir_caja no deja
+  // abrir un turno nuevo sin cerrar el anterior, alcanza con mirar la
+  // apertura más reciente de la sucursal (mismo criterio que `cajaAbierta`
+  // en sucursales/[id]/page.tsx) y confirmar que esta venta cae dentro de ella.
+  const aperturaRes = await (supabase as any)
+    .from("aperturas_caja")
+    .select("created_at")
+    .eq("sucursal_id", mov.sucursal_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const apertura = aperturaRes.data as { created_at: string } | null;
+
+  const cierreRes = await (supabase as any)
+    .from("cierres_caja")
+    .select("created_at")
+    .eq("sucursal_id", mov.sucursal_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const ultimoCierre = cierreRes.data as { created_at: string } | null;
+
+  const cajaAbierta = !!apertura && (!ultimoCierre || apertura.created_at > ultimoCierre.created_at);
+  if (!apertura || !cajaAbierta || mov.created_at < apertura.created_at) {
+    return { error: "La caja de ese turno ya está cerrada -- no se puede anular" };
+  }
+
+  const { error } = await supabase
+    .from("movimientos")
+    .update({ anulado_en: new Date().toISOString(), anulado_por: userId, motivo_anulacion: motivoTrim })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
+  revalidatePath("/admin/movimientos");
+  revalidatePath("/admin/stock");
+  revalidatePath("/admin/ventas");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/cierres");
+  return {};
+}
+
 export async function eliminarMovimiento(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();

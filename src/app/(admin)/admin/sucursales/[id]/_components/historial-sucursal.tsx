@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState, useMemo } from "react";
+import { Fragment, useState, useMemo, useTransition } from "react";
+import { anularVenta } from "@/app/(admin)/admin/movimientos/actions";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -50,6 +51,9 @@ type Movimiento = {
   personal_id?: string | null;
   created_at: string;
   movimiento_items: Item[];
+  anulado_en?: string | null;
+  anulado_por?: string | null;
+  motivo_anulacion?: string | null;
 };
 
 function printTicket(m: Movimiento, sucursalNombre: string) {
@@ -97,17 +101,61 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
   w?.document.close();
 }
 
+// Botón "Anular" -- mismo patrón que DeleteBtn en movimientos-list.tsx
+// (window.prompt para el motivo obligatorio), pero soft (marca, no borra) y
+// disponible para vendedor/encargado, no solo admin.
+function AnularBtn({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={(e) => {
+        e.stopPropagation();
+        const motivo = window.prompt("¿Por qué anulás esta venta? (obligatorio)");
+        if (motivo === null) return;
+        if (!motivo.trim()) { window.alert("El motivo es obligatorio para anular una venta."); return; }
+        startTransition(async () => {
+          const res = await anularVenta(id, motivo);
+          if (res.error) window.alert(res.error);
+        });
+      }}
+      className="p-1 rounded hover:bg-danger/10 hover:text-danger transition-colors disabled:opacity-50"
+      title="Anular venta"
+    >
+      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+      </svg>
+    </button>
+  );
+}
+
 export function HistorialSucursal({
   movimientos,
   sucursalNombre = "",
   retiros = [],
   personalMap = {},
+  puedeCerrarCaja = false,
+  cajaAbierta = false,
+  aperturaCreatedAt = null,
 }: {
   movimientos:    Movimiento[];
   sucursalNombre?: string;
   retiros?:       Retiro[];
   personalMap?:   Record<string, string>;
+  puedeCerrarCaja?: boolean;
+  cajaAbierta?:     boolean;
+  aperturaCreatedAt?: string | null;
 }) {
+  function puedeAnular(m: Movimiento) {
+    return (
+      m.tipo === "venta" &&
+      !m.anulado_en &&
+      puedeCerrarCaja &&
+      cajaAbierta &&
+      !!aperturaCreatedAt &&
+      m.created_at >= aperturaCreatedAt
+    );
+  }
   const [expanded,  setExpanded]  = useState<string | null>(null);
   const [mesFilter, setMesFilter] = useState("");
   const [tipoFilter, setTipo]     = useState("all");
@@ -232,7 +280,7 @@ export function HistorialSucursal({
                 return (
                   <Fragment key={m.id}>
                     <tr
-                      className="hover:bg-neutral-50 transition-colors cursor-pointer"
+                      className={`hover:bg-neutral-50 transition-colors cursor-pointer ${m.anulado_en ? "opacity-50" : ""}`}
                       onClick={() => setExpanded(isOpen ? null : m.id)}
                     >
                       <td className="px-4 py-3 font-medium text-neutral-800 tabular-nums">
@@ -246,6 +294,11 @@ export function HistorialSucursal({
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${TIPO_COLOR[m.tipo]}`}>
                             {TIPO_LABEL[m.tipo]}
                           </span>
+                          {m.anulado_en && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full w-fit bg-danger/10 text-danger" title={m.motivo_anulacion ?? undefined}>
+                              Anulada
+                            </span>
+                          )}
                           {m.tipo === "venta" && m.canal && m.canal !== "consumidor_final" && (
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${CANAL_COLOR[m.canal] ?? "bg-neutral-100 text-neutral-500"}`}>
                               {CANAL_LABEL[m.canal] ?? m.canal}
@@ -259,7 +312,9 @@ export function HistorialSucursal({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-neutral-500 hidden md:table-cell">
-                        {m.notas ?? <span className="text-neutral-300">—</span>}
+                        {m.anulado_en
+                          ? <span className="text-danger italic">Anulada: {m.motivo_anulacion}</span>
+                          : (m.notas ?? <span className="text-neutral-300">—</span>)}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums text-neutral-800">
                         {total > 0 ? AR.format(total) : <span className="text-neutral-300 font-normal text-xs">—</span>}
@@ -277,6 +332,7 @@ export function HistorialSucursal({
                               </svg>
                             </button>
                           )}
+                          {puedeAnular(m) && <AnularBtn id={m.id} />}
                           <svg
                             className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
                             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}

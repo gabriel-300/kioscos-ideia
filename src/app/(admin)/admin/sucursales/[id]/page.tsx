@@ -65,6 +65,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .select(`
         id, fecha, tipo, notas, canal, personal_id, created_at, created_by,
         pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
+        anulado_en, anulado_por, motivo_anulacion,
         movimiento_items(
           id, cantidad, precio_unitario, subtotal,
           product:products(id, name, sku)
@@ -280,15 +281,15 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const cantidadEntregas = movs.filter((m) => m.tipo === "entrega").length;
 
   const totalUnidadesVendidas = movs
-    .filter((m) => m.tipo === "venta")
+    .filter((m) => m.tipo === "venta" && !m.anulado_en)
     .reduce((sum, m) => sum + m.movimiento_items.reduce((s: number, i: { cantidad: number }) => s + Number(i.cantidad), 0), 0);
 
-  const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta").length;
+  const cantidadRegistrosVenta = movs.filter((m) => m.tipo === "venta" && !m.anulado_en).length;
 
   const retiros        = retirosHoyFilt;
   const totalRetiros   = retiros.reduce((sum, r) => sum + r.monto, 0);
 
-  const ventasHoy      = movsVisibles.filter((m) => m.tipo === "venta" && m.fecha === hoy);
+  const ventasHoy      = movsVisibles.filter((m) => m.tipo === "venta" && !m.anulado_en && m.fecha === hoy);
   const totalVentasHoy = ventasHoy.reduce(
     (sum, m) => sum + m.movimiento_items.reduce((s: number, i: { subtotal: number | null }) => s + (i.subtotal ?? 0), 0),
     0
@@ -312,7 +313,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // A diferencia de "Ventas Hoy"/Historial (que se acotan por turno de HOY, sin
   // tocar días anteriores), acá el corte es por persona a lo largo de todo el mes.
   const ventasDelMesTodas = movs.filter(
-    (m) => m.tipo === "venta" && m.fecha >= mesInicio && m.fecha <= mesFin
+    (m) => m.tipo === "venta" && !m.anulado_en && m.fecha >= mesInicio && m.fecha <= mesFin
   );
   const ventasDelMes = role === "admin"
     ? ventasDelMesTodas
@@ -747,6 +748,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           sucursalNombre={sucursal.nombre}
           retiros={retirosVisibles}
           personalMap={personalMap}
+          puedeCerrarCaja={puedeCerrarCaja}
+          cajaAbierta={cajaAbierta}
+          aperturaCreatedAt={aperturaActual?.created_at ?? null}
         />
       </div>
     </div>

@@ -70,12 +70,13 @@ async function fetchAllMovimientosDelMes(
   const PAGE_SIZE = 1000;
   const rows: unknown[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("movimientos")
       .select("sucursal:sucursales(id, nombre), movimiento_items(subtotal, cantidad, product:products(id, name))")
       .eq("tipo", tipo)
-      .gte("fecha", desde)
-      .range(from, from + PAGE_SIZE - 1);
+      .gte("fecha", desde);
+    if (tipo === "venta") query = query.is("anulado_en", null);
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
     const pagina = data ?? [];
     rows.push(...pagina);
@@ -166,6 +167,7 @@ export default async function DashboardPage() {
       .from("movimientos")
       .select("sucursal_id, movimiento_items(subtotal)")
       .eq("tipo", "venta")
+      .is("anulado_en", null)
       .eq("fecha", hoy),
     // aperturas de hoy
     (supabase as any)

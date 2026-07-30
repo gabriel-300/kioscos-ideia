@@ -84,7 +84,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
 
   // En multi-turno filtramos por created_at >= apertura actual para no sumar turnos anteriores
   const ventasHoy = movimientos.filter((m) => {
-    if (m.tipo !== "venta") return false;
+    if (m.tipo !== "venta" || m.anulado_en) return false;
     if (aperturaActual) return m.created_at >= aperturaActual.created_at;
     return m.fecha === hoy;
   });

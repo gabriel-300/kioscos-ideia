@@ -557,6 +557,9 @@ export type Database = {
       }
       movimientos: {
         Row: {
+          anulado_en: string | null
+          anulado_por: string | null
+          motivo_anulacion: string | null
           canal: string | null
           created_at: string
           created_by: string | null
@@ -575,6 +578,9 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          anulado_en?: string | null
+          anulado_por?: string | null
+          motivo_anulacion?: string | null
           canal?: string | null
           created_at?: string
           created_by?: string | null
@@ -593,6 +599,9 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          anulado_en?: string | null
+          anulado_por?: string | null
+          motivo_anulacion?: string | null
           canal?: string | null
           created_at?: string
           created_by?: string | null

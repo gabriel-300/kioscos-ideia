@@ -13,6 +13,7 @@ export type MovimientoCierre = {
   pago_billetera:     number | null;
   pago_tarjeta:       number | null;
   pago_transferencia: number | null;
+  anulado_en?:        string | null;
   movimiento_items: { subtotal: number | null }[];
 };
 

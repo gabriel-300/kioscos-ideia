@@ -91,7 +91,8 @@ export async function cerrarCaja(data: {
       .from("movimientos")
       .select("canal, pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)")
       .eq("sucursal_id", data.sucursal_id)
-      .eq("tipo", "venta");
+      .eq("tipo", "venta")
+      .is("anulado_en", null);
     if (ultimaApertura) ventasQuery = ventasQuery.gte("created_at", ultimaApertura.created_at);
     else ventasQuery = ventasQuery.eq("fecha", data.fecha);
 
