@@ -3,14 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo } from "../actions";
+import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta } from "../actions";
 
-export type SucursalOpt = { id: string; nombre: string };
+export type SucursalOpt = { id: string; nombre: string; termo_horas_limite?: number; termo_tarifa_multa_hora?: number };
 export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja" };
 export type Prestamo = {
   id: string; termo_id: string; sucursal_id: string; dni: string; nombre: string | null;
   fecha_prestamo: string; fecha_devolucion: string | null;
+  monto_multa: number; multa_pagada_en: string | null;
 };
+
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 const ESTADO_LABEL: Record<string, string> = { disponible: "Disponible", prestado: "Prestado", baja: "De baja" };
 const ESTADO_COLOR: Record<string, string> = {
@@ -32,12 +35,25 @@ function haceTiempo(iso: string): string {
   return `hace ${dias} d`;
 }
 
-export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosAbiertos, historial }: {
+// Estimado en vivo de cuánto llevaría de multa AHORA si se devolviera este
+// instante -- el monto real y definitivo lo calcula el servidor recién al
+// confirmar la devolución (devolver_termo), esto es solo para que el
+// vendedor no se sorprenda.
+function horasAtrasoEstimadas(fechaPrestamo: string, horasLimite: number): number {
+  const horasTranscurridas = (Date.now() - new Date(fechaPrestamo).getTime()) / 3600000;
+  return Math.max(0, Math.ceil(horasTranscurridas - horasLimite));
+}
+
+type Pagos = { efectivo: string; billetera: string; tarjeta: string; transferencia: string };
+const pagosVacios = (): Pagos => ({ efectivo: "", billetera: "", tarjeta: "", transferencia: "" });
+
+export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosAbiertos, deudasPendientes, historial }: {
   role:              string;
   sucursales:        SucursalOpt[];
   sucursalFija:      string | null;
   termos:            Termo[];
   prestamosAbiertos: Prestamo[];
+  deudasPendientes:  Prestamo[];
   historial:         Prestamo[];
 }) {
   const router = useRouter();
@@ -54,21 +70,56 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
   const [nombreCliente,  setNombreCliente]  = useState("");
 
   const [historialOpen, setHistorialOpen] = useState(false);
+  const [configOpen,    setConfigOpen]    = useState(false);
+
+  // Cobro de multa: mismo panel tanto si se dispara justo al devolver como
+  // si se cobra después desde "Deudas pendientes" -- por eso guarda el
+  // préstamo entero, no depende de que siga en prestamosAbiertos.
+  const [cobrando, setCobrando] = useState<Prestamo | null>(null);
+  const [pagos,    setPagos]    = useState<Pagos>(pagosVacios());
 
   const prestamoDeTermo = new Map(prestamosAbiertos.map((p) => [p.termo_id, p]));
-  const sucNombre = (id: string) => sucursales.find((s) => s.id === id)?.nombre ?? "—";
-  const sucursalActiva = sucursalFija ?? sucursalFiltro;
-  const termosVisibles = termos.filter((t) => t.sucursal_id === sucursalActiva);
+  const sucursalActiva = sucursales.find((s) => s.id === (sucursalFija ?? sucursalFiltro));
+  const sucursalActivaId = sucursalActiva?.id ?? "";
+  const horasLimite = sucursalActiva?.termo_horas_limite ?? 6;
+  const tarifaHora   = sucursalActiva?.termo_tarifa_multa_hora ?? 0;
+
+  const [horasLimiteInput, setHorasLimiteInput] = useState(String(horasLimite));
+  const [tarifaHoraInput,  setTarifaHoraInput]  = useState(String(tarifaHora));
+
+  const termosVisibles      = termos.filter((t) => t.sucursal_id === sucursalActivaId);
+  const deudasVisibles      = deudasPendientes.filter((d) => d.sucursal_id === sucursalActivaId);
+  const historialVisible    = historial.filter((h) => h.sucursal_id === sucursalActivaId);
 
   const disponibles = termosVisibles.filter((t) => t.estado === "disponible").length;
   const prestados    = termosVisibles.filter((t) => t.estado === "prestado").length;
+
+  function abrirConfig() {
+    setHorasLimiteInput(String(horasLimite));
+    setTarifaHoraInput(String(tarifaHora));
+    setConfigOpen(true);
+  }
+
+  function handleGuardarConfig() {
+    setError(null);
+    const horas   = parseFloat(horasLimiteInput);
+    const tarifa  = parseFloat(tarifaHoraInput);
+    if (isNaN(horas) || horas < 0)  { setError("Ingresá un número de horas válido"); return; }
+    if (isNaN(tarifa) || tarifa < 0) { setError("Ingresá una tarifa válida"); return; }
+    startTransition(async () => {
+      const res = await actualizarConfigMulta({ sucursal_id: sucursalActivaId, termo_horas_limite: horas, termo_tarifa_multa_hora: tarifa });
+      if (res.error) { setError(res.error); return; }
+      setConfigOpen(false);
+      router.refresh();
+    });
+  }
 
   function handleCrearTermo() {
     setError(null);
     const numero = nuevoNumero.trim();
     if (!numero) { setError("Ingresá un número de termo"); return; }
     startTransition(async () => {
-      const res = await crearTermo({ sucursal_id: sucursalActiva, numero });
+      const res = await crearTermo({ sucursal_id: sucursalActivaId, numero });
       if (res.error) { setError(res.error); return; }
       setNuevoNumero(""); setNuevoOpen(false);
       router.refresh();
@@ -87,11 +138,38 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
     });
   }
 
-  function handleDevolver(prestamoId: string, sucursalId: string) {
+  function handleDevolver(prestamo: Prestamo) {
     setError(null);
     startTransition(async () => {
-      const res = await devolverTermo({ prestamo_id: prestamoId, sucursal_id: sucursalId });
+      const res = await devolverTermo({ prestamo_id: prestamo.id, sucursal_id: prestamo.sucursal_id });
       if (res.error) { setError(res.error); return; }
+      if (res.monto_multa && res.monto_multa > 0) {
+        setCobrando({ ...prestamo, monto_multa: res.monto_multa });
+        setPagos(pagosVacios());
+      }
+      router.refresh();
+    });
+  }
+
+  function handleCobrarMulta() {
+    if (!cobrando) return;
+    setError(null);
+    const efectivo      = parseFloat(pagos.efectivo)      || 0;
+    const billetera     = parseFloat(pagos.billetera)     || 0;
+    const tarjeta       = parseFloat(pagos.tarjeta)       || 0;
+    const transferencia = parseFloat(pagos.transferencia) || 0;
+    const total = efectivo + billetera + tarjeta + transferencia;
+    if (Math.round(total * 100) !== Math.round(cobrando.monto_multa * 100)) {
+      setError(`Lo ingresado (${AR.format(total)}) tiene que sumar exactamente ${AR.format(cobrando.monto_multa)}`);
+      return;
+    }
+    startTransition(async () => {
+      const res = await pagarMultaTermo({
+        prestamo_id: cobrando.id, sucursal_id: cobrando.sucursal_id,
+        pago_efectivo: efectivo, pago_billetera: billetera, pago_tarjeta: tarjeta, pago_transferencia: transferencia,
+      });
+      if (res.error) { setError(res.error); return; }
+      setCobrando(null); setPagos(pagosVacios());
       router.refresh();
     });
   }
@@ -139,14 +217,51 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
             <span className="text-xs font-semibold px-2.5 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
               {prestados} prestado{prestados === 1 ? "" : "s"}
             </span>
+            {deudasVisibles.length > 0 && (
+              <span className="text-xs font-semibold px-2.5 py-1.5 rounded-full bg-danger/5 text-danger border border-danger/20">
+                {deudasVisibles.length} con multa sin pagar
+              </span>
+            )}
           </div>
         </div>
         {puedeGestionar && (
-          <Button variant="ghost" size="sm" onClick={() => setNuevoOpen((v) => !v)}>
-            + Nuevo termo
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={abrirConfig}>Tarifa de multa</Button>
+            <Button variant="ghost" size="sm" onClick={() => setNuevoOpen((v) => !v)}>+ Nuevo termo</Button>
+          </div>
         )}
       </div>
+
+      {configOpen && (
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Tarifa de multa por atraso — {sucursalActiva?.nombre}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Horas de gracia</label>
+              <input
+                type="number" min="0" step="0.5"
+                value={horasLimiteInput}
+                onChange={(e) => setHorasLimiteInput(e.target.value)}
+                className="h-10 w-28 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">$ por hora de atraso</label>
+              <input
+                type="number" min="0" step="1"
+                value={tarifaHoraInput}
+                onChange={(e) => setTarifaHoraInput(e.target.value)}
+                className="h-10 w-32 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+              />
+            </div>
+            <Button variant="primary" size="sm" loading={pending} onClick={handleGuardarConfig}>Guardar</Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfigOpen(false)}>Cancelar</Button>
+          </div>
+          <p className="text-[11px] text-neutral-400">
+            Un alquiler devuelto dentro de las {horasLimite} hs no genera multa. Después, se cobra {AR.format(tarifaHora)} por cada hora (o fracción) de atraso, sin tope.
+          </p>
+        </div>
+      )}
 
       {nuevoOpen && (
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex flex-wrap items-end gap-3">
@@ -167,6 +282,58 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
 
       {error && <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{error}</p>}
 
+      {/* Cobro de multa -- se abre solo al devolver un termo con atraso, o a
+          mano desde "Deudas pendientes" más abajo */}
+      {cobrando && (
+        <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 space-y-3">
+          <p className="text-sm font-semibold text-danger">
+            Multa a cobrar — DNI {cobrando.dni}{cobrando.nombre ? ` (${cobrando.nombre})` : ""}: {AR.format(cobrando.monto_multa)}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {([
+              ["efectivo", "Efectivo"], ["billetera", "Billetera"], ["tarjeta", "Tarjeta"], ["transferencia", "Transferencia"],
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500 block mb-1">{label}</label>
+                <input
+                  type="number" min="0" step="1"
+                  value={pagos[key]}
+                  onChange={(e) => setPagos((p) => ({ ...p, [key]: e.target.value }))}
+                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" loading={pending} onClick={handleCobrarMulta}>Confirmar cobro</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setCobrando(null); setError(null); }}>Dejar pendiente</Button>
+          </div>
+          <p className="text-[11px] text-neutral-400">
+            Si dejás pendiente, la deuda queda asociada al DNI y no se le va a poder alquilar otro termo hasta que la pague (podés cobrarla después desde "Deudas pendientes").
+          </p>
+        </div>
+      )}
+
+      {/* Deudas pendientes -- multas ya calculadas (termo ya devuelto) que
+          todavía no se cobraron */}
+      {deudasVisibles.length > 0 && !cobrando && (
+        <div className="rounded-xl border border-danger/20 bg-white overflow-hidden">
+          <p className="text-xs font-semibold uppercase tracking-widest text-danger px-4 pt-3">Deudas pendientes</p>
+          <div className="divide-y divide-neutral-50">
+            {deudasVisibles.map((d) => (
+              <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <div>
+                  <span className="text-sm font-semibold text-neutral-900">DNI {d.dni}</span>
+                  {d.nombre && <span className="text-sm text-neutral-500"> — {d.nombre}</span>}
+                  <span className="text-xs text-danger font-semibold ml-2">{AR.format(d.monto_multa)}</span>
+                </div>
+                <Button variant="primary" size="sm" onClick={() => { setCobrando(d); setPagos(pagosVacios()); setError(null); }}>Cobrar</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Lista de termos */}
       <div className="space-y-2">
         {termosVisibles.length === 0 ? (
@@ -176,6 +343,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
         ) : (
           termosVisibles.map((t) => {
             const prestamo = prestamoDeTermo.get(t.id);
+            const horasAtraso = prestamo ? horasAtrasoEstimadas(prestamo.fecha_prestamo, horasLimite) : 0;
             return (
               <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -184,6 +352,11 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${ESTADO_COLOR[t.estado]}`}>
                       {ESTADO_LABEL[t.estado]}
                     </span>
+                    {horasAtraso > 0 && tarifaHora > 0 && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-danger/5 text-danger border-danger/20">
+                        ⚠ {horasAtraso}h de atraso — ≈{AR.format(horasAtraso * tarifaHora)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     {t.estado === "disponible" && (
@@ -192,7 +365,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                       </Button>
                     )}
                     {t.estado === "prestado" && prestamo && (
-                      <Button variant="primary" size="sm" loading={pending} onClick={() => handleDevolver(prestamo.id, t.sucursal_id)}>
+                      <Button variant="primary" size="sm" loading={pending} onClick={() => handleDevolver(prestamo)}>
                         Marcar devuelto
                       </Button>
                     )}
@@ -255,20 +428,21 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
         {historialOpen && (
           <div className="mt-2 rounded-xl border border-neutral-200 bg-white overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ minWidth: "480px" }}>
+              <table className="w-full text-sm" style={{ minWidth: "560px" }}>
                 <thead>
                   <tr className="bg-neutral-50 border-b border-neutral-200">
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Termo</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">DNI</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Prestado</th>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Devuelto</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Multa</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-50">
-                  {historial.filter((h) => h.sucursal_id === sucursalActiva).length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-neutral-400">Sin devoluciones registradas todavía.</td></tr>
+                  {historialVisible.length === 0 ? (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-400">Sin devoluciones registradas todavía.</td></tr>
                   ) : (
-                    historial.filter((h) => h.sucursal_id === sucursalActiva).map((h) => {
+                    historialVisible.map((h) => {
                       const termoNumero = termos.find((t) => t.id === h.termo_id)?.numero ?? "—";
                       return (
                         <tr key={h.id}>
@@ -276,6 +450,13 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                           <td className="px-3 py-2.5 text-neutral-600">{h.dni}{h.nombre ? ` — ${h.nombre}` : ""}</td>
                           <td className="px-3 py-2.5 text-neutral-500 text-xs">{new Date(h.fecha_prestamo).toLocaleString("es-AR")}</td>
                           <td className="px-3 py-2.5 text-neutral-500 text-xs">{h.fecha_devolucion ? new Date(h.fecha_devolucion).toLocaleString("es-AR") : "—"}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            {h.monto_multa > 0 ? (
+                              <span className={h.multa_pagada_en ? "text-selva-700 font-semibold" : "text-danger font-semibold"}>
+                                {AR.format(h.monto_multa)} {h.multa_pagada_en ? "✓" : "(pendiente)"}
+                              </span>
+                            ) : <span className="text-neutral-300">—</span>}
+                          </td>
                         </tr>
                       );
                     })

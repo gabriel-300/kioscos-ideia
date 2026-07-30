@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
+import { fechaHoyAR } from "@/lib/fecha";
 
 // Mismo criterio que el resto de las server actions del proyecto (ver
 // cierre-actions.ts / movimientos/actions.ts): devolver {error} en vez de
@@ -113,14 +114,14 @@ export async function prestarTermo(data: {
   return { id: rpcData as string };
 }
 
-export async function devolverTermo(data: { prestamo_id: string; sucursal_id: string }): Promise<{ error?: string }> {
+export async function devolverTermo(data: { prestamo_id: string; sucursal_id: string }): Promise<{ error?: string; monto_multa?: number }> {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
 
   const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
   if (accesoError) return { error: accesoError };
 
-  const { error } = await (admin as any).rpc("devolver_termo", {
+  const { data: rpcData, error } = await (admin as any).rpc("devolver_termo", {
     p_prestamo_id: data.prestamo_id,
     p_devuelto_by: userId,
   });
@@ -128,5 +129,99 @@ export async function devolverTermo(data: { prestamo_id: string; sucursal_id: st
 
   revalidatePath("/admin/termos");
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
+  return { monto_multa: (rpcData as number) ?? 0 };
+}
+
+// El cobro de la multa se registra como un movimiento tipo "venta" con un
+// producto de servicio ficticio (sku MULTA-TERMO, ver migración 063) -- así
+// entra a la conciliación de caja del cierre de turno igual que cualquier
+// venta, sin tener que tocar esa lógica (ya es la parte más sensible/probada
+// del sistema). Se llama al RPC directo (no a crearMovimiento) porque ese
+// wrapper fuerza el precio de catálogo para ventas normales -- acá el monto
+// es distinto en cada préstamo, no un precio de lista.
+export async function pagarMultaTermo(data: {
+  prestamo_id:         string;
+  sucursal_id:         string;
+  pago_efectivo:       number;
+  pago_billetera:      number;
+  pago_tarjeta:        number;
+  pago_transferencia:  number;
+}): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  const admin = createAdminClient();
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const { data: prestamo } = await (admin as any)
+    .from("prestamos_termo")
+    .select("dni, monto_multa, multa_pagada_en")
+    .eq("id", data.prestamo_id)
+    .single();
+  if (!prestamo) return { error: "Préstamo no encontrado" };
+  if (prestamo.multa_pagada_en) return { error: "Esta multa ya está pagada" };
+  if (!(prestamo.monto_multa > 0)) return { error: "Este préstamo no tiene multa" };
+
+  const total = data.pago_efectivo + data.pago_billetera + data.pago_tarjeta + data.pago_transferencia;
+  if (Math.round(total * 100) !== Math.round(prestamo.monto_multa * 100)) {
+    return { error: `El total ingresado (${total}) no coincide con la multa ($${prestamo.monto_multa})` };
+  }
+
+  const { data: producto } = await (admin as any).from("products").select("id").eq("sku", "MULTA-TERMO").single();
+  if (!producto) return { error: "Falta el producto de servicio MULTA-TERMO -- avisale a soporte" };
+
+  const { data: movRes, error: movError } = await (admin as any).rpc("crear_movimiento_con_items", {
+    p_sucursal_id:             data.sucursal_id,
+    p_fecha:                   fechaHoyAR(),
+    p_tipo:                    "venta",
+    p_notas:                   `Multa por atraso de termo — DNI ${prestamo.dni}`,
+    p_proveedor:               null,
+    p_nro_remito:               null,
+    p_canal:                   "multa_termo",
+    p_personal_id:             null,
+    p_pago_efectivo:           data.pago_efectivo       || null,
+    p_pago_billetera:          data.pago_billetera      || null,
+    p_pago_tarjeta:            data.pago_tarjeta        || null,
+    p_pago_transferencia:      data.pago_transferencia  || null,
+    p_created_by:              userId,
+    p_items: [{ product_id: producto.id, cantidad: 1, precio_unitario: prestamo.monto_multa, subtotal: prestamo.monto_multa, promo_id: null }],
+  });
+  if (movError) return { error: movError.message };
+
+  const { error: updError } = await (admin as any)
+    .from("prestamos_termo")
+    .update({ multa_pagada_en: new Date().toISOString(), multa_movimiento_id: movRes })
+    .eq("id", data.prestamo_id);
+  if (updError) return { error: updError.message };
+
+  revalidatePath("/admin/termos");
+  revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
+  revalidatePath("/admin/cierres");
+  return {};
+}
+
+export async function actualizarConfigMulta(data: {
+  sucursal_id:              string;
+  termo_horas_limite:       number;
+  termo_tarifa_multa_hora:  number;
+}): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  if (role === "vendedor") return { error: "No tenés permisos para cambiar esta configuración" };
+  const admin = createAdminClient();
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  if (data.termo_horas_limite < 0 || data.termo_tarifa_multa_hora < 0) {
+    return { error: "Los valores no pueden ser negativos" };
+  }
+
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({ termo_horas_limite: data.termo_horas_limite, termo_tarifa_multa_hora: data.termo_tarifa_multa_hora })
+    .eq("id", data.sucursal_id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/termos");
   return {};
 }

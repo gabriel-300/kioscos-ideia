@@ -74,7 +74,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
-    (admin as any).from("products").select("*").eq("is_active", true).order("name"),
+    // .neq("sku", "MULTA-TERMO"): producto de servicio ficticio para cobrar
+    // multas de termo (ver 063_multa_alquiler_termo.sql) -- no se vende a
+    // mano desde acá, se carga solo desde el cobro de multa.
+    (admin as any).from("products").select("*").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     // Admin client a propósito, mismo motivo que /admin/stock: stock_sucursal

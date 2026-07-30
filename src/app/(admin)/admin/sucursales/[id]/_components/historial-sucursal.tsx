@@ -32,6 +32,7 @@ const CANAL_LABEL: Record<string, string> = {
   pedido_ya_plataforma:  "Pedido Ya Plataforma",
   cuenta_corriente:      "Cta. Cte.",
   ambulante:              "Ambulante",
+  multa_termo:            "Multa termo",
 };
 const CANAL_COLOR: Record<string, string> = {
   consumidor_final:     "bg-blue-50 text-blue-700",
@@ -40,6 +41,7 @@ const CANAL_COLOR: Record<string, string> = {
   pedido_ya_plataforma:  "bg-sky-50 text-sky-700",
   cuenta_corriente:      "bg-purple-50 text-purple-700",
   ambulante:              "bg-emerald-50 text-emerald-700",
+  multa_termo:            "bg-red-50 text-red-700",
 };
 
 type Movimiento = {

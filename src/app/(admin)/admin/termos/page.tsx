@@ -29,12 +29,15 @@ export default async function TermosPage() {
     redirect("/admin/dashboard");
   }
 
+  // (admin as any): termo_horas_limite/termo_tarifa_multa_hora son de la
+  // migración 063, todavía no están en los tipos generados de database.ts
+  // (las migraciones se aplican a mano por SQL Editor, no por CLI codegen).
   let sucursales: SucursalOpt[] = [];
   if (role === "admin") {
-    const { data } = await admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre");
+    const { data } = await (admin as any).from("sucursales").select("id, nombre, termo_horas_limite, termo_tarifa_multa_hora").eq("is_active", true).order("nombre");
     sucursales = (data ?? []) as SucursalOpt[];
   } else {
-    const { data } = await admin.from("sucursales").select("id, nombre").eq("id", staffSucursalId!).single();
+    const { data } = await (admin as any).from("sucursales").select("id, nombre, termo_horas_limite, termo_tarifa_multa_hora").eq("id", staffSucursalId!).single();
     if (data) sucursales = [data as SucursalOpt];
   }
 
@@ -46,22 +49,38 @@ export default async function TermosPage() {
   const { data: termosData } = await termosQuery;
   const termos = (termosData ?? []) as Termo[];
 
+  const PRESTAMO_COLS = "id, termo_id, sucursal_id, dni, nombre, fecha_prestamo, fecha_devolucion, monto_multa, multa_pagada_en";
+
   // Préstamos abiertos (todavía afuera) -- lo que importa para "controlar
   // esporádicamente" quién tiene cada termo ahora mismo.
   let prestamosQuery = (admin as any)
     .from("prestamos_termo")
-    .select("id, termo_id, sucursal_id, dni, nombre, fecha_prestamo, fecha_devolucion")
+    .select(PRESTAMO_COLS)
     .is("fecha_devolucion", null)
     .order("fecha_prestamo", { ascending: false });
   if (isStaff && staffSucursalId) prestamosQuery = prestamosQuery.eq("sucursal_id", staffSucursalId);
   const { data: prestamosData } = await prestamosQuery;
   const prestamosAbiertos = (prestamosData ?? []) as Prestamo[];
 
+  // Multas cobradas pero todavía no pagadas -- el DNI queda bloqueado para
+  // nuevos alquileres hasta que se salden (ver prestar_termo en 063), así
+  // que necesitan quedar visibles y con un botón de cobro a mano, no solo en
+  // el momento de la devolución.
+  let deudasQuery = (admin as any)
+    .from("prestamos_termo")
+    .select(PRESTAMO_COLS)
+    .gt("monto_multa", 0)
+    .is("multa_pagada_en", null)
+    .order("fecha_devolucion", { ascending: true });
+  if (isStaff && staffSucursalId) deudasQuery = deudasQuery.eq("sucursal_id", staffSucursalId);
+  const { data: deudasData } = await deudasQuery;
+  const deudasPendientes = (deudasData ?? []) as Prestamo[];
+
   // Historial reciente de devoluciones -- solo para tener contexto, no hace
   // falta paginar en serio para un puñado de termos por kiosco.
   let historialQuery = (admin as any)
     .from("prestamos_termo")
-    .select("id, termo_id, sucursal_id, dni, nombre, fecha_prestamo, fecha_devolucion")
+    .select(PRESTAMO_COLS)
     .not("fecha_devolucion", "is", null)
     .order("fecha_devolucion", { ascending: false })
     .limit(30);
@@ -86,6 +105,7 @@ export default async function TermosPage() {
           sucursalFija={isStaff ? staffSucursalId : null}
           termos={termos}
           prestamosAbiertos={prestamosAbiertos}
+          deudasPendientes={deudasPendientes}
           historial={historial}
         />
       )}

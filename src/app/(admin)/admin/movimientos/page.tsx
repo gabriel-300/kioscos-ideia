@@ -38,6 +38,9 @@ export default async function MovimientosPage() {
       .from("products")
       .select("id, name, sku")
       .eq("is_active", true)
+      // Producto de servicio ficticio para cobrar multas de termo (ver
+      // 063_multa_alquiler_termo.sql) -- se carga solo, no se elige a mano.
+      .neq("sku", "MULTA-TERMO")
       .order("name"),
     supabase
       .from("proveedores")

@@ -16,6 +16,7 @@ const CANAL_LABELS: Record<string, string> = {
   pedido_ya_plataforma: "Pedido Ya Plataforma",
   cuenta_corriente:     "Cta. Corriente",
   ambulante:            "Ambulante",
+  multa_termo:          "Multa termo",
 };
 
 export default async function VentasPorVendedorPage({

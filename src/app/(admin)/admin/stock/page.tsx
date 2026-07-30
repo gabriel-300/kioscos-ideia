@@ -39,6 +39,11 @@ export default async function StockPage() {
       .from("products")
       .select("id, name, sku, category_id, unit_label, stock_minimo")
       .eq("is_active", true)
+      // La "multa por atraso de termo" es un producto de servicio ficticio
+      // (ver 063_multa_alquiler_termo.sql) solo para que su cobro entre a la
+      // conciliación de caja como cualquier venta -- no tiene stock real, no
+      // tiene sentido que aparezca acá con un número cada vez más negativo.
+      .neq("sku", "MULTA-TERMO")
       .order("name") as unknown as Promise<{ data: { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number }[] | null }>,
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
