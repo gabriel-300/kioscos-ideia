@@ -55,6 +55,7 @@ export default async function AyudaPage() {
   const toc = [
     { id: "abrir-caja",  label: "Abrir la caja" },
     { id: "vender",      label: "Registrar una venta" },
+    { id: "anular",      label: "Anular una venta" },
     { id: "recepcion",   label: "Recepción de mercadería" },
     { id: "retiro",      label: "Retiro de efectivo" },
     { id: "merma",       label: "Registrar una merma" },
@@ -139,7 +140,30 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="recepcion" title="3. Recepción de mercadería">
+      <Section id="anular" title="3. Anular una venta">
+        <p className="text-sm text-neutral-600">
+          Para cuando cargaste una venta por error — por ejemplo, la cargaste dos veces sin darte cuenta, o le
+          pusiste otro producto.
+        </p>
+        <div className="space-y-3">
+          <Paso n={1}>
+            Bajá hasta <Campo>Historial de movimientos</Campo>, en la misma pantalla de Mi Kiosco, y buscá la venta
+            (la más reciente aparece primero).
+          </Paso>
+          <Paso n={2}>Tocá el ícono de <Campo>✕</Campo> al lado del de imprimir ticket.</Paso>
+          <Paso n={3}>Escribí por qué la anulás (es obligatorio) y confirmá.</Paso>
+        </div>
+        <Nota tipo="warn">
+          Solo se puede anular mientras la caja de ese turno siga abierta. Una vez que esa caja se cerró, la venta
+          queda fija para siempre — si te das cuenta después, avisale al admin.
+        </Nota>
+        <Nota tipo="info">
+          La venta anulada no desaparece: queda en el Historial marcada como <Campo>"Anulada"</Campo> con el motivo,
+          pero no cuenta para el stock ni para el cierre de caja — es como si no hubiera pasado.
+        </Nota>
+      </Section>
+
+      <Section id="recepcion" title="4. Recepción de mercadería">
         <p className="text-sm text-neutral-600">Para cargar lo que llega de un proveedor y que sume al stock.</p>
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Registrar recepción</Boton>.</Paso>
@@ -152,7 +176,7 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      <Section id="retiro" title="4. Retiro de efectivo">
+      <Section id="retiro" title="5. Retiro de efectivo">
         <p className="text-sm text-neutral-600">
           Para cuando sacás plata del cajón durante el turno (pagar un flete, dar cambio a otra caja, etc.).
         </p>
@@ -163,7 +187,7 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="merma" title="5. Registrar una merma">
+      <Section id="merma" title="6. Registrar una merma">
         <p className="text-sm text-neutral-600">
           Para productos rotos, vencidos o perdidos — así el stock queda correcto sin que figure como una venta.
         </p>
@@ -174,7 +198,7 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="cerrar-caja" title="6. Cerrar la caja">
+      <Section id="cerrar-caja" title="7. Cerrar la caja">
         <p className="text-sm text-neutral-600">Al final del turno, para conciliar la plata contra lo que vendiste.</p>
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Cerrar caja</Boton>.</Paso>
@@ -198,7 +222,11 @@ export default async function AyudaPage() {
             Mirá la <Campo>diferencia</Campo>: compara lo que declaraste contra lo que el sistema esperaba. Si da
             distinto de $0, revisá si te olvidaste de cargar alguna venta o algún retiro antes de confirmar.
           </Paso>
-          <Paso n={7}>Confirmá el cierre.</Paso>
+          <Paso n={7}>
+            Si queda diferencia (a favor o en contra), el sistema te va a pedir que escribas qué pasó antes de dejarte
+            cerrar — no es opcional.
+          </Paso>
+          <Paso n={8}>Confirmá el cierre.</Paso>
         </div>
         {esVendedor && (
           <Nota tipo="warn">
@@ -213,7 +241,7 @@ export default async function AyudaPage() {
         )}
       </Section>
 
-      <Section id="sobre" title="7. El sobre de efectivo">
+      <Section id="sobre" title="8. El sobre de efectivo">
         <p className="text-sm text-neutral-600">
           Es la plata en efectivo que queda "de más" después de separar el fondo para el turno siguiente — la que hay
           que entregarle a un socio.
@@ -233,7 +261,7 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      <Section id="stock" title="8. Consultar el stock">
+      <Section id="stock" title="9. Consultar el stock">
         <p className="text-sm text-neutral-600">
           Desde el menú <Campo>Stock</Campo> ves cuánto hay de cada producto en tu kiosco, calculado a partir del
           historial de movimientos (recepciones menos ventas y mermas).
@@ -244,7 +272,7 @@ export default async function AyudaPage() {
       </Section>
 
       {(esEncargado || esAdmin) && (
-        <Section id="pronostico" title="9. Pronóstico">
+        <Section id="pronostico" title="10. Pronóstico">
           <p className="text-sm text-neutral-600">
             Te sugiere cuánto vas a vender de cada producto al día siguiente, calculado con el promedio de ventas de
             ese mismo día de la semana en semanas anteriores. Sirve como referencia para saber qué pedirle al
@@ -271,6 +299,13 @@ export default async function AyudaPage() {
             <p className="text-sm text-neutral-600 mt-0.5">
               Avisale al admin — puede ser un desfasaje entre lo cargado y lo real, y el ajuste de stock es exclusivo
               de administración.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-neutral-800">"La caja de ese turno ya está cerrada -- no se puede anular"</p>
+            <p className="text-sm text-neutral-600 mt-0.5">
+              Solo se puede anular una venta mientras la caja de ese turno siga abierta. Si ya se cerró, avisale al
+              admin para que lo revise.
             </p>
           </div>
           <div>
