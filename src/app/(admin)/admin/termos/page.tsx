@@ -49,7 +49,7 @@ export default async function TermosPage() {
   const { data: termosData } = await termosQuery;
   const termos = (termosData ?? []) as Termo[];
 
-  const PRESTAMO_COLS = "id, termo_id, sucursal_id, dni, nombre, fecha_prestamo, fecha_devolucion, monto_multa, multa_pagada_en";
+  const PRESTAMO_COLS = "id, termo_id, sucursal_id, dni, telefono, nombre, fecha_prestamo, fecha_devolucion, monto_multa, multa_pagada_en";
 
   // Préstamos abiertos (todavía afuera) -- lo que importa para "controlar
   // esporádicamente" quién tiene cada termo ahora mismo.

@@ -17,7 +17,7 @@ type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist:
 type Category = { id: string; name: string };
 type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
 type TermoDisponible = { id: string; numero: string };
-type TermoPrestado = { id: string; termo_id: string; dni: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
+type TermoPrestado = { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -131,9 +131,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [descuentoPedidoYa, setDescuentoPedidoYa] = useState("");
   const [personalId, setPersonalId] = useState("");
   const [notas,      setNotas]      = useState("");
-  const [termoId,     setTermoId]     = useState("");
-  const [dniTermo,    setDniTermo]    = useState("");
-  const [nombreTermo, setNombreTermo] = useState("");
+  const [termoId,      setTermoId]      = useState("");
+  const [dniTermo,     setDniTermo]     = useState("");
+  const [telefonoTermo, setTelefonoTermo] = useState("");
+  const [nombreTermo,  setNombreTermo]  = useState("");
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -144,7 +145,21 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [multaACobrar, setMultaACobrar] = useState<{ prestamo: TermoPrestado; monto: number } | null>(null);
   const [pagosMulta, setPagosMulta] = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
   const [errorTermoModal, setErrorTermoModal] = useState<string | null>(null);
+  const [termoSearch, setTermoSearch] = useState("");
   const [pendingTermo, startTermoTransition] = useTransition();
+
+  // termosPrestados ya viene ordenado por fecha_prestamo ascendente (los más
+  // viejos -- más probablemente atrasados -- primero) desde el server
+  // component. Acá solo se filtra por lo que se busque.
+  const termosPrestadosFiltrados = useMemo(() => {
+    const q = termoSearch.trim().toLowerCase();
+    if (!q) return termosPrestados;
+    return termosPrestados.filter((p) =>
+      p.dni.toLowerCase().includes(q) ||
+      p.numero.toLowerCase().includes(q) ||
+      (p.nombre ?? "").toLowerCase().includes(q)
+    );
+  }, [termosPrestados, termoSearch]);
 
   /* ── derivados ── */
   // Insumos (vendible_pos = false, ej. salchicha, pan de pancho) no se muestran
@@ -393,8 +408,8 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
-    setTermoId(""); setDniTermo(""); setNombreTermo("");
-    setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null);
+    setTermoId(""); setDniTermo(""); setTelefonoTermo(""); setNombreTermo("");
+    setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch("");
   }
 
   function handleClose() { resetForm(); onClose(); }
@@ -480,6 +495,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       if (promoTermoEnCarrito.qty !== 1) { setError("Alquilá los termos de a uno por venta"); return; }
       if (!termoId) { setError("Elegí qué termo entregás"); return; }
       if (!dniTermo.trim()) { setError("Ingresá el DNI de quien se lleva el termo"); return; }
+      if (!telefonoTermo.trim()) { setError("Ingresá el teléfono de quien se lleva el termo"); return; }
     }
     // Cta. Corriente, Pedido Ya Efectivo y Pedido Ya Plataforma no piden monto/medio de pago.
     if (!sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100)) {
@@ -544,6 +560,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
             sucursal_id:    sucursalId,
             termo_id:       termoId,
             dni:            dniTermo,
+            telefono:       telefonoTermo,
             nombre:         nombreTermo || null,
             movimiento_id,
           });
@@ -1111,6 +1128,17 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 />
                 <input
                   type="text"
+                  inputMode="tel"
+                  value={telefonoTermo}
+                  onChange={(e) => setTelefonoTermo(e.target.value)}
+                  placeholder="Teléfono de quien se lleva el termo *"
+                  style={{
+                    width: "100%", height: 36, borderRadius: 7, border: "1.5px solid #E2E8F0",
+                    fontSize: 13, fontWeight: 600, color: "#0F172A", padding: "0 10px", marginBottom: 6,
+                  }}
+                />
+                <input
+                  type="text"
                   value={nombreTermo}
                   onChange={(e) => setNombreTermo(e.target.value)}
                   placeholder="Nombre (opcional)"
@@ -1417,7 +1445,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
         <div
           className="fixed inset-0 z-40 flex items-center justify-center p-3"
           style={{ background: "rgba(15,23,42,.55)" }}
-          onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); }}
+          onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch(""); }}
         >
           <div
             style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 400, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
@@ -1428,7 +1456,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 {multaACobrar ? "Cobrar multa" : "Termos prestados"}
               </h3>
               <button
-                onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); }}
+                onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch(""); }}
                 style={{ color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontSize: 18 }}
               >✕</button>
             </div>
@@ -1437,7 +1465,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <>
                 <div style={{ background: RED_L, border: "1.5px solid #FCA5A5", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: RED, margin: 0 }}>
-                    Termo N° {multaACobrar.prestamo.numero} — DNI {multaACobrar.prestamo.dni}
+                    Termo N° {multaACobrar.prestamo.numero} — DNI {multaACobrar.prestamo.dni} · Tel: {multaACobrar.prestamo.telefono}
                     {multaACobrar.prestamo.nombre ? ` (${multaACobrar.prestamo.nombre})` : ""}
                   </p>
                   <p style={{ fontSize: 22, fontWeight: 900, color: RED, marginTop: 4 }}>{AR.format(multaACobrar.monto)}</p>
@@ -1493,14 +1521,31 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </>
             ) : (
               <>
+                {termosPrestados.length > 0 && (
+                  <input
+                    type="text"
+                    value={termoSearch}
+                    onChange={(e) => setTermoSearch(e.target.value)}
+                    placeholder="Buscar por DNI o N° de termo…"
+                    autoFocus
+                    style={{
+                      width: "100%", height: 36, borderRadius: 7, border: "1.5px solid #E2E8F0",
+                      fontSize: 13, fontWeight: 600, color: "#0F172A", padding: "0 10px", marginBottom: 10,
+                    }}
+                  />
+                )}
                 {errorTermoModal && <p style={{ fontSize: 12, color: RED, marginBottom: 8 }}>{errorTermoModal}</p>}
                 {termosPrestados.length === 0 ? (
                   <p style={{ fontSize: 13, color: "#94A3B8", textAlign: "center", padding: "24px 0" }}>
                     No hay termos prestados en este momento.
                   </p>
+                ) : termosPrestadosFiltrados.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "#94A3B8", textAlign: "center", padding: "24px 0" }}>
+                    Sin resultados para "{termoSearch}".
+                  </p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {termosPrestados.map((p) => (
+                    {termosPrestadosFiltrados.map((p) => (
                       <div key={p.id} style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div>
@@ -1524,7 +1569,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                           </button>
                         </div>
                         <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>
-                          DNI {p.dni}{p.nombre ? ` — ${p.nombre}` : ""}
+                          DNI {p.dni} · Tel: {p.telefono}{p.nombre ? ` — ${p.nombre}` : ""}
                         </div>
                       </div>
                     ))}

@@ -13,7 +13,7 @@ type Product = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: 
 type TipoMov = "entrega" | "devolucion" | "ajuste" | "venta" | "merma";
 type Promo = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
 type TermoDisponible = { id: string; numero: string };
-type TermoPrestado = { id: string; termo_id: string; dni: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
+type TermoPrestado = { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
 
 export function NuevaEntregaButton({
   sucursalId,

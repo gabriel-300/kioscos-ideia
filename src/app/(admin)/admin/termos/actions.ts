@@ -88,6 +88,7 @@ export async function prestarTermo(data: {
   sucursal_id:    string;
   termo_id:       string;
   dni:            string;
+  telefono:       string;
   nombre?:        string | null;
   movimiento_id?: string | null;
 }): Promise<{ error?: string; id?: string }> {
@@ -99,10 +100,13 @@ export async function prestarTermo(data: {
 
   const dni = data.dni.trim();
   if (!dni) return { error: "Ingresá el DNI" };
+  const telefono = data.telefono.trim();
+  if (!telefono) return { error: "Ingresá el teléfono" };
 
   const { data: rpcData, error } = await (admin as any).rpc("prestar_termo", {
     p_termo_id:      data.termo_id,
     p_dni:           dni,
+    p_telefono:      telefono,
     p_nombre:        data.nombre || null,
     p_movimiento_id: data.movimiento_id || null,
     p_created_by:    userId,

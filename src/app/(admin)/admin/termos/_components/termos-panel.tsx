@@ -8,7 +8,7 @@ import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo
 export type SucursalOpt = { id: string; nombre: string; termo_horas_limite?: number; termo_tarifa_multa_hora?: number };
 export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja"; tipo: "frio" | "caliente" };
 export type Prestamo = {
-  id: string; termo_id: string; sucursal_id: string; dni: string; nombre: string | null;
+  id: string; termo_id: string; sucursal_id: string; dni: string; telefono: string; nombre: string | null;
   fecha_prestamo: string; fecha_devolucion: string | null;
   monto_multa: number; multa_pagada_en: string | null;
 };
@@ -76,6 +76,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
 
   const [prestarTermoId, setPrestarTermoId] = useState<string | null>(null);
   const [dni,            setDni]            = useState("");
+  const [telefono,       setTelefono]       = useState("");
   const [nombreCliente,  setNombreCliente]  = useState("");
 
   const [historialOpen, setHistorialOpen] = useState(false);
@@ -142,10 +143,12 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
     setError(null);
     const dniLimpio = dni.trim();
     if (!dniLimpio) { setError("Ingresá el DNI"); return; }
+    const telefonoLimpio = telefono.trim();
+    if (!telefonoLimpio) { setError("Ingresá el teléfono"); return; }
     startTransition(async () => {
-      const res = await prestarTermo({ sucursal_id: sucursalId, termo_id: termoId, dni: dniLimpio, nombre: nombreCliente.trim() || null });
+      const res = await prestarTermo({ sucursal_id: sucursalId, termo_id: termoId, dni: dniLimpio, telefono: telefonoLimpio, nombre: nombreCliente.trim() || null });
       if (res.error) { setError(res.error); return; }
-      setPrestarTermoId(null); setDni(""); setNombreCliente("");
+      setPrestarTermoId(null); setDni(""); setTelefono(""); setNombreCliente("");
       router.refresh();
     });
   }
@@ -330,7 +333,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
       {cobrando && (
         <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 space-y-3">
           <p className="text-sm font-semibold text-danger">
-            Multa a cobrar — DNI {cobrando.dni}{cobrando.nombre ? ` (${cobrando.nombre})` : ""}: {AR.format(cobrando.monto_multa)}
+            Multa a cobrar — DNI {cobrando.dni}{cobrando.nombre ? ` (${cobrando.nombre})` : ""} · Tel: {cobrando.telefono}: {AR.format(cobrando.monto_multa)}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {([
@@ -368,6 +371,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                 <div>
                   <span className="text-sm font-semibold text-neutral-900">DNI {d.dni}</span>
                   {d.nombre && <span className="text-sm text-neutral-500"> — {d.nombre}</span>}
+                  <span className="text-xs text-neutral-400 ml-2">Tel: {d.telefono}</span>
                   <span className="text-xs text-danger font-semibold ml-2">{AR.format(d.monto_multa)}</span>
                 </div>
                 <Button variant="primary" size="sm" onClick={() => { setCobrando(d); setPagos(pagosVacios()); setError(null); }}>Cobrar</Button>
@@ -406,7 +410,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                   </div>
                   <div className="flex gap-2">
                     {t.estado === "disponible" && (
-                      <Button variant="primary" size="sm" onClick={() => { setPrestarTermoId(t.id); setDni(""); setNombreCliente(""); setError(null); }}>
+                      <Button variant="primary" size="sm" onClick={() => { setPrestarTermoId(t.id); setDni(""); setTelefono(""); setNombreCliente(""); setError(null); }}>
                         Prestar
                       </Button>
                     )}
@@ -427,6 +431,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                 {t.estado === "prestado" && prestamo && (
                   <div className="mt-3 pt-3 border-t border-neutral-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                     <span className="text-neutral-600">DNI: <span className="font-semibold text-neutral-900">{prestamo.dni}</span></span>
+                    <span className="text-neutral-600">Tel: <span className="font-semibold text-neutral-900">{prestamo.telefono}</span></span>
                     {prestamo.nombre && <span className="text-neutral-600">{prestamo.nombre}</span>}
                     <span className="text-neutral-400 text-xs">{haceTiempo(prestamo.fecha_prestamo)}</span>
                   </div>
@@ -447,6 +452,17 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                       />
                     </div>
                     <div>
+                      <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Teléfono *</label>
+                      <input
+                        type="text"
+                        inputMode="tel"
+                        value={telefono}
+                        onChange={(e) => setTelefono(e.target.value)}
+                        placeholder="Ej: 3764123456"
+                        className="h-10 w-40 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                      />
+                    </div>
+                    <div>
                       <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Nombre (opcional)</label>
                       <input
                         type="text"
@@ -457,7 +473,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                       />
                     </div>
                     <Button variant="primary" size="sm" loading={pending} onClick={() => handlePrestar(t.id, t.sucursal_id)}>Confirmar</Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setPrestarTermoId(null); setError(null); }}>Cancelar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setPrestarTermoId(null); setTelefono(""); setError(null); }}>Cancelar</Button>
                   </div>
                 )}
               </div>

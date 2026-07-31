@@ -126,11 +126,13 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // El número/tipo del termo se resuelve acá mismo via join.
     (admin as any)
       .from("prestamos_termo")
-      .select("id, termo_id, dni, nombre, fecha_prestamo, termo:termos(numero, tipo)")
+      .select("id, termo_id, dni, telefono, nombre, fecha_prestamo, termo:termos(numero, tipo)")
       .eq("sucursal_id", id)
       .is("fecha_devolucion", null)
-      .order("fecha_prestamo", { ascending: false }) as unknown as Promise<{
-        data: { id: string; termo_id: string; dni: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string } | null }[] | null;
+      // Ascendente -- los préstamos más viejos (más probablemente atrasados)
+      // quedan arriba en el panel de devolución de la venta rápida.
+      .order("fecha_prestamo", { ascending: true }) as unknown as Promise<{
+        data: { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string } | null }[] | null;
       }>,
     // Para el selector de sucursal destino al enviar una transferencia.
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
@@ -163,6 +165,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     id:             p.id,
     termo_id:       p.termo_id,
     dni:            p.dni,
+    telefono:       p.telefono,
     nombre:         p.nombre,
     fecha_prestamo: p.fecha_prestamo,
     numero:         p.termo?.numero ?? "?",
