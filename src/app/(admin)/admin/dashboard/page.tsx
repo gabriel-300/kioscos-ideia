@@ -30,6 +30,11 @@ const COLOR: Record<StatCardProps["color"], { chip: string; icon: string }> = {
 
 function StatCard({ label, value, sub, href, icon, color }: StatCardProps) {
   const { chip, icon: iconColor } = COLOR[color];
+  // Los montos grandes (ej. "$15.706.329") no tienen espacios donde partir --
+  // break-words los cortaba en cualquier caracter ("$15.706.3" / "29"), casi
+  // ilegible. Nowrap + una fuente más chica para valores largos evita el corte
+  // en vez de partir el número a la mitad.
+  const isLong = String(value).length > 9;
   const inner = (
     <div className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -37,7 +42,7 @@ function StatCard({ label, value, sub, href, icon, color }: StatCardProps) {
           <span className={iconColor}>{icon}</span>
         </div>
       </div>
-      <p className="text-xl md:text-2xl font-bold font-display text-neutral-900 tabular-nums leading-tight mb-1 break-words">{value}</p>
+      <p className={`${isLong ? "text-lg md:text-xl" : "text-xl md:text-2xl"} font-bold font-display text-neutral-900 tabular-nums leading-tight mb-1 whitespace-nowrap`}>{value}</p>
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{label}</p>
       {sub && <p className="text-xs text-neutral-400 mt-1">{sub}</p>}
     </div>
@@ -146,8 +151,13 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     supabase.from("sucursales").select("*", { count: "exact", head: true }),
     supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("products").select("*", { count: "exact", head: true }),
-    supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
+    // select("id") en vez de "*" -- select("*") se expande a TODAS las
+    // columnas de products, incluidas costo/margen_*, que a propósito nunca
+    // tienen SELECT otorgado a authenticated (ver 035_restrict_costo_margen_
+    // columns_anon.sql) -- con "*" la consulta entera fallaba con permission
+    // denied y count quedaba en null, mostrando "0" en el dashboard.
+    supabase.from("products").select("id", { count: "exact", head: true }),
+    supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
     // últimas entregas para la tabla de actividad
     supabase
       .from("movimientos")
