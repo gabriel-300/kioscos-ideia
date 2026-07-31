@@ -9,6 +9,8 @@ import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
 import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
 import { AuditoriaButton } from "./_components/auditoria-button";
+import { TransferenciaEnviarButton } from "./_components/transferencia-enviar-button";
+import { TransferenciasPendientes, type Pendiente } from "./_components/transferencias-pendientes";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -58,7 +60,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, termosResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -119,11 +121,68 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id)
       .eq("estado", "disponible")
       .order("numero") as unknown as Promise<{ data: { id: string; numero: string }[] | null }>,
+    // Termos prestados de esta sucursal -- para poder registrar la devolución
+    // (y cobrar la multa si corresponde) sin salir de la pantalla de venta.
+    // El número/tipo del termo se resuelve acá mismo via join.
+    (admin as any)
+      .from("prestamos_termo")
+      .select("id, termo_id, dni, nombre, fecha_prestamo, termo:termos(numero, tipo)")
+      .eq("sucursal_id", id)
+      .is("fecha_devolucion", null)
+      .order("fecha_prestamo", { ascending: false }) as unknown as Promise<{
+        data: { id: string; termo_id: string; dni: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string } | null }[] | null;
+      }>,
+    // Para el selector de sucursal destino al enviar una transferencia.
+    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
+      data: { id: string; nombre: string }[] | null;
+    }>,
+    // Transferencias enviadas a ESTA sucursal que todavía no se confirmaron.
+    // Admin client -- mismo motivo que stock_sucursal: no depende de a quién
+    // le tocó qué turno, cualquiera del staff del destino tiene que poder verla.
+    (admin as any)
+      .from("transferencias_stock")
+      .select(`
+        id, fecha, notas_envio,
+        sucursal_origen:sucursales!transferencias_stock_sucursal_origen_id_fkey(nombre),
+        transferencia_items(id, product_id, cantidad_enviada, product:products(name, unit_label))
+      `)
+      .eq("sucursal_destino_id", id)
+      .eq("estado", "enviada")
+      .order("created_at", { ascending: false }) as unknown as Promise<{
+        data: {
+          id: string; fecha: string; notas_envio: string | null;
+          sucursal_origen: { nombre: string } | null;
+          transferencia_items: { id: string; product_id: string; cantidad_enviada: number; product: { name: string; unit_label: string | null } | null }[];
+        }[] | null;
+      }>,
   ]);
 
   const promos = promosResult.data ?? [];
   const termosDisponibles = termosResult.data ?? [];
+  const termosPrestados = (prestamosTermoResult.data ?? []).map((p) => ({
+    id:             p.id,
+    termo_id:       p.termo_id,
+    dni:            p.dni,
+    nombre:         p.nombre,
+    fecha_prestamo: p.fecha_prestamo,
+    numero:         p.termo?.numero ?? "?",
+    tipo:           (p.termo?.tipo === "frio" ? "frio" : "caliente") as "frio" | "caliente",
+  }));
   const preciosSucursal = new Map((preciosResult.data ?? []).map((p) => [p.product_id, p]));
+  const todasSucursales = todasSucursalesResult.data ?? [];
+  const transferenciasPendientes: Pendiente[] = (transferenciasPendientesResult.data ?? []).map((t) => ({
+    id: t.id,
+    origenNombre: t.sucursal_origen?.nombre ?? "—",
+    fecha: t.fecha,
+    notasEnvio: t.notas_envio,
+    items: t.transferencia_items.map((i) => ({
+      id: i.id,
+      product_id: i.product_id,
+      product_name: i.product?.name ?? "Producto eliminado",
+      unit_label: i.product?.unit_label ?? null,
+      cantidad_enviada: i.cantidad_enviada,
+    })),
+  }));
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -393,6 +452,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
+                  termosPrestados={termosPrestados}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -419,6 +479,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
+                  termosPrestados={termosPrestados}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -454,6 +515,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               stockMap={stockActual}
               auditoriaHoy={auditoriaHoy}
             />
+            {(role === "admin" || role === "encargado") && (
+              <TransferenciaEnviarButton
+                sucursalId={sucursal.id}
+                sucursales={todasSucursales}
+                products={(products ?? []) as Parameters<typeof TransferenciaEnviarButton>[0]["products"]}
+                stockMap={stockActual}
+              />
+            )}
             <AperturaCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
@@ -603,6 +672,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           />
         </div>
       )}
+
+      {/* Transferencias pendientes de recibir -- cualquiera del staff de acá puede confirmar */}
+      <TransferenciasPendientes transferencias={transferenciasPendientes} />
 
       {/* Alerta stock bajo */}
       {productosStockBajo.length > 0 && (

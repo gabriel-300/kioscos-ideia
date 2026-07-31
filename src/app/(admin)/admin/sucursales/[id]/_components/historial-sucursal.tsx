@@ -7,12 +7,20 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 
 type Retiro = { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url?: string | null };
 
-const TIPO_LABEL: Record<string, string> = { entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste" };
+// "merma" faltaba acá desde la migración 042 (gap preexistente, corregido de
+// yapa) -- sin entrada en estos diccionarios el badge queda en blanco.
+const TIPO_LABEL: Record<string, string> = {
+  entrega: "Entrega", devolucion: "Devolución", venta: "Venta", ajuste: "Ajuste", merma: "Merma",
+  transferencia_salida: "Transf. enviada", transferencia_entrada: "Transf. recibida",
+};
 const TIPO_COLOR: Record<string, string> = {
   entrega:    "bg-selva-100 text-selva-700",
   devolucion: "bg-warning-bg text-warning",
   venta:      "bg-blue-50 text-blue-700",
   ajuste:     "bg-neutral-100 text-neutral-500",
+  merma:      "bg-danger/10 text-danger",
+  transferencia_salida:  "bg-orange-50 text-orange-700",
+  transferencia_entrada: "bg-teal-50 text-teal-700",
 };
 
 type Item = {
@@ -47,7 +55,7 @@ const CANAL_COLOR: Record<string, string> = {
 type Movimiento = {
   id: string;
   fecha: string;
-  tipo: "entrega" | "devolucion" | "ajuste" | "venta";
+  tipo: "entrega" | "devolucion" | "ajuste" | "venta" | "merma" | "transferencia_salida" | "transferencia_entrada";
   notas: string | null;
   canal?: string | null;
   personal_id?: string | null;

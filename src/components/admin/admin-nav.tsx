@@ -33,6 +33,7 @@ const PATHS: Record<string, React.ReactNode> = {
   webhook:     <><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></>,
   nichos:      <><path d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" /></>,
   termos:      <><path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082M9.75 3.104a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" /></>,
+  transferencias: <><path d="M7.5 7.5h-.75A2.25 2.25 0 004.5 9.75v7.5a2.25 2.25 0 002.25 2.25h7.5a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-.75m-6 3.75l3-3m0 0l3 3m-3-3v11.25m6-2.25h.75a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-7.5A2.25 2.25 0 007.5 5.25v.75" /></>,
   signout:     <><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></>,
   menu:        <><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></>,
   close:       <><path d="M6 18L18 6M6 6l12 12" /></>,
@@ -83,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/auditoria",   label: "Auditoría",  roles: ["admin"],                          icon: "auditoria" },
       { href: "/admin/alertas-precio", label: "Alertas de precio", roles: ["admin"],                icon: "alertaprecio" },
       { href: "/admin/termos",      label: "Termos",     roles: ["admin", "encargado", "vendedor"], icon: "termos" },
+      { href: "/admin/transferencias", label: "Transferencias", roles: ["admin"],                   icon: "transferencias" },
     ],
   },
   {
@@ -111,19 +113,21 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 0, alertasPrecioPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
   sucursalId?: string | null;
   auditoriaPendientes?: number;
   alertasPrecioPendientes?: number;
+  transferenciasPendientes?: number;
 }) {
   const badgeCounts: Record<string, number> = {
     "/admin/auditoria":      auditoriaPendientes,
     "/admin/alertas-precio": alertasPrecioPendientes,
+    "/admin/transferencias": transferenciasPendientes,
   };
-  const stockGroupPendientes = auditoriaPendientes + alertasPrecioPendientes;
+  const stockGroupPendientes = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes;
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);

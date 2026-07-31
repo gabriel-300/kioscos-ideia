@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
-import { prestarTermo } from "@/app/(admin)/admin/termos/actions";
+import { prestarTermo, devolverTermo, pagarMultaTermo } from "@/app/(admin)/admin/termos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -16,6 +17,7 @@ type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist:
 type Category = { id: string; name: string };
 type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
 type TermoDisponible = { id: string; numero: string };
+type TermoPrestado = { id: string; termo_id: string; dni: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -110,9 +112,11 @@ interface Props {
   cajaAbierta?:    boolean;
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
+  termosPrestados?:   TermoPrestado[];
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [] }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [] }: Props) {
+  const router = useRouter();
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
   const [montoTexto,    setMontoTexto]    = useState<Record<string, string>>({});
@@ -133,6 +137,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [error,         setError]         = useState<string | null>(null);
   const [receipt,       setReceipt]       = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Devolución de termo -- se puede hacer sin salir de la venta (ver también
+  // el "Alquiler de termo" más abajo, que es la contraparte al vender).
+  const [termosModalOpen, setTermosModalOpen] = useState(false);
+  const [multaACobrar, setMultaACobrar] = useState<{ prestamo: TermoPrestado; monto: number } | null>(null);
+  const [pagosMulta, setPagosMulta] = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+  const [errorTermoModal, setErrorTermoModal] = useState<string | null>(null);
+  const [pendingTermo, startTermoTransition] = useTransition();
 
   /* ── derivados ── */
   // Insumos (vendible_pos = false, ej. salchicha, pan de pancho) no se muestran
@@ -382,9 +394,47 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
     setTermoId(""); setDniTermo(""); setNombreTermo("");
+    setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
+
+  function handleDevolverTermo(p: TermoPrestado) {
+    setErrorTermoModal(null);
+    startTermoTransition(async () => {
+      const res = await devolverTermo({ prestamo_id: p.id, sucursal_id: sucursalId });
+      if (res.error) { setErrorTermoModal(res.error); return; }
+      if (res.monto_multa && res.monto_multa > 0) {
+        setMultaACobrar({ prestamo: p, monto: res.monto_multa });
+        setPagosMulta({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+      } else {
+        router.refresh();
+      }
+    });
+  }
+
+  function handleCobrarMultaTermo() {
+    if (!multaACobrar) return;
+    setErrorTermoModal(null);
+    const efectivo      = parseFloat(pagosMulta.efectivo)      || 0;
+    const billetera     = parseFloat(pagosMulta.mp)            || 0;
+    const tarjeta       = parseFloat(pagosMulta.tarjeta)       || 0;
+    const transferencia = parseFloat(pagosMulta.transferencia) || 0;
+    const total = efectivo + billetera + tarjeta + transferencia;
+    if (Math.round(total * 100) !== Math.round(multaACobrar.monto * 100)) {
+      setErrorTermoModal(`Lo ingresado (${AR.format(total)}) tiene que sumar exactamente ${AR.format(multaACobrar.monto)}`);
+      return;
+    }
+    startTermoTransition(async () => {
+      const res = await pagarMultaTermo({
+        prestamo_id: multaACobrar.prestamo.id, sucursal_id: sucursalId,
+        pago_efectivo: efectivo, pago_billetera: billetera, pago_tarjeta: tarjeta, pago_transferencia: transferencia,
+      });
+      if (res.error) { setErrorTermoModal(res.error); return; }
+      setMultaACobrar(null);
+      router.refresh();
+    });
+  }
 
   function handleConfirm() {
     if (cajaAbierta === false) {
@@ -705,6 +755,14 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 
         {/* Sucursal + cerrar */}
         <div className="flex items-center gap-2 md:gap-3 px-2.5 md:px-4 h-full shrink-0">
+          <button
+            onClick={() => { setErrorTermoModal(null); setTermosModalOpen(true); }}
+            className="flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] md:text-[12px] font-semibold shrink-0 transition-colors"
+            style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}
+            title="Devolver termo"
+          >
+            🫖 {termosPrestados.length > 0 ? termosPrestados.length : ""}
+          </button>
           {sucursalNombre && (
             <div className="hidden md:flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}>
               <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -1341,6 +1399,130 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DEVOLVER TERMO ── */}
+      {termosModalOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center p-3"
+          style={{ background: "rgba(15,23,42,.55)" }}
+          onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); }}
+        >
+          <div
+            style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 400, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-baseline justify-between mb-4">
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0F172A" }}>
+                {multaACobrar ? "Cobrar multa" : "Termos prestados"}
+              </h3>
+              <button
+                onClick={() => { setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); }}
+                style={{ color: "#94A3B8", background: "none", border: "none", cursor: "pointer", fontSize: 18 }}
+              >✕</button>
+            </div>
+
+            {multaACobrar ? (
+              <>
+                <div style={{ background: RED_L, border: "1.5px solid #FCA5A5", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: RED, margin: 0 }}>
+                    Termo N° {multaACobrar.prestamo.numero} — DNI {multaACobrar.prestamo.dni}
+                    {multaACobrar.prestamo.nombre ? ` (${multaACobrar.prestamo.nombre})` : ""}
+                  </p>
+                  <p style={{ fontSize: 22, fontWeight: 900, color: RED, marginTop: 4 }}>{AR.format(multaACobrar.monto)}</p>
+                </div>
+
+                <div style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}>
+                  {PAY_METHODS.map((m, i) => {
+                    const val = pagosMulta[m.id];
+                    const num = parseFloat(val) || 0;
+                    return (
+                      <div
+                        key={m.id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                          borderTop: i === 0 ? "none" : "1px solid #E2E8F0",
+                          background: num > 0 ? NAVY_L : "white",
+                        }}
+                      >
+                        <span style={{ color: num > 0 ? NAVY : "#94A3B8", display: "flex", flexShrink: 0 }}>{m.icon}</span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: num > 0 ? NAVY : "#475569" }}>{m.label}</span>
+                        <div style={{ position: "relative", width: 110 }}>
+                          <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#94A3B8", pointerEvents: "none" }}>$</span>
+                          <input
+                            type="number"
+                            value={val}
+                            min={0}
+                            placeholder="0"
+                            onChange={(e) => setPagosMulta((p) => ({ ...p, [m.id]: e.target.value }))}
+                            style={{ width: "100%", padding: "7px 8px 7px 22px", border: `1.5px solid ${num > 0 ? NAVY : "#E2E8F0"}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#0F172A", outline: "none", fontFamily: "inherit", background: "white", textAlign: "right" }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {errorTermoModal && <p style={{ fontSize: 12, color: RED, marginBottom: 8 }}>{errorTermoModal}</p>}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setMultaACobrar(null); setErrorTermoModal(null); router.refresh(); }}
+                    style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: "white", color: "#64748B", border: "1.5px solid #E2E8F0", cursor: "pointer" }}
+                  >Dejar pendiente</button>
+                  <button
+                    onClick={handleCobrarMultaTermo}
+                    disabled={pendingTermo}
+                    style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: pendingTermo ? "#E2E8F0" : NAVY, color: pendingTermo ? "#94A3B8" : "white", border: "none", cursor: pendingTermo ? "not-allowed" : "pointer" }}
+                  >{pendingTermo ? "Guardando…" : "Confirmar cobro"}</button>
+                </div>
+                <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 8 }}>
+                  Si dejás pendiente, el DNI queda bloqueado para alquilar otro termo hasta que se pague (se puede cobrar después desde Termos).
+                </p>
+              </>
+            ) : (
+              <>
+                {errorTermoModal && <p style={{ fontSize: 12, color: RED, marginBottom: 8 }}>{errorTermoModal}</p>}
+                {termosPrestados.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "#94A3B8", textAlign: "center", padding: "24px 0" }}>
+                    No hay termos prestados en este momento.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {termosPrestados.map((p) => (
+                      <div key={p.id} style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Termo N° {p.numero}</span>
+                            <span
+                              style={{
+                                fontSize: 11, fontWeight: 700, marginLeft: 6, padding: "1px 6px", borderRadius: 20,
+                                background: p.tipo === "frio" ? "#F0F9FF" : "#FFF7ED",
+                                color: p.tipo === "frio" ? "#0369A1" : "#C05621",
+                              }}
+                            >
+                              {p.tipo === "frio" ? "🧊 Frío" : "☕ Caliente"}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDevolverTermo(p)}
+                            disabled={pendingTermo}
+                            style={{ padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, background: pendingTermo ? "#E2E8F0" : NAVY, color: pendingTermo ? "#94A3B8" : "white", border: "none", cursor: pendingTermo ? "not-allowed" : "pointer" }}
+                          >
+                            Marcar devuelto
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>
+                          DNI {p.dni}{p.nombre ? ` — ${p.nombre}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

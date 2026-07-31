@@ -32,8 +32,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   let auditoriaPendientes = 0;
   let alertasPrecioPendientes = 0;
+  let transferenciasPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -43,9 +44,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         .from("alertas_precio")
         .select("id", { count: "exact", head: true })
         .is("revisado_por", null),
+      (supabase as any)
+        .from("transferencias_stock")
+        .select("id", { count: "exact", head: true })
+        .eq("estado", "enviada"),
     ]);
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
+    transferenciasPendientes = countTransferencias ?? 0;
   }
 
   return (
@@ -55,6 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         role={role} email={email} name={name} sucursalId={sucursalId}
         auditoriaPendientes={auditoriaPendientes}
         alertasPrecioPendientes={alertasPrecioPendientes}
+        transferenciasPendientes={transferenciasPendientes}
       />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>

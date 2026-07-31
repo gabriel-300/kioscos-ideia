@@ -1160,6 +1160,81 @@ export type Database = {
         }
         Relationships: []
       }
+      transferencias_stock: {
+        Row: {
+          id: string
+          sucursal_origen_id: string
+          sucursal_destino_id: string
+          fecha: string
+          estado: string
+          notas_envio: string | null
+          notas_recepcion: string | null
+          movimiento_salida_id: string | null
+          movimiento_entrada_id: string | null
+          enviado_por: string | null
+          recibido_por: string | null
+          created_at: string
+          confirmado_en: string | null
+        }
+        Insert: {
+          id?: string
+          sucursal_origen_id: string
+          sucursal_destino_id: string
+          fecha: string
+          estado?: string
+          notas_envio?: string | null
+          notas_recepcion?: string | null
+          movimiento_salida_id?: string | null
+          movimiento_entrada_id?: string | null
+          enviado_por?: string | null
+          recibido_por?: string | null
+          created_at?: string
+          confirmado_en?: string | null
+        }
+        Update: {
+          id?: string
+          sucursal_origen_id?: string
+          sucursal_destino_id?: string
+          fecha?: string
+          estado?: string
+          notas_envio?: string | null
+          notas_recepcion?: string | null
+          movimiento_salida_id?: string | null
+          movimiento_entrada_id?: string | null
+          enviado_por?: string | null
+          recibido_por?: string | null
+          created_at?: string
+          confirmado_en?: string | null
+        }
+        Relationships: []
+      }
+      transferencia_items: {
+        Row: {
+          id: string
+          transferencia_id: string
+          product_id: string
+          cantidad_enviada: number
+          cantidad_recibida: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          transferencia_id: string
+          product_id: string
+          cantidad_enviada: number
+          cantidad_recibida?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          transferencia_id?: string
+          product_id?: string
+          cantidad_enviada?: number
+          cantidad_recibida?: number | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       stock_sucursal: {
