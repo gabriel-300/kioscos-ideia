@@ -28,10 +28,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  // Los montos/cantidades grandes (ej. "$387.996", "1.801,9 u.") no tienen
+  // espacios donde partir -- break-words los cortaba en cualquier caracter.
+  // Nowrap + una fuente más chica para valores largos evita el corte a la
+  // mitad (mismo fix que dashboard/page.tsx).
+  const isLong = value.length > 9;
   return (
     <div className={`rounded-xl border p-4 ${accent ? "border-tierra-200 bg-tierra-50" : "border-neutral-200 bg-white"}`}>
       <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">{label}</p>
-      <p className={`text-xl md:text-2xl font-bold font-display tabular-nums break-words ${accent ? "text-tierra-700" : "text-neutral-900"}`}>{value}</p>
+      <p className={`${isLong ? "text-lg md:text-xl" : "text-xl md:text-2xl"} font-bold font-display tabular-nums whitespace-nowrap ${accent ? "text-tierra-700" : "text-neutral-900"}`}>{value}</p>
       {sub && <p className="text-xs text-neutral-400 mt-0.5">{sub}</p>}
     </div>
   );
