@@ -757,11 +757,16 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
         <div className="flex items-center gap-2 md:gap-3 px-2.5 md:px-4 h-full shrink-0">
           <button
             onClick={() => { setErrorTermoModal(null); setTermosModalOpen(true); }}
-            className="flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] md:text-[12px] font-semibold shrink-0 transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-full text-[11px] md:text-[12px] font-semibold shrink-0 transition-colors"
             style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}
             title="Devolver termo"
           >
-            🫖 {termosPrestados.length > 0 ? termosPrestados.length : ""}
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 3.5h6M10 3.5v3.75a2 2 0 01-.55 1.38L6.4 12.1a3 3 0 00-.9 2.15V18a3 3 0 003 3h7a3 3 0 003-3v-3.75a3 3 0 00-.9-2.15l-3.05-3.47a2 2 0 01-.55-1.38V3.5" />
+              <path strokeLinecap="round" d="M6 14h12" />
+            </svg>
+            <span className="hidden sm:inline">Termos</span>
+            {termosPrestados.length > 0 && <span>({termosPrestados.length})</span>}
           </button>
           {sucursalNombre && (
             <div className="hidden md:flex items-center gap-1.5 text-[12px] rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.85)" }}>
