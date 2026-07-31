@@ -550,6 +550,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           if (prestamoRes.error) {
             setError(`La venta se registró, pero el termo no se pudo prestar: ${prestamoRes.error}. Cargalo a mano desde Termos.`);
           }
+          // termosDisponibles/termosPrestados vienen como prop desde el server
+          // component -- sin este refresh, el termo recién prestado no
+          // aparecía en el botón "Termos" hasta recargar la página entera.
+          router.refresh();
         }
 
         setShowPay(false);
