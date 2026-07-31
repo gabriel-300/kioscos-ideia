@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta } from "../actions";
 
 export type SucursalOpt = { id: string; nombre: string; termo_horas_limite?: number; termo_tarifa_multa_hora?: number };
-export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja" };
+export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja"; tipo: "frio" | "caliente" };
 export type Prestamo = {
   id: string; termo_id: string; sucursal_id: string; dni: string; nombre: string | null;
   fecha_prestamo: string; fecha_devolucion: string | null;
@@ -20,6 +20,12 @@ const ESTADO_COLOR: Record<string, string> = {
   disponible: "bg-selva-50 text-selva-700 border-selva-200",
   prestado:   "bg-amber-50 text-amber-700 border-amber-200",
   baja:       "bg-neutral-100 text-neutral-500 border-neutral-200",
+};
+
+const TIPO_LABEL: Record<string, string> = { frio: "🧊 Frío", caliente: "☕ Caliente" };
+const TIPO_COLOR: Record<string, string> = {
+  frio:     "bg-sky-50 text-sky-700 border-sky-200",
+  caliente: "bg-orange-50 text-orange-700 border-orange-200",
 };
 
 // Las fechas (préstamo/devolución) siempre las pone el servidor con now() --
@@ -64,6 +70,9 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
 
   const [nuevoOpen,   setNuevoOpen]   = useState(false);
   const [nuevoNumero, setNuevoNumero] = useState("");
+  const [nuevoTipo,   setNuevoTipo]   = useState<"frio" | "caliente">("caliente");
+
+  const [tipoFiltro, setTipoFiltro] = useState<"todos" | "frio" | "caliente">("todos");
 
   const [prestarTermoId, setPrestarTermoId] = useState<string | null>(null);
   const [dni,            setDni]            = useState("");
@@ -87,12 +96,15 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
   const [horasLimiteInput, setHorasLimiteInput] = useState(String(horasLimite));
   const [tarifaHoraInput,  setTarifaHoraInput]  = useState(String(tarifaHora));
 
-  const termosVisibles      = termos.filter((t) => t.sucursal_id === sucursalActivaId);
+  const termosSucursal      = termos.filter((t) => t.sucursal_id === sucursalActivaId);
+  const termosVisibles      = tipoFiltro === "todos" ? termosSucursal : termosSucursal.filter((t) => t.tipo === tipoFiltro);
   const deudasVisibles      = deudasPendientes.filter((d) => d.sucursal_id === sucursalActivaId);
   const historialVisible    = historial.filter((h) => h.sucursal_id === sucursalActivaId);
 
   const disponibles = termosVisibles.filter((t) => t.estado === "disponible").length;
   const prestados    = termosVisibles.filter((t) => t.estado === "prestado").length;
+  const cantFrios     = termosSucursal.filter((t) => t.tipo === "frio").length;
+  const cantCalientes = termosSucursal.filter((t) => t.tipo === "caliente").length;
 
   function abrirConfig() {
     setHorasLimiteInput(String(horasLimite));
@@ -119,9 +131,9 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
     const numero = nuevoNumero.trim();
     if (!numero) { setError("Ingresá un número de termo"); return; }
     startTransition(async () => {
-      const res = await crearTermo({ sucursal_id: sucursalActivaId, numero });
+      const res = await crearTermo({ sucursal_id: sucursalActivaId, numero, tipo: nuevoTipo });
       if (res.error) { setError(res.error); return; }
-      setNuevoNumero(""); setNuevoOpen(false);
+      setNuevoNumero(""); setNuevoTipo("caliente"); setNuevoOpen(false);
       router.refresh();
     });
   }
@@ -223,6 +235,26 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
               </span>
             )}
           </div>
+          <div className="flex gap-1.5">
+            {([
+              ["todos", `Todos (${termosSucursal.length})`],
+              ["frio", `🧊 Frío (${cantFrios})`],
+              ["caliente", `☕ Caliente (${cantCalientes})`],
+            ] as const).map(([valor, label]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setTipoFiltro(valor)}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+                  tipoFiltro === valor
+                    ? "bg-tierra-700 text-white border-tierra-700"
+                    : "bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         {puedeGestionar && (
           <div className="flex gap-2">
@@ -275,8 +307,19 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
               className="h-10 w-40 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
             />
           </div>
+          <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Tipo</label>
+            <select
+              value={nuevoTipo}
+              onChange={(e) => setNuevoTipo(e.target.value as "frio" | "caliente")}
+              className="h-10 w-36 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+            >
+              <option value="caliente">☕ Caliente</option>
+              <option value="frio">🧊 Frío</option>
+            </select>
+          </div>
           <Button variant="primary" size="sm" loading={pending} onClick={handleCrearTermo}>Agregar</Button>
-          <Button variant="ghost" size="sm" onClick={() => { setNuevoOpen(false); setNuevoNumero(""); setError(null); }}>Cancelar</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setNuevoOpen(false); setNuevoNumero(""); setNuevoTipo("caliente"); setError(null); }}>Cancelar</Button>
         </div>
       )}
 
@@ -349,6 +392,9 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="text-base font-bold font-display text-neutral-900">Termo N° {t.numero}</span>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${TIPO_COLOR[t.tipo]}`}>
+                      {TIPO_LABEL[t.tipo]}
+                    </span>
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${ESTADO_COLOR[t.estado]}`}>
                       {ESTADO_LABEL[t.estado]}
                     </span>

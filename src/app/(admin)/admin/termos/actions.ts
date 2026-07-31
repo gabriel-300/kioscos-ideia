@@ -28,7 +28,7 @@ async function checkAccesoSucursal(
   return null;
 }
 
-export async function crearTermo(data: { sucursal_id: string; numero: string }): Promise<{ error?: string }> {
+export async function crearTermo(data: { sucursal_id: string; numero: string; tipo: "frio" | "caliente" }): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();
   if (role === "vendedor") return { error: "No tenés permisos para dar de alta termos" };
   const admin = createAdminClient();
@@ -39,7 +39,7 @@ export async function crearTermo(data: { sucursal_id: string; numero: string }):
   const numero = data.numero.trim();
   if (!numero) return { error: "Ingresá un número de termo" };
 
-  const { error } = await (admin as any).from("termos").insert({ sucursal_id: data.sucursal_id, numero });
+  const { error } = await (admin as any).from("termos").insert({ sucursal_id: data.sucursal_id, numero, tipo: data.tipo });
   if (error) {
     if (error.code === "23505") return { error: `Ya existe un termo N° ${numero} en esta sucursal` };
     return { error: error.message };

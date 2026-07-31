@@ -43,7 +43,7 @@ export default async function TermosPage() {
 
   let termosQuery = (admin as any)
     .from("termos")
-    .select("id, sucursal_id, numero, estado")
+    .select("id, sucursal_id, numero, estado, tipo")
     .order("numero");
   if (isStaff && staffSucursalId) termosQuery = termosQuery.eq("sucursal_id", staffSucursalId);
   const { data: termosData } = await termosQuery;
