@@ -122,22 +122,22 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // rápida (ver promos.requiere_termo) -- solo los que están libres ahora.
     (admin as any)
       .from("termos")
-      .select("id, numero")
+      .select("id, numero, image_url")
       .eq("sucursal_id", id)
       .eq("estado", "disponible")
-      .order("numero") as unknown as Promise<{ data: { id: string; numero: string }[] | null }>,
+      .order("numero") as unknown as Promise<{ data: { id: string; numero: string; image_url: string | null }[] | null }>,
     // Termos prestados de esta sucursal -- para poder registrar la devolución
     // (y cobrar la multa si corresponde) sin salir de la pantalla de venta.
-    // El número/tipo del termo se resuelve acá mismo via join.
+    // El número/tipo/foto del termo se resuelve acá mismo via join.
     (admin as any)
       .from("prestamos_termo")
-      .select("id, termo_id, dni, telefono, nombre, fecha_prestamo, termo:termos(numero, tipo)")
+      .select("id, termo_id, dni, telefono, nombre, fecha_prestamo, termo:termos(numero, tipo, image_url)")
       .eq("sucursal_id", id)
       .is("fecha_devolucion", null)
       // Ascendente -- los préstamos más viejos (más probablemente atrasados)
       // quedan arriba en el panel de devolución de la venta rápida.
       .order("fecha_prestamo", { ascending: true }) as unknown as Promise<{
-        data: { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string } | null }[] | null;
+        data: { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string; image_url: string | null } | null }[] | null;
       }>,
     // Para el selector de sucursal destino al enviar una transferencia.
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
@@ -175,6 +175,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     fecha_prestamo: p.fecha_prestamo,
     numero:         p.termo?.numero ?? "?",
     tipo:           (p.termo?.tipo === "frio" ? "frio" : "caliente") as "frio" | "caliente",
+    image_url:      p.termo?.image_url ?? null,
   }));
   const preciosSucursal = new Map((preciosResult.data ?? []).map((p) => [p.product_id, p]));
   const todasSucursales = todasSucursalesResult.data ?? [];

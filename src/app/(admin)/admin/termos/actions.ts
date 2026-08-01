@@ -28,7 +28,7 @@ async function checkAccesoSucursal(
   return null;
 }
 
-export async function crearTermo(data: { sucursal_id: string; numero: string; tipo: "frio" | "caliente" }): Promise<{ error?: string }> {
+export async function crearTermo(data: { sucursal_id: string; numero: string; tipo: "frio" | "caliente"; image_url?: string | null }): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();
   if (role === "vendedor") return { error: "No tenés permisos para dar de alta termos" };
   const admin = createAdminClient();
@@ -39,13 +39,29 @@ export async function crearTermo(data: { sucursal_id: string; numero: string; ti
   const numero = data.numero.trim();
   if (!numero) return { error: "Ingresá un número de termo" };
 
-  const { error } = await (admin as any).from("termos").insert({ sucursal_id: data.sucursal_id, numero, tipo: data.tipo });
+  const { error } = await (admin as any).from("termos").insert({ sucursal_id: data.sucursal_id, numero, tipo: data.tipo, image_url: data.image_url || null });
   if (error) {
     if (error.code === "23505") return { error: `Ya existe un termo N° ${numero} en esta sucursal` };
     return { error: error.message };
   }
 
   revalidatePath("/admin/termos");
+  return {};
+}
+
+export async function actualizarFotoTermo(termoId: string, sucursalId: string, imageUrl: string | null): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  if (role === "vendedor") return { error: "No tenés permisos para editar la foto de un termo" };
+  const admin = createAdminClient();
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, sucursalId);
+  if (accesoError) return { error: accesoError };
+
+  const { error } = await (admin as any).from("termos").update({ image_url: imageUrl }).eq("id", termoId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/termos");
+  revalidatePath(`/admin/sucursales/${sucursalId}`);
   return {};
 }
 

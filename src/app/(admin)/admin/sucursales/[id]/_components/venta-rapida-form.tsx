@@ -16,8 +16,8 @@ import type { CSSProperties } from "react";
 type Product  = Database["public"]["Tables"]["products"]["Row"] & { precio_dist: number; costo: number };
 type Category = { id: string; name: string };
 type Promo    = { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] };
-type TermoDisponible = { id: string; numero: string };
-type TermoPrestado = { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente" };
+type TermoDisponible = { id: string; numero: string; image_url: string | null };
+type TermoPrestado = { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; numero: string; tipo: "frio" | "caliente"; image_url: string | null };
 
 const PROMO_PREFIX = "promo:";
 const PROMO_COLOR  = "#B45309";
@@ -1115,6 +1115,16 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     {termosDisponibles.map((t) => <option key={t.id} value={t.id}>Termo N° {t.numero}</option>)}
                   </select>
                 )}
+                {termoId && termosDisponibles.find((t) => t.id === termoId)?.image_url && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <img
+                      src={termosDisponibles.find((t) => t.id === termoId)!.image_url!}
+                      alt=""
+                      style={{ width: 40, height: 40, borderRadius: 7, objectFit: "cover", border: "1.5px solid #E2E8F0" }}
+                    />
+                    <span style={{ fontSize: 11, color: "#94A3B8" }}>Confirmá que es este termo antes de entregarlo</span>
+                  </div>
+                )}
                 <input
                   type="text"
                   inputMode="numeric"
@@ -1548,17 +1558,26 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     {termosPrestadosFiltrados.map((p) => (
                       <div key={p.id} style={{ border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Termo N° {p.numero}</span>
-                            <span
-                              style={{
-                                fontSize: 11, fontWeight: 700, marginLeft: 6, padding: "1px 6px", borderRadius: 20,
-                                background: p.tipo === "frio" ? "#F0F9FF" : "#FFF7ED",
-                                color: p.tipo === "frio" ? "#0369A1" : "#C05621",
-                              }}
-                            >
-                              {p.tipo === "frio" ? "🧊 Frío" : "☕ Caliente"}
-                            </span>
+                          <div className="flex items-center gap-2">
+                            {p.image_url && (
+                              <img
+                                src={p.image_url}
+                                alt=""
+                                style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", border: "1.5px solid #E2E8F0", flexShrink: 0 }}
+                              />
+                            )}
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>Termo N° {p.numero}</span>
+                              <span
+                                style={{
+                                  fontSize: 11, fontWeight: 700, marginLeft: 6, padding: "1px 6px", borderRadius: 20,
+                                  background: p.tipo === "frio" ? "#F0F9FF" : "#FFF7ED",
+                                  color: p.tipo === "frio" ? "#0369A1" : "#C05621",
+                                }}
+                              >
+                                {p.tipo === "frio" ? "🧊 Frío" : "☕ Caliente"}
+                              </span>
+                            </div>
                           </div>
                           <button
                             onClick={() => handleDevolverTermo(p)}

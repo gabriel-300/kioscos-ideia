@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta } from "../actions";
+import { ImageUploader } from "../../productos/_components/image-uploader";
+import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta, actualizarFotoTermo } from "../actions";
 
 export type SucursalOpt = { id: string; nombre: string; termo_horas_limite?: number; termo_tarifa_multa_hora?: number };
-export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja"; tipo: "frio" | "caliente" };
+export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja"; tipo: "frio" | "caliente"; image_url: string | null };
 export type Prestamo = {
   id: string; termo_id: string; sucursal_id: string; dni: string; telefono: string; nombre: string | null;
   fecha_prestamo: string; fecha_devolucion: string | null;
@@ -71,6 +72,9 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
   const [nuevoOpen,   setNuevoOpen]   = useState(false);
   const [nuevoNumero, setNuevoNumero] = useState("");
   const [nuevoTipo,   setNuevoTipo]   = useState<"frio" | "caliente">("caliente");
+  const [nuevaFoto,   setNuevaFoto]   = useState<string | null>(null);
+
+  const [editandoFotoId, setEditandoFotoId] = useState<string | null>(null);
 
   const [tipoFiltro, setTipoFiltro] = useState<"todos" | "frio" | "caliente">("todos");
 
@@ -132,9 +136,19 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
     const numero = nuevoNumero.trim();
     if (!numero) { setError("Ingresá un número de termo"); return; }
     startTransition(async () => {
-      const res = await crearTermo({ sucursal_id: sucursalActivaId, numero, tipo: nuevoTipo });
+      const res = await crearTermo({ sucursal_id: sucursalActivaId, numero, tipo: nuevoTipo, image_url: nuevaFoto });
       if (res.error) { setError(res.error); return; }
-      setNuevoNumero(""); setNuevoTipo("caliente"); setNuevoOpen(false);
+      setNuevoNumero(""); setNuevoTipo("caliente"); setNuevaFoto(null); setNuevoOpen(false);
+      router.refresh();
+    });
+  }
+
+  function handleActualizarFoto(termoId: string, sucursalId: string, url: string | null) {
+    setError(null);
+    startTransition(async () => {
+      const res = await actualizarFotoTermo(termoId, sucursalId, url);
+      if (res.error) { setError(res.error); return; }
+      setEditandoFotoId(null);
       router.refresh();
     });
   }
@@ -301,6 +315,10 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
       {nuevoOpen && (
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 flex flex-wrap items-end gap-3">
           <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Foto (opcional)</label>
+            <ImageUploader value={nuevaFoto} onChange={setNuevaFoto} folder="termos" />
+          </div>
+          <div>
             <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">N° de termo</label>
             <input
               type="text"
@@ -322,7 +340,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
             </select>
           </div>
           <Button variant="primary" size="sm" loading={pending} onClick={handleCrearTermo}>Agregar</Button>
-          <Button variant="ghost" size="sm" onClick={() => { setNuevoOpen(false); setNuevoNumero(""); setNuevoTipo("caliente"); setError(null); }}>Cancelar</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setNuevoOpen(false); setNuevoNumero(""); setNuevoTipo("caliente"); setNuevaFoto(null); setError(null); }}>Cancelar</Button>
         </div>
       )}
 
@@ -395,6 +413,20 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
               <div key={t.id} className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => puedeGestionar && setEditandoFotoId((v) => (v === t.id ? null : t.id))}
+                      title={puedeGestionar ? "Cambiar foto" : undefined}
+                      className={`shrink-0 size-10 rounded-lg border border-neutral-200 overflow-hidden bg-neutral-50 flex items-center justify-center ${puedeGestionar ? "cursor-pointer hover:border-tierra-700" : ""}`}
+                    >
+                      {t.image_url ? (
+                        <img src={t.image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <svg className="size-5 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                        </svg>
+                      )}
+                    </button>
                     <span className="text-base font-bold font-display text-neutral-900">Termo N° {t.numero}</span>
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${TIPO_COLOR[t.tipo]}`}>
                       {TIPO_LABEL[t.tipo]}
@@ -434,6 +466,12 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                     <span className="text-neutral-600">Tel: <span className="font-semibold text-neutral-900">{prestamo.telefono}</span></span>
                     {prestamo.nombre && <span className="text-neutral-600">{prestamo.nombre}</span>}
                     <span className="text-neutral-400 text-xs">{haceTiempo(prestamo.fecha_prestamo)}</span>
+                  </div>
+                )}
+
+                {editandoFotoId === t.id && (
+                  <div className="mt-3 pt-3 border-t border-neutral-100">
+                    <ImageUploader value={t.image_url} onChange={(url) => handleActualizarFoto(t.id, t.sucursal_id, url)} folder="termos" />
                   </div>
                 )}
 
