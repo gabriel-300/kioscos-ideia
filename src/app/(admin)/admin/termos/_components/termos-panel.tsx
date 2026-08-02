@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { ImageUploader } from "../../productos/_components/image-uploader";
-import { crearTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta, actualizarFotoTermo } from "../actions";
+import { crearTermo, actualizarTermo, darDeBajaTermo, reactivarTermo, prestarTermo, devolverTermo, pagarMultaTermo, actualizarConfigMulta, actualizarFotoTermo } from "../actions";
 
 export type SucursalOpt = { id: string; nombre: string; termo_horas_limite?: number; termo_tarifa_multa_hora?: number };
 export type Termo = { id: string; sucursal_id: string; numero: string; estado: "disponible" | "prestado" | "baja"; tipo: "frio" | "caliente"; image_url: string | null };
@@ -76,6 +76,10 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
 
   const [editandoFotoId, setEditandoFotoId] = useState<string | null>(null);
 
+  const [editandoId,     setEditandoId]     = useState<string | null>(null);
+  const [editNumero,     setEditNumero]     = useState("");
+  const [editTipo,       setEditTipo]       = useState<"frio" | "caliente">("caliente");
+
   const [tipoFiltro, setTipoFiltro] = useState<"todos" | "frio" | "caliente">("todos");
 
   const [prestarTermoId, setPrestarTermoId] = useState<string | null>(null);
@@ -139,6 +143,25 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
       const res = await crearTermo({ sucursal_id: sucursalActivaId, numero, tipo: nuevoTipo, image_url: nuevaFoto });
       if (res.error) { setError(res.error); return; }
       setNuevoNumero(""); setNuevoTipo("caliente"); setNuevaFoto(null); setNuevoOpen(false);
+      router.refresh();
+    });
+  }
+
+  function abrirEditar(t: Termo) {
+    setError(null);
+    setEditandoId(t.id);
+    setEditNumero(t.numero);
+    setEditTipo(t.tipo);
+  }
+
+  function handleGuardarEdicion(termoId: string, sucursalId: string) {
+    setError(null);
+    const numero = editNumero.trim();
+    if (!numero) { setError("Ingresá un número de termo"); return; }
+    startTransition(async () => {
+      const res = await actualizarTermo({ termo_id: termoId, sucursal_id: sucursalId, numero, tipo: editTipo });
+      if (res.error) { setError(res.error); return; }
+      setEditandoId(null);
       router.refresh();
     });
   }
@@ -451,6 +474,9 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                         Marcar devuelto
                       </Button>
                     )}
+                    {puedeGestionar && (
+                      <Button variant="ghost" size="sm" onClick={() => (editandoId === t.id ? setEditandoId(null) : abrirEditar(t))}>Editar</Button>
+                    )}
                     {puedeGestionar && t.estado === "disponible" && (
                       <Button variant="ghost" size="sm" onClick={() => handleDarDeBaja(t.id, t.sucursal_id)}>Dar de baja</Button>
                     )}
@@ -466,6 +492,34 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
                     <span className="text-neutral-600">Tel: <span className="font-semibold text-neutral-900">{prestamo.telefono}</span></span>
                     {prestamo.nombre && <span className="text-neutral-600">{prestamo.nombre}</span>}
                     <span className="text-neutral-400 text-xs">{haceTiempo(prestamo.fecha_prestamo)}</span>
+                  </div>
+                )}
+
+                {editandoId === t.id && (
+                  <div className="mt-3 pt-3 border-t border-neutral-100 flex flex-wrap items-end gap-3">
+                    <div>
+                      <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">N° de termo</label>
+                      <input
+                        type="text"
+                        value={editNumero}
+                        onChange={(e) => setEditNumero(e.target.value)}
+                        autoFocus
+                        className="h-10 w-40 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">Tipo</label>
+                      <select
+                        value={editTipo}
+                        onChange={(e) => setEditTipo(e.target.value as "frio" | "caliente")}
+                        className="h-10 w-36 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                      >
+                        <option value="caliente">☕ Caliente</option>
+                        <option value="frio">🧊 Frío</option>
+                      </select>
+                    </div>
+                    <Button variant="primary" size="sm" loading={pending} onClick={() => handleGuardarEdicion(t.id, t.sucursal_id)}>Guardar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditandoId(null)}>Cancelar</Button>
                   </div>
                 )}
 

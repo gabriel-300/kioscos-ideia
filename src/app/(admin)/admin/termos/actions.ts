@@ -65,6 +65,27 @@ export async function actualizarFotoTermo(termoId: string, sucursalId: string, i
   return {};
 }
 
+export async function actualizarTermo(data: { termo_id: string; sucursal_id: string; numero: string; tipo: "frio" | "caliente" }): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  if (role === "vendedor") return { error: "No tenés permisos para editar termos" };
+  const admin = createAdminClient();
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const numero = data.numero.trim();
+  if (!numero) return { error: "Ingresá un número de termo" };
+
+  const { error } = await (admin as any).from("termos").update({ numero, tipo: data.tipo }).eq("id", data.termo_id);
+  if (error) {
+    if (error.code === "23505") return { error: `Ya existe un termo N° ${numero} en esta sucursal` };
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/termos");
+  return {};
+}
+
 export async function darDeBajaTermo(termoId: string, sucursalId: string): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();
   if (role === "vendedor") return { error: "No tenés permisos para dar de baja un termo" };
