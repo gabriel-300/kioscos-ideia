@@ -52,6 +52,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
+  } else if ((role === "encargado" || role === "vendedor") && sucursalId) {
+    // Acá el badge es solo lo que ESE kiosco tiene pendiente de recibir --
+    // no el total global (eso es privado de admin, ver arriba).
+    const { count } = await (supabase as any)
+      .from("transferencias_stock")
+      .select("id", { count: "exact", head: true })
+      .eq("estado", "enviada")
+      .eq("sucursal_destino_id", sucursalId);
+    transferenciasPendientes = count ?? 0;
   }
 
   return (

@@ -20,7 +20,19 @@ export default async function TransferenciasPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (!role || !["admin", "encargado", "vendedor"].includes(role)) redirect("/admin/dashboard");
+
+  // Encargado/vendedor solo ven las transferencias de SU sucursal (enviadas
+  // o recibidas) -- el listado sin filtro es privado de admin.
+  let miSucursalId: string | null = null;
+  if (role === "encargado") {
+    const { data } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
+    miSucursalId = data?.id ?? null;
+  } else if (role === "vendedor") {
+    const res = await (admin as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
+    miSucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
+  }
+  if (role !== "admin" && !miSucursalId) redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
@@ -42,6 +54,7 @@ export default async function TransferenciasPage({
     .order("created_at", { ascending: false });
 
   if (estadoFilter !== "all") query = query.eq("estado", estadoFilter);
+  if (miSucursalId) query = query.or(`sucursal_origen_id.eq.${miSucursalId},sucursal_destino_id.eq.${miSucursalId}`);
 
   type Row = {
     id: string; fecha: string; estado: "enviada" | "recibida";
@@ -98,7 +111,9 @@ export default async function TransferenciasPage({
     <div className="p-4 md:p-8 max-w-[1200px]">
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Transferencias</h1>
-        <p className="text-sm text-neutral-400 mt-0.5">Movimiento de stock entre sucursales, enviado y confirmado</p>
+        <p className="text-sm text-neutral-400 mt-0.5">
+          {miSucursalId ? "Transferencias enviadas o recibidas por tu sucursal" : "Movimiento de stock entre sucursales, enviado y confirmado"}
+        </p>
       </div>
 
       {/* Filtros */}

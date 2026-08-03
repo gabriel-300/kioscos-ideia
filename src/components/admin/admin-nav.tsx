@@ -84,7 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/auditoria",   label: "Auditoría",  roles: ["admin"],                          icon: "auditoria" },
       { href: "/admin/alertas-precio", label: "Alertas de precio", roles: ["admin"],                icon: "alertaprecio" },
       { href: "/admin/termos",      label: "Termos",     roles: ["admin", "encargado", "vendedor"], icon: "termos" },
-      { href: "/admin/transferencias", label: "Transferencias", roles: ["admin"],                   icon: "transferencias" },
+      { href: "/admin/transferencias", label: "Transferencias", roles: ["admin", "encargado", "vendedor"], icon: "transferencias" },
     ],
   },
   {
