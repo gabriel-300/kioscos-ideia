@@ -9,8 +9,10 @@ export interface TransferenciaItemInput {
   cantidad:   number;
 }
 
-// Enviar es de encargado/admin (decisión de mover mercadería entre kioscos) --
-// vendedor no, a pedido explícito del usuario.
+// Enviar (mover mercadería a otro kiosco) está habilitado para cualquiera del
+// staff de la sucursal ORIGEN -- admin, encargado o vendedor -- restringido a
+// que sea su propia sucursal (mismo criterio que confirmar recepción del lado
+// del destino, ver más abajo).
 export async function enviarTransferencia(data: {
   sucursal_origen_id:  string;
   sucursal_destino_id: string;
@@ -21,11 +23,15 @@ export async function enviarTransferencia(data: {
   const { userId, role } = await requireStaff();
   const supabase = createAdminClient();
 
-  if (role === "vendedor") return { error: "No tenés permisos para enviar transferencias" };
   if (role === "encargado") {
     const { data: suc } = await supabase
       .from("sucursales").select("encargado_user_id").eq("id", data.sucursal_origen_id).single();
     if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
+  }
+  if (role === "vendedor") {
+    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+    const profile = profileRes.data as { sucursal_id: string | null } | null;
+    if (profile?.sucursal_id !== data.sucursal_origen_id) return { error: "No tenés permisos para esta sucursal" };
   }
 
   if (data.sucursal_origen_id === data.sucursal_destino_id) {

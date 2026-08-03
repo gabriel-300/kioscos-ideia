@@ -524,7 +524,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               stockMap={stockActual}
               auditoriaHoy={auditoriaHoy}
             />
-            {(role === "admin" || role === "encargado") && (
+            {(role === "admin" || role === "encargado" || role === "vendedor") && (
               <TransferenciaEnviarButton
                 sucursalId={sucursal.id}
                 sucursales={todasSucursales}
