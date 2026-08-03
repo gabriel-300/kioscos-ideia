@@ -429,6 +429,13 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
   const [statusFilter, setStatus]   = useState("all");
   const [search,       setSearch]   = useState("");
   const [hideEmpty,    setHideEmpty] = useState(false);
+  // Con más de una sucursal operando, ver todas mezcladas en columnas puede
+  // confundir (ej. no darse cuenta de que una fila con "—" es de OTRO
+  // kiosco) -- este filtro deja elegir una sola sucursal sin perder la
+  // tabla ya armada, simplemente angostando qué columnas se muestran.
+  const [sucursalFiltro, setSucursalFiltro] = useState("todas");
+
+  const sucursalesVisibles = sucursalFiltro === "todas" ? sucursales : sucursales.filter((s) => s.id === sucursalFiltro);
 
   const filtered = useMemo(() => products.filter((p) => {
     if (catFilter !== "all" && p.category_id !== catFilter) return false;
@@ -437,11 +444,11 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
       if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
     }
     if (hideEmpty) {
-      const hasStock = sucursales.some((s) => (stockMap[s.id]?.[p.id] ?? 0) > 0);
+      const hasStock = sucursalesVisibles.some((s) => (stockMap[s.id]?.[p.id] ?? 0) > 0);
       if (!hasStock) return false;
     }
     if (statusFilter !== "all") {
-      const worst = sucursales.reduce<Status>((acc, s) => {
+      const worst = sucursalesVisibles.reduce<Status>((acc, s) => {
         const qty = stockMap[s.id]?.[p.id];
         if (qty === undefined) return acc;
         const st = getStatus(qty, p.stock_minimo, true);
@@ -454,18 +461,18 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
       if (statusFilter === "alert" && !["low","empty","negative"].includes(worst)) return false;
     }
     return true;
-  }), [products, catFilter, search, hideEmpty, statusFilter, sucursales, stockMap]);
+  }), [products, catFilter, search, hideEmpty, statusFilter, sucursalesVisibles, stockMap]);
 
   const alerts = useMemo(() => {
     const neg: { sucursalId: string; productId: string; nombre: string; product: string; qty: number; unit: string }[] = [];
-    for (const s of sucursales) {
+    for (const s of sucursalesVisibles) {
       for (const p of products) {
         const qty = stockMap[s.id]?.[p.id];
         if (qty !== undefined && qty < 0) neg.push({ sucursalId: s.id, productId: p.id, nombre: s.nombre, product: p.name, qty, unit: p.unit_label });
       }
     }
     return neg;
-  }, [sucursales, products, stockMap]);
+  }, [sucursalesVisibles, products, stockMap]);
 
   if (sucursales.length === 0) return <p className="text-sm text-neutral-400">No hay sucursales activas.</p>;
 
@@ -498,19 +505,28 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
         </div>
       )}
 
-      <Filters search={search} setSearch={setSearch} catFilter={catFilter} setCat={setCat}
-        statusFilter={statusFilter} setStatus={setStatus} hideEmpty={hideEmpty} setHideEmpty={setHideEmpty}
-        categories={categories} count={filtered.length} />
+      <div className="flex flex-wrap items-center gap-3">
+        {sucursales.length > 1 && (
+          <select value={sucursalFiltro} onChange={(e) => setSucursalFiltro(e.target.value)}
+            className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium focus:outline-none focus:border-tierra-700">
+            <option value="todas">Todas las sucursales</option>
+            {sucursales.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        )}
+        <Filters search={search} setSearch={setSearch} catFilter={catFilter} setCat={setCat}
+          statusFilter={statusFilter} setStatus={setStatus} hideEmpty={hideEmpty} setHideEmpty={setHideEmpty}
+          categories={categories} count={filtered.length} />
+      </div>
 
       <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="text-sm border-collapse w-full" style={{ minWidth: `${240 + sucursales.length * 170}px` }}>
+          <table className="text-sm border-collapse w-full" style={{ minWidth: `${240 + sucursalesVisibles.length * 170}px` }}>
             <thead>
               <tr className="bg-neutral-50 border-b border-neutral-200">
                 <th className="sticky left-0 z-10 bg-neutral-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500 min-w-60 border-r border-neutral-100">
                   Producto
                 </th>
-                {sucursales.map((s) => (
+                {sucursalesVisibles.map((s) => (
                   <th key={s.id} className="px-4 py-3 text-center text-xs font-semibold text-neutral-500 whitespace-nowrap min-w-44">
                     <Link href={`/admin/sucursales/${s.id}`} className="hover:text-tierra-700 transition-colors">{s.nombre}</Link>
                   </th>
@@ -520,7 +536,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
             <tbody className="divide-y divide-neutral-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={sucursales.length + 1} className="px-4 py-12 text-center text-sm text-neutral-400">Sin productos para mostrar.</td>
+                  <td colSpan={sucursalesVisibles.length + 1} className="px-4 py-12 text-center text-sm text-neutral-400">Sin productos para mostrar.</td>
                 </tr>
               ) : filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors group">
@@ -532,7 +548,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
                       <span className="text-[10px] text-neutral-400 capitalize">{p.unit_label}</span>
                     </div>
                   </td>
-                  {sucursales.map((s) => {
+                  {sucursalesVisibles.map((s) => {
                     const qty     = stockMap[s.id]?.[p.id];
                     const hasData = qty !== undefined;
                     return (
