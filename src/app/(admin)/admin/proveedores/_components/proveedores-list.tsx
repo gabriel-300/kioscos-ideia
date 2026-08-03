@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { crearProveedor, actualizarProveedor, toggleProveedorActivo } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -49,7 +50,7 @@ function ProveedorForm({
     const pct = modo === "precio_sugerido" && descuento ? parseFloat(descuento) : null;
     startTransition(async () => {
       try { await onSave(nombre, contacto, modo, pct); }
-      catch (e) { setError((e as Error).message); }
+      catch (e) { setError(friendlyError(e)); }
     });
   }
 

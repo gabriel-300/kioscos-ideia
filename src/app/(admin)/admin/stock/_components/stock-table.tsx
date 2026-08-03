@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
-import { formatKg } from "@/lib/utils";
+import { formatKg, friendlyError } from "@/lib/utils";
 
 type AjusteTarget = {
   sucursalId: string; sucursalNombre?: string;
@@ -48,7 +48,7 @@ function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; o
         onClose();
         router.refresh();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

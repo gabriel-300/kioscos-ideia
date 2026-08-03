@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { prestarTermo, devolverTermo, pagarMultaTermo } from "@/app/(admin)/admin/termos/actions";
 import { fechaHoyAR } from "@/lib/fecha";
-import { formatKg } from "@/lib/utils";
+import { formatKg, friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { CSSProperties } from "react";
 
@@ -580,7 +580,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
           personalNombre: (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
         });
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 
@@ -589,7 +589,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     if (!w) return;
     const canalLabel = CANALES.find((x) => x.id === r.canal)?.label ?? r.canal;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprobante</title>
-<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Courier New',monospace;font-size:13px;padding:24px 20px;color:#111;}h1{font-size:16px;font-weight:bold;text-align:center;margin-bottom:2px;}.sub{text-align:center;font-size:11px;color:#555;margin-bottom:12px;}.divider{border-top:1px dashed #bbb;margin:10px 0;}.row{display:flex;justify-content:space-between;margin-bottom:4px;}.name{flex:1;padding-right:8px;}.total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:4px;}.pago-row{display:flex;justify-content:space-between;margin-bottom:3px;}.vuelto-row{display:flex;justify-content:space-between;font-weight:bold;margin-top:4px;}.footer{text-align:center;font-size:10px;color:#888;margin-top:16px;}</style>
+<style>
+@page{size:80mm auto;margin:0;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Courier New',monospace;font-size:13px;width:80mm;padding:6mm 4mm;color:#111;}
+h1{font-size:16px;font-weight:bold;text-align:center;margin-bottom:2px;}.sub{text-align:center;font-size:11px;color:#555;margin-bottom:12px;}.divider{border-top:1px dashed #bbb;margin:10px 0;}.row{display:flex;justify-content:space-between;margin-bottom:4px;}.name{flex:1;padding-right:8px;}.total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:4px;}.pago-row{display:flex;justify-content:space-between;margin-bottom:3px;}.vuelto-row{display:flex;justify-content:space-between;font-weight:bold;margin-top:4px;}.footer{text-align:center;font-size:10px;color:#888;margin-top:16px;}
+</style>
 </head><body>
 <h1>Kioscos IDEIA</h1><div class="sub">${sucursalNombre ?? ""}</div><div class="sub">${r.fecha} · ${r.hora}</div><div class="sub">${canalLabel}</div><div class="divider"></div>
 ${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span>${i.qty} × ${AR.format(i.precioUnit)}</span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span></div>`).join("")}

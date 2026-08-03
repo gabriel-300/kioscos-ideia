@@ -52,6 +52,20 @@ export function slugify(text: string): string {
     .trim();
 }
 
+// Cuando el servidor se redeploya mientras alguien tenía una pantalla abierta,
+// el botón de guardar queda apuntando a una Server Action que ya no existe en
+// el build nuevo -- Next.js tira un mensaje técnico ("Server Action '...' was
+// not found on the server") que un vendedor/encargado no puede accionar. Acá
+// se traduce a instrucción clara; cualquier otro error (de negocio, ya
+// redactado a mano en la action) pasa intacto.
+export function friendlyError(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (message.includes("failed-to-find-server-action") || message.includes("was not found on the server")) {
+    return "La aplicación se actualizó mientras tenías esta pantalla abierta. Recargá la página (F5) y volvé a intentar.";
+  }
+  return message;
+}
+
 export function validateCuit(cuit: string): boolean {
   const clean = cuit.replace(/[-\s]/g, "");
   if (!/^\d{11}$/.test(clean)) return false;

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button, Input, Select, Combobox } from "@/components/ui";
 import { crearPromo, actualizarPromo, type PromoItemInput } from "../actions";
+import { friendlyError } from "@/lib/utils";
 import { ImageUploader } from "../../productos/_components/image-uploader";
 import type { PromoWithItems } from "./promos-table";
 
@@ -130,7 +131,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
         }
         onClose();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
 import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, generarLinkResetPassword, suspenderStaff } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 type StaffUser = {
   id: string;
@@ -67,7 +68,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
         router.refresh();
         onCreated();
       } catch (e) {
-        alert((e as Error).message);
+        alert(friendlyError(e));
       }
     });
   }
@@ -164,7 +165,7 @@ function EditDrawer({
         router.refresh();
         onClose();
       } catch (e) {
-        alert((e as Error).message);
+        alert(friendlyError(e));
       }
     });
   }
@@ -259,7 +260,7 @@ function EditDrawer({
                       await suspenderStaff(user.id, !user.isSuspended);
                       router.refresh();
                       onClose();
-                    } catch (e) { alert((e as Error).message); }
+                    } catch (e) { alert(friendlyError(e)); }
                   });
                 }}
                 className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${user.isSuspended ? "bg-red-400" : "bg-neutral-300"}`}
@@ -304,7 +305,7 @@ function EditDrawer({
                     if (!user.email) { alert("El usuario no tiene email"); return; }
                     startReset(async () => {
                       try { setResetLink(await generarLinkResetPassword(user.email!)); }
-                      catch (e) { alert((e as Error).message); }
+                      catch (e) { alert(friendlyError(e)); }
                     });
                   }}
                 >

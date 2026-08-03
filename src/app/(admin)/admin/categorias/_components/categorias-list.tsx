@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Button, Input, Textarea } from "@/components/ui";
 import { crearCategoria, actualizarCategoria, toggleCategoriaActiva, reordenarCategoria } from "../actions";
+import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
@@ -71,7 +72,7 @@ function CategoriaDrawer({
         }
         onClose();
       } catch (e) {
-        alert((e as Error).message);
+        alert(friendlyError(e));
       }
     });
   }

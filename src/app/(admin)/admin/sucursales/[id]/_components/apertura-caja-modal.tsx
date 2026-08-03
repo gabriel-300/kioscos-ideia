@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui";
 import { abrirCaja } from "../apertura-actions";
 import { fechaHoyAR } from "@/lib/fecha";
+import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -57,7 +58,7 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
         });
         handleClose();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

@@ -7,6 +7,7 @@ import {
   crearGastoFijo, actualizarGastoFijo, toggleGastoFijoActivo, eliminarGastoFijo, marcarGastoFijoPagado,
   type GastoFijoInput, type Categoria,
 } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 export type GastoFijoRow = {
   id:              string;
@@ -74,7 +75,7 @@ function GastoFijoDrawer({ open, gastoFijo, sucursales, onClose }: {
         if (gastoFijo) await actualizarGastoFijo(gastoFijo.id, payload);
         else           await crearGastoFijo(payload);
         onClose();
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 
@@ -207,7 +208,7 @@ function PagarDrawer({ open, gastoFijo, proveedores, onClose }: {
           sucursal_id:   gastoFijo.sucursal_id,
         });
         onClose();
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 

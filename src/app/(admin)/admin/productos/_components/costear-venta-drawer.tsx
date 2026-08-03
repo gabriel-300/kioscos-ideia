@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { costearDesdePrecioVenta } from "../actions";
+import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
@@ -47,7 +48,7 @@ export function CostearVentaDrawer({ categories, sucursales }: { categories: Cat
         });
         setResultado(actualizados);
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

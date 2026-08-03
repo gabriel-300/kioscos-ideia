@@ -8,6 +8,7 @@ import { ExportButton } from "./export-button";
 import { eliminarMovimiento, actualizarMovimientoMetadata, actualizarCostosItems } from "../actions";
 import { Button, Badge } from "@/components/ui";
 import { fechaHoyAR } from "@/lib/fecha";
+import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -56,7 +57,7 @@ function EditMetadataForm({ m, onDone }: { m: MovimientoRow; onDone: () => void 
         });
         router.refresh();
         onDone();
-      } catch (e) { alert((e as Error).message); }
+      } catch (e) { alert(friendlyError(e)); }
     });
   }
 
@@ -117,7 +118,7 @@ function EditPreciosForm({ m, onDone }: { m: MovimientoRow; onDone: () => void }
         );
         router.refresh();
         onDone();
-      } catch (e) { alert((e as Error).message); }
+      } catch (e) { alert(friendlyError(e)); }
     });
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { crearContacto, actualizarContacto } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 export type Nicho = { id: string; nombre: string; descripcion: string | null; horario_pico: string | null; color_tag: string | null };
 export type SucursalOpt = { id: string; nombre: string };
@@ -59,7 +60,7 @@ export function NichosBoard({ role, nichos, contactos, sucursales, sucursalFija 
           estado,
           convertido_pedido: estado === "convertido" ? true : c.convertido_pedido,
         });
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 
@@ -68,7 +69,7 @@ export function NichosBoard({ role, nichos, contactos, sucursales, sucursalFija 
     startTransition(async () => {
       try {
         await actualizarContacto(c.id, c.sucursal_id, { monto, convertido_pedido: true });
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 
@@ -225,7 +226,7 @@ function NuevoContactoModal({ nichos, sucursales, sucursalFija, onClose }: {
           consulta_mensaje: consulta || null,
         });
         onClose();
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 

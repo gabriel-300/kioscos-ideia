@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { Input, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui";
 import { crearSucursal, actualizarSucursal } from "../actions";
+import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Sucursal = Database["public"]["Tables"]["sucursales"]["Row"];
@@ -104,7 +105,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
         }
         onClose();
       } catch (e) {
-        alert((e as Error).message);
+        alert(friendlyError(e));
       }
     });
   }

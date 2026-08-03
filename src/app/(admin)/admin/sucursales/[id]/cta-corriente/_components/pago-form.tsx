@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { registrarPagoCTC, eliminarPagoCTC } from "../actions";
 import { Button } from "@/components/ui";
 import { fechaHoyAR } from "@/lib/fecha";
+import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -72,7 +73,7 @@ export function PagoBtn({
         setNotas("");
         router.refresh();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { verificarSobre, confirmarRetiroSobre } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -38,7 +39,7 @@ function VerificarModal({ cierreId, montoSobre, montoInicial, notasIniciales, on
       try {
         await verificarSobre(cierreId, { montoVerificado: montoNum, notas: notas || null });
         onClose();
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 
@@ -163,7 +164,7 @@ function ConfirmarRetiroButton({ cierreId }: { cierreId: string }) {
     setError(null);
     startTransition(async () => {
       try { await confirmarRetiroSobre(cierreId); }
-      catch (e) { setError((e as Error).message); }
+      catch (e) { setError(friendlyError(e)); }
     });
   }
 

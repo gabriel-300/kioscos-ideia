@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { registrarRetiro } from "../retiro-actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { friendlyError } from "@/lib/utils";
 
 interface Props {
   sucursalId: string;
@@ -77,7 +78,7 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
         });
         handleClose();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }

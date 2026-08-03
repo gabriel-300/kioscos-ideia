@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { crearGasto, actualizarGasto, eliminarGasto, type GastoInput, type Categoria } from "../actions";
+import { friendlyError } from "@/lib/utils";
 
 export type GastoRow = {
   id:          string;
@@ -67,7 +68,7 @@ function GastoDrawer({ open, gasto, sucursales, proveedores, onClose }: {
         if (gasto) await actualizarGasto(gasto.id, payload);
         else       await crearGasto(payload);
         onClose();
-      } catch (e) { setError((e as Error).message); }
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 

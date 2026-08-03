@@ -5,7 +5,7 @@ import { Button, Input, Select, Textarea, Combobox } from "@/components/ui";
 import { crearMovimiento, leerRemito, type ItemInput, type PromoItemInput } from "../actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { fechaHoyAR } from "@/lib/fecha";
-import { formatKg } from "@/lib/utils";
+import { formatKg, friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Sucursal = Pick<Database["public"]["Tables"]["sucursales"]["Row"], "id" | "nombre">;
@@ -305,7 +305,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
         resetForm();
         onClose();
       } catch (e) {
-        setError((e as Error).message);
+        setError(friendlyError(e));
       }
     });
   }
