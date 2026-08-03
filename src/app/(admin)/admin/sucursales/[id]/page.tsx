@@ -139,8 +139,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .order("fecha_prestamo", { ascending: true }) as unknown as Promise<{
         data: { id: string; termo_id: string; dni: string; telefono: string; nombre: string | null; fecha_prestamo: string; termo: { numero: string; tipo: string; image_url: string | null } | null }[] | null;
       }>,
-    // Para el selector de sucursal destino al enviar una transferencia.
-    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
+    // Para el selector de sucursal destino al enviar una transferencia --
+    // admin client: RLS de "sucursales" solo deja a encargado/vendedor ver
+    // SU PROPIA fila (022_fix_sucursales_own_row_select.sql), y acá
+    // cualquiera del staff necesita ver el resto de las sucursales activas
+    // para poder elegir a dónde mandar. Sin datos sensibles (solo nombre).
+    admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
       data: { id: string; nombre: string }[] | null;
     }>,
     // Transferencias enviadas a ESTA sucursal que todavía no se confirmaron.
