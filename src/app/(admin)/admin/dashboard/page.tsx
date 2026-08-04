@@ -147,7 +147,7 @@ export default async function DashboardPage() {
     cierreHoyRaw,
     retirosHoyRaw,
     stockSucursalRaw,
-    prodsMinimoRaw,
+    puntosPedidoRaw,
   ] = await Promise.all([
     supabase.from("sucursales").select("*", { count: "exact", head: true }),
     supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -198,12 +198,14 @@ export default async function DashboardPage() {
     (admin as any)
       .from("stock_sucursal")
       .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
-    // productos con stock mínimo configurado
-    admin
-      .from("products")
-      .select("id, name, stock_minimo")
-      .eq("is_active", true)
-      .gt("stock_minimo", 0) as unknown as Promise<{ data: { id: string; name: string; stock_minimo: number }[] | null }>,
+    // puntos de stock configurados por (producto, sucursal) -- reemplaza el
+    // viejo products.stock_minimo global (migración 069_puntos_stock.sql)
+    (admin as any)
+      .from("product_prices")
+      .select("product_id, sucursal_id, punto_pedido, punto_maximo, product:products(name, is_active)")
+      .not("punto_pedido", "is", null) as unknown as Promise<{
+        data: { product_id: string; sucursal_id: string; punto_pedido: number; punto_maximo: number | null; product: { name: string; is_active: boolean } | null }[] | null;
+      }>,
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };
@@ -301,17 +303,29 @@ export default async function DashboardPage() {
 
   const totalVentasHoy = resumenHoy.reduce((s, r) => s + r.ventasHoy, 0);
 
-  // ── Alertas de stock bajo ──
-  const prodsMinimoMap = new Map(
-    (prodsMinimoRaw?.data ?? []).map((p) => [p.id, p])
+  // ── Necesita reponer (punto de pedido, migración 069_puntos_stock.sql) ──
+  // Reemplaza la vieja alerta de "stock bajo" contra products.stock_minimo
+  // (global) -- ahora dispara antes, cuando el stock cruza el punto de
+  // pedido POR SUCURSAL, que es justamente el propósito de ese valor: avisar
+  // a tiempo de reponer, no cuando ya casi no queda.
+  const puntosPedidoMap = new Map(
+    (puntosPedidoRaw?.data ?? [])
+      .filter((p) => p.product?.is_active)
+      .map((p) => [`${p.sucursal_id}:${p.product_id}`, p])
   );
-  type AlertaStock = { sucursalId: string; productName: string; stockActual: number; stockMinimo: number };
+  type AlertaStock = { sucursalId: string; productName: string; stockActual: number; puntoPedido: number; cantidadSugerida: number | null };
   const alertasStock: AlertaStock[] = [];
   for (const row of stockSucursalRaw?.data ?? []) {
-    const prod = prodsMinimoMap.get(row.product_id);
-    if (!prod) continue;
-    if (row.stock_actual <= prod.stock_minimo) {
-      alertasStock.push({ sucursalId: row.sucursal_id, productName: prod.name, stockActual: row.stock_actual, stockMinimo: prod.stock_minimo });
+    const punto = puntosPedidoMap.get(`${row.sucursal_id}:${row.product_id}`);
+    if (!punto) continue;
+    if (row.stock_actual <= punto.punto_pedido) {
+      alertasStock.push({
+        sucursalId:       row.sucursal_id,
+        productName:      punto.product?.name ?? "",
+        stockActual:      row.stock_actual,
+        puntoPedido:      punto.punto_pedido,
+        cantidadSugerida: punto.punto_maximo != null ? Math.max(0, punto.punto_maximo - row.stock_actual) : null,
+      });
     }
   }
   const alertasBySuc = new Map<string, AlertaStock[]>();
@@ -580,7 +594,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Alertas de stock bajo */}
+      {/* Necesita reponer -- stock por debajo del punto de pedido configurado */}
       {alertasBySuc.size > 0 && (
         <div className="bg-white rounded-xl border border-amber-200 overflow-hidden mb-4">
           <div className="px-5 py-3 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
@@ -589,10 +603,10 @@ export default async function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008z" />
               </svg>
               <h2 className="text-sm font-semibold text-amber-800">
-                Stock bajo — {alertasStock.length} {alertasStock.length === 1 ? "producto" : "productos"} en {alertasBySuc.size} {alertasBySuc.size === 1 ? "kiosco" : "kioscos"}
+                Necesita reponer — {alertasStock.length} {alertasStock.length === 1 ? "producto" : "productos"} en {alertasBySuc.size} {alertasBySuc.size === 1 ? "kiosco" : "kioscos"}
               </h2>
             </div>
-            <Link href="/admin/stock" className="text-xs text-amber-700 hover:underline font-medium">Ver stock completo</Link>
+            <Link href="/admin/reposicion" className="text-xs text-amber-700 hover:underline font-medium">Ver reposición</Link>
           </div>
           <div className="divide-y divide-neutral-50">
             {Array.from(alertasBySuc.entries()).map(([sucId, items]) => (
@@ -608,6 +622,12 @@ export default async function DashboardPage() {
                       {a.productName}
                       <span className="opacity-60">·</span>
                       <span className="tabular-nums">{a.stockActual <= 0 ? "sin stock" : `${a.stockActual} u.`}</span>
+                      {a.cantidadSugerida != null && a.cantidadSugerida > 0 && (
+                        <>
+                          <span className="opacity-60">·</span>
+                          <span className="tabular-nums">pedir ≈{a.cantidadSugerida}</span>
+                        </>
+                      )}
                     </span>
                   ))}
                 </div>

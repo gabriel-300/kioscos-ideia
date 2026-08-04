@@ -742,6 +742,9 @@ export type Database = {
           sucursal_id: string
           precio_dist: number
           costo: number
+          punto_minimo: number | null
+          punto_pedido: number | null
+          punto_maximo: number | null
           updated_at: string
           updated_by: string | null
         }
@@ -751,6 +754,9 @@ export type Database = {
           sucursal_id: string
           precio_dist: number
           costo: number
+          punto_minimo?: number | null
+          punto_pedido?: number | null
+          punto_maximo?: number | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -760,6 +766,9 @@ export type Database = {
           sucursal_id?: string
           precio_dist?: number
           costo?: number
+          punto_minimo?: number | null
+          punto_pedido?: number | null
+          punto_maximo?: number | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -773,6 +782,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          dias_entrega: number | null
+          dia_pedido: string | null
           freezer_required: boolean
           gallery_urls: Json
           id: string
@@ -809,6 +820,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          dias_entrega?: number | null
+          dia_pedido?: string | null
           freezer_required?: boolean
           gallery_urls?: Json
           id?: string
@@ -845,6 +858,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          dias_entrega?: number | null
+          dia_pedido?: string | null
           freezer_required?: boolean
           gallery_urls?: Json
           id?: string

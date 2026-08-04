@@ -33,8 +33,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   let auditoriaPendientes = 0;
   let alertasPrecioPendientes = 0;
   let transferenciasPendientes = 0;
+  let reposicionPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -48,10 +49,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         .from("transferencias_stock")
         .select("id", { count: "exact", head: true })
         .eq("estado", "enviada"),
+      // Reposición no se puede contar con un filtro simple (compara dos
+      // columnas de tablas distintas, algo que PostgREST no soporta) -- se
+      // trae solo lo que tiene punto_pedido cargado (subconjunto chico del
+      // catálogo) y se cruza con el stock actual acá abajo.
+      (supabase as any)
+        .from("product_prices")
+        .select("product_id, sucursal_id, punto_pedido")
+        .not("punto_pedido", "is", null) as unknown as Promise<{
+          data: { product_id: string; sucursal_id: string; punto_pedido: number }[] | null;
+        }>,
     ]);
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
+
+    if (puntosConPedido && puntosConPedido.length > 0) {
+      const productIds = [...new Set(puntosConPedido.map((p) => p.product_id))];
+      const { data: stockRows } = await (supabase as any)
+        .from("stock_sucursal")
+        .select("product_id, sucursal_id, stock_actual")
+        .in("product_id", productIds) as { data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null };
+      const stockMap = new Map((stockRows ?? []).map((r) => [`${r.sucursal_id}:${r.product_id}`, r.stock_actual]));
+      reposicionPendientes = puntosConPedido.filter((p) => (stockMap.get(`${p.sucursal_id}:${p.product_id}`) ?? 0) <= p.punto_pedido).length;
+    }
   } else if ((role === "encargado" || role === "vendedor") && sucursalId) {
     // Acá el badge es solo lo que ESE kiosco tiene pendiente de recibir --
     // no el total global (eso es privado de admin, ver arriba).
@@ -71,6 +92,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         auditoriaPendientes={auditoriaPendientes}
         alertasPrecioPendientes={alertasPrecioPendientes}
         transferenciasPendientes={transferenciasPendientes}
+        reposicionPendientes={reposicionPendientes}
       />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>

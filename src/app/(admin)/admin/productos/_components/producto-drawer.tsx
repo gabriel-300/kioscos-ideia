@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Select } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearProducto, actualizarProducto, type PrecioSucursalInput } from "../actions";
+import { crearProducto, actualizarProducto, type PrecioSucursalInput, type PuntoSucursalInput } from "../actions";
 import { ImageUploader } from "./image-uploader";
 import type { Database } from "@/types/database";
 
@@ -15,6 +15,18 @@ type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 type Sucursal = { id: string; nombre: string };
 type PrecioRow = { product_id: string; sucursal_id: string; precio_dist: number; costo: number };
+type PuntoRow  = { product_id: string; sucursal_id: string; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null };
+
+const DIA_PEDIDO_OPTIONS = [
+  { value: "",          label: "Sin ciclo fijo" },
+  { value: "lunes",     label: "Lunes" },
+  { value: "martes",    label: "Martes" },
+  { value: "miercoles", label: "Miércoles" },
+  { value: "jueves",    label: "Jueves" },
+  { value: "viernes",   label: "Viernes" },
+  { value: "sabado",    label: "Sábado" },
+  { value: "domingo",   label: "Domingo" },
+];
 
 // Precio y costo dejaron de ser un campo del form -- son un valor por
 // sucursal, manejados aparte en `preciosPorSucursal` (igual que `imageUrl`).
@@ -27,7 +39,8 @@ const schema = z.object({
   freezer_required:  z.boolean(),
   is_active:         z.boolean(),
   vendible_pos:      z.boolean(),
-  stock_minimo:      z.preprocess((v) => (v === "" || v == null ? 0 : Number(v)), z.number().min(0)),
+  dias_entrega:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable()),
+  dia_pedido:        z.string().optional(),
   weight_grams:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
   merma_pct:         z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().min(0).max(99).nullable()),
 });
@@ -48,6 +61,7 @@ interface Props {
   categories:   Category[];
   sucursales:   Sucursal[];
   precios:      PrecioRow[];
+  puntos:       PuntoRow[];
   existingSkus: string[];
   onClose:      () => void;
   role?:        string;
@@ -76,13 +90,15 @@ type PriceHistoryEntry = {
 };
 
 type PrecioTexto = { precio_dist: string; costo: string };
+type PuntoTexto  = { minimo: string; pedido: string; maximo: string };
 
-export function ProductoDrawer({ open, product, categories, sucursales, precios, existingSkus, onClose, role }: Props) {
+export function ProductoDrawer({ open, product, categories, sucursales, precios, puntos, existingSkus, onClose, role }: Props) {
   const esAdmin = role === "admin";
   const [pending,      startTransition] = useTransition();
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
   const [preciosForm,  setPreciosForm]  = useState<Record<string, PrecioTexto>>({});
+  const [puntosForm,   setPuntosForm]   = useState<Record<string, PuntoTexto>>({});
   const [precioError,  setPrecioError]  = useState<string | null>(null);
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
@@ -90,7 +106,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
-      stock_minimo: 0, weight_grams: null, merma_pct: null,
+      dias_entrega: null, dia_pedido: "", weight_grams: null, merma_pct: null,
     },
   });
 
@@ -112,14 +128,22 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
     setPrecioError(null);
 
     const nuevosPrecios: Record<string, PrecioTexto> = {};
+    const nuevosPuntos:  Record<string, PuntoTexto>  = {};
     for (const s of sucursales) {
       const actual = product ? precios.find((p) => p.product_id === product.id && p.sucursal_id === s.id) : null;
       nuevosPrecios[s.id] = {
         precio_dist: actual ? String(actual.precio_dist) : "",
         costo:       actual ? String(actual.costo) : "",
       };
+      const punto = product ? puntos.find((p) => p.product_id === product.id && p.sucursal_id === s.id) : null;
+      nuevosPuntos[s.id] = {
+        minimo: punto?.punto_minimo != null ? String(punto.punto_minimo) : "",
+        pedido: punto?.punto_pedido != null ? String(punto.punto_pedido) : "",
+        maximo: punto?.punto_maximo != null ? String(punto.punto_maximo) : "",
+      };
     }
     setPreciosForm(nuevosPrecios);
+    setPuntosForm(nuevosPuntos);
 
     reset(product ? {
       sku:               product.sku,
@@ -130,15 +154,16 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       freezer_required:  product.freezer_required,
       is_active:         product.is_active,
       vendible_pos:      (product as any).vendible_pos ?? true,
-      stock_minimo:      (product as any).stock_minimo ?? 0,
+      dias_entrega:      (product as any).dias_entrega ?? null,
+      dia_pedido:        (product as any).dia_pedido ?? "",
       weight_grams:      product.weight_grams ?? null,
       merma_pct:         product.merma_coccion_pct != null ? Math.round(product.merma_coccion_pct * 1000) / 10 : null,
     } : {
       sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
-      stock_minimo: 0, weight_grams: null, merma_pct: null,
+      dias_entrega: null, dia_pedido: "", weight_grams: null, merma_pct: null,
     });
-  }, [open, product, reset, existingSkus, sucursales, precios]);
+  }, [open, product, reset, existingSkus, sucursales, precios, puntos]);
 
   function setPrecioCampo(sucursalId: string, campo: keyof PrecioTexto, valor: string) {
     setPreciosForm((prev) => ({ ...prev, [sucursalId]: { ...prev[sucursalId], [campo]: valor } }));
@@ -148,6 +173,16 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
     const origen = preciosForm[origenId];
     if (!origen) return;
     setPreciosForm((prev) => ({ ...prev, [destinoId]: { ...origen } }));
+  }
+
+  function setPuntoCampo(sucursalId: string, campo: keyof PuntoTexto, valor: string) {
+    setPuntosForm((prev) => ({ ...prev, [sucursalId]: { ...prev[sucursalId], [campo]: valor } }));
+  }
+
+  function copiarPuntosDeSucursal(destinoId: string, origenId: string) {
+    const origen = puntosForm[origenId];
+    if (!origen) return;
+    setPuntosForm((prev) => ({ ...prev, [destinoId]: { ...origen } }));
   }
 
   function onSubmit(values: FormValues) {
@@ -169,6 +204,26 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       preciosPayload.push({ sucursal_id: s.id, precio_dist, costo });
     }
 
+    // Puntos de stock: opcionales, cada campo se manda solo si se cargó algo
+    // (vacío = sin configurar, no genera alerta para esa sucursal).
+    const puntosPayload: PuntoSucursalInput[] = [];
+    for (const s of sucursales) {
+      const texto = puntosForm[s.id] ?? { minimo: "", pedido: "", maximo: "" };
+      const parseOpt = (v: string, label: string): number | null | undefined => {
+        if (v.trim() === "") return null;
+        const n = parseFloat(v);
+        if (isNaN(n) || n < 0) { setPrecioError(`El ${label} de "${s.nombre}" no es válido`); return undefined; }
+        return n;
+      };
+      const punto_minimo = parseOpt(texto.minimo, "mínimo");
+      if (punto_minimo === undefined) return;
+      const punto_pedido = parseOpt(texto.pedido, "punto de pedido");
+      if (punto_pedido === undefined) return;
+      const punto_maximo = parseOpt(texto.maximo, "máximo");
+      if (punto_maximo === undefined) return;
+      puntosPayload.push({ sucursal_id: s.id, punto_minimo, punto_pedido, punto_maximo });
+    }
+
     const payload = {
       sku:               values.sku,
       name:              values.name,
@@ -178,11 +233,13 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       freezer_required:  values.freezer_required,
       is_active:         values.is_active,
       vendible_pos:      values.vendible_pos,
-      stock_minimo:      values.stock_minimo,
+      dias_entrega:      values.dias_entrega,
+      dia_pedido:        values.dia_pedido || null,
       weight_grams:      values.weight_grams,
       merma_coccion_pct: values.merma_pct != null ? values.merma_pct / 100 : null,
       cover_image_url:   imageUrl,
       precios:           preciosPayload,
+      puntosStock:       puntosPayload,
     };
 
     startTransition(async () => {
@@ -264,6 +321,17 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
             <p className="text-[11px] text-neutral-400 -mt-2">
               Desmarcalo para insumos (ej. salchicha, pan de pancho) que no se venden sueltos al público — sigue contando stock y disponible para armar recetas/promos, pero no aparece como tile en Registrar venta.
             </p>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <Input
+                label="Días hasta la entrega"
+                type="number" step="1" min="0" placeholder="Ej: 2"
+                {...register("dias_entrega")}
+              />
+              <Select label="Día fijo de pedido" options={DIA_PEDIDO_OPTIONS} {...register("dia_pedido")} />
+            </div>
+            <p className="text-[11px] text-neutral-400 -mt-2">
+              Opcional. Para productos con ciclo de pedido fijo (ej. panificados: se piden un día puntual de la semana y tardan en llegar) -- van a aparecer en "Pedido semanal de hoy" dentro de Reposición ese día, aunque el stock todavía esté bien.
+            </p>
           </div>
 
           {/* Precios por sucursal -- cada sucursal es un negocio independiente,
@@ -336,6 +404,69 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
             )}
           </div>
 
+          {/* Puntos de stock por sucursal -- todos opcionales, a diferencia de
+              precio/costo: un producto sin punto de pedido cargado simplemente
+              no genera alerta de reposición. */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Puntos de stock por sucursal</p>
+            {sucursales.map((s) => {
+              const texto = puntosForm[s.id] ?? { minimo: "", pedido: "", maximo: "" };
+              const otras = sucursales.filter((o) => o.id !== s.id);
+              return (
+                <div key={s.id} className="rounded-lg border border-neutral-200 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-neutral-800">{s.nombre}</p>
+                    {otras.length > 0 && (
+                      <select
+                        className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) copiarPuntosDeSucursal(s.id, e.target.value);
+                          e.target.value = "";
+                        }}
+                      >
+                        <option value="" disabled>Copiar de…</option>
+                        {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1">Mínimo</label>
+                      <input
+                        type="number" step="1" min="0" placeholder="—"
+                        value={texto.minimo}
+                        onChange={(e) => setPuntoCampo(s.id, "minimo", e.target.value)}
+                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1">Punto de pedido</label>
+                      <input
+                        type="number" step="1" min="0" placeholder="—"
+                        value={texto.pedido}
+                        onChange={(e) => setPuntoCampo(s.id, "pedido", e.target.value)}
+                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1">Máximo</label>
+                      <input
+                        type="number" step="1" min="0" placeholder="—"
+                        value={texto.maximo}
+                        onChange={(e) => setPuntoCampo(s.id, "maximo", e.target.value)}
+                        className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-[11px] text-neutral-400">
+              Todos opcionales. La alerta de reposición se dispara cuando el stock llega al "Punto de pedido"; sin ese valor cargado, este producto no genera alerta en esa sucursal.
+            </p>
+          </div>
+
           {/* Historial de precios */}
           {esAdmin && product && priceHistory.length > 0 && (
             <div className="space-y-2">
@@ -371,17 +502,6 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
           {/* Stock */}
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Stock</p>
-            <div>
-              <Input
-                label="Stock mínimo (alerta)"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0"
-                {...register("stock_minimo")}
-              />
-              <p className="text-[11px] text-neutral-400 mt-1">Marca "Bajo Stock" al llegar a este valor</p>
-            </div>
             {watchedUnitLabel === "unidad" && (
               <div>
                 <Input

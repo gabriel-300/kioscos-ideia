@@ -16,6 +16,16 @@ export interface PrecioSucursalInput {
   costo: number;
 }
 
+// Puntos de stock (mínimo/pedido/máximo, migración 069) -- todos opcionales,
+// a diferencia de precio/costo: no hay validación de completitud acá, un
+// producto sin punto_pedido simplemente no genera alerta de reposición.
+export interface PuntoSucursalInput {
+  sucursal_id:  string;
+  punto_minimo: number | null;
+  punto_pedido: number | null;
+  punto_maximo: number | null;
+}
+
 function slugify(text: string) {
   return text
     .toLowerCase()
@@ -59,12 +69,12 @@ async function validarPreciosCompletos(
 }
 
 export async function crearProducto(
-  data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number; precios: PrecioSucursalInput[] }
+  data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number; precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] }
 ): Promise<{ error?: string }> {
   const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
-  const { precios, ...productData } = data;
+  const { precios, puntosStock, ...productData } = data;
 
   const errorPrecios = await validarPreciosCompletos(supabase, precios);
   if (errorPrecios) return { error: errorPrecios };
@@ -86,14 +96,21 @@ export async function crearProducto(
   const { data: nuevo, error } = await (supabase as any).from("products").insert(payload).select("id").single();
   if (error) return { error: friendlyDbError(error) };
 
-  const { error: preciosError } = await supabase.from("product_prices").insert(
-    precios.map((p) => ({
-      product_id:  nuevo.id as string,
-      sucursal_id: p.sucursal_id,
-      precio_dist: p.precio_dist,
-      costo:       p.costo,
-      updated_by:  userId,
-    }))
+  const puntosPorSucursal = new Map((puntosStock ?? []).map((p) => [p.sucursal_id, p]));
+  const { error: preciosError } = await (supabase as any).from("product_prices").insert(
+    precios.map((p) => {
+      const punto = puntosPorSucursal.get(p.sucursal_id);
+      return {
+        product_id:   nuevo.id as string,
+        sucursal_id:  p.sucursal_id,
+        precio_dist:  p.precio_dist,
+        costo:        p.costo,
+        punto_minimo: punto?.punto_minimo ?? null,
+        punto_pedido: punto?.punto_pedido ?? null,
+        punto_maximo: punto?.punto_maximo ?? null,
+        updated_by:   userId,
+      };
+    })
   );
   if (preciosError) return { error: preciosError.message };
 
@@ -103,12 +120,12 @@ export async function crearProducto(
 
 export async function actualizarProducto(
   id: string,
-  data: (Update & { stock_minimo?: number; precios: PrecioSucursalInput[] }) | Record<string, unknown>
+  data: (Update & { stock_minimo?: number; precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] }) | Record<string, unknown>
 ): Promise<{ error?: string }> {
   const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
-  const { precios, ...productData } = data as { precios: PrecioSucursalInput[] } & Record<string, unknown>;
+  const { precios, puntosStock, ...productData } = data as { precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] } & Record<string, unknown>;
 
   const errorPrecios = await validarPreciosCompletos(supabase, precios);
   if (errorPrecios) return { error: errorPrecios };
@@ -141,15 +158,22 @@ export async function actualizarProducto(
     }
   }
 
-  const { error: upsertError } = await supabase.from("product_prices").upsert(
-    precios.map((p) => ({
-      product_id:  id,
-      sucursal_id: p.sucursal_id,
-      precio_dist: p.precio_dist,
-      costo:       p.costo,
-      updated_by:  userId,
-      updated_at:  new Date().toISOString(),
-    })),
+  const puntosPorSucursal = new Map((puntosStock ?? []).map((p) => [p.sucursal_id, p]));
+  const { error: upsertError } = await (supabase as any).from("product_prices").upsert(
+    precios.map((p) => {
+      const punto = puntosPorSucursal.get(p.sucursal_id);
+      return {
+        product_id:   id,
+        sucursal_id:  p.sucursal_id,
+        precio_dist:  p.precio_dist,
+        costo:        p.costo,
+        punto_minimo: punto?.punto_minimo ?? null,
+        punto_pedido: punto?.punto_pedido ?? null,
+        punto_maximo: punto?.punto_maximo ?? null,
+        updated_by:   userId,
+        updated_at:   new Date().toISOString(),
+      };
+    }),
     { onConflict: "product_id,sucursal_id" }
   );
   if (upsertError) return { error: upsertError.message };

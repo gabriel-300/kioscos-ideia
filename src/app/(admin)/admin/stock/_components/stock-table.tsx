@@ -123,7 +123,7 @@ function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; o
 }
 
 type Sucursal = { id: string; nombre: string };
-type Product  = { id: string; name: string; sku: string; category_id: string | null; unit_label: string; stock_minimo: number };
+type Product  = { id: string; name: string; sku: string; category_id: string | null; unit_label: string };
 type Category = { id: string; name: string };
 
 type Status = "ok" | "low" | "empty" | "negative" | "none";
@@ -216,12 +216,13 @@ function Filters({
 }
 
 /* ─── Vista plana (encargado/vendedor — una sucursal) ────── */
-function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap, sucursalId, sucursalNombre, canAjustar }: {
+function FlatStockTable({ products, categories, flatStockMap, entradaMap, salidaMap, minimoMap, sucursalId, sucursalNombre, canAjustar }: {
   products:     Product[];
   categories:   Category[];
   flatStockMap: Record<string, number>;
   entradaMap:   Record<string, number>;
   salidaMap:    Record<string, number>;
+  minimoMap:    Record<string, number>;
   sucursalId?:     string;
   sucursalNombre?: string;
   canAjustar?:  boolean;
@@ -242,14 +243,14 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
     const hasData = p.id in flatStockMap;
     if (hideEmpty && qty <= 0) return false;
     if (statusFilter !== "all") {
-      const st = getStatus(qty, p.stock_minimo, hasData);
+      const st = getStatus(qty, minimoMap[p.id] ?? 0, hasData);
       if (statusFilter === "ok"    && st !== "ok")    return false;
       if (statusFilter === "low"   && st !== "low")   return false;
       if (statusFilter === "empty" && st !== "empty") return false;
       if (statusFilter === "alert" && !["low","empty","negative"].includes(st)) return false;
     }
     return true;
-  }), [products, catFilter, search, hideEmpty, statusFilter, flatStockMap]);
+  }), [products, catFilter, search, hideEmpty, statusFilter, flatStockMap, minimoMap]);
 
   const negatives = useMemo(() =>
     products.filter((p) => (flatStockMap[p.id] ?? 0) < 0),
@@ -315,9 +316,10 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
               const hasData = p.id in flatStockMap;
               const ent     = entradaMap[p.id] ?? 0;
               const sal     = salidaMap[p.id]  ?? 0;
-              const status  = getStatus(qty, p.stock_minimo, hasData);
+              const minimo  = minimoMap[p.id] ?? 0;
+              const status  = getStatus(qty, minimo, hasData);
               const badge   = status !== "none" ? STATUS_BADGE[status as Exclude<Status, "none">] : null;
-              const bw      = barWidth(qty, p.stock_minimo, status);
+              const bw      = barWidth(qty, minimo, status);
 
               const ajustable = !!(canAjustar && sucursalId);
               return (
@@ -354,8 +356,8 @@ function FlatStockTable({ products, categories, flatStockMap, entradaMap, salida
                     ) : (
                       <div className="flex flex-col items-end gap-1">
                         <span className="font-bold text-neutral-900 tabular-nums">{fmtQty(qty, p.unit_label)}</span>
-                        {p.stock_minimo > 0 && (
-                          <span className="text-[10px] text-neutral-300">mín {fmtQty(p.stock_minimo, p.unit_label)}</span>
+                        {minimo > 0 && (
+                          <span className="text-[10px] text-neutral-300">mín {fmtQty(minimo, p.unit_label)}</span>
                         )}
                       </div>
                     )}
@@ -418,11 +420,12 @@ function StockCell({ qty, hasData, unit, min, onClick }: {
   );
 }
 
-function MatrixStockTable({ sucursales, products, categories, stockMap }: {
+function MatrixStockTable({ sucursales, products, categories, stockMap, minimoMatrix }: {
   sucursales: Sucursal[];
   products:   Product[];
   categories: Category[];
-  stockMap:   Record<string, Record<string, number>>;
+  stockMap:     Record<string, Record<string, number>>;
+  minimoMatrix: Record<string, Record<string, number>>;
 }) {
   const [ajusteTarget, setAjusteTarget] = useState<AjusteTarget | null>(null);
   const [catFilter,    setCat]      = useState("all");
@@ -451,7 +454,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
       const worst = sucursalesVisibles.reduce<Status>((acc, s) => {
         const qty = stockMap[s.id]?.[p.id];
         if (qty === undefined) return acc;
-        const st = getStatus(qty, p.stock_minimo, true);
+        const st = getStatus(qty, minimoMatrix[s.id]?.[p.id] ?? 0, true);
         const order: Status[] = ["negative", "empty", "low", "ok", "none"];
         return order.indexOf(st) < order.indexOf(acc) ? st : acc;
       }, "none");
@@ -461,7 +464,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
       if (statusFilter === "alert" && !["low","empty","negative"].includes(worst)) return false;
     }
     return true;
-  }), [products, catFilter, search, hideEmpty, statusFilter, sucursalesVisibles, stockMap]);
+  }), [products, catFilter, search, hideEmpty, statusFilter, sucursalesVisibles, stockMap, minimoMatrix]);
 
   const alerts = useMemo(() => {
     const neg: { sucursalId: string; productId: string; nombre: string; product: string; qty: number; unit: string }[] = [];
@@ -554,7 +557,7 @@ function MatrixStockTable({ sucursales, products, categories, stockMap }: {
                     return (
                       <td key={s.id} className="px-4 py-3">
                         <StockCell
-                          qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={p.stock_minimo}
+                          qty={qty ?? 0} hasData={hasData} unit={p.unit_label} min={minimoMatrix[s.id]?.[p.id] ?? 0}
                           onClick={() => setAjusteTarget({
                             sucursalId: s.id, sucursalNombre: s.nombre,
                             productId: p.id, productName: p.name,
@@ -583,16 +586,18 @@ export function StockTable(props:
       flatStockMap: Record<string, number>;
       entradaMap: Record<string, number>;
       salidaMap:  Record<string, number>;
+      minimoMap:  Record<string, number>;
       sucursalId?: string;
       sucursalNombre?: string;
       canAjustar?: boolean;
-      sucursales?: undefined; stockMap?: undefined; readOnly?: undefined;
+      sucursales?: undefined; stockMap?: undefined; readOnly?: undefined; minimoMatrix?: undefined;
     }
   | {
       sucursales: Sucursal[]; products: Product[]; categories: Category[];
       stockMap: Record<string, Record<string, number>>;
+      minimoMatrix: Record<string, Record<string, number>>;
       readOnly?: boolean;
-      flatStockMap?: undefined; entradaMap?: undefined; salidaMap?: undefined;
+      flatStockMap?: undefined; entradaMap?: undefined; salidaMap?: undefined; minimoMap?: undefined;
       sucursalId?: undefined; sucursalNombre?: undefined; canAjustar?: undefined;
     }
 ) {
@@ -604,6 +609,7 @@ export function StockTable(props:
         flatStockMap={props.flatStockMap}
         entradaMap={props.entradaMap}
         salidaMap={props.salidaMap}
+        minimoMap={props.minimoMap}
         sucursalId={props.sucursalId}
         sucursalNombre={props.sucursalNombre}
         canAjustar={props.canAjustar}
@@ -616,6 +622,7 @@ export function StockTable(props:
       products={props.products}
       categories={props.categories}
       stockMap={props.stockMap}
+      minimoMatrix={props.minimoMatrix}
     />
   );
 }

@@ -25,13 +25,17 @@ export default async function ProductosPage() {
       .gt("stock_actual", 0) as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null;
       }>,
-    admin.from("product_prices").select("product_id, sucursal_id, precio_dist, costo") as unknown as Promise<{
-      data: { product_id: string; sucursal_id: string; precio_dist: number; costo: number }[] | null;
+    (admin as any).from("product_prices").select("product_id, sucursal_id, precio_dist, costo, punto_minimo, punto_pedido, punto_maximo") as unknown as Promise<{
+      data: { product_id: string; sucursal_id: string; precio_dist: number; costo: number; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null }[] | null;
     }>,
   ]);
 
   const products = productsRaw ?? [];
   const precios  = preciosRes.data ?? [];
+  const puntos   = precios.map((p) => ({
+    product_id: p.product_id, sucursal_id: p.sucursal_id,
+    punto_minimo: p.punto_minimo, punto_pedido: p.punto_pedido, punto_maximo: p.punto_maximo,
+  }));
 
   // Detectar productos inactivos con stock remanente
   const inactivosMap: Record<string, string> = {};
@@ -81,6 +85,7 @@ export default async function ProductosPage() {
         categories={categories ?? []}
         sucursales={sucursales ?? []}
         precios={precios}
+        puntos={puntos}
         role={role}
       />
     </div>

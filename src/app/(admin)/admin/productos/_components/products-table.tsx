@@ -13,6 +13,7 @@ type Category = Database["public"]["Tables"]["categories"]["Row"];
 type ProductWithCat = Product & { category: Category | null };
 type Sucursal = { id: string; nombre: string };
 type PrecioRow = { product_id: string; sucursal_id: string; precio_dist: number; costo: number };
+type PuntoRow  = { product_id: string; sucursal_id: string; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -31,12 +32,13 @@ function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
 }
 
 export function ProductsTable({
-  products, categories, sucursales, precios, role,
+  products, categories, sucursales, precios, puntos, role,
 }: {
   products:   ProductWithCat[];
   categories: Category[];
   sucursales: Sucursal[];
   precios:    PrecioRow[];
+  puntos:     PuntoRow[];
   role?:      string;
 }) {
   const esAdmin = role === "admin";
@@ -270,6 +272,7 @@ export function ProductsTable({
         categories={categories}
         sucursales={sucursales}
         precios={precios}
+        puntos={puntos}
         existingSkus={products.map((p) => p.sku)}
         onClose={closeDrawer}
         role={role}

@@ -61,10 +61,16 @@ export default async function StockPage() {
     // inventario real, no una porción filtrada por turno. El alcance a la
     // sucursal propia ya lo garantiza el .eq de abajo con staffSucursalId,
     // que se resolvió server-side desde la sesión (no viene del cliente).
-    const stockRes = await (admin as any)
-      .from("stock_sucursal")
-      .select("product_id, entradas, salidas, stock_actual")
-      .eq("sucursal_id", staffSucursalId);
+    const [stockRes, puntosRes] = await Promise.all([
+      (admin as any)
+        .from("stock_sucursal")
+        .select("product_id, entradas, salidas, stock_actual")
+        .eq("sucursal_id", staffSucursalId),
+      (admin as any)
+        .from("product_prices")
+        .select("product_id, punto_minimo")
+        .eq("sucursal_id", staffSucursalId) as unknown as Promise<{ data: { product_id: string; punto_minimo: number | null }[] | null }>,
+    ]);
     const stockRows = stockRes.data as { product_id: string; entradas: number; salidas: number; stock_actual: number }[] | null;
 
     const entradaMap: Record<string, number> = {};
@@ -74,6 +80,10 @@ export default async function StockPage() {
       entradaMap[r.product_id] = r.entradas;
       salidaMap[r.product_id]  = r.salidas;
       stockMap[r.product_id]   = r.stock_actual;
+    }
+    const minimoMap: Record<string, number> = {};
+    for (const r of puntosRes.data ?? []) {
+      if (r.punto_minimo != null) minimoMap[r.product_id] = r.punto_minimo;
     }
 
     return (
@@ -90,6 +100,7 @@ export default async function StockPage() {
           flatStockMap={stockMap}
           entradaMap={entradaMap}
           salidaMap={salidaMap}
+          minimoMap={minimoMap}
           sucursalId={staffSucursalId ?? undefined}
           sucursalNombre={sucursal?.nombre ?? undefined}
           canAjustar={false}
@@ -104,6 +115,7 @@ export default async function StockPage() {
   const [
     { data: sucursales },
     { data: stockRows },
+    { data: puntosRows },
   ] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     (supabase as any)
@@ -111,12 +123,23 @@ export default async function StockPage() {
       .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{
         data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null;
       }>,
+    (admin as any)
+      .from("product_prices")
+      .select("sucursal_id, product_id, punto_minimo") as unknown as Promise<{
+        data: { sucursal_id: string; product_id: string; punto_minimo: number | null }[] | null;
+      }>,
   ]);
 
   const matrixMap: Record<string, Record<string, number>> = {};
   for (const r of stockRows ?? []) {
     if (!matrixMap[r.sucursal_id]) matrixMap[r.sucursal_id] = {};
     matrixMap[r.sucursal_id][r.product_id] = r.stock_actual;
+  }
+  const minimoMatrix: Record<string, Record<string, number>> = {};
+  for (const r of puntosRows ?? []) {
+    if (r.punto_minimo == null) continue;
+    if (!minimoMatrix[r.sucursal_id]) minimoMatrix[r.sucursal_id] = {};
+    minimoMatrix[r.sucursal_id][r.product_id] = r.punto_minimo;
   }
 
   return (
@@ -132,6 +155,7 @@ export default async function StockPage() {
         products={products ?? []}
         categories={categories ?? []}
         stockMap={matrixMap}
+        minimoMatrix={minimoMatrix}
       />
     </div>
   );

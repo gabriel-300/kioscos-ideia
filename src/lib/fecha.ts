@@ -52,3 +52,17 @@ export function fechaHoyAR(date: Date = new Date()): string {
 export function primerDiaMesAR(date: Date = new Date()): string {
   return `${fechaHoyAR(date).slice(0, 7)}-01`;
 }
+
+const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] as const;
+
+/**
+ * Día de la semana de "hoy" (o de cualquier instante) según el calendario de
+ * Argentina, sin acentos ('lunes'..'domingo') -- mismos valores que el check
+ * de products.dia_pedido. Se resuelve vía weekday en inglés (en-US) para no
+ * depender de parsear nombres localizados con acentos.
+ */
+export function diaSemanaHoyAR(date: Date = new Date()): typeof DIAS_SEMANA[number] {
+  const en = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(date);
+  const idx = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(en);
+  return DIAS_SEMANA[idx === -1 ? 0 : idx];
+}
