@@ -8,12 +8,16 @@ import { Button } from "@/components/ui";
 export type PromoWithItems = {
   id:              string;
   name:            string;
-  price:           number;
+  price:           number | null;
   is_active:       boolean;
   tipo:            "promo" | "receta";
   cover_image_url: string | null;
   category_id:     string | null;
   requiere_termo:  boolean;
+  promo_prices: {
+    sucursal_id: string;
+    price:       number;
+  }[];
   promo_items: {
     id:         string;
     product_id: string;
@@ -24,6 +28,7 @@ export type PromoWithItems = {
 
 type ProductOption  = { id: string; name: string; unit_label: string };
 type CategoryOption = { id: string; name: string };
+type SucursalOption = { id: string; nombre: string };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -41,7 +46,9 @@ function ToggleActiva({ id, activa }: { id: string; activa: boolean }) {
   );
 }
 
-export function PromosTable({ promos, products, categories }: { promos: PromoWithItems[]; products: ProductOption[]; categories: CategoryOption[] }) {
+export function PromosTable({ promos, products, categories, sucursales }: {
+  promos: PromoWithItems[]; products: ProductOption[]; categories: CategoryOption[]; sucursales: SucursalOption[];
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<PromoWithItems | null>(null);
   const [, startTransition]         = useTransition();
@@ -54,6 +61,10 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
   function handleDelete(id: string) {
     if (!confirm("¿Eliminar esta promoción? Esta acción no se puede deshacer.")) return;
     startTransition(() => eliminarPromo(id));
+  }
+
+  function precioDe(p: PromoWithItems, sucursalId: string): number | null {
+    return p.promo_prices.find((pp) => pp.sucursal_id === sucursalId)?.price ?? null;
   }
 
   return (
@@ -97,8 +108,15 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
                     </span>
                   ))}
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                  <span className="tabular-nums text-neutral-700 font-semibold">{AR.format(p.price)}</span>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-neutral-700">
+                  {sucursales.map((s) => (
+                    <span key={s.id}>
+                      <span className="text-neutral-400">{s.nombre}:</span>{" "}
+                      <span className="font-semibold">{precioDe(p, s.id) != null ? AR.format(precioDe(p, s.id)!) : "—"}</span>
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-2 text-xs">
                   <div>
                     <button onClick={() => openEdit(p)} className="text-tierra-700 hover:underline font-medium mr-3">
                       Editar
@@ -121,7 +139,11 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
                 <tr className="border-b border-neutral-100 bg-neutral-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Promoción</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Composición</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Precio</th>
+                  {sucursales.map((s) => (
+                    <th key={s.id} className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      {s.nombre}
+                    </th>
+                  ))}
                   <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Activa</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -129,7 +151,7 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
               <tbody className="divide-y divide-neutral-100">
                 {promos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-400">
+                    <td colSpan={4 + sucursales.length} className="px-4 py-10 text-center text-sm text-neutral-400">
                       Todavía no hay promociones.
                     </td>
                   </tr>
@@ -158,7 +180,14 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{AR.format(p.price)}</td>
+                    {sucursales.map((s) => {
+                      const precio = precioDe(p, s.id);
+                      return (
+                        <td key={s.id} className="px-4 py-3 text-right tabular-nums text-neutral-700">
+                          {precio != null ? AR.format(precio) : <span className="text-neutral-300">—</span>}
+                        </td>
+                      );
+                    })}
                     <td className="px-4 py-3 text-center">
                       <ToggleActiva id={p.id} activa={p.is_active} />
                     </td>
@@ -183,6 +212,7 @@ export function PromosTable({ promos, products, categories }: { promos: PromoWit
         promo={editing}
         products={products}
         categories={categories}
+        sucursales={sucursales}
         onClose={closeDrawer}
       />
     </>

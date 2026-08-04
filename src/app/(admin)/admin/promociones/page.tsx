@@ -15,13 +15,14 @@ export default async function PromocionesPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: promos }, { data: products }, { data: categories }] = await Promise.all([
+  const [{ data: promos }, { data: products }, { data: categories }, { data: sucursales }] = await Promise.all([
     (supabase as any)
       .from("promos")
-      .select("*, promo_items(id, product_id, cantidad, product:products(id, name, unit_label))")
+      .select("*, promo_prices(sucursal_id, price), promo_items(id, product_id, cantidad, product:products(id, name, unit_label))")
       .order("name") as unknown as Promise<{ data: PromoWithItems[] | null }>,
     supabase.from("products").select("id, name, unit_label").eq("is_active", true).order("name"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
   ]);
 
   return (
@@ -37,6 +38,7 @@ export default async function PromocionesPage() {
         promos={promos ?? []}
         products={products ?? []}
         categories={categories ?? []}
+        sucursales={sucursales ?? []}
       />
     </div>
   );

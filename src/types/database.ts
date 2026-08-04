@@ -1003,7 +1003,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
-          price: number
+          price: number | null
           tipo: string
           updated_at: string
           updated_by: string | null
@@ -1016,7 +1016,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
-          price: number
+          price?: number | null
           tipo?: string
           updated_at?: string
           updated_by?: string | null
@@ -1029,7 +1029,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
-          price?: number
+          price?: number | null
           tipo?: string
           updated_at?: string
           updated_by?: string | null
@@ -1040,6 +1040,48 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_prices: {
+        Row: {
+          id: string
+          promo_id: string
+          sucursal_id: string
+          price: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          promo_id: string
+          sucursal_id: string
+          price: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          promo_id?: string
+          sucursal_id?: string
+          price?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_prices_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_prices_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
             referencedColumns: ["id"]
           },
         ]

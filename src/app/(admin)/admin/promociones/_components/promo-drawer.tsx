@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Button, Input, Select, Combobox } from "@/components/ui";
-import { crearPromo, actualizarPromo, type PromoItemInput } from "../actions";
+import { crearPromo, actualizarPromo, type PromoItemInput, type PrecioSucursalInput } from "../actions";
 import { friendlyError } from "@/lib/utils";
 import { ImageUploader } from "../../productos/_components/image-uploader";
 import type { PromoWithItems } from "./promos-table";
 
 type ProductOption = { id: string; name: string; unit_label: string };
 type CategoryOption = { id: string; name: string };
+type SucursalOption = { id: string; nombre: string };
 
 interface LineItem {
   product_id: string;
@@ -22,13 +23,14 @@ interface Props {
   promo:      PromoWithItems | null;
   products:   ProductOption[];
   categories: CategoryOption[];
+  sucursales: SucursalOption[];
   onClose:    () => void;
 }
 
-export function PromoDrawer({ open, promo, products, categories, onClose }: Props) {
+export function PromoDrawer({ open, promo, products, categories, sucursales, onClose }: Props) {
   const [pending, startTransition] = useTransition();
   const [name,      setName]      = useState("");
-  const [price,     setPrice]     = useState("");
+  const [preciosForm, setPreciosForm] = useState<Record<string, string>>({});
   const [isActive,  setIsActive]  = useState(true);
   const [tipo,      setTipo]      = useState<"promo" | "receta">("promo");
   const [categoryId, setCategoryId] = useState("");
@@ -43,7 +45,12 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
     if (!open) return;
     if (promo) {
       setName(promo.name);
-      setPrice(String(promo.price));
+      const precioPorSucursal: Record<string, string> = {};
+      for (const s of sucursales) {
+        const actual = promo.promo_prices.find((p) => p.sucursal_id === s.id);
+        precioPorSucursal[s.id] = actual ? String(actual.price) : "";
+      }
+      setPreciosForm(precioPorSucursal);
       setIsActive(promo.is_active);
       setTipo(promo.tipo);
       setCategoryId(promo.category_id ?? "");
@@ -65,7 +72,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
       setRindeMode(nextRindeMode);
       setRindeTexto(nextRindeTexto);
     } else {
-      setName(""); setPrice(""); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
+      setName(""); setPreciosForm({}); setIsActive(true); setTipo("promo"); setItems([emptyLine()]);
       setCategoryId("");
       setRequiereTermo(false);
       setImageUrl(null);
@@ -73,9 +80,16 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
       setRindeTexto({});
     }
     setError(null);
-  }, [open, promo]);
+  }, [open, promo, sucursales]);
 
   function handleClose() { onClose(); }
+
+  function setPrecioCampo(sucursalId: string, valor: string) {
+    setPreciosForm((prev) => ({ ...prev, [sucursalId]: valor }));
+  }
+  function copiarDeSucursal(destinoId: string, origenId: string) {
+    setPreciosForm((prev) => ({ ...prev, [destinoId]: prev[origenId] ?? "" }));
+  }
 
   function addLine()              { setItems((p) => [...p, emptyLine()]); }
   function removeLine(i: number)  { setItems((p) => p.filter((_, idx) => idx !== i)); }
@@ -112,8 +126,14 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
   function handleSubmit() {
     setError(null);
     if (!name.trim()) { setError("Ingresá un nombre"); return; }
-    const priceNum = parseFloat(price);
-    if (!priceNum || priceNum <= 0) { setError("Ingresá un precio válido"); return; }
+
+    const precios: PrecioSucursalInput[] = [];
+    for (const s of sucursales) {
+      const num = parseFloat(preciosForm[s.id] ?? "");
+      if (!num || num <= 0) { setError(`Ingresá el precio para ${s.nombre}`); return; }
+      precios.push({ sucursal_id: s.id, price: num });
+    }
+
     const validItems = items.filter((i) => i.product_id && parseFloat(i.cantidad) > 0);
     if (validItems.length === 0) { setError("Agregá al menos un producto con cantidad"); return; }
 
@@ -125,9 +145,9 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
     startTransition(async () => {
       try {
         if (promo) {
-          await actualizarPromo(promo.id, { name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems });
+          await actualizarPromo(promo.id, { name: name.trim(), is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems, precios });
         } else {
-          await crearPromo({ name: name.trim(), price: priceNum, is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems });
+          await crearPromo({ name: name.trim(), is_active: isActive, tipo, cover_image_url: imageUrl, category_id: categoryId || null, requiere_termo: requiereTermo, items: parsedItems, precios });
         }
         onClose();
       } catch (e) {
@@ -197,10 +217,7 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
             <div className="col-span-2">
               <Input label="Nombre *" value={name} onChange={(e) => setName(e.target.value)} placeholder={tipo === "receta" ? "Ej: Hamburguesa Completa" : "Ej: Combo Simple"} />
             </div>
-            <div>
-              <Input label="Precio *" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
-            </div>
-            <div>
+            <div className="col-span-2">
               <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Estado</label>
               <label className="h-11 flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" />
@@ -216,6 +233,45 @@ export function PromoDrawer({ open, promo, products, categories, onClose }: Prop
                 Al vender esta promo, el POS va a pedir qué N° de termo se entrega y el DNI, además de descontar los componentes de arriba.
               </p>
             </div>
+          </div>
+
+          {/* Precios por sucursal -- cada sucursal es un negocio independiente,
+              no hay un precio "general": las dos son obligatorias (mismo
+              criterio que Productos, ver migración 059). */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precios por sucursal</p>
+            {sucursales.map((s) => {
+              const otras = sucursales.filter((o) => o.id !== s.id);
+              return (
+                <div key={s.id} className="rounded-lg border border-neutral-200 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-neutral-800">{s.nombre}</p>
+                    {otras.length > 0 && (
+                      <select
+                        className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) copiarDeSucursal(s.id, e.target.value);
+                          e.target.value = "";
+                        }}
+                      >
+                        <option value="" disabled>Copiar de…</option>
+                        {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-500 mb-1">Precio $ *</label>
+                    <input
+                      type="number" min="0" step="0.01" placeholder="0"
+                      value={preciosForm[s.id] ?? ""}
+                      onChange={(e) => setPrecioCampo(s.id, e.target.value)}
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div>

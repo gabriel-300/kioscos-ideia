@@ -65,7 +65,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -110,13 +110,18 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .from("promos")
       .select("id, name, price, tipo, cover_image_url, category_id, requiere_termo, promo_items(product_id, cantidad)")
       .eq("is_active", true)
-      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
+      .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number | null; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
     // Precio y costo son por sucursal (ver migración 059) -- se resuelven acá,
     // antes de armar `products`, para que el resto de la página (venta rápida,
     // entregas, etc.) siga viendo `precio_dist`/`costo` como si fueran columnas
     // propias del producto, sin tener que tocar esos componentes.
     admin.from("product_prices").select("product_id, precio_dist, costo").eq("sucursal_id", id) as unknown as Promise<{
       data: { product_id: string; precio_dist: number; costo: number }[] | null;
+    }>,
+    // Precio de promos/recetas también es por sucursal (ver migración 070,
+    // mismo patrón que product_prices arriba).
+    admin.from("promo_prices").select("promo_id, price").eq("sucursal_id", id) as unknown as Promise<{
+      data: { promo_id: string; price: number }[] | null;
     }>,
     // Termos disponibles para ofrecer en el selector de alquiler de la venta
     // rápida (ver promos.requiere_termo) -- solo los que están libres ahora.
@@ -168,7 +173,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       }>,
   ]);
 
-  const promos = promosResult.data ?? [];
+  // Precio de promos/recetas es por sucursal (migración 070) -- se resuelve
+  // acá, mismo criterio y mismo default 0 "sin romper la página" que ya usa
+  // productsConPrecio más abajo para product_prices.
+  const preciosPromoSucursal = new Map((preciosPromoResult.data ?? []).map((p) => [p.promo_id, p.price]));
+  const promos = (promosResult.data ?? []).map((p) => ({ ...p, price: preciosPromoSucursal.get(p.id) ?? p.price ?? 0 }));
   const termosDisponibles = termosResult.data ?? [];
   const termosPrestados = (prestamosTermoResult.data ?? []).map((p) => ({
     id:             p.id,
