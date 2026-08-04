@@ -52,6 +52,9 @@ export function PromosTable({ promos, products, categories, sucursales }: {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<PromoWithItems | null>(null);
   const [, startTransition]         = useTransition();
+  const [search,     setSearch]     = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState<"todos" | "promo" | "receta">("todos");
+  const [catFiltro,  setCatFiltro]  = useState("all");
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
   function openNew()             { setEditing(null); setDrawerOpen(true); }
@@ -67,11 +70,22 @@ export function PromosTable({ promos, products, categories, sucursales }: {
     return p.promo_prices.find((pp) => pp.sucursal_id === sucursalId)?.price ?? null;
   }
 
+  const filtered = promos.filter((p) => {
+    if (tipoFiltro !== "todos" && p.tipo !== tipoFiltro) return false;
+    if (catFiltro !== "all" && p.category_id !== catFiltro) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const matchNombre = p.name.toLowerCase().includes(q);
+      const matchItem   = p.promo_items.some((i) => i.product?.name.toLowerCase().includes(q));
+      if (!matchNombre && !matchItem) return false;
+    }
+    return true;
+  });
+
   return (
     <>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-neutral-400">{promos.length} promociones</span>
           <Button size="sm" onClick={openNew}>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -80,12 +94,56 @@ export function PromosTable({ promos, products, categories, sucursales }: {
           </Button>
         </div>
 
+        {/* Buscador + filtros */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Buscar por nombre o producto…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 pl-8 pr-3 rounded-lg border border-neutral-300 bg-white text-sm focus:outline-none focus:border-tierra-700 w-64"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {([
+              ["todos", "Todos"], ["promo", "Promos"], ["receta", "Recetas"],
+            ] as const).map(([valor, label]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setTipoFiltro(valor)}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+                  tipoFiltro === valor
+                    ? "bg-tierra-700 text-white border-tierra-700"
+                    : "bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {categories.length > 0 && (
+            <select value={catFiltro} onChange={(e) => setCatFiltro(e.target.value)}
+              className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700">
+              <option value="all">Todas las categorías</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <span className="text-sm text-neutral-400">{filtered.length} de {promos.length}</span>
+        </div>
+
         {/* Mobile: tarjetas apiladas */}
         <div className="md:hidden rounded-xl border border-neutral-200 bg-white overflow-hidden divide-y divide-neutral-100">
-          {promos.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-neutral-400">Todavía no hay promociones.</p>
+          {filtered.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-neutral-400">
+              {promos.length === 0 ? "Todavía no hay promociones." : "Sin resultados para este filtro."}
+            </p>
           ) : (
-            promos.map((p) => (
+            filtered.map((p) => (
               <div key={p.id} className="px-3 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -149,14 +207,14 @@ export function PromosTable({ promos, products, categories, sucursales }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {promos.length === 0 && (
+                {filtered.length === 0 && (
                   <tr>
                     <td colSpan={4 + sucursales.length} className="px-4 py-10 text-center text-sm text-neutral-400">
-                      Todavía no hay promociones.
+                      {promos.length === 0 ? "Todavía no hay promociones." : "Sin resultados para este filtro."}
                     </td>
                   </tr>
                 )}
-                {promos.map((p) => (
+                {filtered.map((p) => (
                   <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
