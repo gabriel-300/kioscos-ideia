@@ -30,6 +30,7 @@ export function NuevaEntregaButton({
   promos,
   termosDisponibles,
   termosPrestados,
+  mercadopagoPosId,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -45,6 +46,7 @@ export function NuevaEntregaButton({
   promos?:        Promo[];
   termosDisponibles?: TermoDisponible[];
   termosPrestados?:   TermoPrestado[];
+  mercadopagoPosId?:  string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -73,6 +75,7 @@ export function NuevaEntregaButton({
           promos={promos}
           termosDisponibles={termosDisponibles}
           termosPrestados={termosPrestados}
+          mercadopagoPosId={mercadopagoPosId}
         />
       ) : (
         <MovimientoForm

@@ -25,6 +25,7 @@ const schema = z.object({
   notas:               z.string().optional(),
   auditoria_obligatoria: z.boolean().optional(),
   pedidoya_store_id:   z.string().optional(),
+  mercadopago_pos_id:  z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -54,6 +55,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       notas:              "",
       auditoria_obligatoria: false,
       pedidoya_store_id:  "",
+      mercadopago_pos_id: "",
     },
   });
 
@@ -71,12 +73,14 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
         notas:              sucursal.notas             ?? "",
         auditoria_obligatoria: sucursal.auditoria_obligatoria ?? false,
         pedidoya_store_id:  sucursal.pedidoya_store_id  ?? "",
+        mercadopago_pos_id: (sucursal as any).mercadopago_pos_id ?? "",
       } : {
         nombre: "", encargado_nombre: "", encargado_telefono: "",
         encargado_email: "", encargado_user_id: "", direccion: "",
         localidad: "Posadas", provincia: "Misiones", notas: "",
         auditoria_obligatoria: false,
         pedidoya_store_id: "",
+        mercadopago_pos_id: "",
       });
     }
   }, [open, sucursal, reset]);
@@ -94,6 +98,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       notas:              values.notas              || null,
       auditoria_obligatoria: values.auditoria_obligatoria ?? false,
       pedidoya_store_id:  values.pedidoya_store_id  || null,
+      mercadopago_pos_id: values.mercadopago_pos_id || null,
     };
 
     startTransition(async () => {
@@ -262,6 +267,15 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
           />
           <p className="text-xs text-neutral-400 -mt-3">
             Mapea esta sucursal con la tienda correspondiente en PedidosYa, para que los pedidos que lleguen por webhook se asignen solos.
+          </p>
+          <Input
+            label="Caja de Mercado Pago (QR dinámico)"
+            placeholder="external_pos_id de la Caja en Mercado Pago"
+            error={errors.mercadopago_pos_id?.message}
+            {...register("mercadopago_pos_id")}
+          />
+          <p className="text-xs text-neutral-400 -mt-3">
+            Habilita el botón "Generar QR" en la venta rápida de esta sucursal, para armar el monto del QR de Mercado Pago automáticamente en vez de que el cliente lo tipee.
           </p>
         </form>
 

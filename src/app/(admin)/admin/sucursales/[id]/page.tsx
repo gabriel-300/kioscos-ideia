@@ -475,6 +475,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   promos={promos}
                   termosDisponibles={termosDisponibles}
                   termosPrestados={termosPrestados}
+                  mercadopagoPosId={(sucursal as any).mercadopago_pos_id ?? null}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
@@ -502,6 +503,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   promos={promos}
                   termosDisponibles={termosDisponibles}
                   termosPrestados={termosPrestados}
+                  mercadopagoPosId={(sucursal as any).mercadopago_pos_id ?? null}
                 />
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}

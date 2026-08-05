@@ -1175,6 +1175,7 @@ export type Database = {
           id: string
           is_active: boolean
           localidad: string
+          mercadopago_pos_id: string | null
           nombre: string
           notas: string | null
           pedidoya_store_id: string | null
@@ -1192,6 +1193,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           localidad?: string
+          mercadopago_pos_id?: string | null
           nombre: string
           notas?: string | null
           pedidoya_store_id?: string | null
@@ -1209,11 +1211,51 @@ export type Database = {
           id?: string
           is_active?: boolean
           localidad?: string
+          mercadopago_pos_id?: string | null
           nombre?: string
           notas?: string | null
           pedidoya_store_id?: string | null
           provincia?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      mercadopago_qr_orders: {
+        Row: {
+          id: string
+          sucursal_id: string
+          external_reference: string
+          monto: number
+          estado: string
+          mp_payment_id: string | null
+          raw_webhook_payload: Json | null
+          created_at: string
+          created_by: string | null
+          paid_at: string | null
+        }
+        Insert: {
+          id?: string
+          sucursal_id: string
+          external_reference: string
+          monto: number
+          estado?: string
+          mp_payment_id?: string | null
+          raw_webhook_payload?: Json | null
+          created_at?: string
+          created_by?: string | null
+          paid_at?: string | null
+        }
+        Update: {
+          id?: string
+          sucursal_id?: string
+          external_reference?: string
+          monto?: number
+          estado?: string
+          mp_payment_id?: string | null
+          raw_webhook_payload?: Json | null
+          created_at?: string
+          created_by?: string | null
+          paid_at?: string | null
         }
         Relationships: []
       }

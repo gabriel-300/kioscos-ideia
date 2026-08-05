@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { prestarTermo, devolverTermo, pagarMultaTermo } from "@/app/(admin)/admin/termos/actions";
+import { armarQrMercadoPago, consultarQrMercadoPago, cancelarQrMercadoPago } from "../mercadopago-actions";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg, friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -113,9 +114,10 @@ interface Props {
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
   termosPrestados?:   TermoPrestado[];
+  mercadopagoPosId?:  string | null;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [] }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
   const router = useRouter();
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
@@ -126,6 +128,13 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [showPay, setShowPay] = useState(false);
   const [mobileTicketOpen, setMobileTicketOpen] = useState(false);
   const [pagos,   setPagos]   = useState<Record<PayMethod, string>>({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
+  // QR dinámico de Mercado Pago -- opcional, solo aparece si la sucursal
+  // tiene mercadopagoPosId configurado. "idle" = todavía no se generó nada,
+  // el input de Billetera virtual se sigue pudiendo tipear a mano como hoy.
+  const [qrEstado,      setQrEstado]      = useState<"idle" | "generando" | "esperando" | "pagado">("idle");
+  const [qrExternalRef, setQrExternalRef] = useState<string | null>(null);
+  const [qrError,       setQrError]       = useState<string | null>(null);
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canal,      setCanal]      = useState("consumidor_final");
   const [precioOverride, setPrecioOverride] = useState<Record<string, string>>({});
   const [descuentoPedidoYa, setDescuentoPedidoYa] = useState("");
@@ -410,9 +419,56 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
     setTermoId(""); setDniTermo(""); setTelefonoTermo(""); setNombreTermo("");
     setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch("");
+    detenerPollingQr(); setQrEstado("idle"); setQrExternalRef(null); setQrError(null);
   }
 
   function handleClose() { resetForm(); onClose(); }
+
+  // QR dinámico de Mercado Pago -- ver mercadopago-actions.ts. El resto del
+  // flujo de cobro (armar la venta, crearMovimiento) no cambia en nada: esto
+  // solo llena pagos.mp con un monto confirmado en vez de tipeado a mano.
+  function detenerPollingQr() {
+    if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
+  }
+
+  function handleGenerarQr() {
+    const monto = parseFloat(pagos.mp) || 0;
+    if (monto <= 0) { setQrError("Ingresá el monto a cobrar por QR antes de generarlo"); return; }
+    setQrError(null);
+    setQrEstado("generando");
+    startTransition(async () => {
+      const res = await armarQrMercadoPago({ sucursal_id: sucursalId, monto });
+      if (res.error || !res.external_reference) {
+        setQrError(res.error ?? "No se pudo generar el QR");
+        setQrEstado("idle");
+        return;
+      }
+      setQrExternalRef(res.external_reference);
+      setQrEstado("esperando");
+      qrPollRef.current = setInterval(async () => {
+        const estado = await consultarQrMercadoPago(res.external_reference!);
+        if (estado.estado === "pagado") {
+          detenerPollingQr();
+          setQrEstado("pagado");
+          setPagos((prev) => ({ ...prev, mp: String(estado.monto ?? monto) }));
+        } else if (estado.estado === "cancelado" || estado.estado === "expirado") {
+          detenerPollingQr();
+          setQrEstado("idle");
+          setQrError("El QR se canceló o expiró -- generalo de nuevo");
+        }
+      }, 3000);
+    });
+  }
+
+  function handleCancelarQr() {
+    detenerPollingQr();
+    if (qrExternalRef) cancelarQrMercadoPago(qrExternalRef);
+    setQrEstado("idle");
+    setQrExternalRef(null);
+    setQrError(null);
+  }
+
+  useEffect(() => detenerPollingQr, []);
 
   function handleDevolverTermo(p: TermoPrestado) {
     setErrorTermoModal(null);
@@ -1380,32 +1436,67 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 const val  = pagos[m.id];
                 const num  = parseFloat(val) || 0;
                 const isFirst = i === 0;
+                const esQr = m.id === "mp" && !!mercadopagoPosId;
+                const qrInputBloqueado = esQr && (qrEstado === "esperando" || qrEstado === "generando" || qrEstado === "pagado");
                 return (
-                  <div
-                    key={m.id}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px",
-                      borderTop: isFirst ? "none" : "1px solid #E2E8F0",
-                      background: num > 0 ? NAVY_L : "white",
-                    }}
-                  >
-                    <span style={{ color: num > 0 ? NAVY : "#94A3B8", display: "flex", flexShrink: 0 }}>{m.icon}</span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: num > 0 ? NAVY : "#475569" }}>{m.label}</span>
-                    <div style={{ position: "relative", width: 120 }}>
-                      <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#94A3B8", pointerEvents: "none" }}>$</span>
-                      <input
-                        type="number"
-                        value={val}
-                        onChange={(e) => setPagos((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                        placeholder="0"
-                        min={0}
-                        autoFocus={isFirst}
-                        style={{ width: "100%", padding: "7px 8px 7px 22px", border: `1.5px solid ${num > 0 ? NAVY : "#E2E8F0"}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#0F172A", outline: "none", fontFamily: "inherit", background: "white", textAlign: "right" }}
-                        onFocus={(e) => (e.target.style.borderColor = NAVY)}
-                        onBlur={(e) => (e.target.style.borderColor = num > 0 ? NAVY : "#E2E8F0")}
-                      />
+                  <div key={m.id}>
+                    <div
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "10px 12px",
+                        borderTop: isFirst ? "none" : "1px solid #E2E8F0",
+                        background: num > 0 ? NAVY_L : "white",
+                      }}
+                    >
+                      <span style={{ color: num > 0 ? NAVY : "#94A3B8", display: "flex", flexShrink: 0 }}>{m.icon}</span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: num > 0 ? NAVY : "#475569" }}>{m.label}</span>
+                      <div style={{ position: "relative", width: 120 }}>
+                        <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#94A3B8", pointerEvents: "none" }}>$</span>
+                        <input
+                          type="number"
+                          value={val}
+                          onChange={(e) => setPagos((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                          placeholder="0"
+                          min={0}
+                          autoFocus={isFirst}
+                          disabled={qrInputBloqueado}
+                          style={{ width: "100%", padding: "7px 8px 7px 22px", border: `1.5px solid ${num > 0 ? NAVY : "#E2E8F0"}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#0F172A", outline: "none", fontFamily: "inherit", background: qrInputBloqueado ? "#F8FAFC" : "white", textAlign: "right" }}
+                          onFocus={(e) => (e.target.style.borderColor = NAVY)}
+                          onBlur={(e) => (e.target.style.borderColor = num > 0 ? NAVY : "#E2E8F0")}
+                        />
+                      </div>
                     </div>
+                    {esQr && (
+                      <div style={{ padding: "0 12px 10px", borderTop: "none" }}>
+                        {qrEstado === "idle" && (
+                          <button
+                            type="button"
+                            onClick={handleGenerarQr}
+                            style={{ fontSize: 12, fontWeight: 700, color: "#00A3E0", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          >
+                            Generar QR con este monto →
+                          </button>
+                        )}
+                        {qrEstado === "generando" && (
+                          <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>Generando QR…</p>
+                        )}
+                        {qrEstado === "esperando" && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span className="animate-spin" style={{ width: 12, height: 12, border: "2px solid #E2E8F0", borderTopColor: "#00A3E0", borderRadius: "50%", display: "inline-block" }} />
+                            <p style={{ fontSize: 12, color: "#0F172A", fontWeight: 600, margin: 0 }}>Esperando pago por QR…</p>
+                            <button type="button" onClick={handleCancelarQr} style={{ fontSize: 12, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        )}
+                        {qrEstado === "pagado" && (
+                          <p style={{ fontSize: 12, color: "#059669", fontWeight: 700, margin: 0 }}>✓ Pagado por Mercado Pago</p>
+                        )}
+                        {qrError && (
+                          <p style={{ fontSize: 12, color: "#DC2626", margin: "4px 0 0" }}>{qrError}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
