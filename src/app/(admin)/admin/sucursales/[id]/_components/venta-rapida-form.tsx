@@ -593,17 +593,36 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 @page{size:80mm auto;margin:0;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Courier New',monospace;font-size:13px;width:80mm;padding:6mm 4mm;color:#111;}
-h1{font-size:16px;font-weight:bold;text-align:center;margin-bottom:2px;}.sub{text-align:center;font-size:11px;color:#555;margin-bottom:12px;}.divider{border-top:1px dashed #bbb;margin:10px 0;}.row{display:flex;justify-content:space-between;margin-bottom:4px;}.name{flex:1;padding-right:8px;}.total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:15px;margin-top:4px;}.pago-row{display:flex;justify-content:space-between;margin-bottom:3px;}.vuelto-row{display:flex;justify-content:space-between;font-weight:bold;margin-top:4px;}.footer{text-align:center;font-size:10px;color:#888;margin-top:16px;}
+h1{font-size:19px;font-weight:bold;text-align:center;letter-spacing:1.5px;}
+.sub{text-align:center;font-size:11px;color:#555;margin-top:2px;}
+.divider{border-top:1px dashed #999;margin:9px 0;}
+.divider.strong{border-top-style:solid;border-top-width:2px;border-color:#333;}
+.row{display:flex;align-items:baseline;gap:4px;margin-bottom:3px;}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:58%;}
+.qty{font-size:11px;color:#666;white-space:nowrap;}
+.leader{flex:1;border-bottom:1px dotted #aaa;margin-bottom:3px;}
+.amt{white-space:nowrap;min-width:64px;text-align:right;}
+.total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:16px;margin-top:2px;}
+.pago-row{display:flex;justify-content:space-between;margin-bottom:3px;}
+.vuelto-row{display:flex;justify-content:space-between;font-weight:bold;margin-top:4px;}
+.footer{text-align:center;margin-top:18px;}
+.footer .thanks{font-size:13px;font-weight:bold;letter-spacing:.5px;}
+.footer .legal{font-size:9.5px;color:#999;margin-top:10px;}
 </style>
 </head><body>
-<h1>Kioscos IDEIA</h1><div class="sub">${sucursalNombre ?? ""}</div><div class="sub">${r.fecha} · ${r.hora}</div><div class="sub">${canalLabel}</div><div class="divider"></div>
-${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span>${i.qty} × ${AR.format(i.precioUnit)}</span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(i.sub)}</span></div>`).join("")}
-${r.descuento > 0 ? `<div class="divider"></div><div class="row"><span>Subtotal</span><span></span><span style="margin-left:12px;min-width:80px;text-align:right">${AR.format(r.subtotalPrecio)}</span></div><div class="row"><span>Descuento Pedido Ya</span><span></span><span style="margin-left:12px;min-width:80px;text-align:right">-${AR.format(r.descuento)}</span></div>` : ""}
-<div class="divider"></div><div class="total-row"><span>TOTAL (${r.totalUnidades} u.)</span><span>${AR.format(r.totalPrecio)}</span></div><div class="divider"></div>
+<h1>ANGIRU FOOD</h1>
+<div class="sub">${sucursalNombre ?? ""}</div>
+<div class="sub">${r.fecha} · ${r.hora}</div>
+<div class="sub">${canalLabel}</div>
+<div class="divider strong"></div>
+${r.items.map((i) => `<div class="row"><span class="name">${i.name}</span><span class="leader"></span><span class="amt">${AR.format(i.sub)}</span></div><div class="qty" style="margin:-2px 0 6px">${i.qty} × ${AR.format(i.precioUnit)}</div>`).join("")}
+${r.descuento > 0 ? `<div class="divider"></div><div class="row"><span class="name">Subtotal</span><span class="leader"></span><span class="amt">${AR.format(r.subtotalPrecio)}</span></div><div class="row"><span class="name">Descuento Pedido Ya</span><span class="leader"></span><span class="amt">-${AR.format(r.descuento)}</span></div>` : ""}
+<div class="divider strong"></div><div class="total-row"><span>TOTAL (${r.totalUnidades} u.)</span><span>${AR.format(r.totalPrecio)}</span></div><div class="divider strong"></div>
 ${r.pagos.map((p) => `<div class="pago-row"><span>${p.label}</span><span>${AR.format(p.monto)}</span></div>`).join("")}
 ${r.vuelto !== null ? `<div class="vuelto-row"><span>VUELTO</span><span>${AR.format(r.vuelto)}</span></div>` : ""}
 ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">${r.notas}</div>` : ""}
-<div class="footer">Gracias por su compra</div></body></html>`);
+<div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div><div class="legal">Este comprobante no tiene validez fiscal</div></div>
+</body></html>`);
     w.document.close(); w.focus(); setTimeout(() => w.print(), 200);
   }
 
