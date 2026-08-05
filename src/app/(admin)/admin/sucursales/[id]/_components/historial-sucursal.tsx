@@ -84,7 +84,8 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Ticket ${id}</title>
   <style>
-    body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 12px; }
+    @page { size: 80mm auto; margin: 0; }
+    body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 6mm 4mm; }
     h1 { font-size: 15px; font-weight: 800; margin: 0 0 2px; }
     .sub { color: #666; margin-bottom: 10px; font-size: 11px; }
     table { width: 100%; border-collapse: collapse; }
@@ -92,7 +93,6 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
     th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
     .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
     .footer { text-align: center; color: #999; font-size: 10px; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 8px; }
-    @media print { body { width: 100%; } }
   </style></head><body>
   <h1>Kioscos IDEIA</h1>
   <div class="sub">${sucursalNombre}</div>
