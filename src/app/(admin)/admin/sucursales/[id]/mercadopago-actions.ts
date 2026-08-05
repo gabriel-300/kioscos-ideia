@@ -82,10 +82,12 @@ export async function armarQrMercadoPago(data: {
       body: JSON.stringify({
         external_reference: externalReference,
         title:              "Kioscos IDEIA",
+        description:        "Compra en Kioscos IDEIA",
         notification_url:   `${siteUrl}/api/webhooks/mercadopago`,
         total_amount:        data.monto,
         items: [{
           title:       "Compra en Kioscos IDEIA",
+          description: "Compra en Kioscos IDEIA",
           unit_price:   data.monto,
           quantity:     1,
           unit_measure: "unit",
