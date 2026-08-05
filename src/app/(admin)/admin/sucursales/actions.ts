@@ -69,9 +69,14 @@ export async function listarCajasMercadoPago(): Promise<{
     return { error: `Mercado Pago respondió ${res.status}: ${bodyText || "sin detalle"}` };
   }
 
-  const body = await res.json() as { results?: { id: number; name: string; store_id: number | null }[] };
+  // OJO: el "id" interno de Mercado Pago NO es lo mismo que "external_id" --
+  // las órdenes de QR se arman contra external_id (external_pos_id en la URL
+  // de la API), no contra el id numérico que asigna Mercado Pago. Primera
+  // prueba real contra la API confirmó el error (404 "Point of sale not
+  // found") usando el id interno por equivocación.
+  const body = await res.json() as { results?: { id: number; external_id: string; name: string; store_id: number | null }[] };
   const cajas = (body.results ?? []).map((p) => ({
-    id: String(p.id),
+    id: p.external_id,
     name: p.name,
     store_id: p.store_id != null ? String(p.store_id) : null,
   }));
