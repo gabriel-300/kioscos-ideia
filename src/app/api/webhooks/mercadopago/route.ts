@@ -67,10 +67,15 @@ export async function POST(request: NextRequest) {
 
   if (!dataId) return NextResponse.json({ ok: true }); // nada que procesar, no es un error
 
+  // NO se rechaza la notificación por firma inválida/ausente -- Mercado Pago
+  // documenta que las notificaciones de Código QR no siempre son validables
+  // con x-signature (confirmado con datos reales: llegaron sin firma
+  // calculable acá). Solo se loguea como dato -- la seguridad real es la
+  // consulta a la API más abajo con nuestro propio Access Token, ver nota
+  // del encabezado del archivo.
   const valida = await firmaValida(request, String(dataId));
   if (valida === false) {
-    console.error("[mercadopago webhook] firma inválida, se ignora la notificación");
-    return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
+    console.warn("[mercadopago webhook] firma no coincide (se sigue procesando igual, la verificación real es contra la API)");
   }
 
   const admin = createAdminClient();
