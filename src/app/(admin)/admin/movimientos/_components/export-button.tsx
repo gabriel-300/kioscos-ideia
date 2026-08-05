@@ -10,6 +10,7 @@ export function ExportButton({ sucursales }: { sucursales: Sucursal[] }) {
   const [open, setOpen]         = useState(false);
   const [loading, setLoading]   = useState(false);
   const [sucursalId, setSucursal] = useState("");
+  const [tipo, setTipo]         = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   // Mes actual como defaults
@@ -28,6 +29,7 @@ export function ExportButton({ sucursales }: { sucursales: Sucursal[] }) {
     setLoading(true);
     const params = new URLSearchParams({ desde, hasta });
     if (sucursalId) params.set("sucursal_id", sucursalId);
+    if (tipo)       params.set("tipo", tipo);
 
     const res = await fetch(`/api/export/movimientos?${params}`);
     if (res.ok) {
@@ -90,6 +92,22 @@ export function ExportButton({ sucursales }: { sucursales: Sucursal[] }) {
               {sucursales.map((s) => (
                 <option key={s.id} value={s.id}>{s.nombre}</option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-neutral-500 mb-1">Tipo (opcional)</label>
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              className="w-full h-8 rounded-lg border border-neutral-200 px-2 text-xs focus:outline-none focus:border-tierra-700 bg-white"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="entrega">Entrega</option>
+              <option value="devolucion">Devolución</option>
+              <option value="venta">Venta</option>
+              <option value="ajuste">Ajuste</option>
+              <option value="merma">Merma</option>
             </select>
           </div>
 
