@@ -289,14 +289,9 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
             error={errors.mercadopago_pos_id?.message}
             {...register("mercadopago_pos_id")}
           />
-          <button
-            type="button"
-            onClick={handleBuscarCajas}
-            disabled={buscandoCajas}
-            className="text-xs text-tierra-700 hover:underline font-medium -mt-2 disabled:opacity-50 text-left"
-          >
-            {buscandoCajas ? "Buscando…" : "Buscar Cajas en Mercado Pago"}
-          </button>
+          <Button type="button" variant="ghost" size="sm" onClick={handleBuscarCajas} loading={buscandoCajas} className="-mt-1 self-start">
+            Buscar Cajas en Mercado Pago
+          </Button>
           {errorCajas && (
             <p className="text-xs text-danger bg-danger/5 border border-danger/20 rounded-lg px-2.5 py-1.5">{errorCajas}</p>
           )}
