@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearSucursal, actualizarSucursal, listarCajasMercadoPago } from "../actions";
+import { crearSucursal, actualizarSucursal, listarCajasMercadoPago, asignarExternalIdCaja } from "../actions";
 import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
@@ -42,9 +42,12 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Buscador de Cajas de Mercado Pago -- evita que alguien tenga que andar
-  // buscando el external_pos_id a mano en el panel de Mercado Pago.
+  // buscando el external_pos_id a mano en el panel de Mercado Pago. Las que
+  // se crearon a mano desde "Cobrar en tu local" (no por API) no tienen
+  // external_id -- se les puede asignar uno acá mismo con un clic.
   const [buscandoCajas, startBusquedaCajas] = useTransition();
-  const [cajasMp,     setCajasMp]     = useState<{ id: string; name: string; store_id: string | null }[] | null>(null);
+  const [asignandoId,   startAsignarId]     = useTransition();
+  const [cajasMp,     setCajasMp]     = useState<{ internalId: string; externalId: string | null; name: string; store_id: string | null }[] | null>(null);
   const [errorCajas,  setErrorCajas]  = useState<string | null>(null);
 
   function handleBuscarCajas() {
@@ -53,6 +56,16 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       const res = await listarCajasMercadoPago();
       if (res.error) { setErrorCajas(res.error); setCajasMp(null); return; }
       setCajasMp(res.cajas ?? []);
+    });
+  }
+
+  function handleAsignarId(c: { internalId: string; name: string }) {
+    setErrorCajas(null);
+    startAsignarId(async () => {
+      const res = await asignarExternalIdCaja(c.internalId, c.name);
+      if (res.error || !res.externalId) { setErrorCajas(res.error ?? "No se pudo asignar el ID"); return; }
+      setValue("mercadopago_pos_id", res.externalId);
+      setCajasMp(null);
     });
   }
 
@@ -298,15 +311,29 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
           {cajasMp && cajasMp.length > 0 && (
             <div className="rounded-lg border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
               {cajasMp.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => { setValue("mercadopago_pos_id", c.id); setCajasMp(null); }}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-neutral-50 transition-colors text-left"
-                >
-                  <span className="font-medium text-neutral-700">{c.name}</span>
-                  <span className="text-neutral-400 font-mono">{c.id}</span>
-                </button>
+                c.externalId ? (
+                  <button
+                    key={c.internalId}
+                    type="button"
+                    onClick={() => { setValue("mercadopago_pos_id", c.externalId!); setCajasMp(null); }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-neutral-50 transition-colors text-left"
+                  >
+                    <span className="font-medium text-neutral-700">{c.name}</span>
+                    <span className="text-neutral-400 font-mono">{c.externalId}</span>
+                  </button>
+                ) : (
+                  <div key={c.internalId} className="w-full flex items-center justify-between px-3 py-2 text-xs">
+                    <span className="font-medium text-neutral-700">{c.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleAsignarId(c)}
+                      disabled={asignandoId}
+                      className="text-tierra-700 hover:underline font-medium disabled:opacity-50"
+                    >
+                      {asignandoId ? "Asignando…" : "Sin ID -- Asignar"}
+                    </button>
+                  </div>
+                )
               ))}
             </div>
           )}

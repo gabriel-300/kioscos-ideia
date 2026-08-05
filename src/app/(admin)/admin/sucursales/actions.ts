@@ -54,7 +54,7 @@ export async function toggleSucursalActiva(id: string, activa: boolean) {
 // (token inválido, sin cajas, etc.) es justo lo que el admin necesita ver.
 export async function listarCajasMercadoPago(): Promise<{
   error?: string;
-  cajas?: { id: string; name: string; store_id: string | null }[];
+  cajas?: { internalId: string; externalId: string | null; name: string; store_id: string | null }[];
 }> {
   await requireAdmin();
 
@@ -74,13 +74,50 @@ export async function listarCajasMercadoPago(): Promise<{
   // de la API), no contra el id numérico que asigna Mercado Pago. Primera
   // prueba real contra la API confirmó el error (404 "Point of sale not
   // found") usando el id interno por equivocación.
-  const body = await res.json() as { results?: { id: number; external_id: string; name: string; store_id: number | null }[] };
+  //
+  // Segunda sorpresa confirmada con datos reales: las Cajas que Damián creó
+  // a mano desde "Cobrar en tu local" (no por API) NO tienen external_id
+  // asignado -- ese campo lo pone quien crea la caja por API, y la UI web de
+  // Mercado Pago no lo pide. Por eso listarCajasMercadoPago() devuelve
+  // externalId nullable, y el drawer ofrece asignar uno con
+  // asignarExternalIdCaja() cuando falta.
+  const body = await res.json() as { results?: { id: number; external_id: string | null; name: string; store_id: number | null }[] };
   const cajas = (body.results ?? []).map((p) => ({
-    id: p.external_id,
-    name: p.name,
-    store_id: p.store_id != null ? String(p.store_id) : null,
+    internalId: String(p.id),
+    externalId: p.external_id || null,
+    name:       p.name,
+    store_id:   p.store_id != null ? String(p.store_id) : null,
   }));
   if (cajas.length === 0) return { error: "No se encontraron Cajas en la cuenta de Mercado Pago" };
 
   return { cajas };
+}
+
+// Le asigna un external_id a una Caja que no lo tiene (ver nota arriba) --
+// se genera a partir del nombre de la Caja, saneado a solo alfanumérico
+// (Mercado Pago no acepta espacios ni guiones en external_id, máx 40
+// caracteres). Devuelve el external_id ya asignado para usar directo.
+export async function asignarExternalIdCaja(internalId: string, nombreSugerido: string): Promise<{
+  error?: string;
+  externalId?: string;
+}> {
+  await requireAdmin();
+
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (!accessToken) return { error: "Falta MERCADOPAGO_ACCESS_TOKEN en las variables de entorno" };
+
+  const base = nombreSugerido.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]/g, "");
+  const externalId = `${base.slice(0, 30)}${internalId}`.slice(0, 40);
+
+  const res = await fetch(`https://api.mercadopago.com/pos/${internalId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken}` },
+    body: JSON.stringify({ external_id: externalId }),
+  });
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => "");
+    return { error: `Mercado Pago respondió ${res.status}: ${bodyText || "sin detalle"}` };
+  }
+
+  return { externalId };
 }
