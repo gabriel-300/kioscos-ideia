@@ -431,6 +431,31 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
   }
 
+  // Beep corto cuando confirma el pago por QR -- generado con Web Audio en
+  // vez de un archivo de audio para no sumar un asset solo por esto. El
+  // vendedor puede estar mirando otra cosa (armando el próximo pedido,
+  // atendiendo a otro cliente) mientras espera la confirmación, así que un
+  // textito verde solo no alcanza -- ver también el resplandor en el botón
+  // "Confirmar venta" más abajo.
+  function reproducirSonidoQrPagado() {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new Ctx();
+      [0, 0.15].forEach((delay) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.18);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.2);
+      });
+    } catch { /* si el navegador bloquea audio sin interacción previa, no pasa nada grave */ }
+  }
+
   function handleGenerarQr() {
     const monto = parseFloat(pagos.mp) || 0;
     if (monto <= 0) { setQrError("Ingresá el monto a cobrar por QR antes de generarlo"); return; }
@@ -451,6 +476,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           detenerPollingQr();
           setQrEstado("pagado");
           setPagos((prev) => ({ ...prev, mp: String(estado.monto ?? monto) }));
+          reproducirSonidoQrPagado();
         } else if (estado.estado === "cancelado" || estado.estado === "expirado") {
           detenerPollingQr();
           setQrEstado("idle");
@@ -1552,12 +1578,25 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 const montoInsuficiente = !sinMedioPago && Math.round(totalIngresado * 100) < Math.round(totalPrecio * 100);
                 const otrosMediosDeMas  = !sinMedioPago && Math.round(otrosMedios * 100) > Math.round(totalPrecio * 100);
                 const disabled = pending || montoInsuficiente || otrosMediosDeMas;
+                // Resplandor cuando el QR de Mercado Pago acaba de confirmar
+                // el pago -- el vendedor puede estar mirando otra cosa
+                // (armando el próximo pedido, atendiendo a otro cliente)
+                // cuando eso pasa, así que además del sonido (ver
+                // reproducirSonidoQrPagado) el botón tiene que gritar solo
+                // que ya se puede cerrar la venta.
+                const recienPagado = qrEstado === "pagado";
                 return (
                   <button
                     onClick={handleConfirm}
                     disabled={disabled}
-                    style={{ flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700, background: disabled ? "#E2E8F0" : NAVY, color: disabled ? "#94A3B8" : "white", border: "none", cursor: disabled ? "not-allowed" : "pointer" }}
-                  >{pending ? "Guardando…" : "Confirmar venta"}</button>
+                    className={recienPagado ? "animate-pulse" : undefined}
+                    style={{
+                      flex: 1, padding: 12, borderRadius: 8, fontSize: 14, fontWeight: 700,
+                      background: disabled ? "#E2E8F0" : recienPagado ? "#059669" : NAVY,
+                      color: disabled ? "#94A3B8" : "white", border: "none", cursor: disabled ? "not-allowed" : "pointer",
+                      boxShadow: recienPagado ? "0 0 0 4px rgba(5,150,105,.25)" : undefined,
+                    }}
+                  >{pending ? "Guardando…" : recienPagado ? "✓ Pagado — Confirmar venta" : "Confirmar venta"}</button>
                 );
               })()}
             </div>
