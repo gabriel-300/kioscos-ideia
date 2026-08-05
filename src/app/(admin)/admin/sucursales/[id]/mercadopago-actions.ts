@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/require-role";
+import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 
 // Cobro con QR dinámico de Mercado Pago -- mismo espíritu que
 // transferencia-actions.ts/termos/actions.ts: devuelven {error?} en vez de

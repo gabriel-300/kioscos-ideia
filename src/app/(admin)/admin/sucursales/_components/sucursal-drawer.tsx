@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearSucursal, actualizarSucursal } from "../actions";
+import { crearSucursal, actualizarSucursal, listarCajasMercadoPago } from "../actions";
 import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
@@ -40,6 +40,21 @@ interface Props {
 export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Props) {
   const [pending, startTransition] = useTransition();
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Buscador de Cajas de Mercado Pago -- evita que alguien tenga que andar
+  // buscando el external_pos_id a mano en el panel de Mercado Pago.
+  const [buscandoCajas, startBusquedaCajas] = useTransition();
+  const [cajasMp,     setCajasMp]     = useState<{ id: string; name: string; store_id: string | null }[] | null>(null);
+  const [errorCajas,  setErrorCajas]  = useState<string | null>(null);
+
+  function handleBuscarCajas() {
+    setErrorCajas(null);
+    startBusquedaCajas(async () => {
+      const res = await listarCajasMercadoPago();
+      if (res.error) { setErrorCajas(res.error); setCajasMp(null); return; }
+      setCajasMp(res.cajas ?? []);
+    });
+  }
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -274,7 +289,33 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
             error={errors.mercadopago_pos_id?.message}
             {...register("mercadopago_pos_id")}
           />
-          <p className="text-xs text-neutral-400 -mt-3">
+          <button
+            type="button"
+            onClick={handleBuscarCajas}
+            disabled={buscandoCajas}
+            className="text-xs text-tierra-700 hover:underline font-medium -mt-2 disabled:opacity-50 text-left"
+          >
+            {buscandoCajas ? "Buscando…" : "Buscar Cajas en Mercado Pago"}
+          </button>
+          {errorCajas && (
+            <p className="text-xs text-danger bg-danger/5 border border-danger/20 rounded-lg px-2.5 py-1.5">{errorCajas}</p>
+          )}
+          {cajasMp && cajasMp.length > 0 && (
+            <div className="rounded-lg border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
+              {cajasMp.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { setValue("mercadopago_pos_id", c.id); setCajasMp(null); }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-neutral-50 transition-colors text-left"
+                >
+                  <span className="font-medium text-neutral-700">{c.name}</span>
+                  <span className="text-neutral-400 font-mono">{c.id}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-neutral-400 -mt-1">
             Habilita el botón "Generar QR" en la venta rápida de esta sucursal, para armar el monto del QR de Mercado Pago automáticamente en vez de que el cliente lo tipee.
           </p>
         </form>
