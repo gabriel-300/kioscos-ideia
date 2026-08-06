@@ -85,24 +85,28 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
   <title>Ticket ${id}</title>
   <style>
     @page { size: 80mm auto; margin: 0; }
-    body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 6mm 4mm; }
-    h1 { font-size: 15px; font-weight: 800; margin: 0 0 2px; }
-    .sub { color: #666; margin-bottom: 10px; font-size: 11px; }
-    table { width: 100%; border-collapse: collapse; }
+    body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 6mm 4mm; color:#111; }
+    h1 { font-size: 19px; font-weight: 800; text-align:center; letter-spacing:1.5px; margin: 0; }
+    .sub { color: #555; text-align:center; font-size: 11px; margin-top:2px; }
+    .divider { border-top:2px solid #333; margin:9px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top:9px; }
     th { text-align: left; font-size: 10px; text-transform: uppercase; color: #999; padding-bottom: 4px; border-bottom: 2px solid #000; }
     th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
     .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
-    .footer { text-align: center; color: #999; font-size: 10px; margin-top: 12px; border-top: 1px dashed #ccc; padding-top: 8px; }
+    .footer { text-align: center; margin-top: 16px; }
+    .footer .thanks { font-size:13px; font-weight:bold; letter-spacing:.5px; }
+    .footer .legal { font-size:9.5px; color:#999; margin-top:8px; border-top:1px dashed #ccc; padding-top:8px; }
   </style></head><body>
-  <h1>Kioscos IDEIA</h1>
+  <h1>ANGIRU FOOD</h1>
   <div class="sub">${sucursalNombre}</div>
   <div class="sub">${fecha} · #${id}</div>
+  <div class="divider"></div>
   <table>
     <thead><tr><th>Producto</th><th style="text-align:right">Cant</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <div class="total">TOTAL: ${AR.format(total)}</div>
-  <div class="footer">En Minutas — Kioscos IDEIA</div>
+  <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div><div class="legal">Este comprobante no tiene validez fiscal</div></div>
   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
   </body></html>`;
 
