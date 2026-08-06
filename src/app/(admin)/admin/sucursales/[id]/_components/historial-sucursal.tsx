@@ -85,13 +85,16 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
   <title>Ticket ${id}</title>
   <style>
     @page { size: 80mm auto; margin: 0; }
+    * { box-sizing: border-box; }
     body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 6mm 4mm; color:#111; }
     h1 { font-size: 19px; font-weight: 800; text-align:center; letter-spacing:1.5px; margin: 0; }
     .sub { color: #555; text-align:center; font-size: 11px; margin-top:2px; }
     .divider { border-top:2px solid #333; margin:9px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top:9px; }
+    table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top:9px; }
+    th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     th { text-align: left; font-size: 10px; text-transform: uppercase; color: #999; padding-bottom: 4px; border-bottom: 2px solid #000; }
     th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
+    th:first-child, td:first-child { width: 42%; white-space: normal; }
     .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
     .footer { text-align: center; margin-top: 16px; }
     .footer .thanks { font-size:13px; font-weight:bold; letter-spacing:.5px; }
