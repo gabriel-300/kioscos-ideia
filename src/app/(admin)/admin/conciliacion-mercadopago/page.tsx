@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { fechaHoyAR } from "@/lib/fecha";
+import { fechaHoyAR, fmtFechaHora, fmtFechaSolo } from "@/lib/fecha";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Conciliación Mercado Pago — Kioscos IDEIA" };
@@ -85,7 +85,9 @@ export default async function ConciliacionMercadoPagoPage({
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
-  const totalConfirmadoMp = qr.reduce((s, q) => s + q.monto, 0) + transferencias.filter((t) => t.movimiento_id).reduce((s, t) => s + t.monto, 0);
+  // Todo lo que Mercado Pago confirmó de verdad, esté vinculado a una venta
+  // o no -- ver la lista de abajo para lo que todavía no tiene venta.
+  const totalConfirmadoMp = qr.reduce((s, q) => s + q.monto, 0) + transferencias.reduce((s, t) => s + t.monto, 0);
   const totalRegistradoSistema = ventas.reduce((s, v) => s + (v.pago_billetera ?? 0) + (v.pago_transferencia ?? 0), 0);
   const diferenciaTotal = totalRegistradoSistema - totalConfirmadoMp;
 
@@ -156,7 +158,7 @@ export default async function ConciliacionMercadoPagoPage({
                 <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
                   <div>
                     <span className="font-medium text-neutral-800">{p.sucursal}</span>
-                    <span className="text-neutral-400 ml-2 text-xs">{p.tipo} · {new Date(p.fecha).toLocaleString("es-AR")}</span>
+                    <span className="text-neutral-400 ml-2 text-xs">{p.tipo} · {fmtFechaHora(p.fecha)}</span>
                   </div>
                   <span className="font-semibold tabular-nums">{AR.format(p.monto)}</span>
                 </div>
@@ -178,7 +180,7 @@ export default async function ConciliacionMercadoPagoPage({
                 <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
                   <div>
                     <span className="font-medium text-neutral-800">{v.sucursal}</span>
-                    <span className="text-neutral-400 ml-2 text-xs">{new Date(v.fecha + "T12:00:00").toLocaleDateString("es-AR")}</span>
+                    <span className="text-neutral-400 ml-2 text-xs">{fmtFechaSolo(v.fecha + "T12:00:00")}</span>
                   </div>
                   <span className="font-semibold tabular-nums">{AR.format(v.monto)}</span>
                 </div>
