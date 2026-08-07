@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
 import { prestarTermo, devolverTermo, pagarMultaTermo } from "@/app/(admin)/admin/termos/actions";
-import { armarQrMercadoPago, consultarQrMercadoPago, cancelarQrMercadoPago } from "../mercadopago-actions";
+import { armarQrMercadoPago, consultarQrMercadoPago, cancelarQrMercadoPago, vincularMovimientoQr } from "../mercadopago-actions";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg, friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -632,6 +632,14 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
               : { product_id: id, cantidad, precio_unitario: priceOf(id) }
           ),
         });
+
+        // Cierra el loop del informe de conciliación: si esta venta se pagó
+        // con un QR de Mercado Pago, deja guardado a qué movimiento terminó
+        // correspondiendo (ver mercadopago-actions.ts). No bloquea la venta
+        // si falla -- ya se cobró y registró, esto es solo trazabilidad.
+        if (qrEstado === "pagado" && qrExternalRef && movimiento_id) {
+          vincularMovimientoQr(qrExternalRef, movimiento_id);
+        }
 
         // El termo se presta DESPUÉS de que la venta ya se registró (yerba/hielo
         // ya se descontaron) -- si esto falla (ej. alguien le ganó de mano al

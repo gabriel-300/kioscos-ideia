@@ -34,8 +34,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   let alertasPrecioPendientes = 0;
   let transferenciasPendientes = 0;
   let reposicionPendientes = 0;
+  let conciliacionPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -59,10 +60,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         .not("punto_pedido", "is", null) as unknown as Promise<{
           data: { product_id: string; sucursal_id: string; punto_pedido: number }[] | null;
         }>,
+      // Pagos que Mercado Pago confirmó sin venta vinculada -- ver
+      // /admin/conciliacion-mercadopago.
+      (supabase as any)
+        .from("mercadopago_qr_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("estado", "pagado")
+        .is("movimiento_id", null),
+      (supabase as any)
+        .from("mercadopago_transferencias_recibidas")
+        .select("id", { count: "exact", head: true })
+        .is("movimiento_id", null),
     ]);
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
+    conciliacionPendientes  = (countQrSinVenta ?? 0) + (countTransfSinAsignar ?? 0);
 
     if (puntosConPedido && puntosConPedido.length > 0) {
       const productIds = [...new Set(puntosConPedido.map((p) => p.product_id))];
@@ -93,6 +106,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         alertasPrecioPendientes={alertasPrecioPendientes}
         transferenciasPendientes={transferenciasPendientes}
         reposicionPendientes={reposicionPendientes}
+        conciliacionPendientes={conciliacionPendientes}
       />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>

@@ -11,6 +11,7 @@ import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
 import { AuditoriaButton } from "./_components/auditoria-button";
 import { TransferenciaEnviarButton } from "./_components/transferencia-enviar-button";
 import { TransferenciasPendientes, type Pendiente } from "./_components/transferencias-pendientes";
+import { PagosTransferenciaSinConciliar } from "./_components/pagos-transferencia-sin-conciliar";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -65,7 +66,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -171,6 +172,38 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           transferencia_items: { id: string; product_id: string; cantidad_enviada: number; product: { name: string; unit_label: string | null } | null }[];
         }[] | null;
       }>,
+    // Pagos por transferencia a la cuenta de Mercado Pago detectados por el
+    // webhook (ver 072_conciliacion_mercadopago.sql) que todavía nadie
+    // vinculó a una venta -- global, no por sucursal (es una sola cuenta
+    // compartida, la sucursal recién se define al vincular).
+    (admin as any)
+      .from("mercadopago_transferencias_recibidas")
+      .select("id, monto, recibido_en")
+      .is("movimiento_id", null)
+      .order("recibido_en", { ascending: false })
+      .limit(20) as unknown as Promise<{ data: { id: string; monto: number; recibido_en: string }[] | null }>,
+    // Candidatas para vincular: ventas de ESTA sucursal pagadas (total o
+    // parcialmente) por transferencia en los últimos 7 días. Se filtran las
+    // que ya tienen un pago de Mercado Pago vinculado más abajo, en JS (más
+    // simple que un embed de PostgREST para esto).
+    (admin as any)
+      .from("movimientos")
+      .select("id, fecha, created_at, pago_transferencia")
+      .eq("sucursal_id", id)
+      .eq("tipo", "venta")
+      .is("anulado_en", null)
+      .gt("pago_transferencia", 0)
+      .gte("fecha", fechaHoyAR(new Date(Date.now() - 7 * 86400000)))
+      .order("created_at", { ascending: false })
+      .limit(60) as unknown as Promise<{
+        data: { id: string; fecha: string; created_at: string; pago_transferencia: number }[] | null;
+      }>,
+    // movimiento_id ya vinculados a algún pago -- para descartarlos de la
+    // lista de candidatas de arriba.
+    (admin as any)
+      .from("mercadopago_transferencias_recibidas")
+      .select("movimiento_id")
+      .not("movimiento_id", "is", null) as unknown as Promise<{ data: { movimiento_id: string }[] | null }>,
   ]);
 
   // Precio de promos/recetas es por sucursal (migración 070) -- se resuelve
@@ -205,6 +238,19 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       cantidad_enviada: i.cantidad_enviada,
     })),
   }));
+
+  const pagosTransferenciaSinAsignar = (pagosTransferenciaSinAsignarResult.data ?? []).map((p) => ({
+    id: p.id, monto: p.monto, recibidoEn: p.recibido_en,
+  }));
+  const movimientosVinculados = new Set((movimientosYaVinculadosResult.data ?? []).map((m) => m.movimiento_id));
+  const ventasTransferenciaCandidatas = (ventasTransferenciaRecientesResult.data ?? [])
+    .filter((m) => !movimientosVinculados.has(m.id))
+    .map((m) => ({
+      movimientoId: m.id,
+      monto:        m.pago_transferencia,
+      fecha:        new Date(m.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
+      hora:         new Date(m.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+    }));
 
   const movimientos = movimentos;
   const aperturaActual   = aperturasData?.[0] ?? null;
@@ -566,6 +612,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               puedeCerrarCaja={puedeCerrarCaja}
               retiros={todosRetiros}
               role={role}
+              transferenciasSinConciliar={ventasTransferenciaCandidatas.length}
             />
           </div>
         </div>
@@ -699,6 +746,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
       {/* Transferencias pendientes de recibir -- cualquiera del staff de acá puede confirmar */}
       <TransferenciasPendientes transferencias={transferenciasPendientes} />
+
+      {/* Pagos por transferencia a Mercado Pago sin conciliar -- distinto de
+          lo de arriba (eso es stock entre sucursales, esto es plata de un cliente) */}
+      <PagosTransferenciaSinConciliar
+        sucursalId={sucursal.id}
+        pagos={pagosTransferenciaSinAsignar}
+        ventasCandidatas={ventasTransferenciaCandidatas}
+      />
 
       {/* Alerta stock bajo */}
       {productosStockBajo.length > 0 && (

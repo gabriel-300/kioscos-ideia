@@ -21,6 +21,7 @@ interface Props {
   role?:           string | null;
   abiertaPorNombre?: string | null;
   puedeCerrarCaja?:  boolean;
+  transferenciasSinConciliar?: number;
 }
 
 function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, readOnly }: {
@@ -67,7 +68,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role, abiertaPorNombre, puedeCerrarCaja = true }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role, abiertaPorNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
   const hoy = fechaHoyAR();
   const puedeEditarMedios = role === "admin";
 
@@ -334,6 +335,18 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                       </span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Aviso informativo, no bloquea el cierre -- una transferencia
+                  legítima pudo haber ido a otro alias/banco que no sea
+                  Mercado Pago, así que no se puede exigir que todas matcheen. */}
+              {transferenciasSinConciliar > 0 && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-800">
+                  {transferenciasSinConciliar === 1
+                    ? "Hay 1 venta reciente por transferencia todavía sin conciliar contra Mercado Pago."
+                    : `Hay ${transferenciasSinConciliar} ventas recientes por transferencia todavía sin conciliar contra Mercado Pago.`}
+                  {" "}Se puede resolver desde "Pagos por transferencia sin conciliar" arriba en la sucursal, no es necesario para cerrar.
                 </div>
               )}
 

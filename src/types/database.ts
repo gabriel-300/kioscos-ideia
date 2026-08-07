@@ -1232,6 +1232,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           paid_at: string | null
+          movimiento_id: string | null
         }
         Insert: {
           id?: string
@@ -1244,6 +1245,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           paid_at?: string | null
+          movimiento_id?: string | null
         }
         Update: {
           id?: string
@@ -1256,6 +1258,43 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           paid_at?: string | null
+          movimiento_id?: string | null
+        }
+        Relationships: []
+      }
+      mercadopago_transferencias_recibidas: {
+        Row: {
+          id: string
+          mp_payment_id: string
+          monto: number
+          recibido_en: string
+          raw_payload: Json | null
+          movimiento_id: string | null
+          sucursal_id: string | null
+          asignado_por: string | null
+          asignado_en: string | null
+        }
+        Insert: {
+          id?: string
+          mp_payment_id: string
+          monto: number
+          recibido_en?: string
+          raw_payload?: Json | null
+          movimiento_id?: string | null
+          sucursal_id?: string | null
+          asignado_por?: string | null
+          asignado_en?: string | null
+        }
+        Update: {
+          id?: string
+          mp_payment_id?: string
+          monto?: number
+          recibido_en?: string
+          raw_payload?: Json | null
+          movimiento_id?: string | null
+          sucursal_id?: string | null
+          asignado_por?: string | null
+          asignado_en?: string | null
         }
         Relationships: []
       }

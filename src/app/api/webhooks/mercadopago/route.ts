@@ -86,19 +86,42 @@ export async function POST(request: NextRequest) {
         headers: { "Authorization": `Bearer ${accessToken}` },
       });
       if (!res.ok) throw new Error(`GET /v1/payments/${dataId} → ${res.status}`);
-      const payment = await res.json() as { status: string; transaction_amount: number; external_reference: string | null };
+      const payment = await res.json() as {
+        status: string; transaction_amount: number; external_reference: string | null; payment_type_id?: string;
+      };
 
-      if (payment.status === "approved" && payment.external_reference) {
-        await (admin as any)
-          .from("mercadopago_qr_orders")
-          .update({
-            estado:               "pagado",
-            paid_at:              new Date().toISOString(),
-            mp_payment_id:        String(dataId),
-            raw_webhook_payload:  payment,
-          })
-          .eq("external_reference", payment.external_reference)
-          .eq("estado", "pendiente");
+      if (payment.status === "approved") {
+        let matcheoOrdenQr = false;
+        if (payment.external_reference) {
+          const { data: actualizados } = await (admin as any)
+            .from("mercadopago_qr_orders")
+            .update({
+              estado:               "pagado",
+              paid_at:              new Date().toISOString(),
+              mp_payment_id:        String(dataId),
+              raw_webhook_payload:  payment,
+            })
+            .eq("external_reference", payment.external_reference)
+            .eq("estado", "pendiente")
+            .select("id");
+          matcheoOrdenQr = !!actualizados && actualizados.length > 0;
+        }
+
+        // No matcheó ninguna orden de QR armada de antemano -- si es una
+        // transferencia bancaria a esta misma cuenta (el cliente no pudo
+        // escanear el QR y transfirió en su lugar, ver conciliacion-
+        // mercadopago), se guarda para que alguien la vincule a mano a la
+        // venta correspondiente desde "Pagos por transferencia sin
+        // conciliar". ignoreDuplicates: Mercado Pago puede reintentar la
+        // misma notificación más de una vez.
+        if (!matcheoOrdenQr && payment.payment_type_id === "bank_transfer") {
+          await (admin as any)
+            .from("mercadopago_transferencias_recibidas")
+            .upsert(
+              { mp_payment_id: String(dataId), monto: payment.transaction_amount, raw_payload: payment },
+              { onConflict: "mp_payment_id", ignoreDuplicates: true }
+            );
+        }
       }
     } else if (type === "order" || type === "qr") {
       // Formato de las notificaciones de orden todavía no confirmado contra

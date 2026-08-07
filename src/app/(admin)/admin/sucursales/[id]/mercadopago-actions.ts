@@ -160,3 +160,56 @@ export async function cancelarQrMercadoPago(externalReference: string): Promise<
 
   return {};
 }
+
+// Cierra el loop para el informe de conciliación: sin esto, un pago QR
+// confirmado no queda vinculado a ninguna venta concreta del sistema. Se
+// llama desde el cliente justo después de que crearMovimiento() devuelve el
+// movimiento_id (ver venta-rapida-form.tsx) -- no se mete adentro de
+// crearMovimiento porque esa acción es genérica para venta/entrega/ajuste/
+// devolución/merma, no debería saber nada de Mercado Pago.
+export async function vincularMovimientoQr(externalReference: string, movimientoId: string): Promise<{ error?: string }> {
+  await requireStaff();
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("mercadopago_qr_orders")
+    .update({ movimiento_id: movimientoId })
+    .eq("external_reference", externalReference);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// Vincula una transferencia detectada por el webhook (sin dueño hasta acá)
+// a una venta concreta -- el paso manual de un clic que reemplaza tener que
+// ir a mirar el banco a mano, ver "Pagos por transferencia sin conciliar".
+export async function vincularTransferenciaMercadoPago(data: {
+  transferencia_id: string;
+  movimiento_id:    string;
+  sucursal_id:      string;
+}): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  const admin = createAdminClient();
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const { data: transferencia } = await (admin as any)
+    .from("mercadopago_transferencias_recibidas")
+    .select("movimiento_id")
+    .eq("id", data.transferencia_id)
+    .single();
+  if (!transferencia) return { error: "No se encontró esa transferencia" };
+  if (transferencia.movimiento_id) return { error: "Esa transferencia ya está vinculada a una venta" };
+
+  const { error } = await (admin as any)
+    .from("mercadopago_transferencias_recibidas")
+    .update({
+      movimiento_id: data.movimiento_id,
+      sucursal_id:   data.sucursal_id,
+      asignado_por:  userId,
+      asignado_en:   new Date().toISOString(),
+    })
+    .eq("id", data.transferencia_id);
+  if (error) return { error: error.message };
+
+  return {};
+}

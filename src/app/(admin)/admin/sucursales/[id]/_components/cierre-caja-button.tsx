@@ -43,6 +43,7 @@ export function CierreCajaButton({
   role,
   abiertaPorNombre,
   puedeCerrarCaja,
+  transferenciasSinConciliar,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -54,6 +55,7 @@ export function CierreCajaButton({
   role?:           string | null;
   abiertaPorNombre?: string | null;
   puedeCerrarCaja?:  boolean;
+  transferenciasSinConciliar?: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -97,6 +99,7 @@ export function CierreCajaButton({
         role={role}
         abiertaPorNombre={abiertaPorNombre}
         puedeCerrarCaja={puedeCerrarCaja}
+        transferenciasSinConciliar={transferenciasSinConciliar}
       />
     </>
   );

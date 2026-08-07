@@ -35,6 +35,7 @@ const PATHS: Record<string, React.ReactNode> = {
   termos:      <><path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082M9.75 3.104a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" /></>,
   transferencias: <><path d="M7.5 7.5h-.75A2.25 2.25 0 004.5 9.75v7.5a2.25 2.25 0 002.25 2.25h7.5a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-.75m-6 3.75l3-3m0 0l3 3m-3-3v11.25m6-2.25h.75a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-7.5A2.25 2.25 0 007.5 5.25v.75" /></>,
   reposicion:  <><path d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.94-4.693 2.436-7.152.11-.542-.322-1.048-.875-1.048H5.25M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></>,
+  conciliacion: <><path d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" /></>,
   signout:     <><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></>,
   menu:        <><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></>,
   close:       <><path d="M6 18L18 6M6 6l12 12" /></>,
@@ -73,6 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin"], icon: "staff" },
       { href: "/admin/cierres",            label: "Cierres",          roles: ["admin"], icon: "cierres" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
+      { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
     ],
   },
   {
@@ -115,7 +117,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
@@ -124,14 +126,17 @@ export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 
   alertasPrecioPendientes?: number;
   transferenciasPendientes?: number;
   reposicionPendientes?: number;
+  conciliacionPendientes?: number;
 }) {
   const badgeCounts: Record<string, number> = {
     "/admin/auditoria":      auditoriaPendientes,
     "/admin/alertas-precio": alertasPrecioPendientes,
     "/admin/transferencias": transferenciasPendientes,
     "/admin/reposicion":     reposicionPendientes,
+    "/admin/conciliacion-mercadopago": conciliacionPendientes,
   };
-  const stockGroupPendientes = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
+  const stockGroupPendientes  = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
+  const ventasGroupPendientes = conciliacionPendientes;
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
@@ -301,7 +306,7 @@ export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 
                     <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
                       <NavIcon name={group.icon} size={15} />
                     </span>
-                    {group.label === "Stock" && stockGroupPendientes > 0 && (
+                    {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Ventas" && ventasGroupPendientes > 0)) && (
                       <span style={{
                         position: "absolute", top: -3, right: -3, width: 7, height: 7,
                         borderRadius: "50%", background: "#DC2626", border: "1.5px solid " + NAVY,
