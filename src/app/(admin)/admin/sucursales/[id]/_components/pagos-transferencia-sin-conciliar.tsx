@@ -7,7 +7,7 @@ import { vincularTransferenciaMercadoPago } from "../mercadopago-actions";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
-export type PagoSinAsignar = { id: string; monto: number; recibidoEn: string };
+export type PagoSinAsignar = { id: string; monto: number; recibidoEn: string; payerNombre: string | null; payerEmail: string | null };
 export type VentaCandidata = { movimientoId: string; monto: number; fecha: string; hora: string };
 
 function haceTiempo(iso: string): string {
@@ -63,7 +63,10 @@ export function PagosTransferenciaSinConciliar({
           <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-sky-200 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm font-bold text-neutral-900 tabular-nums">{AR.format(p.monto)}</p>
-              <p className="text-xs text-neutral-400">{haceTiempo(p.recibidoEn)}</p>
+              <p className="text-xs text-neutral-400">
+                {haceTiempo(p.recibidoEn)}
+                {(p.payerNombre || p.payerEmail) && <> · {p.payerNombre ?? p.payerEmail}</>}
+              </p>
             </div>
             <select
               value={seleccion[p.id] ?? ""}

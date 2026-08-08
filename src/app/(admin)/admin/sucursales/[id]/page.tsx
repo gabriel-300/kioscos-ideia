@@ -12,7 +12,7 @@ import { AuditoriaButton } from "./_components/auditoria-button";
 import { TransferenciaEnviarButton } from "./_components/transferencia-enviar-button";
 import { TransferenciasPendientes, type Pendiente } from "./_components/transferencias-pendientes";
 import { PagosTransferenciaSinConciliar } from "./_components/pagos-transferencia-sin-conciliar";
-import { fechaHoyAR } from "@/lib/fecha";
+import { fechaHoyAR, fmtHora } from "@/lib/fecha";
 
 export const revalidate = 0;
 
@@ -178,10 +178,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // compartida, la sucursal recién se define al vincular).
     (admin as any)
       .from("mercadopago_transferencias_recibidas")
-      .select("id, monto, recibido_en")
+      .select("id, monto, recibido_en, raw_payload")
       .is("movimiento_id", null)
       .order("recibido_en", { ascending: false })
-      .limit(20) as unknown as Promise<{ data: { id: string; monto: number; recibido_en: string }[] | null }>,
+      .limit(20) as unknown as Promise<{ data: { id: string; monto: number; recibido_en: string; raw_payload: any }[] | null }>,
     // Candidatas para vincular: ventas de ESTA sucursal pagadas (total o
     // parcialmente) por transferencia en los últimos 7 días. Se filtran las
     // que ya tienen un pago de Mercado Pago vinculado más abajo, en JS (más
@@ -239,9 +239,18 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     })),
   }));
 
-  const pagosTransferenciaSinAsignar = (pagosTransferenciaSinAsignarResult.data ?? []).map((p) => ({
-    id: p.id, monto: p.monto, recibidoEn: p.recibido_en,
-  }));
+  // El payer de Mercado Pago no siempre trae los mismos campos según cómo
+  // pagó (transferencia desde otro banco vs. desde su propia cuenta MP) --
+  // se arma el mejor nombre disponible para que se pueda reconocer de quién
+  // es cada transferencia sin tener que abrir la app del banco.
+  const pagosTransferenciaSinAsignar = (pagosTransferenciaSinAsignarResult.data ?? []).map((p) => {
+    const payer = p.raw_payload?.payer ?? {};
+    const nombre = [payer.first_name, payer.last_name].filter(Boolean).join(" ") || null;
+    return {
+      id: p.id, monto: p.monto, recibidoEn: p.recibido_en,
+      payerNombre: nombre, payerEmail: payer.email ?? null,
+    };
+  });
   const movimientosVinculados = new Set((movimientosYaVinculadosResult.data ?? []).map((m) => m.movimiento_id));
   const ventasTransferenciaCandidatas = (ventasTransferenciaRecientesResult.data ?? [])
     .filter((m) => !movimientosVinculados.has(m.id))
@@ -249,7 +258,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       movimientoId: m.id,
       monto:        m.pago_transferencia,
       fecha:        new Date(m.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" }),
-      hora:         new Date(m.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+      hora:         fmtHora(m.created_at),
     }));
 
   const movimientos = movimentos;
