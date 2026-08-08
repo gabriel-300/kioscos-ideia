@@ -105,15 +105,36 @@ export async function POST(request: NextRequest) {
             .eq("estado", "pendiente")
             .select("id");
           matcheoOrdenQr = !!actualizados && actualizados.length > 0;
+
+          // Mercado Pago puede reenviar la notificación del MISMO pago más
+          // de una vez -- la segunda vez ya no hay ninguna fila 'pendiente'
+          // para actualizar (ya quedó 'pagada' la primera vez), así que el
+          // update de arriba no matchea nada aunque sí sea un pago de QR. Sin
+          // este chequeo, ese reenvío caía por error en la rama de abajo y
+          // se guardaba como si fuera una transferencia nueva sin dueño,
+          // duplicando en "Pagos por transferencia sin conciliar" un pago
+          // que ya estaba conciliado de verdad (confirmado con datos reales:
+          // así aparecieron 8 "transferencias" que en realidad eran pagos de
+          // QR interoperable -- otro banco escaneando nuestro QR, que
+          // Mercado Pago reporta con payment_type_id "bank_transfer" igual
+          // que una transferencia manual).
+          if (!matcheoOrdenQr) {
+            const { data: ordenExistente } = await (admin as any)
+              .from("mercadopago_qr_orders")
+              .select("id")
+              .eq("external_reference", payment.external_reference)
+              .limit(1);
+            matcheoOrdenQr = !!ordenExistente && ordenExistente.length > 0;
+          }
         }
 
-        // No matcheó ninguna orden de QR armada de antemano -- si es una
-        // transferencia bancaria a esta misma cuenta (el cliente no pudo
-        // escanear el QR y transfirió en su lugar, ver conciliacion-
-        // mercadopago), se guarda para que alguien la vincule a mano a la
-        // venta correspondiente desde "Pagos por transferencia sin
-        // conciliar". ignoreDuplicates: Mercado Pago puede reintentar la
-        // misma notificación más de una vez.
+        // No corresponde a ninguna orden de QR armada de antemano (ni nueva
+        // ni ya procesada) -- si es una transferencia bancaria a esta misma
+        // cuenta (el cliente no pudo escanear el QR y transfirió en su
+        // lugar, ver conciliacion-mercadopago), se guarda para que alguien
+        // la vincule a mano a la venta correspondiente desde "Pagos por
+        // transferencia sin conciliar". ignoreDuplicates: Mercado Pago puede
+        // reintentar la misma notificación más de una vez.
         if (!matcheoOrdenQr && payment.payment_type_id === "bank_transfer") {
           await (admin as any)
             .from("mercadopago_transferencias_recibidas")
