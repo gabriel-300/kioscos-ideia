@@ -168,8 +168,40 @@ export async function cancelarQrMercadoPago(externalReference: string): Promise<
 // crearMovimiento porque esa acción es genérica para venta/entrega/ajuste/
 // devolución/merma, no debería saber nada de Mercado Pago.
 export async function vincularMovimientoQr(externalReference: string, movimientoId: string): Promise<{ error?: string }> {
-  await requireStaff();
+  const { userId, role } = await requireStaff();
   const admin = createAdminClient();
+
+  // Hallazgo de la auditoría de seguridad del 08/08 (ver memoria del
+  // proyecto): esta función no validaba acceso a sucursal ni que el monto de
+  // la venta coincidiera con el del pago -- permitía vincular cualquier
+  // movimiento a cualquier orden, quedando fuera del radar del informe de
+  // conciliación (ambos "desaparecen" de las listas de pendientes sin que
+  // el monto realmente cuadre). Ahora se valida sucursal + monto exacto,
+  // igual que vincularTransferenciaMercadoPago.
+  const { data: orden } = await (admin as any)
+    .from("mercadopago_qr_orders")
+    .select("sucursal_id, monto, movimiento_id")
+    .eq("external_reference", externalReference)
+    .single();
+  if (!orden) return { error: "No se encontró la orden" };
+  if (orden.movimiento_id) return { error: "Esta orden ya está vinculada a una venta" };
+
+  const accesoError = await checkAccesoSucursal(admin, userId, role, orden.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const { data: movimiento } = await (admin as any)
+    .from("movimientos")
+    .select("sucursal_id, pago_billetera")
+    .eq("id", movimientoId)
+    .single();
+  if (!movimiento) return { error: "No se encontró la venta" };
+  if (movimiento.sucursal_id !== orden.sucursal_id) {
+    return { error: "Esa venta no pertenece a la sucursal de esta orden" };
+  }
+  if (Math.round((movimiento.pago_billetera ?? 0) * 100) !== Math.round(orden.monto * 100)) {
+    return { error: "El monto de la venta no coincide con el del pago confirmado" };
+  }
+
   const { error } = await (admin as any)
     .from("mercadopago_qr_orders")
     .update({ movimiento_id: movimientoId })
@@ -194,11 +226,29 @@ export async function vincularTransferenciaMercadoPago(data: {
 
   const { data: transferencia } = await (admin as any)
     .from("mercadopago_transferencias_recibidas")
-    .select("movimiento_id")
+    .select("movimiento_id, monto")
     .eq("id", data.transferencia_id)
     .single();
   if (!transferencia) return { error: "No se encontró esa transferencia" };
   if (transferencia.movimiento_id) return { error: "Esa transferencia ya está vinculada a una venta" };
+
+  // Hallazgo de la auditoría de seguridad del 08/08 (ver memoria del
+  // proyecto): faltaba validar que la venta elegida sea realmente de esta
+  // sucursal y que el monto coincida con el de la transferencia -- sin esto
+  // se podía vincular cualquier venta a cualquier transferencia, sacándola
+  // del radar del informe de conciliación sin que la plata realmente cuadre.
+  const { data: movimiento } = await (admin as any)
+    .from("movimientos")
+    .select("sucursal_id, pago_transferencia")
+    .eq("id", data.movimiento_id)
+    .single();
+  if (!movimiento) return { error: "No se encontró la venta" };
+  if (movimiento.sucursal_id !== data.sucursal_id) {
+    return { error: "Esa venta no pertenece a esta sucursal" };
+  }
+  if (Math.round((movimiento.pago_transferencia ?? 0) * 100) !== Math.round(transferencia.monto * 100)) {
+    return { error: "El monto de la venta no coincide con el de la transferencia" };
+  }
 
   const { error } = await (admin as any)
     .from("mercadopago_transferencias_recibidas")

@@ -49,15 +49,22 @@ export async function cerrarCaja(data: {
   let totalVentas            = data.total_ventas;
   let totalFiado             = data.total_fiado;
   let totalPlataforma        = data.total_plataforma;
+  // fondo_inicial: mismo motivo que los de arriba -- es un hecho histórico ya
+  // registrado al abrir la caja (aperturas_caja.fondo_inicial), no una
+  // declaración del que cierra. El frontend lo muestra de solo lectura, pero
+  // sin recalcularlo acá alguien podía mandar otro valor directo a la action
+  // para que la diferencia diera $0 y esconder un faltante real (hallazgo de
+  // la auditoría de seguridad del 08/08 -- ver memoria del proyecto).
+  let fondoInicial           = data.fondo_inicial;
 
   const aperturaRes = await (admin as any)
     .from("aperturas_caja")
-    .select("id, created_at, created_by")
+    .select("id, created_at, created_by, fondo_inicial")
     .eq("sucursal_id", data.sucursal_id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const ultimaApertura = aperturaRes.data as { id: string; created_at: string; created_by: string | null } | null;
+  const ultimaApertura = aperturaRes.data as { id: string; created_at: string; created_by: string | null; fondo_inicial: number } | null;
 
   // Auditoría de stock obligatoria (por sucursal, ver migración 054): si está
   // activada, no se puede cerrar sin haber auditado este turno. Arranca en
@@ -127,6 +134,10 @@ export async function cerrarCaja(data: {
     totalPlataforma = ventasPlataformaTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
     );
+
+    // Ver comentario donde se declara fondoInicial más arriba -- si hay una
+    // apertura registrada, ese es el fondo real, no lo que mande el cliente.
+    if (ultimaApertura) fondoInicial = ultimaApertura.fondo_inicial;
   }
 
   // Cierre atómico: la RPC lockea por sucursal, valida el ciclo y calcula
@@ -134,7 +145,7 @@ export async function cerrarCaja(data: {
   const { error } = await (admin as any).rpc("cerrar_caja", {
     p_sucursal_id:             data.sucursal_id,
     p_fecha:                   data.fecha,
-    p_fondo_inicial:           data.fondo_inicial,
+    p_fondo_inicial:           fondoInicial,
     p_total_ventas:            totalVentas,
     p_efectivo_declarado:      data.efectivo_declarado,
     p_billetera_declarada:     billeteraDeclarada,
