@@ -612,7 +612,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
     startTransition(async () => {
       try {
-        const { movimiento_id } = await crearMovimiento({
+        const { movimiento_id, error: crearError } = await crearMovimiento({
           sucursal_id:        sucursalId,
           fecha,
           tipo:               "venta",
@@ -632,6 +632,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
               : { product_id: id, cantidad, precio_unitario: priceOf(id) }
           ),
         });
+        if (crearError) { setError(crearError); return; }
 
         // Cierra el loop del informe de conciliación: si esta venta se pagó
         // con un QR de Mercado Pago, deja guardado a qué movimiento terminó

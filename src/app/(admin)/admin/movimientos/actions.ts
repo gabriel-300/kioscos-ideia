@@ -47,13 +47,13 @@ export async function crearMovimiento(data: {
   pago_billetera?:     number | null;
   pago_tarjeta?:       number | null;
   pago_transferencia?: number | null;
-}): Promise<{ movimiento_id: string | null }> {
+}): Promise<{ movimiento_id: string | null; error?: string }> {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
 
   // Solo el admin puede hacer ajustes de stock (encargado y vendedor, no)
   if (role !== "admin" && data.tipo === "ajuste") {
-    throw new Error("No tenés permisos para realizar ajustes de stock");
+    return { movimiento_id: null, error: "No tenés permisos para realizar ajustes de stock" };
   }
 
   // Encargados y vendedores solo pueden registrar en su propia sucursal
@@ -64,7 +64,7 @@ export async function crearMovimiento(data: {
       .eq("id", data.sucursal_id)
       .single();
     if (suc?.encargado_user_id !== userId) {
-      throw new Error("No tenés permisos para esta sucursal");
+      return { movimiento_id: null, error: "No tenés permisos para esta sucursal" };
     }
   }
   if (role === "vendedor") {
@@ -75,7 +75,7 @@ export async function crearMovimiento(data: {
       .single();
     const profile = profileRes.data as { sucursal_id: string | null } | null;
     if (profile?.sucursal_id !== data.sucursal_id) {
-      throw new Error("No tenés permisos para esta sucursal");
+      return { movimiento_id: null, error: "No tenés permisos para esta sucursal" };
     }
   }
 
@@ -84,13 +84,13 @@ export async function crearMovimiento(data: {
   // con cantidad negativa SUMARÍA stock en vez de restarlo (y el futuro chequeo de
   // stock insuficiente nunca lo va a detectar, porque nunca deja el stock negativo).
   if (data.tipo !== "ajuste" && data.items.some((i) => i.cantidad <= 0)) {
-    throw new Error("La cantidad debe ser mayor a 0");
+    return { movimiento_id: null, error: "La cantidad debe ser mayor a 0" };
   }
 
   // Merma sin motivo no sirve para nada al mirar el reporte después -- el
   // cliente ya lo exige, pero se refuerza acá por si alguien lo evita con devtools.
   if (data.tipo === "merma" && !data.notas?.trim()) {
-    throw new Error("Contá el motivo de la pérdida");
+    return { movimiento_id: null, error: "Contá el motivo de la pérdida" };
   }
 
   // Cta. Corriente no se cobra en el momento -- ningún medio de pago debería
@@ -131,7 +131,7 @@ export async function crearMovimiento(data: {
     const { data: precios, error: preciosError } = await supabase
       .from("product_prices").select("product_id, precio_dist")
       .eq("sucursal_id", data.sucursal_id).in("product_id", productIds);
-    if (preciosError) throw new Error(preciosError.message);
+    if (preciosError) return { movimiento_id: null, error: preciosError.message };
     precioProductoMap = new Map((precios ?? []).map((p) => [p.product_id, p.precio_dist]));
   }
 
@@ -143,7 +143,7 @@ export async function crearMovimiento(data: {
     const { data: precios, error: preciosError } = await supabase
       .from("product_prices").select("product_id, costo")
       .eq("sucursal_id", data.sucursal_id).in("product_id", productIds);
-    if (preciosError) throw new Error(preciosError.message);
+    if (preciosError) return { movimiento_id: null, error: preciosError.message };
     costoProductoMap = new Map((precios ?? []).map((p) => [p.product_id, p.costo]));
   }
   function precioAutorizado(precioCatalogo: number | null, precioCliente: number | null | undefined): number | null {
@@ -164,7 +164,7 @@ export async function crearMovimiento(data: {
       .from("promos")
       .select("id, price, is_active, promo_items(product_id, cantidad)")
       .in("id", promoIds);
-    if (promosError) throw new Error(promosError.message);
+    if (promosError) return { movimiento_id: null, error: promosError.message };
 
     type PromoItemRow = { product_id: string; cantidad: number };
     type PromoRow = { id: string; price: number; is_active: boolean; promo_items: PromoItemRow[] };
@@ -182,16 +182,16 @@ export async function crearMovimiento(data: {
       const { data: preciosComponentes, error: preciosCompError } = await supabase
         .from("product_prices").select("product_id, costo")
         .eq("sucursal_id", data.sucursal_id).in("product_id", componentProductIds);
-      if (preciosCompError) throw new Error(preciosCompError.message);
+      if (preciosCompError) return { movimiento_id: null, error: preciosCompError.message };
       costoComponenteMap = new Map((preciosComponentes ?? []).map((p) => [p.product_id, p.costo]));
     }
 
     for (const input of promoInputs) {
       const promo = promoMap.get(input.promo_id);
-      if (!promo) throw new Error("Promoción no encontrada");
-      if (!promo.is_active) throw new Error(`La promoción "${promo.id}" ya no está activa`);
+      if (!promo) return { movimiento_id: null, error: "Promoción no encontrada" };
+      if (!promo.is_active) return { movimiento_id: null, error: `La promoción "${promo.id}" ya no está activa` };
       if (!promo.promo_items || promo.promo_items.length === 0) {
-        throw new Error("La promoción no tiene productos configurados");
+        return { movimiento_id: null, error: "La promoción no tiene productos configurados" };
       }
       const precioPromo   = precioAutorizado(promo.price, input.precio_unitario) ?? promo.price;
       const subtotalTotal = redondearMoneda(input.cantidad * precioPromo);
@@ -287,7 +287,7 @@ export async function crearMovimiento(data: {
     const totalVenta  = items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
     const otrosMedios = (pagoBilletera ?? 0) + (pagoTarjeta ?? 0) + (pagoTransferencia ?? 0);
     if (Math.round(otrosMedios * 100) > Math.round(totalVenta * 100)) {
-      throw new Error("La suma de billetera + tarjeta + transferencia no puede superar el total de la venta");
+      return { movimiento_id: null, error: "La suma de billetera + tarjeta + transferencia no puede superar el total de la venta" };
     }
   }
 
@@ -315,7 +315,7 @@ export async function crearMovimiento(data: {
     p_items:              items,
   });
 
-  if (rpcRes.error) throw new Error(rpcRes.error.message ?? "Error al crear movimiento");
+  if (rpcRes.error) return { movimiento_id: null, error: rpcRes.error.message ?? "Error al crear movimiento" };
 
   // Nota: la merma de cocción automática (productos con products.merma_coccion_pct,
   // ej. congelado → cocido) se genera DENTRO de crear_movimiento_con_items, no acá

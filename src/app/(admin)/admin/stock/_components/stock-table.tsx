@@ -34,7 +34,7 @@ function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; o
     setError(null);
     startTransition(async () => {
       try {
-        await crearMovimiento({
+        const { error: crearError } = await crearMovimiento({
           sucursal_id: target!.sucursalId,
           fecha:       fechaHoyAR(),
           tipo:        "ajuste",
@@ -45,6 +45,7 @@ function AjusteRapidoModal({ target, onClose }: { target: AjusteTarget | null; o
             precio_unitario: null,
           }],
         });
+        if (crearError) { setError(crearError); return; }
         onClose();
         router.refresh();
       } catch (e) {

@@ -292,7 +292,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
           try { remitoImageUrl = await uploadImage(remitoImage); }
           finally { setUploading(false); }
         }
-        await crearMovimiento({
+        const { error: crearError } = await crearMovimiento({
           sucursal_id:      sucursalId,
           fecha,
           tipo,
@@ -302,6 +302,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
           remito_image_url: remitoImageUrl,
           items:            parsed,
         });
+        if (crearError) { setError(crearError); return; }
         resetForm();
         onClose();
       } catch (e) {
