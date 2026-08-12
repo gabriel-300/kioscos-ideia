@@ -358,12 +358,21 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   let miTurnoInicio: string | null = null;
   let miTurnoFin:    string | null = null;
   if (role === "encargado" || role === "vendedor") {
+    // OJO: NO filtrar por fecha = hoy acá -- si el turno se abrió ayer y
+    // todavía no se cerró (pasó de medianoche sin que nadie cierre la caja,
+    // ver [[bug-turno-cruza-medianoche-sin-cerrar]]), la apertura de esa
+    // persona tiene fecha de AYER aunque siga vendiendo hoy. Filtrar por
+    // fecha=hoy hacía que "no abrí ningún turno hoy" fuera cierto aunque
+    // estuviera vendiendo en ese mismo momento, escondiéndole sus propias
+    // ventas de hoy. Se toma la apertura más reciente de esta persona en
+    // esta sucursal, sin importar su fecha -- si hace mucho que no abre
+    // turno, igual no afecta nada porque enMiTurnoHoy() solo restringe
+    // movimientos con fecha = hoy.
     const { data: miAperturaHoy } = await (supabase as any)
       .from("aperturas_caja")
       .select("created_at")
       .eq("sucursal_id", id)
       .eq("created_by", user.id)
-      .eq("fecha", hoy)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

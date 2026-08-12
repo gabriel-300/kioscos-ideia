@@ -396,7 +396,17 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 />
               </div>
 
-              {error && <p className="text-xs text-danger">{error}</p>}
+              {/* Antes era un texto rojo chiquito al fondo del formulario --
+                  se perdía de vista y quedaban turnos sin cerrar (ej. el
+                  aviso de auditoría obligatoria pendiente pasaba
+                  desapercibido, ver [[bug-turno-cruza-medianoche-sin-cerrar]]).
+                  Ahora es un cartel imposible de no ver. */}
+              {error && (
+                <div className="rounded-xl border border-danger/30 bg-danger/5 p-3.5">
+                  <p className="text-sm font-semibold text-danger">No se pudo cerrar la caja</p>
+                  <p className="text-sm text-danger/90 mt-0.5">{error}</p>
+                </div>
+              )}
             </>
           ) : (
             /* ── Último cierre registrado ── */
