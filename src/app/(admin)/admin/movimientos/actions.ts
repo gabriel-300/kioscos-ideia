@@ -170,6 +170,17 @@ export async function crearMovimiento(data: {
     type PromoRow = { id: string; price: number; is_active: boolean; promo_items: PromoItemRow[] };
     const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
 
+    // El precio de la promo es por sucursal desde la migración 070 (mismo caso
+    // que product_prices para productos sueltos) -- promos.price quedó
+    // vestigial. Sin esta consulta, una promo con precio distinto en esta
+    // sucursal se factura al precio global viejo, lo que después no coincide
+    // con lo que el vendedor cobró de verdad (rechaza la venta como "sobrepago").
+    const { data: preciosPromo, error: preciosPromoError } = await (supabase as any)
+      .from("promo_prices").select("promo_id, price")
+      .eq("sucursal_id", data.sucursal_id).in("promo_id", promoIds);
+    if (preciosPromoError) return { movimiento_id: null, error: preciosPromoError.message };
+    const precioPromoMap = new Map<string, number>((preciosPromo ?? []).map((p: { promo_id: string; price: number }) => [p.promo_id, p.price]));
+
     // El costo de cada componente para repartir el facturado de la promo
     // (más abajo) es el costo de ESTA sucursal -- consulta aparte en vez de
     // anidarla dentro del embed de promo_items, más simple y confiable que
@@ -193,7 +204,8 @@ export async function crearMovimiento(data: {
       if (!promo.promo_items || promo.promo_items.length === 0) {
         return { movimiento_id: null, error: "La promoción no tiene productos configurados" };
       }
-      const precioPromo   = precioAutorizado(promo.price, input.precio_unitario) ?? promo.price;
+      const precioCatalogoPromo = precioPromoMap.get(promo.id) ?? promo.price;
+      const precioPromo   = precioAutorizado(precioCatalogoPromo, input.precio_unitario) ?? precioCatalogoPromo;
       const subtotalTotal = redondearMoneda(input.cantidad * precioPromo);
 
       // El facturado del combo se reparte entre sus componentes proporcional
