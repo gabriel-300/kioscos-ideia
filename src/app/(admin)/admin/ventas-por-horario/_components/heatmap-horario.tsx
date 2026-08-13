@@ -32,9 +32,15 @@ export function HeatmapHorario({ celdas, horaMin, horaMax }: { celdas: CeldaHeat
   const CELL = 30;
   const GAP  = 2;
   const LABEL_W = 76;
+  // overflow-x:auto en el contenedor hace que overflow-y compute a "auto"
+  // también (regla de CSS: si un eje no es "visible", el otro deja de serlo),
+  // así que el tooltip de la fila de arriba (Lunes), que se dibuja hacia
+  // arriba con bottom-full, queda recortado sin aire reservado encima de la
+  // grilla -- mismo caso ya resuelto en ventas-por-dia-chart.tsx.
+  const TOOLTIP_PX = 44;
 
   return (
-    <div className="overflow-x-auto pb-2">
+    <div className="overflow-x-auto pb-2" style={{ paddingTop: TOOLTIP_PX }}>
       <div style={{ minWidth: LABEL_W + horas.length * (CELL + GAP) }}>
         {/* Encabezado de horas */}
         <div className="flex" style={{ gap: GAP, marginLeft: LABEL_W }}>
