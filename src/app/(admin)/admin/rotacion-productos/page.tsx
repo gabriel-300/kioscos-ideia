@@ -27,10 +27,54 @@ type ProductoFila = {
   facturado: number; costoTotal: number | null; margen: number | null;
 };
 
+type OrdenKey = "nombre" | "entregado" | "vendido" | "rotacion" | "facturado" | "costo" | "margen";
+const ORDEN_KEYS: OrdenKey[] = ["nombre", "entregado", "vendido", "rotacion", "facturado", "costo", "margen"];
+
+// null (sin costo cargado / sin entregas) siempre al final, sea cual sea la
+// dirección -- ordenar "por costo" no debería mezclar "no cargado" con "cero".
+function valorOrden(f: ProductoFila, orden: OrdenKey): number | string | null {
+  switch (orden) {
+    case "nombre":     return f.nombre.toLowerCase();
+    case "entregado":  return f.entregado;
+    case "vendido":    return f.vendido;
+    case "rotacion":   return f.rotacion;
+    case "facturado":  return f.facturado;
+    case "costo":      return f.costoTotal;
+    case "margen":     return f.margen;
+  }
+}
+
+function ThOrdenable({
+  label, ordenKey, ordenActual, dirActual, align = "right", buildHref,
+}: {
+  label: string; ordenKey: OrdenKey; ordenActual: OrdenKey; dirActual: "asc" | "desc";
+  align?: "left" | "right" | "center"; buildHref: (orden: OrdenKey, dir: "asc" | "desc") => string;
+}) {
+  const activo = ordenActual === ordenKey;
+  // Primer click en una columna nueva: descendente (lo más esperable al
+  // preguntar "cuál es el más vendido") -- clicks siguientes alternan.
+  const proximaDir: "asc" | "desc" = activo && dirActual === "desc" ? "asc" : "desc";
+  const alignClass = align === "left" ? "text-left" : align === "center" ? "text-center" : "text-right";
+  const justify = align === "left" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
+  return (
+    <th className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-neutral-500 ${alignClass}`}>
+      <Link
+        href={buildHref(ordenKey, proximaDir)}
+        className={`inline-flex items-center gap-1 hover:text-tierra-700 ${justify}`}
+      >
+        {label}
+        <span className={`text-[9px] ${activo ? "text-tierra-700" : "text-neutral-300"}`}>
+          {activo ? (dirActual === "asc" ? "▲" : "▼") : "▲▼"}
+        </span>
+      </Link>
+    </th>
+  );
+}
+
 export default async function RotacionProductosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; hasta?: string; sucursal?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string; sucursal?: string; orden?: string; dir?: string }>;
 }) {
   const supabase = await createClient();
   const admin    = createAdminClient();
@@ -48,6 +92,20 @@ export default async function RotacionProductosPage({
   const desde = sp.desde ?? primerDiaMesAR();
   const hasta = sp.hasta ?? hoy;
   const sucFilter = sp.sucursal ?? "all";
+  // Sin orden explícito: rotación ascendente (peores primero) -- el orden
+  // original de esta página, pensado para saltar directo a lo que no rota.
+  const ordenActual: OrdenKey = ORDEN_KEYS.includes(sp.orden as OrdenKey) ? (sp.orden as OrdenKey) : "rotacion";
+  const dirActual: "asc" | "desc" = sp.dir === "desc" ? "desc" : "asc";
+
+  function buildHref(orden: OrdenKey, dir: "asc" | "desc"): string {
+    const params = new URLSearchParams();
+    if (sp.desde) params.set("desde", sp.desde);
+    if (sp.hasta) params.set("hasta", sp.hasta);
+    if (sp.sucursal) params.set("sucursal", sp.sucursal);
+    params.set("orden", orden);
+    params.set("dir", dir);
+    return `/admin/rotacion-productos?${params.toString()}`;
+  }
 
   const { data: sucursales } = await supabase
     .from("sucursales")
@@ -135,10 +193,15 @@ export default async function RotacionProductosPage({
       facturado: acc.facturado, costoTotal, margen,
     };
   }).sort((a, b) => {
-    if (a.rotacion === null && b.rotacion === null) return b.facturado - a.facturado;
-    if (a.rotacion === null) return 1;
-    if (b.rotacion === null) return -1;
-    return a.rotacion - b.rotacion;
+    const va = valorOrden(a, ordenActual);
+    const vb = valorOrden(b, ordenActual);
+    // null (sin costo cargado / sin entregas) siempre al final, en cualquier
+    // columna y dirección -- no es "el más chico", es "no medible".
+    if (va === null && vb === null) return b.facturado - a.facturado;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    const cmp = typeof va === "string" ? va.localeCompare(vb as string) : va - (vb as number);
+    return dirActual === "asc" ? cmp : -cmp;
   });
 
   const totalFacturado = filas.reduce((s, f) => s + f.facturado, 0);
@@ -155,7 +218,7 @@ export default async function RotacionProductosPage({
     <div className="p-4 md:p-8 max-w-[1600px]">
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Rotación por producto</h1>
-        <p className="text-sm text-neutral-400 mt-0.5">De lo que entregaste a cada producto, cuánto se vendió -- ordenado de menor a mayor rotación</p>
+        <p className="text-sm text-neutral-400 mt-0.5">De lo que entregaste a cada producto, cuánto se vendió -- hacé click en cualquier columna para ordenar</p>
       </div>
 
       {/* Filtros */}
@@ -178,10 +241,14 @@ export default async function RotacionProductosPage({
             {(sucursales ?? []).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
         </div>
+        {/* El orden elegido (click en un encabezado) no es un input visible --
+            se preserva como hidden para que "Filtrar" no lo pise. */}
+        <input type="hidden" name="orden" value={ordenActual} />
+        <input type="hidden" name="dir" value={dirActual} />
         <button type="submit" className="h-9 px-4 rounded-lg bg-tierra-700 text-white text-sm font-medium hover:bg-tierra-800 transition-colors">
           Filtrar
         </button>
-        {(sp.desde || sp.hasta || sp.sucursal) && (
+        {(sp.desde || sp.hasta || sp.sucursal || sp.orden || sp.dir) && (
           <Link href="/admin/rotacion-productos" className="h-9 px-3 rounded-lg border border-neutral-200 text-sm text-neutral-500 hover:bg-neutral-50 transition-colors flex items-center">
             Limpiar
           </Link>
@@ -250,13 +317,13 @@ export default async function RotacionProductosPage({
           <table className="w-full text-sm" style={{ minWidth: "800px" }}>
             <thead>
               <tr className="bg-neutral-50 border-b border-neutral-200">
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Producto</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Entregado</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Vendido</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-neutral-500">Rotación</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Facturado</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Costo</th>
-                <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Ganancia</th>
+                <ThOrdenable label="Producto"   ordenKey="nombre"    align="left"   ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Entregado"  ordenKey="entregado" align="right"  ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Vendido"    ordenKey="vendido"   align="right"  ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Rotación"   ordenKey="rotacion"  align="center" ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Facturado"  ordenKey="facturado" align="right"  ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Costo"      ordenKey="costo"     align="right"  ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
+                <ThOrdenable label="Ganancia"   ordenKey="margen"    align="right"  ordenActual={ordenActual} dirActual={dirActual} buildHref={buildHref} />
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-50">
