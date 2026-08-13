@@ -53,6 +53,17 @@ export function primerDiaMesAR(date: Date = new Date()): string {
   return `${fechaHoyAR(date).slice(0, 7)}-01`;
 }
 
+/**
+ * Hora del día (0-23) de cualquier instante según el calendario de Argentina --
+ * mismo motivo que fechaHoyAR: el runtime de Cloudflare Workers corre en UTC,
+ * así que `date.getHours()` da la hora de Londres, no la de Argentina.
+ */
+export function horaNumAR(date: Date = new Date()): number {
+  // hourCycle "h23" explícito -- con hour12:false algunos motores igual
+  // devuelven "24" para la medianoche en vez de "0" (h11/h12 de fondo).
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hourCycle: "h23" }).format(date));
+}
+
 const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] as const;
 
 /**
@@ -62,7 +73,12 @@ const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viern
  * depender de parsear nombres localizados con acentos.
  */
 export function diaSemanaHoyAR(date: Date = new Date()): typeof DIAS_SEMANA[number] {
+  return DIAS_SEMANA[diaSemanaIdxAR(date)];
+}
+
+/** Índice de día de semana (0=domingo..6=sábado) de cualquier instante, según Argentina. */
+export function diaSemanaIdxAR(date: Date = new Date()): number {
   const en = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(date);
   const idx = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(en);
-  return DIAS_SEMANA[idx === -1 ? 0 : idx];
+  return idx === -1 ? 0 : idx;
 }
