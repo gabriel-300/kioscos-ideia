@@ -165,6 +165,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       `)
       .eq("sucursal_destino_id", id)
       .eq("estado", "enviada")
+      .is("anulada_en", null)
       .order("created_at", { ascending: false }) as unknown as Promise<{
         data: {
           id: string; fecha: string; notas_envio: string | null;

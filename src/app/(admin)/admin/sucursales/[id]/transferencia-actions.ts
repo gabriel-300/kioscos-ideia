@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/require-role";
+import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 
 export interface TransferenciaItemInput {
   product_id: string;
@@ -79,11 +79,12 @@ export async function confirmarTransferencia(data: {
 
   const { data: transferencia, error: errT } = await supabase
     .from("transferencias_stock")
-    .select("sucursal_destino_id, estado")
+    .select("sucursal_destino_id, estado, anulada_en")
     .eq("id", data.transferencia_id)
     .single();
   if (errT || !transferencia) return { error: "No se encontró la transferencia" };
   if (transferencia.estado === "recibida") return { error: "Esta transferencia ya fue confirmada" };
+  if (transferencia.anulada_en) return { error: "Esta transferencia fue anulada" };
 
   if (role === "encargado") {
     const { data: suc } = await supabase
@@ -111,5 +112,56 @@ export async function confirmarTransferencia(data: {
   revalidatePath(`/admin/sucursales/${transferencia.sucursal_destino_id}`);
   revalidatePath("/admin/stock");
   revalidatePath("/admin/transferencias");
+  return {};
+}
+
+// Anular una transferencia cargada por error -- a diferencia de anular una
+// venta (cualquiera del staff de esa sucursal, mientras la caja siga
+// abierta), esto lo puede hacer SOLO admin: una transferencia mueve stock
+// entre DOS sucursales y no está atada a ningún turno/caja que la acote, así
+// que no hay un dueño natural único del lado del staff -- se centraliza en
+// admin en vez de repartir el mismo criterio de permisos que enviar/confirmar.
+// No borra -- marca (quién, cuándo, motivo obligatorio) y revierte el efecto
+// en stock marcando `anulado_en` en el/los movimientos asociados (salida
+// siempre, entrada también si ya se había confirmado la recepción) -- mismo
+// campo que ya usa `stock_sucursal` para ignorar ventas anuladas, no hace
+// falta tocar la view.
+export async function anularTransferencia(id: string, motivo: string): Promise<{ error?: string }> {
+  const { userId } = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const motivoTrim = motivo?.trim();
+  if (!motivoTrim) return { error: "Contá por qué anulás esta transferencia" };
+
+  const { data: transferencia, error: errT } = await supabase
+    .from("transferencias_stock")
+    .select("sucursal_origen_id, sucursal_destino_id, movimiento_salida_id, movimiento_entrada_id, anulada_en")
+    .eq("id", id)
+    .single();
+  if (errT || !transferencia) return { error: "No se encontró la transferencia" };
+  if (transferencia.anulada_en) return { error: "Esta transferencia ya está anulada" };
+
+  const movimientoIds = [transferencia.movimiento_salida_id, transferencia.movimiento_entrada_id]
+    .filter((mid): mid is string => !!mid);
+  if (movimientoIds.length > 0) {
+    const { error: errMov } = await supabase
+      .from("movimientos")
+      .update({ anulado_en: new Date().toISOString(), anulado_por: userId, motivo_anulacion: motivoTrim })
+      .in("id", movimientoIds);
+    if (errMov) return { error: errMov.message };
+  }
+
+  const { error } = await supabase
+    .from("transferencias_stock")
+    .update({ anulada_en: new Date().toISOString(), anulada_por: userId, motivo_anulacion: motivoTrim })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/admin/sucursales/${transferencia.sucursal_origen_id}`);
+  revalidatePath(`/admin/sucursales/${transferencia.sucursal_destino_id}`);
+  revalidatePath("/admin/stock");
+  revalidatePath("/admin/movimientos");
+  revalidatePath("/admin/transferencias");
+  revalidatePath("/admin/dashboard");
   return {};
 }

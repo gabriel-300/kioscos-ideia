@@ -1313,6 +1313,9 @@ export type Database = {
           recibido_por: string | null
           created_at: string
           confirmado_en: string | null
+          anulada_en: string | null
+          anulada_por: string | null
+          motivo_anulacion: string | null
         }
         Insert: {
           id?: string
@@ -1328,6 +1331,9 @@ export type Database = {
           recibido_por?: string | null
           created_at?: string
           confirmado_en?: string | null
+          anulada_en?: string | null
+          anulada_por?: string | null
+          motivo_anulacion?: string | null
         }
         Update: {
           id?: string
@@ -1343,6 +1349,9 @@ export type Database = {
           recibido_por?: string | null
           created_at?: string
           confirmado_en?: string | null
+          anulada_en?: string | null
+          anulada_por?: string | null
+          motivo_anulacion?: string | null
         }
         Relationships: []
       }

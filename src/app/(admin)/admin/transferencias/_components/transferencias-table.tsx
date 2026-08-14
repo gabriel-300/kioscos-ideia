@@ -1,6 +1,8 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { anularTransferencia } from "../../sucursales/[id]/transferencia-actions";
 
 const NUM = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
@@ -22,13 +24,42 @@ export type TransferenciaFila = {
   recibidoPor:     string | null;
   notasEnvio:      string | null;
   notasRecepcion:  string | null;
+  anuladaEn:       string | null;
+  motivoAnulacion: string | null;
   items:           TransferenciaItemFila[];
 };
 
-function EstadoBadge({ estado }: { estado: TransferenciaFila["estado"] }) {
+function EstadoBadge({ estado, anulada }: { estado: TransferenciaFila["estado"]; anulada: boolean }) {
+  if (anulada) return <span className="text-xs font-semibold text-danger bg-danger/10 px-2 py-0.5 rounded-full">Anulada</span>;
   return estado === "recibida"
     ? <span className="text-xs font-semibold text-selva-700 bg-selva-50 px-2 py-0.5 rounded-full">Recibida</span>
     : <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Pendiente</span>;
+}
+
+// Solo admin -- una transferencia mueve stock entre dos sucursales, sin un
+// turno/caja que la acote como para repartir el permiso como en anular venta.
+function AnularBtn({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  return (
+    <button
+      disabled={pending}
+      onClick={(e) => {
+        e.stopPropagation();
+        const motivo = window.prompt("¿Por qué anulás esta transferencia? (obligatorio)");
+        if (motivo === null) return;
+        if (!motivo.trim()) { window.alert("El motivo es obligatorio para anular una transferencia."); return; }
+        startTransition(async () => {
+          const res = await anularTransferencia(id, motivo);
+          if (res.error) window.alert(res.error);
+          else router.refresh();
+        });
+      }}
+      className="text-xs text-neutral-400 hover:text-danger transition-colors disabled:opacity-50"
+    >
+      {pending ? "…" : "Anular"}
+    </button>
+  );
 }
 
 function ItemsDetalle({ items }: { items: TransferenciaItemFila[] }) {
@@ -54,7 +85,7 @@ function ItemsDetalle({ items }: { items: TransferenciaItemFila[] }) {
   );
 }
 
-export function TransferenciasTable({ transferencias }: { transferencias: TransferenciaFila[] }) {
+export function TransferenciasTable({ transferencias, isAdmin }: { transferencias: TransferenciaFila[]; isAdmin: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (transferencias.length === 0) {
@@ -85,7 +116,7 @@ export function TransferenciasTable({ transferencias }: { transferencias: Transf
                       {new Date(t.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })} · {t.items.length} {t.items.length === 1 ? "producto" : "productos"}
                     </p>
                   </div>
-                  <EstadoBadge estado={t.estado} />
+                  <EstadoBadge estado={t.estado} anulada={!!t.anuladaEn} />
                 </div>
               </button>
               {isOpen && (
@@ -94,6 +125,10 @@ export function TransferenciasTable({ transferencias }: { transferencias: Transf
                   <ItemsDetalle items={t.items} />
                   {t.notasEnvio && <p className="text-xs text-neutral-500 italic">Envío: "{t.notasEnvio}"</p>}
                   {t.notasRecepcion && <p className="text-xs text-neutral-500 italic">Recepción: "{t.notasRecepcion}"</p>}
+                  {t.anuladaEn && <p className="text-xs text-danger italic">Anulada: "{t.motivoAnulacion}"</p>}
+                  {isAdmin && !t.anuladaEn && (
+                    <div className="pt-1"><AnularBtn id={t.id} /></div>
+                  )}
                 </div>
               )}
             </div>
@@ -127,7 +162,7 @@ export function TransferenciasTable({ transferencias }: { transferencias: Transf
                     </td>
                     <td className="px-3 py-2.5 font-medium text-neutral-800">{t.origenNombre} → {t.destinoNombre}</td>
                     <td className="px-3 py-2.5 text-right text-neutral-500 tabular-nums">{t.items.length}</td>
-                    <td className="px-3 py-2.5"><EstadoBadge estado={t.estado} /></td>
+                    <td className="px-3 py-2.5"><EstadoBadge estado={t.estado} anulada={!!t.anuladaEn} /></td>
                     <td className="px-3 py-2.5 text-neutral-400">
                       <svg
                         className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -140,12 +175,16 @@ export function TransferenciasTable({ transferencias }: { transferencias: Transf
                   {isOpen && (
                     <tr>
                       <td colSpan={5} className="bg-neutral-50 px-4 py-4">
-                        <p className="text-xs text-neutral-500 mb-2">
-                          Envió: {t.enviadoPor}{t.recibidoPor && ` · Recibió: ${t.recibidoPor}`}
-                        </p>
+                        <div className="flex items-start justify-between gap-4">
+                          <p className="text-xs text-neutral-500 mb-2">
+                            Envió: {t.enviadoPor}{t.recibidoPor && ` · Recibió: ${t.recibidoPor}`}
+                          </p>
+                          {isAdmin && !t.anuladaEn && <AnularBtn id={t.id} />}
+                        </div>
                         <ItemsDetalle items={t.items} />
                         {t.notasEnvio && <p className="text-xs text-neutral-500 italic mt-2">Envío: "{t.notasEnvio}"</p>}
                         {t.notasRecepcion && <p className="text-xs text-neutral-500 italic mt-1">Recepción: "{t.notasRecepcion}"</p>}
+                        {t.anuladaEn && <p className="text-xs text-danger italic mt-2">Anulada: "{t.motivoAnulacion}"</p>}
                       </td>
                     </tr>
                   )}

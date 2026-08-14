@@ -44,6 +44,7 @@ export default async function TransferenciasPage({
     .from("transferencias_stock")
     .select(`
       id, fecha, estado, notas_envio, notas_recepcion, enviado_por, recibido_por,
+      anulada_en, motivo_anulacion,
       sucursal_origen:sucursales!transferencias_stock_sucursal_origen_id_fkey(nombre),
       sucursal_destino:sucursales!transferencias_stock_sucursal_destino_id_fkey(nombre),
       transferencia_items(id, cantidad_enviada, cantidad_recibida, product:products(name, unit_label))
@@ -60,6 +61,7 @@ export default async function TransferenciasPage({
     id: string; fecha: string; estado: "enviada" | "recibida";
     notas_envio: string | null; notas_recepcion: string | null;
     enviado_por: string | null; recibido_por: string | null;
+    anulada_en: string | null; motivo_anulacion: string | null;
     sucursal_origen: { nombre: string } | null;
     sucursal_destino: { nombre: string } | null;
     transferencia_items: { id: string; cantidad_enviada: number; cantidad_recibida: number | null; product: { name: string; unit_label: string | null } | null }[];
@@ -96,6 +98,8 @@ export default async function TransferenciasPage({
     recibidoPor: t.recibido_por ? (profileMap[t.recibido_por] ?? "—") : null,
     notasEnvio: t.notas_envio,
     notasRecepcion: t.notas_recepcion,
+    anuladaEn: t.anulada_en,
+    motivoAnulacion: t.motivo_anulacion,
     items: t.transferencia_items.map((i) => ({
       id: i.id,
       productoNombre: i.product?.name ?? "Producto eliminado",
@@ -105,7 +109,7 @@ export default async function TransferenciasPage({
     })),
   }));
 
-  const pendientes = filas.filter((f) => f.estado === "enviada").length;
+  const pendientes = filas.filter((f) => f.estado === "enviada" && !f.anuladaEn).length;
 
   return (
     <div className="p-4 md:p-8 max-w-[1200px]">
@@ -155,7 +159,7 @@ export default async function TransferenciasPage({
         </p>
       </div>
 
-      <TransferenciasTable transferencias={filas} />
+      <TransferenciasTable transferencias={filas} isAdmin={role === "admin"} />
     </div>
   );
 }
