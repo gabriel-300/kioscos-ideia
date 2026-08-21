@@ -43,6 +43,7 @@ export async function registrarRetiroSocio(data: {
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}/socios`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }
 
@@ -55,6 +56,7 @@ export async function eliminarRetiroSocio(id: string, sucursalId: string): Promi
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${sucursalId}/socios`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }
 
@@ -86,6 +88,7 @@ export async function registrarDevolucionSocio(data: {
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}/socios`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }
 
@@ -98,5 +101,6 @@ export async function eliminarDevolucionSocio(id: string, sucursalId: string): P
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${sucursalId}/socios`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }

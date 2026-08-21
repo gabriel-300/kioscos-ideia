@@ -44,4 +44,5 @@ export async function abrirCaja(data: {
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/cierres");
+  revalidatePath("/admin/tesoreria");
 }

@@ -38,6 +38,7 @@ const PATHS: Record<string, React.ReactNode> = {
   transferencias: <><path d="M7.5 7.5h-.75A2.25 2.25 0 004.5 9.75v7.5a2.25 2.25 0 002.25 2.25h7.5a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-.75m-6 3.75l3-3m0 0l3 3m-3-3v11.25m6-2.25h.75a2.25 2.25 0 002.25-2.25v-7.5a2.25 2.25 0 00-2.25-2.25h-7.5A2.25 2.25 0 007.5 5.25v.75" /></>,
   reposicion:  <><path d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.94-4.693 2.436-7.152.11-.542-.322-1.048-.875-1.048H5.25M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></>,
   conciliacion: <><path d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" /></>,
+  tesoreria:   <><path d="M2.25 21h19.5M4.5 21V9.75M19.5 21V9.75M2.25 9.75L12 3l9.75 6.75M6.75 9.75v4.5M12 9.75v4.5M17.25 9.75v4.5M4.5 21h15" /></>,
   signout:     <><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></>,
   menu:        <><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></>,
   close:       <><path d="M6 18L18 6M6 6l12 12" /></>,
@@ -109,6 +110,9 @@ const NAV_GROUPS: NavGroup[] = [
 // Ítems sueltos que van después de los grupos
 const NAV_TAIL: NavItem[] = [
   { href: "/admin/gastos", label: "Finanzas", roles: ["admin"],               icon: "gastos" },
+  // "socio" no es un rol real (vive en profiles.es_socio, no en app_metadata.role)
+  // -- se resuelve más abajo como un rol sintético agregado a effectiveRoles.
+  { href: "/admin/tesoreria", label: "Tesorería", roles: ["admin", "socio"],  icon: "tesoreria" },
   { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado"],  icon: "nichos" },
   { href: "/admin/staff",  label: "Staff",    roles: ["admin"],               icon: "staff" },
   { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor"], icon: "ayuda" },
@@ -121,17 +125,23 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, esSocio = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
   sucursalId?: string | null;
+  esSocio?:    boolean;
   auditoriaPendientes?: number;
   alertasPrecioPendientes?: number;
   transferenciasPendientes?: number;
   reposicionPendientes?: number;
   conciliacionPendientes?: number;
 }) {
+  // "socio" es un rol sintético (no viene de app_metadata.role) para que los
+  // ítems de nav puedan pedir roles:["admin","socio"] sin tener que inventar
+  // un caso especial en cada filtro -- profiles.es_socio es ortogonal al rol
+  // real (un vendedor o encargado puede ser socio igual).
+  const effectiveRoles = [role ?? "", ...(esSocio ? ["socio"] : [])];
   const badgeCounts: Record<string, number> = {
     "/admin/auditoria":      auditoriaPendientes,
     "/admin/alertas-precio": alertasPrecioPendientes,
@@ -210,16 +220,18 @@ export function AdminNav({ role, email, name, sucursalId, auditoriaPendientes = 
     return item;
   }
 
+  const hasAccess = (item: NavItem) => item.roles.some((r) => effectiveRoles.includes(r));
+
   const visibleHead = NAV_HEAD
-    .filter((item) => item.roles.includes(role ?? ""))
+    .filter(hasAccess)
     .filter((item) => !((role === "encargado" || role === "vendedor") && item.href === "/admin/dashboard"))
     .map(resolveItem);
 
   const visibleGroups = NAV_GROUPS
-    .map((g) => ({ ...g, children: g.children.filter((c) => c.roles.includes(role ?? "")) }))
+    .map((g) => ({ ...g, children: g.children.filter(hasAccess) }))
     .filter((g) => g.children.length > 0);
 
-  const visibleTail = NAV_TAIL.filter((item) => item.roles.includes(role ?? ""));
+  const visibleTail = NAV_TAIL.filter(hasAccess);
 
   const initials = ((name ?? email ?? "?")[0] ?? "?").toUpperCase();
 

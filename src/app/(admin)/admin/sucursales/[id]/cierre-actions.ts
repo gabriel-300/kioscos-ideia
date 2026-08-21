@@ -162,6 +162,7 @@ export async function cerrarCaja(data: {
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/cierres");
+  revalidatePath("/admin/tesoreria");
   return {};
 }
 

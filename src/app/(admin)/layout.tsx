@@ -17,6 +17,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const email = user.email ?? null;
   const name  = (user.user_metadata?.full_name as string | null) ?? null;
 
+  const { data: profileSocio } = await (supabase as any).from("profiles").select("es_socio").eq("id", user.id).single();
+  const esSocio = (profileSocio as { es_socio: boolean | null } | null)?.es_socio ?? false;
+
   let sucursalId: string | null = null;
   if (role === "encargado") {
     const { data } = await supabase
@@ -101,7 +104,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="h-screen flex flex-col bg-neutral-50">
       <NumberInputWheelGuard />
       <AdminNav
-        role={role} email={email} name={name} sucursalId={sucursalId}
+        role={role} email={email} name={name} sucursalId={sucursalId} esSocio={esSocio}
         auditoriaPendientes={auditoriaPendientes}
         alertasPrecioPendientes={alertasPrecioPendientes}
         transferenciasPendientes={transferenciasPendientes}

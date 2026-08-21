@@ -30,6 +30,7 @@ export async function confirmarRetiroSobre(cierreId: string) {
 
   revalidatePath("/admin/cierres");
   if (cierre.sucursal_id) revalidatePath(`/admin/sucursales/${cierre.sucursal_id}`);
+  revalidatePath("/admin/tesoreria");
 }
 
 // El tesorero/socio verifica cuánto contó del sobre que le entregaron. Queda

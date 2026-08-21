@@ -47,6 +47,7 @@ export async function registrarPagoProveedor(data: {
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${data.sucursal_id}/pagos-proveedores`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }
 
@@ -63,5 +64,6 @@ export async function eliminarPagoProveedor(id: string, sucursalId: string): Pro
   if (error) return { error: error.message };
 
   revalidatePath(`/admin/sucursales/${sucursalId}/pagos-proveedores`);
+  revalidatePath("/admin/tesoreria");
   return {};
 }
