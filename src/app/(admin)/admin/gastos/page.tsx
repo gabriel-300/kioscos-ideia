@@ -68,7 +68,10 @@ export default async function GastosPage({
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   const empleadoMap: Record<string, string> = Object.fromEntries(empleados.map((e) => [e.id, e.nombre]));
-  const gastos: GastoRow[] = (gastosRaw ?? []).map((g) => ({
+  // gasto_fijo_id no es parte de GastoRow (es un detalle interno de esta
+  // página, para linkear cada gasto fijo con su pago del mes -- GastosView
+  // no lo necesita) -- se preserva el tipo acá para el loop de abajo.
+  const gastos: (GastoRow & { gasto_fijo_id: string | null })[] = (gastosRaw ?? []).map((g) => ({
     ...g,
     empleadoNombre: g.empleado_id ? (empleadoMap[g.empleado_id] ?? null) : null,
   }));
