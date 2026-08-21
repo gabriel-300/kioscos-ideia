@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
-import { extraerRemito } from "@/lib/openrouter";
+import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
 
 export interface ItemInput {
   product_id:      string;
@@ -403,19 +403,23 @@ export type LineaRemitoLeida = {
   productIdMatch: string | null;
 };
 
-// Lee una foto de remito con IA (Gemini) y devuelve las líneas con el producto
-// del catálogo matcheado cuando hay uno solo claro -- nunca adivina entre
-// varios candidatos, esas líneas quedan sin matchear para elegir a mano.
-export async function leerRemito(imageBase64: string, mimeType: string): Promise<{ error?: string; lineas?: LineaRemitoLeida[] }> {
+// Lee una foto de remito con IA (Groq, con fallback entre 2 modelos de
+// visión) y devuelve las líneas con el producto del catálogo matcheado
+// cuando hay uno solo claro -- nunca adivina entre varios candidatos, esas
+// líneas quedan sin matchear para elegir a mano. Groq marca sus modelos de
+// visión como "preview" (ver lib/groq.ts) -- las advertencias de
+// consistencia de validarComprobante() viajan igual, para que quien cargó
+// la foto sepa que conviene revisar antes de guardar, no confiar a ciegas.
+export async function leerRemito(imageBase64: string, mimeType: string): Promise<{ error?: string; lineas?: LineaRemitoLeida[]; advertencias?: string[] }> {
   await requireStaff();
 
-  let lineas: Awaited<ReturnType<typeof extraerRemito>>;
+  let comprobante: Awaited<ReturnType<typeof leerComprobanteConGroq>>;
   try {
-    lineas = await extraerRemito(imageBase64, mimeType);
+    comprobante = await leerComprobanteConGroq(imageBase64, mimeType);
   } catch (e) {
     return { error: (e as Error).message };
   }
-  if (lineas.length === 0) return { error: "No se pudo leer ninguna línea en la foto" };
+  if (comprobante.items.length === 0) return { error: "No se pudo leer ninguna línea en la foto" };
 
   const supabase = createAdminClient();
   const { data: products, error: prodsError } = await supabase
@@ -424,18 +428,18 @@ export async function leerRemito(imageBase64: string, mimeType: string): Promise
 
   const catalogo = (products ?? []).map((p) => ({ id: p.id, nombreNorm: normalizarNombre(p.name) }));
 
-  const resultado: LineaRemitoLeida[] = lineas.map((l) => {
-    const nombreNorm = normalizarNombre(l.producto);
+  const resultado: LineaRemitoLeida[] = comprobante.items.map((l) => {
+    const nombreNorm = normalizarNombre(l.descripcion);
     const exactos = catalogo.filter((p) => p.nombreNorm === nombreNorm);
     let match = exactos.length === 1 ? exactos[0] : null;
     if (!match) {
       const parciales = catalogo.filter((p) => p.nombreNorm.includes(nombreNorm) || nombreNorm.includes(p.nombreNorm));
       match = parciales.length === 1 ? parciales[0] : null;
     }
-    return { producto: l.producto, cantidad: l.cantidad, precio: l.precio, productIdMatch: match?.id ?? null };
+    return { producto: l.descripcion, cantidad: l.cantidad, precio: l.precio_unitario, productIdMatch: match?.id ?? null };
   });
 
-  return { lineas: resultado };
+  return { lineas: resultado, advertencias: validarComprobante(comprobante) };
 }
 
 export async function actualizarMovimientoMetadata(

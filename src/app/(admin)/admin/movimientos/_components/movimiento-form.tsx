@@ -79,6 +79,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
   const [uploading,    setUploading]    = useState(false);
   const [leyendoIA,    setLeyendoIA]    = useState(false);
   const [ocrHints,     setOcrHints]     = useState<Record<number, string>>({});
+  const [ocrWarnings,  setOcrWarnings]  = useState<string[]>([]);
 
   function resetForm() {
     setSucursalId(defaultSucursalId ?? "");
@@ -97,6 +98,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
     setRemitoImage(null);
     setPreviewUrl(null);
     setOcrHints({});
+    setOcrWarnings([]);
   }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -163,6 +165,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
       if (res.error) { setError(res.error); return; }
       const lineas = res.lineas ?? [];
       if (lineas.length === 0) { setError("No se encontraron líneas en la foto"); return; }
+      setOcrWarnings(res.advertencias ?? []);
 
       const proveedorActual = proveedores.find((p) => p.nombre === proveedor);
       const factor = proveedorActual?.modo_facturacion === "precio_sugerido" && proveedorActual.porcentaje_descuento != null
@@ -682,6 +685,18 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
               <p className="text-[11px] text-neutral-400 mt-1">
                 Precarga los productos, cantidades y precios abajo — revisá antes de guardar. Para remitos escritos a mano, cargá manual.
               </p>
+            </div>
+          )}
+
+          {/* La IA de lectura es "preview" (ver lib/groq.ts) -- estas
+              advertencias no bloquean nada, son pistas de qué revisar antes
+              de guardar (ej. la suma de líneas no cierra con el subtotal). */}
+          {ocrWarnings.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <p className="text-xs font-semibold text-amber-800 mb-1">Revisá antes de guardar:</p>
+              <ul className="text-xs text-amber-700 list-disc pl-4 space-y-0.5">
+                {ocrWarnings.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
             </div>
           )}
 
