@@ -35,12 +35,12 @@ export default async function GastosPage({
   const ultimoDia = new Date(Date.UTC(anio, mesNum, 0)).getUTCDate();
   const hasta = `${mes}-${String(ultimoDia).padStart(2, "0")}`;
 
-  const [{ data: sucursales }, { data: proveedores }, { data: gastosRaw }, { data: gastosFijosRaw }, { data: ventasRaw }] = await Promise.all([
+  const [{ data: sucursales }, { data: proveedores }, { data: gastosRaw }, { data: gastosFijosRaw }, { data: ventasRaw }, { data: { users: authUsers } }] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
     (admin as any)
       .from("gastos")
-      .select("id, categoria, monto, fecha, proveedor, sucursal_id, notas, gasto_fijo_id, sucursal:sucursales(id, nombre)")
+      .select("id, categoria, monto, fecha, proveedor, sucursal_id, notas, gasto_fijo_id, empleado_id, tipo_sueldo, sucursal:sucursales(id, nombre)")
       .gte("fecha", desde).lte("fecha", hasta)
       .order("fecha", { ascending: false }) as unknown as Promise<{ data: (GastoRow & { gasto_fijo_id: string | null })[] | null }>,
     (admin as any)
@@ -57,9 +57,21 @@ export default async function GastosPage({
       .gte("fecha", desde).lte("fecha", hasta) as unknown as Promise<{
         data: { canal: string | null; movimiento_items: { subtotal: number | null }[] }[] | null;
       }>,
+    admin.auth.admin.listUsers({ perPage: 200 }),
   ]);
 
-  const gastos = gastosRaw ?? [];
+  // Empleados para el selector de Sueldos -- mismo criterio que /admin/staff
+  // (el rol vive en auth.users.app_metadata, no en profiles).
+  const empleados = (authUsers ?? [])
+    .filter((u) => ["admin", "encargado", "vendedor"].includes(u.app_metadata?.role as string))
+    .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) ?? u.email ?? u.id }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const empleadoMap: Record<string, string> = Object.fromEntries(empleados.map((e) => [e.id, e.nombre]));
+  const gastos: GastoRow[] = (gastosRaw ?? []).map((g) => ({
+    ...g,
+    empleadoNombre: g.empleado_id ? (empleadoMap[g.empleado_id] ?? null) : null,
+  }));
 
   const pagosPorFijo = new Map<string, { id: string; monto: number; fecha: string }>();
   for (const g of gastos) {
@@ -98,6 +110,7 @@ export default async function GastosPage({
           gastos={gastos}
           sucursales={sucursales ?? []}
           proveedores={proveedores ?? []}
+          empleados={empleados}
         />
       </div>
     </div>

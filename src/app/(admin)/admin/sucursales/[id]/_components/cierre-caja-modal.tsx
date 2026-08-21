@@ -18,6 +18,10 @@ interface Props {
   ultimoCierre:   UltimoCierre;
   aperturaActual?: { fondo_inicial: number; created_at: string } | null;
   retiros?:        { monto: number; created_at: string }[];
+  pagosProveedor?: { monto_efectivo: number; created_at: string }[];
+  pagosCtc?:       { monto_efectivo: number; created_at: string }[];
+  retirosSocio?:   { monto: number; created_at: string }[];
+  pagosSocio?:     { monto_efectivo: number; created_at: string }[];
   role?:           string | null;
   abiertaPorNombre?: string | null;
   puedeCerrarCaja?:  boolean;
@@ -68,7 +72,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], role, abiertaPorNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], pagosProveedor = [], pagosCtc = [], retirosSocio = [], pagosSocio = [], role, abiertaPorNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
   const hoy = fechaHoyAR();
   const puedeEditarMedios = role === "admin";
 
@@ -117,9 +121,23 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
     .filter((r) => aperturaActual ? r.created_at >= aperturaActual.created_at : r.created_at.slice(0, 10) === hoy)
     .reduce((s, r) => s + r.monto, 0);
 
+  // Lado efectivo de Tesorería (migración 080) -- mismo criterio de filtro
+  // por turno que retiros arriba. Signos: pagos a proveedor y retiros de
+  // socio SALEN de la caja (se suman, como retirosTurno); pagos de Cta.
+  // Corriente y devoluciones de socio ENTRAN a la caja sin ser venta de hoy
+  // (se restan).
+  function filtradoPorTurno<T extends { created_at: string }>(rows: T[]): T[] {
+    return rows.filter((r) => aperturaActual ? r.created_at >= aperturaActual.created_at : r.created_at.slice(0, 10) === hoy);
+  }
+  const pagosProveedorTurno = filtradoPorTurno(pagosProveedor).reduce((s, p) => s + p.monto_efectivo, 0);
+  const pagosCtcTurno       = filtradoPorTurno(pagosCtc).reduce((s, p) => s + p.monto_efectivo, 0);
+  const retirosSocioTurno   = filtradoPorTurno(retirosSocio).reduce((s, r) => s + r.monto, 0);
+  const pagosSocioTurno     = filtradoPorTurno(pagosSocio).reduce((s, p) => s + p.monto_efectivo, 0);
+  const ajusteTesoreria     = retirosSocioTurno + pagosProveedorTurno - pagosCtcTurno - pagosSocioTurno;
+
   useEffect(() => {
     if (open && cajaAbierta) {
-      const efectivoTotal = sugeridoEfectivo + fondo - retirosTurno;
+      const efectivoTotal = sugeridoEfectivo + fondo - retirosTurno - ajusteTesoreria;
       if (efectivoTotal > 0)         setEfectivo(String(efectivoTotal));
       if (sugeridoBilletera > 0)     setMp(String(sugeridoBilletera));
       if (sugeridoTarjeta > 0)       setTarjeta(String(sugeridoTarjeta));
@@ -150,8 +168,8 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
   const transferenciaNum = parseFloat(transferencia) || 0;
   const totalDeclarado   = efectivoNum + mpNum + tarjetaNum + transferenciaNum;
   const hayAlgo          = totalDeclarado > 0;
-  // diferencia = (efectivo − fondo + retiros del turno) + resto − ventas (espejea la RPC cerrar_caja)
-  const diferencia       = hayAlgo ? (efectivoNum - fondo + retirosTurno) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
+  // diferencia = (efectivo − fondo + retiros del turno + ajuste de Tesorería) + resto − ventas (espejea la RPC cerrar_caja, migración 080)
+  const diferencia       = hayAlgo ? (efectivoNum - fondo + retirosTurno + ajusteTesoreria) + mpNum + tarjetaNum + transferenciaNum - totalVentas : null;
 
   // Si hay diferencia (a favor o en contra) no se puede cerrar sin explicar
   // qué pasó -- a pedido del usuario, porque encargados/vendedores cerraban
@@ -262,6 +280,30 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                   <span className="text-sm font-bold tabular-nums text-amber-600">−{AR.format(retirosTurno)}</span>
                 </div>
               )}
+              {retirosSocioTurno > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">Retiro de socio</p>
+                  <span className="text-sm font-bold tabular-nums text-amber-600">−{AR.format(retirosSocioTurno)}</span>
+                </div>
+              )}
+              {pagosProveedorTurno > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">Pago a proveedor (efectivo)</p>
+                  <span className="text-sm font-bold tabular-nums text-amber-600">−{AR.format(pagosProveedorTurno)}</span>
+                </div>
+              )}
+              {pagosCtcTurno > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-selva-600">Cobro Cta. Corriente (efectivo)</p>
+                  <span className="text-sm font-bold tabular-nums text-selva-700">+{AR.format(pagosCtcTurno)}</span>
+                </div>
+              )}
+              {pagosSocioTurno > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-selva-600">Devolución de socio (efectivo)</p>
+                  <span className="text-sm font-bold tabular-nums text-selva-700">+{AR.format(pagosSocioTurno)}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -283,7 +325,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 icon={<span className="text-base">💵</span>}
                 value={efectivo}
                 onChange={setEfectivo}
-                sugerido={sugeridoEfectivo + fondo - retirosTurno}
+                sugerido={sugeridoEfectivo + fondo - retirosTurno - ajusteTesoreria}
                 hint={fondo > 0 ? `Contá todo el efectivo del cajón (incluye fondo inicial de ${AR.format(fondo)})` : undefined}
                 inputRef={efectivoRef}
               />

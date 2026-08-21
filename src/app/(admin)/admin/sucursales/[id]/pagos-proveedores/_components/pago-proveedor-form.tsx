@@ -2,14 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { registrarPagoCTC, eliminarPagoCTC } from "../actions";
+import { registrarPagoProveedor, eliminarPagoProveedor } from "../actions";
 import { Button } from "@/components/ui";
 import { fechaHoyAR } from "@/lib/fecha";
-import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
-type Pago = { id: string; monto: number; fecha: string; notas: string | null };
+type Pago    = { id: string; monto: number; fecha: string; notas: string | null };
+type Entrega = { id: string; fecha: string; total: number };
 
 function DeletePagoBtn({ id, sucursalId }: { id: string; sucursalId: string }) {
   const [pending, startTransition] = useTransition();
@@ -20,7 +20,7 @@ function DeletePagoBtn({ id, sucursalId }: { id: string; sucursalId: string }) {
       onClick={() => {
         if (!confirm("¿Eliminar este pago?")) return;
         startTransition(async () => {
-          await eliminarPagoCTC(id, sucursalId);
+          await eliminarPagoProveedor(id, sucursalId);
           router.refresh();
         });
       }}
@@ -31,23 +31,26 @@ function DeletePagoBtn({ id, sucursalId }: { id: string; sucursalId: string }) {
   );
 }
 
-export function PagoBtn({
+export function PagoProveedorBtn({
   sucursalId,
-  personalId,
+  proveedorId,
   nombre,
   pagos,
+  entregas,
 }: {
-  sucursalId: string;
-  personalId: string;
-  nombre: string;
-  pagos: Pago[];
+  sucursalId:  string;
+  proveedorId: string;
+  nombre:      string;
+  pagos:       Pago[];
+  entregas:    Entrega[];
 }) {
-  const [open, setOpen]         = useState(false);
-  const [efectivo, setEfectivo] = useState("");
+  const [open, setOpen]           = useState(false);
+  const [efectivo, setEfectivo]   = useState("");
   const [billetera, setBilletera] = useState("");
-  const [fecha, setFecha]   = useState(fechaHoyAR());
-  const [notas, setNotas]   = useState("");
-  const [error, setError]   = useState<string | null>(null);
+  const [fecha, setFecha]         = useState(fechaHoyAR());
+  const [movimientoId, setMovimientoId] = useState("");
+  const [nota, setNota]           = useState("");
+  const [error, setError]         = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -62,33 +65,31 @@ export function PagoBtn({
     }
     setError(null);
     startTransition(async () => {
-      try {
-        await registrarPagoCTC({
-          sucursal_id: sucursalId,
-          personal_id: personalId,
-          monto_efectivo:  efectivoNum,
-          monto_billetera: billeteraNum,
-          fecha,
-          notas: notas.trim() || undefined,
-        });
-        setOpen(false);
-        setEfectivo("");
-        setBilletera("");
-        setNotas("");
-        router.refresh();
-      } catch (e) {
-        setError(friendlyError(e));
-      }
+      const res = await registrarPagoProveedor({
+        sucursal_id:     sucursalId,
+        proveedor_id:    proveedorId,
+        monto_efectivo:  efectivoNum,
+        monto_billetera: billeteraNum,
+        fecha_pago:      fecha,
+        movimiento_id:   movimientoId || null,
+        nota:            nota.trim() || undefined,
+      });
+      if (res.error) { setError(res.error); return; }
+      setOpen(false);
+      setEfectivo("");
+      setBilletera("");
+      setMovimientoId("");
+      setNota("");
+      router.refresh();
     });
   }
 
   return (
     <div className="border-t border-selva-100 bg-selva-50">
-      {/* Pagos recibidos */}
       {pagos.length > 0 && (
         <div className="px-4 pt-3 pb-1 space-y-1">
           <p className="text-xs font-semibold text-selva-700 uppercase tracking-wider mb-1.5">
-            Pagos recibidos — {AR.format(totalPagado)}
+            Pagos registrados — {AR.format(totalPagado)}
           </p>
           {pagos.map((p) => (
             <div key={p.id} className="flex items-center justify-between text-xs">
@@ -105,31 +106,23 @@ export function PagoBtn({
         </div>
       )}
 
-      {/* Botón / formulario */}
       {open ? (
         <div className="px-4 py-3 space-y-2">
-          <p className="text-xs font-semibold text-selva-700 uppercase tracking-wider">Registrar pago de {nombre}</p>
+          <p className="text-xs font-semibold text-selva-700 uppercase tracking-wider">Registrar pago a {nombre}</p>
           <div className="flex flex-wrap gap-2 items-end">
             <div>
               <label className="block text-xs text-neutral-500 mb-0.5">Efectivo</label>
               <input
-                type="number"
-                min="0"
-                step="any"
-                value={efectivo}
+                type="number" min="0" step="any" value={efectivo}
                 onChange={(e) => setEfectivo(e.target.value)}
-                placeholder="0"
-                autoFocus
+                placeholder="0" autoFocus
                 className="h-8 w-28 rounded-lg border border-neutral-300 bg-white px-2.5 text-sm tabular-nums focus:outline-none focus:border-selva-600"
               />
             </div>
             <div>
               <label className="block text-xs text-neutral-500 mb-0.5">Billetera</label>
               <input
-                type="number"
-                min="0"
-                step="any"
-                value={billetera}
+                type="number" min="0" step="any" value={billetera}
                 onChange={(e) => setBilletera(e.target.value)}
                 placeholder="0"
                 className="h-8 w-28 rounded-lg border border-neutral-300 bg-white px-2.5 text-sm tabular-nums focus:outline-none focus:border-selva-600"
@@ -138,18 +131,31 @@ export function PagoBtn({
             <div>
               <label className="block text-xs text-neutral-500 mb-0.5">Fecha</label>
               <input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
+                type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
                 className="h-8 rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-selva-600"
               />
             </div>
+            {entregas.length > 0 && (
+              <div>
+                <label className="block text-xs text-neutral-500 mb-0.5">Entrega (opcional)</label>
+                <select
+                  value={movimientoId}
+                  onChange={(e) => setMovimientoId(e.target.value)}
+                  className="h-8 rounded-lg border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:border-selva-600"
+                >
+                  <option value="">Pago a cuenta (sin asociar)</option>
+                  {entregas.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {new Date(e.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })} — {AR.format(e.total)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex-1 min-w-28">
-              <label className="block text-xs text-neutral-500 mb-0.5">Notas</label>
+              <label className="block text-xs text-neutral-500 mb-0.5">Nota</label>
               <input
-                type="text"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
+                type="text" value={nota} onChange={(e) => setNota(e.target.value)}
                 placeholder="Opcional"
                 className="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-selva-600"
               />

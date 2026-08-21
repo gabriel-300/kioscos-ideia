@@ -66,7 +66,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -205,6 +205,26 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .from("mercadopago_transferencias_recibidas")
       .select("movimiento_id")
       .not("movimiento_id", "is", null) as unknown as Promise<{ data: { movimiento_id: string }[] | null }>,
+    // Lado efectivo de Tesorería (paso 8, migración 080) -- mismo patrón que
+    // retiros_caja arriba (trae todo, el filtro por turno actual se hace en
+    // el modal de cierre): pagos_proveedor y cta_corriente_pagos entran a la
+    // fórmula de diferencia como resta/suma de efectivo, no como ventas.
+    (admin as any)
+      .from("pagos_proveedor")
+      .select("id, monto_efectivo, created_at")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; monto_efectivo: number; created_at: string }[] | null }>,
+    (admin as any)
+      .from("cta_corriente_pagos")
+      .select("id, monto_efectivo, created_at")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; monto_efectivo: number; created_at: string }[] | null }>,
+    (admin as any)
+      .from("movimientos_socio")
+      .select("id, monto, created_at")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; monto: number; created_at: string }[] | null }>,
+    (admin as any)
+      .from("pagos_socio")
+      .select("id, monto_efectivo, created_at")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; monto_efectivo: number; created_at: string }[] | null }>,
   ]);
 
   // Precio de promos/recetas es por sucursal (migración 070) -- se resuelve
@@ -267,6 +287,19 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const ultimoCierre     = cierresData?.[0] ?? null;
   const historicosCierres = cierresData ?? [];
   const cajaAbierta      = aperturaActual != null && (ultimoCierre == null || aperturaActual.created_at > ultimoCierre.created_at);
+
+  // Gastos cargados durante este turno (Fix 1 de Tesorería, versión
+  // informativa v1: gastos no tiene medio de pago ni está atado a un turno,
+  // así que por ahora solo se avisa -- no entra a la fórmula de diferencia).
+  let gastosTurno: { id: string; monto: number }[] = [];
+  if (cajaAbierta && aperturaActual) {
+    const { data: gastosData } = await (admin as any)
+      .from("gastos")
+      .select("id, monto")
+      .eq("sucursal_id", id)
+      .gte("created_at", aperturaActual.created_at);
+    gastosTurno = gastosData ?? [];
+  }
 
   // La auditoría es "por turno" (apertura_id, ver migración 054), no por
   // día -- solo tiene sentido buscarla si hay una caja abierta ahora mismo;
@@ -352,6 +385,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
+  // Lado efectivo de Tesorería (migración 080) -- mismo criterio: se pasa
+  // todo, el filtro por turno actual lo hace el modal de cierre.
+  const todosPagosProveedor = pagosProveedorTesoreriaResult.data ?? [];
+  const todosPagosCtc       = pagosCtcTesoreriaResult.data       ?? [];
+  const todosRetirosSocio   = retirosSocioTesoreriaResult.data   ?? [];
+  const todosPagosSocio     = pagosSocioTesoreriaResult.data     ?? [];
 
   // Encargado/vendedor: de HOY, solo ven lo que pasó durante SU propio turno (no el de
   // un compañero que abrió/cerró antes o después en el mismo día). Días anteriores no
@@ -630,6 +669,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               abiertaPorNombre={abiertaPorNombre}
               puedeCerrarCaja={puedeCerrarCaja}
               retiros={todosRetiros}
+              pagosProveedor={todosPagosProveedor}
+              pagosCtc={todosPagosCtc}
+              retirosSocio={todosRetirosSocio}
+              pagosSocio={todosPagosSocio}
               role={role}
               transferenciasSinConciliar={ventasTransferenciaCandidatas.length}
             />
@@ -886,8 +929,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
         )}
       </div>
 
-      {/* Acceso rápido a Cta. Corriente */}
-      <div className="mb-6">
+      {/* Acceso rápido a Tesorería */}
+      <div className="mb-6 flex flex-wrap gap-3">
         <Link
           href={`/admin/sucursales/${sucursal.id}/cta-corriente`}
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:border-tierra-300 hover:bg-tierra-50 transition-colors text-sm font-medium text-neutral-700 hover:text-tierra-700"
@@ -897,7 +940,41 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           </svg>
           Ver cuenta corriente
         </Link>
+        {(role === "admin" || (role === "encargado" && sucursal.encargado_user_id === user.id)) && (
+          <>
+            <Link
+              href={`/admin/sucursales/${sucursal.id}/pagos-proveedores`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:border-tierra-300 hover:bg-tierra-50 transition-colors text-sm font-medium text-neutral-700 hover:text-tierra-700"
+            >
+              <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21" />
+              </svg>
+              Pagos a proveedores
+            </Link>
+            <Link
+              href={`/admin/sucursales/${sucursal.id}/socios`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:border-tierra-300 hover:bg-tierra-50 transition-colors text-sm font-medium text-neutral-700 hover:text-tierra-700"
+            >
+              <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+              </svg>
+              Socios
+            </Link>
+          </>
+        )}
       </div>
+
+      {gastosTurno.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            <span className="font-semibold">{gastosTurno.length}</span> {gastosTurno.length === 1 ? "gasto registrado" : "gastos registrados"} en este turno
+            {" — "}
+            <span className="font-semibold tabular-nums">{AR.format(gastosTurno.reduce((s, g) => s + g.monto, 0))}</span>
+            {" · "}no afectan todavía la diferencia de caja.{" "}
+            <Link href="/admin/gastos" className="underline hover:text-amber-900">Ver en Finanzas</Link>
+          </p>
+        </div>
+      )}
 
       {/* Historial de cierres */}
       <div className="mb-8">

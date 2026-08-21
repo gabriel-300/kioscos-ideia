@@ -47,7 +47,7 @@ export async function eliminarStaff(userId: string) {
   revalidatePath("/admin/sucursales");
 }
 
-export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null }) {
+export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean }) {
   await requireAdmin();
   const admin = createAdminClient();
   const update: { user_metadata: Record<string, string>; password?: string } = {
@@ -58,6 +58,9 @@ export async function actualizarStaff(userId: string, data: { nombre: string; pa
   if (error) throw new Error(error.message);
   if (data.creditoLimite !== undefined) {
     await (admin as any).from("profiles").update({ credito_limite: data.creditoLimite }).eq("id", userId);
+  }
+  if (data.esSocio !== undefined) {
+    await (admin as any).from("profiles").update({ es_socio: data.esSocio }).eq("id", userId);
   }
   revalidatePath("/admin/staff");
 }

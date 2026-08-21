@@ -32,7 +32,8 @@ async function requireEditRole(sucursalId: string) {
 export async function registrarPagoCTC(params: {
   sucursal_id: string;
   personal_id: string;
-  monto: number;
+  monto_efectivo: number;
+  monto_billetera: number;
   fecha: string;
   notas?: string;
 }) {

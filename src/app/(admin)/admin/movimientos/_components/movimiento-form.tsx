@@ -298,6 +298,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
           tipo,
           notas:            notas     || null,
           proveedor:        proveedor || null,
+          proveedor_id:     proveedores.find((p) => p.nombre === proveedor)?.id ?? null,
           nro_remito:       nroRemito || null,
           remito_image_url: remitoImageUrl,
           items:            parsed,

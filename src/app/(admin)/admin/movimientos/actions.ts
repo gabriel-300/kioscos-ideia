@@ -38,6 +38,7 @@ export async function crearMovimiento(data: {
   notas:             string | null;
   items:             VentaItemInput[];
   proveedor?:        string | null;
+  proveedor_id?:     string | null;
   nro_remito?:       string | null;
   remito_image_url?: string | null;
   canal?:            string | null;
@@ -316,6 +317,7 @@ export async function crearMovimiento(data: {
     p_tipo:               data.tipo,
     p_notas:              data.notas              ?? null,
     p_proveedor:          data.proveedor          ?? null,
+    p_proveedor_id:       data.proveedor_id       ?? null,
     p_nro_remito:         data.nro_remito         ?? null,
     p_canal:              data.canal              ?? "consumidor_final",
     p_personal_id:        data.personal_id        ?? null,

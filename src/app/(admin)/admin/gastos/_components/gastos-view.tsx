@@ -16,10 +16,14 @@ export type GastoRow = {
   sucursal_id: string | null;
   notas:       string | null;
   sucursal:    { id: string; nombre: string } | null;
+  empleado_id?:    string | null;
+  tipo_sueldo?:    "regular" | "extra" | null;
+  empleadoNombre?: string | null;
 };
 
 type Sucursal  = { id: string; nombre: string };
 type Proveedor = { id: string; nombre: string };
+type Empleado  = { id: string; nombre: string };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -34,11 +38,11 @@ const CATEGORIA_LABEL = Object.fromEntries(CATEGORIAS.map((c) => [c.value, c.lab
 const CATEGORIA_COLOR = Object.fromEntries(CATEGORIAS.map((c) => [c.value, c.color])) as Record<Categoria, string>;
 
 function emptyForm(): GastoInput {
-  return { categoria: "mercaderia", monto: 0, fecha: "", proveedor: null, sucursal_id: null, notas: null };
+  return { categoria: "mercaderia", monto: 0, fecha: "", proveedor: null, sucursal_id: null, notas: null, empleado_id: null, tipo_sueldo: null };
 }
 
-function GastoDrawer({ open, gasto, sucursales, proveedores, onClose }: {
-  open: boolean; gasto: GastoRow | null; sucursales: Sucursal[]; proveedores: Proveedor[]; onClose: () => void;
+function GastoDrawer({ open, gasto, sucursales, proveedores, empleados, onClose }: {
+  open: boolean; gasto: GastoRow | null; sucursales: Sucursal[]; proveedores: Proveedor[]; empleados: Empleado[]; onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [form,  setForm]  = useState<GastoInput & { montoStr: string }>({ ...emptyForm(), montoStr: "" });
@@ -48,7 +52,11 @@ function GastoDrawer({ open, gasto, sucursales, proveedores, onClose }: {
   useEffect(() => {
     if (!open) return;
     if (gasto) {
-      setForm({ categoria: gasto.categoria, monto: gasto.monto, montoStr: String(gasto.monto), fecha: gasto.fecha, proveedor: gasto.proveedor, sucursal_id: gasto.sucursal_id, notas: gasto.notas });
+      setForm({
+        categoria: gasto.categoria, monto: gasto.monto, montoStr: String(gasto.monto), fecha: gasto.fecha,
+        proveedor: gasto.proveedor, sucursal_id: gasto.sucursal_id, notas: gasto.notas,
+        empleado_id: gasto.empleado_id ?? null, tipo_sueldo: gasto.tipo_sueldo ?? null,
+      });
     } else {
       setForm({ ...emptyForm(), montoStr: "" });
     }
@@ -130,26 +138,58 @@ function GastoDrawer({ open, gasto, sucursales, proveedores, onClose }: {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Proveedor / a quién se le pagó</label>
-            {proveedores.length > 0 ? (
-              <select
-                value={form.proveedor ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, proveedor: e.target.value || null }))}
-                className="h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
-              >
-                <option value="">—</option>
-                {proveedores.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
-              </select>
-            ) : (
-              <input
-                type="text" placeholder="Ej: Panadería López"
-                value={form.proveedor ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, proveedor: e.target.value || null }))}
-                className="h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
-              />
-            )}
-          </div>
+          {form.categoria === "sueldos" ? (
+            <>
+              <div>
+                <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Empleado</label>
+                <select
+                  value={form.empleado_id ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, empleado_id: e.target.value || null }))}
+                  className="h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                >
+                  <option value="">—</option>
+                  {empleados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Tipo</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["regular", "extra"] as const).map((t) => (
+                    <button
+                      key={t} type="button"
+                      onClick={() => setForm((f) => ({ ...f, tipo_sueldo: t }))}
+                      className={`text-sm rounded-lg border-2 px-2 py-2 transition-colors capitalize ${
+                        form.tipo_sueldo === t ? "border-tierra-700 bg-tierra-50 font-semibold text-tierra-900" : "border-neutral-200 text-neutral-600 hover:border-neutral-300"
+                      }`}
+                    >
+                      {t === "regular" ? "Regular" : "Extra"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Proveedor / a quién se le pagó</label>
+              {proveedores.length > 0 ? (
+                <select
+                  value={form.proveedor ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, proveedor: e.target.value || null }))}
+                  className="h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                >
+                  <option value="">—</option>
+                  {proveedores.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text" placeholder="Ej: Panadería López"
+                  value={form.proveedor ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, proveedor: e.target.value || null }))}
+                  className="h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700"
+                />
+              )}
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5">Sucursal (opcional)</label>
@@ -187,8 +227,8 @@ function GastoDrawer({ open, gasto, sucursales, proveedores, onClose }: {
   );
 }
 
-export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
-  mes: string; ingresos: number; gastos: GastoRow[]; sucursales: Sucursal[]; proveedores: Proveedor[];
+export function GastosView({ mes, ingresos, gastos, sucursales, proveedores, empleados }: {
+  mes: string; ingresos: number; gastos: GastoRow[]; sucursales: Sucursal[]; proveedores: Proveedor[]; empleados: Empleado[];
 }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -288,7 +328,8 @@ export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
               </div>
               <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
                 <span className="text-neutral-600 truncate">
-                  {g.proveedor ?? "—"}
+                  {g.categoria === "sueldos" ? (g.empleadoNombre ?? "—") : (g.proveedor ?? "—")}
+                  {g.categoria === "sueldos" && g.tipo_sueldo && <span className="text-neutral-400"> · {g.tipo_sueldo}</span>}
                   {g.sucursal && (
                     <>
                       {" · "}
@@ -343,7 +384,16 @@ export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
                       {CATEGORIA_LABEL[g.categoria]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-neutral-700">{g.proveedor ?? <span className="text-neutral-300">—</span>}</td>
+                  <td className="px-4 py-3 text-neutral-700">
+                    {g.categoria === "sueldos" ? (
+                      <>
+                        {g.empleadoNombre ?? <span className="text-neutral-300">—</span>}
+                        {g.tipo_sueldo && <span className="text-neutral-400 text-xs ml-1 capitalize">({g.tipo_sueldo})</span>}
+                      </>
+                    ) : (
+                      g.proveedor ?? <span className="text-neutral-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-neutral-500 hidden md:table-cell">
                     {g.sucursal ? (
                       <Link href={`/admin/sucursales/${g.sucursal.id}`} className="text-tierra-700 hover:underline">{g.sucursal.nombre}</Link>
@@ -375,6 +425,7 @@ export function GastosView({ mes, ingresos, gastos, sucursales, proveedores }: {
         gasto={editing}
         sucursales={sucursales}
         proveedores={proveedores}
+        empleados={empleados}
         onClose={closeDrawer}
       />
     </div>

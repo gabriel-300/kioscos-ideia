@@ -16,6 +16,7 @@ type StaffUser = {
   role: string | undefined;
   sucursalIdProfile: string | null;
   creditoLimite: number | null;
+  esSocio: boolean;
   isSuspended: boolean;
   lastSignIn: string | null;
 };
@@ -136,6 +137,7 @@ function EditDrawer({
   const [creditoLimite, setCreditoLimite] = useState(
     user.creditoLimite != null ? String(user.creditoLimite) : ""
   );
+  const [esSocio, setEsSocio] = useState(user.esSocio);
   const router = useRouter();
 
   const sucursalActual =
@@ -158,6 +160,7 @@ function EditDrawer({
           nombre:        values.nombre,
           password:      values.password || undefined,
           creditoLimite: limiteNum,
+          esSocio,
         });
         if (sucursalId !== (sucursalActual?.id ?? "")) {
           await asignarSucursal(user.id, sucursalId || null, user.role);
@@ -238,6 +241,22 @@ function EditDrawer({
               <p className="text-sm text-neutral-600">{user.lastSignIn}</p>
             </div>
           )}
+
+          {/* Socio (retiros de Tesorería) */}
+          <div className="border-t border-neutral-100 pt-4">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Es socio</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Aparece como opción de socio en Tesorería (retiros/devoluciones), en cualquier sucursal</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={esSocio}
+                onChange={(e) => setEsSocio(e.target.checked)}
+                className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+              />
+            </label>
+          </div>
 
           {/* Suspensión */}
           <div className="border-t border-neutral-100 pt-4">

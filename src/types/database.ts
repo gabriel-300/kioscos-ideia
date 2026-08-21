@@ -208,6 +208,10 @@ export type Database = {
           notas: string | null
           numero_liquidacion: number | null
           retiros_turno: number
+          pagos_ctc_turno: number
+          pagos_proveedor_turno: number
+          retiros_socio_turno: number
+          pagos_socio_turno: number
           sobre_monto_verificado: number | null
           sobre_notas: string | null
           sobre_retirado_en: string | null
@@ -234,6 +238,10 @@ export type Database = {
           notas?: string | null
           numero_liquidacion?: number | null
           retiros_turno?: number
+          pagos_ctc_turno?: number
+          pagos_proveedor_turno?: number
+          retiros_socio_turno?: number
+          pagos_socio_turno?: number
           sobre_monto_verificado?: number | null
           sobre_notas?: string | null
           sobre_retirado_en?: string | null
@@ -260,6 +268,10 @@ export type Database = {
           notas?: string | null
           numero_liquidacion?: number | null
           retiros_turno?: number
+          pagos_ctc_turno?: number
+          pagos_proveedor_turno?: number
+          retiros_socio_turno?: number
+          pagos_socio_turno?: number
           sobre_monto_verificado?: number | null
           sobre_notas?: string | null
           sobre_retirado_en?: string | null
@@ -359,6 +371,8 @@ export type Database = {
           fecha: string
           id: string
           monto: number
+          monto_efectivo: number
+          monto_billetera: number
           notas: string | null
           personal_id: string
           sucursal_id: string
@@ -368,7 +382,8 @@ export type Database = {
           created_by?: string | null
           fecha?: string
           id?: string
-          monto: number
+          monto_efectivo: number
+          monto_billetera: number
           notas?: string | null
           personal_id: string
           sucursal_id: string
@@ -378,7 +393,8 @@ export type Database = {
           created_by?: string | null
           fecha?: string
           id?: string
-          monto?: number
+          monto_efectivo?: number
+          monto_billetera?: number
           notas?: string | null
           personal_id?: string
           sucursal_id?: string
@@ -398,6 +414,7 @@ export type Database = {
           categoria: string
           created_at: string
           created_by: string | null
+          empleado_id: string | null
           fecha: string
           gasto_fijo_id: string | null
           id: string
@@ -405,12 +422,14 @@ export type Database = {
           notas: string | null
           proveedor: string | null
           sucursal_id: string | null
+          tipo_sueldo: string | null
           updated_by: string | null
         }
         Insert: {
           categoria: string
           created_at?: string
           created_by?: string | null
+          empleado_id?: string | null
           fecha: string
           gasto_fijo_id?: string | null
           id?: string
@@ -418,12 +437,14 @@ export type Database = {
           notas?: string | null
           proveedor?: string | null
           sucursal_id?: string | null
+          tipo_sueldo?: string | null
           updated_by?: string | null
         }
         Update: {
           categoria?: string
           created_at?: string
           created_by?: string | null
+          empleado_id?: string | null
           fecha?: string
           gasto_fijo_id?: string | null
           id?: string
@@ -431,9 +452,17 @@ export type Database = {
           notas?: string | null
           proveedor?: string | null
           sucursal_id?: string | null
+          tipo_sueldo?: string | null
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "gastos_empleado_id_fkey"
+            columns: ["empleado_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "gastos_gasto_fijo_id_fkey"
             columns: ["gasto_fijo_id"]
@@ -573,6 +602,7 @@ export type Database = {
           pago_transferencia: number | null
           personal_id: string | null
           proveedor: string | null
+          proveedor_id: string | null
           remito_image_url: string | null
           sucursal_id: string
           tipo: string
@@ -594,6 +624,7 @@ export type Database = {
           pago_transferencia?: number | null
           personal_id?: string | null
           proveedor?: string | null
+          proveedor_id?: string | null
           remito_image_url?: string | null
           sucursal_id: string
           tipo?: string
@@ -615,6 +646,7 @@ export type Database = {
           pago_transferencia?: number | null
           personal_id?: string | null
           proveedor?: string | null
+          proveedor_id?: string | null
           remito_image_url?: string | null
           sucursal_id?: string
           tipo?: string
@@ -629,6 +661,108 @@ export type Database = {
           },
           {
             foreignKeyName: "movimientos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimientos_socio: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          monto: number
+          notas: string | null
+          socio_id: string
+          sucursal_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          id?: string
+          monto: number
+          notas?: string | null
+          socio_id: string
+          sucursal_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto?: number
+          notas?: string | null
+          socio_id?: string
+          sucursal_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_socio_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_socio_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos_socio: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          monto_billetera: number
+          monto_efectivo: number
+          notas: string | null
+          socio_id: string
+          sucursal_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          id?: string
+          monto_billetera?: number
+          monto_efectivo?: number
+          notas?: string | null
+          socio_id: string
+          sucursal_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto_billetera?: number
+          monto_efectivo?: number
+          notas?: string | null
+          socio_id?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_socio_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_socio_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
@@ -907,6 +1041,7 @@ export type Database = {
           credito_limite: number | null
           document_number: string | null
           document_type: string | null
+          es_socio: boolean
           full_name: string | null
           id: string
           phone: string | null
@@ -922,6 +1057,7 @@ export type Database = {
           credito_limite?: number | null
           document_number?: string | null
           document_type?: string | null
+          es_socio?: boolean
           full_name?: string | null
           id: string
           phone?: string | null
@@ -937,6 +1073,7 @@ export type Database = {
           credito_limite?: number | null
           document_number?: string | null
           document_type?: string | null
+          es_socio?: boolean
           full_name?: string | null
           id?: string
           phone?: string | null
@@ -1079,6 +1216,67 @@ export type Database = {
           },
           {
             foreignKeyName: "promo_prices_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos_proveedor: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha_pago: string
+          id: string
+          monto_billetera: number
+          monto_efectivo: number
+          movimiento_id: string | null
+          nota: string | null
+          proveedor_id: string
+          sucursal_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha_pago: string
+          id?: string
+          monto_billetera?: number
+          monto_efectivo?: number
+          movimiento_id?: string | null
+          nota?: string | null
+          proveedor_id: string
+          sucursal_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha_pago?: string
+          id?: string
+          monto_billetera?: number
+          monto_efectivo?: number
+          movimiento_id?: string | null
+          nota?: string | null
+          proveedor_id?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_proveedor_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_proveedor_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_proveedor_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
@@ -1455,6 +1653,7 @@ export type Database = {
           p_pago_transferencia?: number
           p_personal_id?: string
           p_proveedor?: string
+          p_proveedor_id?: string
           p_sucursal_id: string
           p_tipo: string
         }

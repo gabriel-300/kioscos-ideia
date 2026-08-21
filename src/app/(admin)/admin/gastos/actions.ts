@@ -13,6 +13,8 @@ export interface GastoInput {
   proveedor:   string | null;
   sucursal_id: string | null;
   notas:       string | null;
+  empleado_id?: string | null;
+  tipo_sueldo?: "regular" | "extra" | null;
 }
 
 export async function crearGasto(data: GastoInput) {
@@ -26,6 +28,8 @@ export async function crearGasto(data: GastoInput) {
     proveedor:   data.proveedor   || null,
     sucursal_id: data.sucursal_id || null,
     notas:       data.notas       || null,
+    empleado_id: data.categoria === "sueldos" ? (data.empleado_id ?? null) : null,
+    tipo_sueldo: data.categoria === "sueldos" ? (data.tipo_sueldo ?? null) : null,
     created_by:  userId,
   });
   if (error) throw new Error(error.message);
@@ -43,6 +47,8 @@ export async function actualizarGasto(id: string, data: GastoInput) {
     proveedor:   data.proveedor   || null,
     sucursal_id: data.sucursal_id || null,
     notas:       data.notas       || null,
+    empleado_id: data.categoria === "sueldos" ? (data.empleado_id ?? null) : null,
+    tipo_sueldo: data.categoria === "sueldos" ? (data.tipo_sueldo ?? null) : null,
     updated_by:  userId,
   }).eq("id", id);
   if (error) throw new Error(error.message);
