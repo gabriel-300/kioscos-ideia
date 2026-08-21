@@ -441,11 +441,11 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                 return (
                   <div
                     key={i}
-                    className={`grid gap-2 items-end ${
-                      tipo === "merma" ? "grid-cols-[1fr_140px_auto]" : "grid-cols-[1fr_110px_100px_100px_auto]"
+                    className={`grid gap-2 items-end grid-cols-2 ${
+                      tipo === "merma" ? "sm:grid-cols-[1fr_140px_auto]" : "sm:grid-cols-[1fr_110px_100px_100px_auto]"
                     }`}
                   >
-                    <div>
+                    <div className="col-span-2 sm:col-span-1">
                       {i === 0 && <p className="text-xs font-medium uppercase tracking-wide text-neutral-400 mb-1.5">Producto</p>}
                       <Combobox
                         options={[
