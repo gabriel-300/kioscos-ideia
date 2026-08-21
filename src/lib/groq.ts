@@ -10,17 +10,21 @@
 // advertencias o parseo fallido, para poder auditar la tasa de error real
 // con una muestra antes de confiar el pipeline sin revisión humana.
 //
-// De los 17 modelos activos en la cuenta de Groq usada para probar esto
-// (2026-07-17), SOLO dos aceptan imágenes -- el resto (llama-3.3-70b,
-// qwen3-32b a secas, los gpt-oss-*, groq/compound*, whisper, allam,
-// orpheus, prompt-guard) rechazan el formato con imagen directamente. Por
-// eso el fallback es entre estos dos nomás, no un tercero:
-const MODELO_PRIMARIO  = "meta-llama/llama-4-scout-17b-16e-instruct";
-const MODELO_FALLBACK  = "qwen/qwen3.6-27b"; // tiene modo "thinking" -- antepone <think>...</think>, necesita más max_tokens
+// De los 17 modelos activos en la cuenta de Groq probados el 2026-07-17,
+// SOLO dos aceptaban imágenes -- el resto (llama-3.3-70b, qwen3-32b a secas,
+// los gpt-oss-*, groq/compound*, whisper, allam, orpheus, prompt-guard)
+// rechazan el formato con imagen directamente. El que se usaba como
+// primario (meta-llama/llama-4-scout-17b-16e-instruct) dejó de existir en
+// la cuenta desde entonces (404 "model does not exist or you do not have
+// access to it", confirmado en producción 2026-08-21) -- Groq deprecó/movió
+// el modelo. qwen3.6-27b queda como el único motor real; ya no tiene sentido
+// mantener la estructura de "fallback a un segundo modelo" cuando ese
+// segundo modelo nunca respondía nada más que el mismo 404.
+const MODELO_VISION = "qwen/qwen3.6-27b";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 // Códigos de error transitorios de Groq (sobrecarga temporal, rate limit) --
-// vale la pena reintentar el mismo modelo antes de saltar al otro.
+// vale la pena reintentar antes de rendirse.
 const HTTP_REINTENTABLE = new Set([429, 500, 502, 503, 504]);
 
 export type ItemComprobante = {
@@ -38,7 +42,7 @@ export type ComprobanteLeido = {
   subtotal:           number | null;
   iva:                number | null;
   total:              number | null;
-  motor:              "llama-4-scout" | "qwen3.6-27b";
+  motor:              "qwen3.6-27b";
 };
 
 const JSON_SCHEMA = {
@@ -114,6 +118,15 @@ async function pedirLectura(model: string, imageBase64: string, mimeType: string
       ],
       temperature: 0.1,
       max_tokens: maxTokens,
+      // Sin esto, qwen3.6-27b antepone un bloque <think>...</think> de
+      // razonamiento libre antes del JSON -- en una cuenta con el límite de
+      // 8000 tokens/minuto del tier gratuito, reservar max_tokens grande
+      // para no cortar ese bloque a mitad hacía que CUALQUIER pedido
+      // rebotara con 413 "Request too large" antes de mandar un solo token
+      // de la imagen (confirmado en producción 2026-08-21). Con el modo
+      // thinking apagado no hay bloque que proteger, así que max_tokens
+      // puede quedar chico y el pedido entra cómodo en el límite.
+      reasoning_effort: "none",
       response_format: {
         type: "json_schema",
         json_schema: { name: "comprobante_argentino", schema: JSON_SCHEMA },
@@ -165,30 +178,14 @@ function limpiarRespuesta(raw: string): string {
 
 export async function leerComprobanteConGroq(imageBase64: string, mimeType: string): Promise<ComprobanteLeido> {
   try {
-    const raw = await pedirLecturaConReintento(MODELO_PRIMARIO, imageBase64, mimeType, 4096);
-    return { ...normalizarComprobante(parsearJson(raw, "llama-4-scout")), motor: "llama-4-scout" };
-  } catch (errorPrimario) {
-    loguearComprobanteInconsistente({
-      etapa: "modelo_primario_fallo",
-      detalle: (errorPrimario as Error).message,
-    });
-
-    try {
-      // El modo thinking de qwen consume tokens en el razonamiento antes de
-      // la respuesta final -- necesita más margen que Llama para no
-      // cortarse a mitad del <think>.
-      const raw = await pedirLecturaConReintento(MODELO_FALLBACK, imageBase64, mimeType, 8192);
-      return { ...normalizarComprobante(parsearJson(limpiarRespuesta(raw), "qwen3.6-27b")), motor: "qwen3.6-27b" };
-    } catch (errorFallback) {
-      loguearComprobanteInconsistente({
-        etapa: "modelo_fallback_fallo",
-        detalle: (errorFallback as Error).message,
-      });
-      throw new Error(
-        "No se pudo leer la foto con ningún motor disponible -- cargá el comprobante a mano. " +
-        `(Primario: ${(errorPrimario as Error).message} · Alternativo: ${(errorFallback as Error).message})`
-      );
-    }
+    // 2048: de sobra para el JSON de un remito real (una línea por producto
+    // ronda 20-25 tokens), dejando margen bajo el límite de 8000
+    // tokens/minuto del tier gratuito para la imagen + el prompt.
+    const raw = await pedirLecturaConReintento(MODELO_VISION, imageBase64, mimeType, 2048);
+    return { ...normalizarComprobante(parsearJson(limpiarRespuesta(raw), "qwen3.6-27b")), motor: "qwen3.6-27b" };
+  } catch (error) {
+    loguearComprobanteInconsistente({ etapa: "lectura_fallo", detalle: (error as Error).message });
+    throw new Error(`No se pudo leer la foto -- cargá el comprobante a mano. (${(error as Error).message})`);
   }
 }
 
