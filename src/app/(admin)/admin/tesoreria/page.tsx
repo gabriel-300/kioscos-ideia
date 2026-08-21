@@ -54,6 +54,8 @@ export default async function TesoreriaPage({
     { data: sociosRaw },
     { data: movSocioRaw },
     { data: pagosSocioRaw },
+    { data: ventasCtcRaw },
+    { data: pagosCtcRaw },
   ] = await Promise.all([
     (admin as any)
       .from("aperturas_caja")
@@ -88,6 +90,21 @@ export default async function TesoreriaPage({
     (admin as any)
       .from("pagos_socio")
       .select("sucursal_id, socio_id, monto_efectivo, monto_billetera")
+      .in("sucursal_id", sucursalIds)
+      .lte("fecha", fecha),
+    // Cta. Corriente: plata que TE deben (empleados que compraron fiado), no
+    // plata que vos debés -- no entra a la fórmula de la Posición (no es
+    // efectivo disponible hoy), se muestra aparte como referencia.
+    (admin as any)
+      .from("movimientos")
+      .select("sucursal_id, personal_id, movimiento_items(subtotal)")
+      .in("sucursal_id", sucursalIds)
+      .eq("canal", "cuenta_corriente")
+      .eq("tipo", "venta")
+      .lte("fecha", fecha),
+    (admin as any)
+      .from("cta_corriente_pagos")
+      .select("sucursal_id, personal_id, monto")
       .in("sucursal_id", sucursalIds)
       .lte("fecha", fecha),
   ]);
@@ -179,12 +196,37 @@ export default async function TesoreriaPage({
     .sort((a, b) => b.monto - a.monto);
   const deudaSociosTotal = deudaSocios.reduce((s, r) => s + r.monto, 0);
 
+  // ── 5. Cta. Corriente pendiente (informativo, no entra a la fórmula) ──
+  // Mismo criterio que /admin/sucursales/[id]/cta-corriente, agregado entre
+  // sucursales. Es lo opuesto a proveedores/socios: no es deuda del negocio,
+  // es plata que el negocio todavía no cobró.
+  type VentaCtcRow = { personal_id: string | null; movimiento_items: { subtotal: number | null }[] };
+  const pendienteCtcMap = new Map<string, number>();
+  for (const v of (ventasCtcRaw ?? []) as VentaCtcRow[]) {
+    if (!v.personal_id) continue;
+    const sub = v.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    pendienteCtcMap.set(v.personal_id, (pendienteCtcMap.get(v.personal_id) ?? 0) + sub);
+  }
+  for (const p of (pagosCtcRaw ?? []) as { personal_id: string; monto: number }[]) {
+    pendienteCtcMap.set(p.personal_id, (pendienteCtcMap.get(p.personal_id) ?? 0) - p.monto);
+  }
+  const personalIdsCtc = [...pendienteCtcMap.keys()];
+  const { data: personalNombresCtc } = personalIdsCtc.length > 0
+    ? await admin.from("profiles").select("id, full_name").in("id", personalIdsCtc)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const personalNombreMap = new Map((personalNombresCtc ?? []).map((p) => [p.id, p.full_name ?? "Sin nombre"]));
+  const ctaCorrientePendiente = [...pendienteCtcMap.entries()]
+    .map(([id, saldo]) => ({ id, nombre: personalNombreMap.get(id) ?? "Sin nombre", monto: Math.max(0, saldo) }))
+    .filter((p) => p.monto > 0)
+    .sort((a, b) => b.monto - a.monto);
+  const ctaCorrientePendienteTotal = ctaCorrientePendiente.reduce((s, p) => s + p.monto, 0);
+
   const posicionConsolidada = efectivoTotal + sobresTotal - deudaProveedoresTotal - deudaSociosTotal;
 
   const data: PosicionData = {
     posicionConsolidada,
-    efectivoTotal, sobresTotal, deudaProveedoresTotal, deudaSociosTotal,
-    efectivoPorSucursal, sobresPorSucursal, deudaProveedores, deudaSocios,
+    efectivoTotal, sobresTotal, deudaProveedoresTotal, deudaSociosTotal, ctaCorrientePendienteTotal,
+    efectivoPorSucursal, sobresPorSucursal, deudaProveedores, deudaSocios, ctaCorrientePendiente,
     hayAlgunSocioCargado: socios.length > 0,
   };
 

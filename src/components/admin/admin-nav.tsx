@@ -76,9 +76,23 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/ventas-diarias",      label: "Por día",          roles: ["admin"], icon: "ventasdiarias" },
       { href: "/admin/ventas-por-horario",  label: "Por horario",      roles: ["admin"], icon: "horario" },
       { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin"], icon: "staff" },
-      { href: "/admin/cierres",            label: "Cierres",          roles: ["admin"], icon: "cierres" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
       { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
+    ],
+  },
+  {
+    // Antes repartido: Cierres vivía en "Ventas", Pagos a proveedores/Socios/
+    // Cta. Corriente no tenían entrada de menú (solo se llegaba entrando
+    // primero a un kiosco puntual), y Finanzas/Tesorería eran ítems sueltos
+    // -- todo lo que es plata/liquidez del negocio va acá ahora.
+    label: "Finanzas", icon: "gastos",
+    children: [
+      { href: "/admin/gastos",            label: "Gastos",              roles: ["admin"],                          icon: "gastos" },
+      { href: "/admin/cierres",           label: "Cierres",             roles: ["admin"],                          icon: "cierres" },
+      { href: "/admin/tesoreria",         label: "Posición de Caja",    roles: ["admin", "socio"],                 icon: "tesoreria" },
+      { href: "/admin/pagos-proveedores", label: "Pagos a proveedores", roles: ["admin", "encargado"],             icon: "proveedores" },
+      { href: "/admin/socios",            label: "Socios",              roles: ["admin", "encargado"],             icon: "nichos" },
+      { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor"], icon: "staff" },
     ],
   },
   {
@@ -108,11 +122,9 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 // Ítems sueltos que van después de los grupos
+// "socio" no es un rol real (vive en profiles.es_socio, no en app_metadata.role)
+// -- se resuelve más abajo como un rol sintético agregado a effectiveRoles.
 const NAV_TAIL: NavItem[] = [
-  { href: "/admin/gastos", label: "Finanzas", roles: ["admin"],               icon: "gastos" },
-  // "socio" no es un rol real (vive en profiles.es_socio, no en app_metadata.role)
-  // -- se resuelve más abajo como un rol sintético agregado a effectiveRoles.
-  { href: "/admin/tesoreria", label: "Tesorería", roles: ["admin", "socio"],  icon: "tesoreria" },
   { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado"],  icon: "nichos" },
   { href: "/admin/staff",  label: "Staff",    roles: ["admin"],               icon: "staff" },
   { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor"], icon: "ayuda" },

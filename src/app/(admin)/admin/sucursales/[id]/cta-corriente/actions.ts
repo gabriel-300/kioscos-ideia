@@ -43,6 +43,7 @@ export async function registrarPagoCTC(params: {
     .insert({ ...params, created_by: userId });
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/sucursales/${params.sucursal_id}/cta-corriente`);
+  revalidatePath("/admin/tesoreria");
 }
 
 export async function eliminarPagoCTC(id: string, sucursalId: string) {
@@ -54,4 +55,5 @@ export async function eliminarPagoCTC(id: string, sucursalId: string) {
     .eq("sucursal_id", sucursalId);
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/sucursales/${sucursalId}/cta-corriente`);
+  revalidatePath("/admin/tesoreria");
 }

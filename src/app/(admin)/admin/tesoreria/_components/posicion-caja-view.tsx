@@ -6,16 +6,18 @@ import Link from "next/link";
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 export type PosicionData = {
-  posicionConsolidada:    number;
-  efectivoTotal:          number;
-  sobresTotal:            number;
-  deudaProveedoresTotal:  number;
-  deudaSociosTotal:       number;
-  efectivoPorSucursal:    { sucursalId: string; nombre: string; monto: number; estado: "abierta" | "cerrada" | "sin_datos" }[];
-  sobresPorSucursal:      { sucursalId: string; nombre: string; monto: number }[];
-  deudaProveedores:       { id: string; nombre: string; monto: number }[];
-  deudaSocios:            { id: string; nombre: string; monto: number }[];
-  hayAlgunSocioCargado:   boolean;
+  posicionConsolidada:      number;
+  efectivoTotal:            number;
+  sobresTotal:              number;
+  deudaProveedoresTotal:    number;
+  deudaSociosTotal:         number;
+  ctaCorrientePendienteTotal: number;
+  efectivoPorSucursal:      { sucursalId: string; nombre: string; monto: number; estado: "abierta" | "cerrada" | "sin_datos" }[];
+  sobresPorSucursal:        { sucursalId: string; nombre: string; monto: number }[];
+  deudaProveedores:         { id: string; nombre: string; monto: number }[];
+  deudaSocios:              { id: string; nombre: string; monto: number }[];
+  ctaCorrientePendiente:    { id: string; nombre: string; monto: number }[];
+  hayAlgunSocioCargado:     boolean;
 };
 
 const ESTADO_LABEL: Record<string, string> = { abierta: "Caja abierta", cerrada: "Caja cerrada", sin_datos: "Sin datos" };
@@ -155,10 +157,23 @@ export function PosicionCajaView({ data, sucursales, sucursalFiltro, fecha, esHo
             <p className="px-4 py-3 text-sm text-neutral-400">Sin deuda pendiente de socios.</p>
           ) : data.deudaSocios.map((s) => <Fila key={s.id} nombre={s.nombre} monto={s.monto} />)}
         </Tarjeta>
+
+        <Tarjeta
+          label="Cta. Corriente pendiente"
+          monto={data.ctaCorrientePendienteTotal}
+          color="selva"
+          expandida={expandida === "ctacorriente"}
+          onToggle={() => toggle("ctacorriente")}
+          subLabel="No entra en la Posición — no es efectivo disponible"
+        >
+          {data.ctaCorrientePendiente.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-neutral-400">Sin saldo pendiente de empleados.</p>
+          ) : data.ctaCorrientePendiente.map((p) => <Fila key={p.id} nombre={p.nombre} monto={p.monto} />)}
+        </Tarjeta>
       </div>
 
       <p className="text-xs text-neutral-400">
-        Posición = Efectivo en cajones + Sobres pendientes − Deuda a proveedores − Deuda de socios. Solo cuentan como deuda los retiros de socio tipo "Temporal" — el reparto de ganancias no vuelve.
+        Posición = Efectivo en cajones + Sobres pendientes − Deuda a proveedores − Deuda de socios. Solo cuentan como deuda los retiros de socio tipo "Temporal" — el reparto de ganancias no vuelve. Cta. Corriente se muestra aparte, a título informativo: es plata que el negocio todavía no cobró, no efectivo disponible hoy.
       </p>
     </div>
   );
