@@ -189,6 +189,50 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
     }
   }
 
+  // Para tickets más largos que una foto sola (ej. un ticket de supermercado
+  // enrollado): lee una segunda foto de la continuación y SUMA sus líneas a
+  // las que ya estaban, en vez de reemplazarlas. La foto de evidencia
+  // adjunta sigue siendo la primera (remito_image_url es un solo campo).
+  async function handleLeerContinuacion(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setLeyendoIA(true);
+    setError(null);
+    try {
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      const res = await leerRemito(base64, mimeType);
+      if (res.error) { setError(res.error); return; }
+      const lineas = res.lineas ?? [];
+      if (lineas.length === 0) { setError("No se encontraron líneas nuevas en la foto"); return; }
+      setOcrWarnings((prev) => Array.from(new Set([...prev, ...(res.advertencias ?? [])])));
+
+      const proveedorActual = proveedores.find((p) => p.nombre === proveedor);
+      const factor = proveedorActual?.modo_facturacion === "precio_sugerido" && proveedorActual.porcentaje_descuento != null
+        ? 1 - proveedorActual.porcentaje_descuento / 100
+        : 1;
+
+      const offset = items.length;
+      const nuevosHints: Record<number, string> = {};
+      lineas.forEach((l, i) => { if (!l.productIdMatch) nuevosHints[offset + i] = l.producto; });
+
+      setItems((prev) => [
+        ...prev,
+        ...lineas.map((l) => ({
+          product_id:      l.productIdMatch ?? "",
+          cantidad:        String(l.cantidad),
+          precio_unitario: String(Math.round(l.precio * factor * 100) / 100),
+        })),
+      ]);
+      setOcrHints((h) => ({ ...h, ...nuevosHints }));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLeyendoIA(false);
+    }
+  }
+
   function handleClose() { resetForm(); onClose(); }
 
   function addLine()           { setItems((p) => [...p, emptyLine()]); }
@@ -697,6 +741,29 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
               </label>
               <p className="text-[11px] text-neutral-400 mt-1">
                 Precarga los productos, cantidades y precios abajo — revisá antes de guardar. Para remitos escritos a mano, cargá manual.
+              </p>
+            </div>
+          )}
+
+          {/* Ticket más largo que una sola foto (ej. supermercado): saca otra
+              foto de lo que sigue y se suma a las líneas ya leídas. */}
+          {tipo === "entrega" && previewUrl && (
+            <div>
+              <label className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                leyendoIA ? "text-tierra-400 cursor-wait" : "text-tierra-700 hover:underline cursor-pointer"
+              }`}>
+                {leyendoIA ? "Leyendo…" : "📷 Agregar el resto del ticket (otra foto)"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={leyendoIA}
+                  onChange={handleLeerContinuacion}
+                />
+              </label>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                Para tickets largos que no entran en una sola foto — las líneas nuevas se agregan a las de abajo, sin borrar lo ya leído.
               </p>
             </div>
           )}
