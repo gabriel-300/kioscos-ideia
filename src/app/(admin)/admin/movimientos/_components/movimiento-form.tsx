@@ -502,12 +502,25 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                                 {pesoMode[i] ? "u" : "kg"}
                               </button>
                             </div>
-                            {pesoMode[i] && item.cantidad && (
-                              <p className={`text-[11px] mt-1 ${desajuste ? "text-amber-600" : "text-neutral-400"}`}>
-                                {desajuste
-                                  ? `≈${unidadesExactas.toFixed(2)} unid. exactas → redondeado a ${item.cantidad}`
-                                  : `= ${item.cantidad} unidades`}
-                              </p>
+                            {pesoMode[i] && (
+                              <div className="mt-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] text-neutral-400 shrink-0">Bolsitas recibidas:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={item.cantidad}
+                                    onChange={(e) => updateLine(i, "cantidad", e.target.value)}
+                                    className="h-7 w-16 rounded border border-neutral-300 bg-white px-1.5 text-xs focus:outline-none focus:border-tierra-700 tabular-nums"
+                                  />
+                                </div>
+                                <p className={`text-[11px] mt-0.5 ${desajuste ? "text-amber-600" : "text-neutral-400"}`}>
+                                  {kgIngresado > 0
+                                    ? `Sugerido por peso: ≈${unidadesExactas.toFixed(2)} — corregí si contaste distinto (las bolsitas no siempre pesan igual)`
+                                    : "Se sugiere al cargar el peso — ajustá según lo que contaste"}
+                                </p>
+                              </div>
                             )}
                           </>
                         );
