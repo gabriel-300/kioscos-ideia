@@ -19,6 +19,7 @@ type PuntoRow  = { product_id: string; sucursal_id: string; punto_minimo: number
 
 const DIA_PEDIDO_OPTIONS = [
   { value: "",          label: "Sin ciclo fijo" },
+  { value: "diario",    label: "Todos los días" },
   { value: "lunes",     label: "Lunes" },
   { value: "martes",    label: "Martes" },
   { value: "miercoles", label: "Miércoles" },
@@ -35,6 +36,7 @@ const schema = z.object({
   name:              z.string().min(2, "Mínimo 2 caracteres"),
   short_description: z.string().optional(),
   category_id:       z.string().optional(),
+  proveedor_id:      z.string().optional(),
   unit_label:        z.string().min(1, "Requerido"),
   freezer_required:  z.boolean(),
   is_active:         z.boolean(),
@@ -55,11 +57,14 @@ const UNIT_OPTIONS = [
   { value: "pack",   label: "Pack" },
 ];
 
+type Proveedor = { id: string; nombre: string };
+
 interface Props {
   open:         boolean;
   product:      Product | null;
   categories:   Category[];
   sucursales:   Sucursal[];
+  proveedores:  Proveedor[];
   precios:      PrecioRow[];
   puntos:       PuntoRow[];
   existingSkus: string[];
@@ -92,7 +97,7 @@ type PriceHistoryEntry = {
 type PrecioTexto = { precio_dist: string; costo: string };
 type PuntoTexto  = { minimo: string; pedido: string; maximo: string };
 
-export function ProductoDrawer({ open, product, categories, sucursales, precios, puntos, existingSkus, onClose, role }: Props) {
+export function ProductoDrawer({ open, product, categories, sucursales, proveedores, precios, puntos, existingSkus, onClose, role }: Props) {
   const esAdmin = role === "admin";
   const [pending,      startTransition] = useTransition();
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
@@ -104,7 +109,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
-      sku: "", name: "", short_description: "", category_id: "",
+      sku: "", name: "", short_description: "", category_id: "", proveedor_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
       dias_entrega: null, dia_pedido: "", weight_grams: null, merma_pct: null,
     },
@@ -150,6 +155,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       name:              product.name,
       short_description: product.short_description ?? "",
       category_id:       product.category_id ?? "",
+      proveedor_id:      product.proveedor_id ?? "",
       unit_label:        product.unit_label,
       freezer_required:  product.freezer_required,
       is_active:         product.is_active,
@@ -159,7 +165,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       weight_grams:      product.weight_grams ?? null,
       merma_pct:         product.merma_coccion_pct != null ? Math.round(product.merma_coccion_pct * 1000) / 10 : null,
     } : {
-      sku: nextSku(existingSkus), name: "", short_description: "", category_id: "",
+      sku: nextSku(existingSkus), name: "", short_description: "", category_id: "", proveedor_id: "",
       unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
       dias_entrega: null, dia_pedido: "", weight_grams: null, merma_pct: null,
     });
@@ -229,6 +235,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
       name:              values.name,
       short_description: values.short_description || null,
       category_id:       values.category_id || null,
+      proveedor_id:      values.proveedor_id || null,
       unit_label:        values.unit_label,
       freezer_required:  values.freezer_required,
       is_active:         values.is_active,
@@ -272,6 +279,11 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
     ...categories.map((c) => ({ value: c.id, label: c.name })),
   ];
 
+  const proveedorOptions = [
+    { value: "", label: "Sin asignar" },
+    ...proveedores.map((p) => ({ value: p.id, label: p.nombre })),
+  ];
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} />
@@ -304,6 +316,10 @@ export function ProductoDrawer({ open, product, categories, sucursales, precios,
             <Input label="Nombre *" placeholder="Empanadas de carne x12" error={errors.name?.message} {...register("name")} />
             <Input label="Descripción corta" placeholder="Descripción breve" {...register("short_description")} />
             <Select label="Categoría" options={catOptions} {...register("category_id")} />
+            <Select label="Proveedor" options={proveedorOptions} {...register("proveedor_id")} />
+            <p className="text-[11px] text-neutral-400 -mt-2">
+              A quién pedirle este producto — se usa para armar el aviso de Reposición agrupado por proveedor.
+            </p>
             <div className="flex gap-6 pt-1 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700" {...register("freezer_required")} />

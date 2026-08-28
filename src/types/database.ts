@@ -937,6 +937,7 @@ export type Database = {
           precio_min: number | null
           price_b2b: number
           price_b2c: number
+          proveedor_id: string | null
           short_description: string | null
           sku: string
           slug: string
@@ -975,6 +976,7 @@ export type Database = {
           precio_min?: number | null
           price_b2b?: number
           price_b2c?: number
+          proveedor_id?: string | null
           short_description?: string | null
           sku: string
           slug: string
@@ -1013,6 +1015,7 @@ export type Database = {
           precio_min?: number | null
           price_b2b?: number
           price_b2c?: number
+          proveedor_id?: string | null
           short_description?: string | null
           sku?: string
           slug?: string
@@ -1029,6 +1032,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
             referencedColumns: ["id"]
           },
         ]

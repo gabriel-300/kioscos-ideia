@@ -12,6 +12,7 @@ type Product  = Database["public"]["Tables"]["products"]["Row"];
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 type ProductWithCat = Product & { category: Category | null };
 type Sucursal = { id: string; nombre: string };
+type Proveedor = { id: string; nombre: string };
 type PrecioRow = { product_id: string; sucursal_id: string; precio_dist: number; costo: number };
 type PuntoRow  = { product_id: string; sucursal_id: string; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null };
 
@@ -32,11 +33,12 @@ function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
 }
 
 export function ProductsTable({
-  products, categories, sucursales, precios, puntos, role,
+  products, categories, sucursales, proveedores, precios, puntos, role,
 }: {
   products:   ProductWithCat[];
   categories: Category[];
   sucursales: Sucursal[];
+  proveedores: Proveedor[];
   precios:    PrecioRow[];
   puntos:     PuntoRow[];
   role?:      string;
@@ -271,6 +273,7 @@ export function ProductsTable({
         product={editing}
         categories={categories}
         sucursales={sucursales}
+        proveedores={proveedores}
         precios={precios}
         puntos={puntos}
         existingSkus={products.map((p) => p.sku)}

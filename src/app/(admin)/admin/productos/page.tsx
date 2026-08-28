@@ -15,10 +15,11 @@ export default async function ProductosPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: productsRaw }, { data: categories }, { data: sucursales }, stockActivoRes, preciosRes] = await Promise.all([
+  const [{ data: productsRaw }, { data: categories }, { data: sucursales }, { data: proveedores }, stockActivoRes, preciosRes] = await Promise.all([
     (admin as any).from("products").select("*, category:categories(*)").order("name"),
     supabase.from("categories").select("*").eq("is_active", true).order("sort_order"),
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
+    supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
     (admin as any)
       .from("stock_sucursal")
       .select("product_id, sucursal_id, stock_actual")
@@ -84,6 +85,7 @@ export default async function ProductosPage() {
         products={(products ?? []) as Parameters<typeof ProductsTable>[0]["products"]}
         categories={categories ?? []}
         sucursales={sucursales ?? []}
+        proveedores={proveedores ?? []}
         precios={precios}
         puntos={puntos}
         role={role}
