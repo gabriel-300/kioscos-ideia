@@ -148,6 +148,7 @@ export default async function DashboardPage() {
     retirosHoyRaw,
     stockSucursalRaw,
     puntosPedidoRaw,
+    costosRaw,
   ] = await Promise.all([
     supabase.from("sucursales").select("*", { count: "exact", head: true }),
     supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -206,6 +207,15 @@ export default async function DashboardPage() {
       .not("punto_pedido", "is", null) as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; punto_pedido: number; punto_maximo: number | null; product: { name: string; is_active: boolean } | null }[] | null;
       }>,
+    // Costo actual por (producto, sucursal) -- para valorizar entregado y
+    // vendido con el MISMO precio al calcular rotación (ver más abajo:
+    // comparar $ entregado a costo contra $ vendido a precio de público
+    // inflaba la rotación por el margen, no por cuánto se movió el stock).
+    (admin as any)
+      .from("product_prices")
+      .select("product_id, sucursal_id, costo") as unknown as Promise<{
+        data: { product_id: string; sucursal_id: string; costo: number }[] | null;
+      }>,
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };
@@ -214,29 +224,53 @@ export default async function DashboardPage() {
   const entregasMes = (entregasMesRaw ?? []) as Mov[];
   const ventasMes   = (ventasMesRaw   ?? []) as Mov[];
 
-  // ── Totales ──
+  // ── Totales ($, para las tarjetas) ──
+  // Entregado usa el costo pagado al proveedor, vendido usa el precio de
+  // público -- son montos reales, cada uno tiene sentido por separado.
   const totalEntregado = entregasMes.reduce((s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
   const totalVendido   = ventasMes.reduce(  (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0);
-  const rotacionGlobal = totalEntregado > 0 ? (totalVendido / totalEntregado) * 100 : null;
+
+  // ── Rotación (cantidad, no $) ──
+  // Dividir el $ vendido (a precio de público) por el $ entregado (a costo)
+  // mezclaba margen con movimiento real de stock -- un producto con 300% de
+  // margen ya daba "rotación" de 300%+ aunque se vendiera exactamente lo que
+  // se repuso. Acá se valorizan las dos puntas al MISMO precio (costo actual
+  // por sucursal) para que la rotación refleje cantidad movida, no margen --
+  // mismo criterio que ya usa /admin/rotacion-productos por producto.
+  const costoMap = new Map<string, number>();
+  for (const c of costosRaw.data ?? []) costoMap.set(`${c.sucursal_id}:${c.product_id}`, c.costo);
+  function valorizarACosto(sucursalId: string, items: Item[]): number {
+    return items.reduce((s, i) => {
+      if (!i.product) return s;
+      const costo = costoMap.get(`${sucursalId}:${i.product.id}`) ?? 0;
+      return s + i.cantidad * costo;
+    }, 0);
+  }
+
+  const totalEntregadoValorizado = entregasMes.reduce((s, m) => s + (m.sucursal ? valorizarACosto(m.sucursal.id, m.movimiento_items) : 0), 0);
+  const totalVendidoValorizado   = ventasMes.reduce(  (s, m) => s + (m.sucursal ? valorizarACosto(m.sucursal.id, m.movimiento_items) : 0), 0);
+  const rotacionGlobal = totalEntregadoValorizado > 0 ? (totalVendidoValorizado / totalEntregadoValorizado) * 100 : null;
 
   // ── Por sucursal ──
-  const sucMap = new Map<string, { nombre: string; entregado: number; vendido: number }>();
+  const sucMap = new Map<string, { nombre: string; entregado: number; vendido: number; entregadoValorizado: number; vendidoValorizado: number }>();
 
   for (const m of entregasMes) {
     if (!m.sucursal) continue;
-    const s = sucMap.get(m.sucursal.id) ?? { nombre: m.sucursal.nombre, entregado: 0, vendido: 0 };
+    const s = sucMap.get(m.sucursal.id) ?? { nombre: m.sucursal.nombre, entregado: 0, vendido: 0, entregadoValorizado: 0, vendidoValorizado: 0 };
     s.entregado += m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0);
+    s.entregadoValorizado += valorizarACosto(m.sucursal.id, m.movimiento_items);
     sucMap.set(m.sucursal.id, s);
   }
   for (const m of ventasMes) {
     if (!m.sucursal) continue;
-    const s = sucMap.get(m.sucursal.id) ?? { nombre: m.sucursal.nombre, entregado: 0, vendido: 0 };
+    const s = sucMap.get(m.sucursal.id) ?? { nombre: m.sucursal.nombre, entregado: 0, vendido: 0, entregadoValorizado: 0, vendidoValorizado: 0 };
     s.vendido += m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0);
+    s.vendidoValorizado += valorizarACosto(m.sucursal.id, m.movimiento_items);
     sucMap.set(m.sucursal.id, s);
   }
 
   const sucursalesMes = Array.from(sucMap.entries())
-    .map(([id, v]) => ({ id, ...v, rotacion: v.entregado > 0 ? (v.vendido / v.entregado) * 100 : null }))
+    .map(([id, v]) => ({ id, ...v, rotacion: v.entregadoValorizado > 0 ? (v.vendidoValorizado / v.entregadoValorizado) * 100 : null }))
     .sort((a, b) => b.entregado - a.entregado);
 
   const maxEntregado = sucursalesMes[0]?.entregado ?? 1;
