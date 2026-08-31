@@ -52,12 +52,12 @@ export default async function CtaCorrientePage({
   const accesoError = await requireSucursalAccess(admin, user.id, role ?? "", id);
   if (accesoError) redirect("/admin/dashboard");
 
-  // Admin client a propósito en las cuatro consultas de abajo (no las
-  // RLS-scoped de antes): el acceso a esta sucursal puntual ya lo validó
+  // Admin client a propósito en las consultas de abajo (no las RLS-scoped
+  // de antes): el acceso a esta sucursal puntual ya lo validó
   // requireSucursalAccess arriba -- no puede depender además de que esta
   // sea la sucursal ACTIVA del vendedor (my_sucursal_id()), porque ahora
   // puede estar viendo una sucursal asignada que no es la activa hoy.
-  const [ventasRes, personalRes, personalExtraRes, totalHistRes, pagosRes] = await Promise.all([
+  const [ventasRes, totalHistRes, pagosRes] = await Promise.all([
     (admin as any)
       .from("movimientos")
       .select(`
@@ -71,16 +71,6 @@ export default async function CtaCorrientePage({
       .lte("fecha", mesFin)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null }>,
-    (admin as any)
-      .from("profiles")
-      .select("id, full_name, credito_limite")
-      .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null; credito_limite: number | null }[] | null }>,
-    // Vendedores habilitados acá que hoy tienen la sucursal ACTIVA en otro
-    // lado -- mismo motivo que en sucursales/[id]/page.tsx.
-    (admin as any)
-      .from("profile_sucursales")
-      .select("profile:profiles(id, full_name, credito_limite)")
-      .eq("sucursal_id", id) as unknown as Promise<{ data: { profile: { id: string; full_name: string | null; credito_limite: number | null } | null }[] | null }>,
     // Total histórico acumulado por persona (sin filtro de mes)
     (admin as any)
       .from("movimientos")
@@ -97,12 +87,23 @@ export default async function CtaCorrientePage({
   ]);
 
   const ventas = ventasRes.data ?? [];
-  const personalPorId = new Map<string, { full_name: string | null; credito_limite: number | null }>();
-  for (const p of personalRes.data ?? []) personalPorId.set(p.id, { full_name: p.full_name, credito_limite: p.credito_limite });
-  for (const r of personalExtraRes.data ?? []) {
-    if (r.profile) personalPorId.set(r.profile.id, { full_name: r.profile.full_name, credito_limite: r.profile.credito_limite });
-  }
-  const personal = [...personalPorId.entries()].map(([profileId, p]) => ({ id: profileId, full_name: p.full_name, credito_limite: p.credito_limite }));
+
+  // Los nombres se resuelven por personal_id directo, NO por quién está
+  // asignado a esta sucursal hoy -- si alguien vendió acá y después lo
+  // reasignaron a otro kiosco (o se le dio de baja), la venta vieja sigue
+  // siendo suya. Antes esto se resolvía contra el roster actual de la
+  // sucursal y una venta quedaba huérfana ("Sin asignar") apenas se
+  // reasignaba a la persona, aunque la plata siguiera bien atribuida en
+  // la base.
+  const personalIds = new Set<string>();
+  for (const v of ventas) if (v.personal_id) personalIds.add(v.personal_id);
+  for (const v of totalHistRes.data ?? []) if (v.personal_id) personalIds.add(v.personal_id);
+  for (const p of pagosRes.data ?? []) if (p.personal_id) personalIds.add(p.personal_id);
+
+  const { data: personalRaw } = personalIds.size > 0
+    ? await (admin as any).from("profiles").select("id, full_name, credito_limite").in("id", [...personalIds])
+    : { data: [] as { id: string; full_name: string | null; credito_limite: number | null }[] };
+  const personal = (personalRaw ?? []) as { id: string; full_name: string | null; credito_limite: number | null }[];
 
   // Saldo acumulado histórico por persona
   const totalHistorico: Record<string, number> = {};
