@@ -350,32 +350,39 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
             </p>
           </div>
 
-          {/* Precios por sucursal -- cada sucursal es un negocio independiente,
-              no hay un precio "general": las dos son obligatorias. */}
+          {/* Precio y stock por sucursal -- cada sucursal es un negocio
+              independiente, no hay un precio "general": precio/costo son
+              obligatorios, los puntos de stock son opcionales (un producto
+              sin punto de pedido cargado simplemente no genera alerta de
+              reposición). Un solo bloque por sucursal en vez de dos
+              separados -- antes repetía el nombre de cada sucursal dos
+              veces (precios por un lado, puntos de stock por otro). */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precios por sucursal</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Precio y stock por sucursal</p>
             {sucursales.map((s) => {
-              const texto = preciosForm[s.id] ?? { precio_dist: "", costo: "" };
+              const precioTexto = preciosForm[s.id] ?? { precio_dist: "", costo: "" };
+              const puntoTexto  = puntosForm[s.id] ?? { minimo: "", pedido: "", maximo: "" };
               const otras = sucursales.filter((o) => o.id !== s.id);
               const margen = margenDe(s.id);
               return (
-                <div key={s.id} className="rounded-lg border border-neutral-200 p-3 space-y-2">
+                <div key={s.id} className="rounded-lg border border-neutral-200 p-3.5 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-neutral-800">{s.nombre}</p>
                     {otras.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
-                          defaultValue=""
-                          onChange={(e) => {
-                            if (e.target.value) copiarDeSucursal(s.id, e.target.value);
-                            e.target.value = "";
-                          }}
-                        >
-                          <option value="" disabled>Copiar de…</option>
-                          {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-                        </select>
-                      </div>
+                      <select
+                        className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            copiarDeSucursal(s.id, e.target.value);
+                            copiarPuntosDeSucursal(s.id, e.target.value);
+                          }
+                          e.target.value = "";
+                        }}
+                      >
+                        <option value="" disabled>Copiar de…</option>
+                        {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                      </select>
                     )}
                   </div>
                   <div className={esAdmin ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
@@ -384,7 +391,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                         <label className="block text-xs font-medium text-neutral-500 mb-1">Costo $</label>
                         <input
                           type="number" step="1" placeholder="0"
-                          value={texto.costo}
+                          value={precioTexto.costo}
                           onChange={(e) => setPrecioCampo(s.id, "costo", e.target.value)}
                           className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                         />
@@ -394,7 +401,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                       <label className="block text-xs font-medium text-neutral-500 mb-1">Precio kiosco $ *</label>
                       <input
                         type="number" step="1" placeholder="0"
-                        value={texto.precio_dist}
+                        value={precioTexto.precio_dist}
                         onChange={(e) => setPrecioCampo(s.id, "precio_dist", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
@@ -412,46 +419,12 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                       </div>
                     )}
                   </div>
-                </div>
-              );
-            })}
-            {precioError && (
-              <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{precioError}</p>
-            )}
-          </div>
-
-          {/* Puntos de stock por sucursal -- todos opcionales, a diferencia de
-              precio/costo: un producto sin punto de pedido cargado simplemente
-              no genera alerta de reposición. */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Puntos de stock por sucursal</p>
-            {sucursales.map((s) => {
-              const texto = puntosForm[s.id] ?? { minimo: "", pedido: "", maximo: "" };
-              const otras = sucursales.filter((o) => o.id !== s.id);
-              return (
-                <div key={s.id} className="rounded-lg border border-neutral-200 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-neutral-800">{s.nombre}</p>
-                    {otras.length > 0 && (
-                      <select
-                        className="h-7 rounded-md border border-neutral-300 bg-white text-xs px-1.5 focus:outline-none focus:border-tierra-700"
-                        defaultValue=""
-                        onChange={(e) => {
-                          if (e.target.value) copiarPuntosDeSucursal(s.id, e.target.value);
-                          e.target.value = "";
-                        }}
-                      >
-                        <option value="" disabled>Copiar de…</option>
-                        {otras.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
-                      </select>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="pt-2.5 border-t border-neutral-100 grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-neutral-500 mb-1">Mínimo</label>
                       <input
                         type="number" step="1" min="0" placeholder="—"
-                        value={texto.minimo}
+                        value={puntoTexto.minimo}
                         onChange={(e) => setPuntoCampo(s.id, "minimo", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
@@ -460,7 +433,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                       <label className="block text-xs font-medium text-neutral-500 mb-1">Punto de pedido</label>
                       <input
                         type="number" step="1" min="0" placeholder="—"
-                        value={texto.pedido}
+                        value={puntoTexto.pedido}
                         onChange={(e) => setPuntoCampo(s.id, "pedido", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
@@ -469,7 +442,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                       <label className="block text-xs font-medium text-neutral-500 mb-1">Máximo</label>
                       <input
                         type="number" step="1" min="0" placeholder="—"
-                        value={texto.maximo}
+                        value={puntoTexto.maximo}
                         onChange={(e) => setPuntoCampo(s.id, "maximo", e.target.value)}
                         className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 tabular-nums"
                       />
@@ -478,8 +451,11 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
                 </div>
               );
             })}
+            {precioError && (
+              <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{precioError}</p>
+            )}
             <p className="text-[11px] text-neutral-400">
-              Todos opcionales. La alerta de reposición se dispara cuando el stock llega al "Punto de pedido"; sin ese valor cargado, este producto no genera alerta en esa sucursal.
+              Precio y costo son obligatorios en todas las sucursales activas. Los puntos de stock son opcionales -- la alerta de reposición se dispara al llegar al "Punto de pedido"; sin ese valor, no genera alerta en esa sucursal.
             </p>
           </div>
 
