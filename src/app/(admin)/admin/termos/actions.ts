@@ -3,30 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess as checkAccesoSucursal } from "@/lib/auth/sucursal-access";
 import { fechaHoyAR } from "@/lib/fecha";
 
 // Mismo criterio que el resto de las server actions del proyecto (ver
 // cierre-actions.ts / movimientos/actions.ts): devolver {error} en vez de
 // throw, porque Next.js oculta el mensaje de las excepciones lanzadas desde
 // Server Actions en producción.
-
-async function checkAccesoSucursal(
-  admin: ReturnType<typeof createAdminClient>,
-  userId: string,
-  role: string,
-  sucursalId: string
-): Promise<string | null> {
-  if (role === "encargado") {
-    const { data: suc } = await admin.from("sucursales").select("encargado_user_id").eq("id", sucursalId).single();
-    if (suc?.encargado_user_id !== userId) return "No tenés permisos para esta sucursal";
-  }
-  if (role === "vendedor") {
-    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== sucursalId) return "No tenés permisos para esta sucursal";
-  }
-  return null;
-}
 
 export async function crearTermo(data: { sucursal_id: string; numero: string; tipo: "frio" | "caliente"; image_url?: string | null }): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();

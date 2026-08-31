@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 
 export interface TransferenciaItemInput {
   product_id: string;
@@ -23,16 +24,8 @@ export async function enviarTransferencia(data: {
   const { userId, role } = await requireStaff();
   const supabase = createAdminClient();
 
-  if (role === "encargado") {
-    const { data: suc } = await supabase
-      .from("sucursales").select("encargado_user_id").eq("id", data.sucursal_origen_id).single();
-    if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
-  }
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== data.sucursal_origen_id) return { error: "No tenés permisos para esta sucursal" };
-  }
+  const accesoError = await requireSucursalAccess(supabase, userId, role, data.sucursal_origen_id);
+  if (accesoError) return { error: accesoError };
 
   if (data.sucursal_origen_id === data.sucursal_destino_id) {
     return { error: "La sucursal de origen y destino no pueden ser la misma" };
@@ -86,16 +79,8 @@ export async function confirmarTransferencia(data: {
   if (transferencia.estado === "recibida") return { error: "Esta transferencia ya fue confirmada" };
   if (transferencia.anulada_en) return { error: "Esta transferencia fue anulada" };
 
-  if (role === "encargado") {
-    const { data: suc } = await supabase
-      .from("sucursales").select("encargado_user_id").eq("id", transferencia.sucursal_destino_id).single();
-    if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
-  }
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== transferencia.sucursal_destino_id) return { error: "No tenés permisos para esta sucursal" };
-  }
+  const accesoError = await requireSucursalAccess(supabase, userId, role, transferencia.sucursal_destino_id);
+  if (accesoError) return { error: accesoError };
 
   if (data.items.length === 0) return { error: "Faltan las cantidades recibidas" };
   if (data.items.some((i) => i.cantidad_recibida < 0)) return { error: "La cantidad recibida no puede ser negativa" };

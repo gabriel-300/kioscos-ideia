@@ -66,7 +66,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, personalExtraResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -98,10 +98,23 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     (admin as any).from("stock_sucursal").select("product_id, product_name, sku, entradas, salidas, stock_actual").eq("sucursal_id", id) as Promise<{ data: StockRow[] | null }>,
     (supabase as any).from("aperturas_caja").select("id, fondo_inicial, notas, created_at, created_by").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1) as unknown as Promise<{ data: AperturaRow[] | null }>,
     (supabase as any).from("retiros_caja").select("id, fecha, monto, motivo, created_at, comprobante_image_url").eq("sucursal_id", id).order("fecha", { ascending: false }).order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; fecha: string; monto: number; motivo: string; created_at: string; comprobante_image_url: string | null }[] | null }>,
-    (supabase as any)
+    // Admin client a propósito (no RLS): esta lista alimenta "quién abrió
+    // caja" y los selectores de atribución de venta ambulante/cta.
+    // corriente -- un encargado necesita ver a TODO el personal de acá,
+    // no solo el suyo, y con RLS la policy de profiles solo deja ver
+    // filas donde sucursal_id = my_sucursal_id() (la propia).
+    admin
       .from("profiles")
       .select("id, full_name")
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null }[] | null }>,
+    // Un vendedor puede estar habilitado en más de una sucursal
+    // (profile_sucursales) sin que esta sea su sucursal ACTIVA ahora --
+    // profiles.sucursal_id (arriba) solo captura la activa, así que hace
+    // falta este segundo query para que igual aparezca en el roster.
+    (admin as any)
+      .from("profile_sucursales")
+      .select("profile:profiles(id, full_name)")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { profile: { id: string; full_name: string | null } | null }[] | null }>,
     (supabase as any)
       .from("proveedores")
       .select("id, nombre, modo_facturacion, porcentaje_descuento")
@@ -336,8 +349,16 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   if (!sucursal) notFound();
 
-  const personal     = (personalResult.data ?? []).map((p) => ({ id: p.id, nombre: p.full_name ?? "Sin nombre" }));
-  const proveedores  = proveedoresResult.data ?? [];
+  // Se unen las dos fuentes (sucursal activa + sucursales asignadas) y se
+  // deduplica por id -- un vendedor habilitado acá tiene que aparecer en
+  // el roster sin importar si esta es su sucursal activa hoy o no.
+  const personalPorId = new Map<string, string>();
+  for (const p of personalResult.data ?? []) personalPorId.set(p.id, p.full_name ?? "Sin nombre");
+  for (const r of personalExtraResult.data ?? []) {
+    if (r.profile) personalPorId.set(r.profile.id, r.profile.full_name ?? "Sin nombre");
+  }
+  const personal    = [...personalPorId.entries()].map(([id, nombre]) => ({ id, nombre }));
+  const proveedores = proveedoresResult.data ?? [];
   const personalMap: Record<string, string> = Object.fromEntries(personal.map((p) => [p.id, p.nombre]));
 
   // Staff solo puede ver su propia sucursal

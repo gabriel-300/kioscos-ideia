@@ -21,13 +21,18 @@ export default async function AuthRedirectPage() {
       .single();
     redirect(sucursal ? `/admin/sucursales/${sucursal.id}` : "/admin/dashboard");
   } else if (role === "vendedor") {
-    const profileRes = await (admin as any)
-      .from("profiles")
+    // Un vendedor puede estar habilitado en más de una sucursal
+    // (profile_sucursales) -- con 0 va al dashboard como siempre, con 1
+    // entra directo (mismo comportamiento de siempre, sin fricción extra
+    // para el caso común), con 2+ va al picker de sucursales.
+    const { data: asignadas } = await (admin as any)
+      .from("profile_sucursales")
       .select("sucursal_id")
-      .eq("id", user.id)
-      .single();
-    const sucursalId = (profileRes.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
-    redirect(sucursalId ? `/admin/sucursales/${sucursalId}` : "/admin/dashboard");
+      .eq("profile_id", user.id) as { data: { sucursal_id: string }[] | null };
+    const lista = asignadas ?? [];
+    if (lista.length === 0) redirect("/admin/dashboard");
+    else if (lista.length === 1) redirect(`/admin/sucursales/${lista[0].sucursal_id}`);
+    else redirect("/admin/sucursales");
   } else {
     redirect("/login");
   }

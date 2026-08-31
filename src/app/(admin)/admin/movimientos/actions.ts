@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
 
 export interface ItemInput {
@@ -58,27 +59,8 @@ export async function crearMovimiento(data: {
   }
 
   // Encargados y vendedores solo pueden registrar en su propia sucursal
-  if (role === "encargado") {
-    const { data: suc } = await supabase
-      .from("sucursales")
-      .select("encargado_user_id")
-      .eq("id", data.sucursal_id)
-      .single();
-    if (suc?.encargado_user_id !== userId) {
-      return { movimiento_id: null, error: "No tenés permisos para esta sucursal" };
-    }
-  }
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any)
-      .from("profiles")
-      .select("sucursal_id")
-      .eq("id", userId)
-      .single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== data.sucursal_id) {
-      return { movimiento_id: null, error: "No tenés permisos para esta sucursal" };
-    }
-  }
+  const accesoError = await requireSucursalAccess(supabase, userId, role, data.sucursal_id);
+  if (accesoError) return { movimiento_id: null, error: accesoError };
 
   // Cantidad negativa/cero solo tiene sentido para "ajuste" (resta manual de stock).
   // En venta/entrega/devolución invertiría el efecto sobre el stock -- una "venta"
@@ -516,15 +498,8 @@ export async function anularVenta(id: string, motivo: string): Promise<{ error?:
   if (mov.anulado_en) return { error: "Esta venta ya está anulada" };
 
   // Mismo chequeo de permisos por sucursal que crearMovimiento/cerrarCaja.
-  if (role === "encargado") {
-    const { data: suc } = await supabase.from("sucursales").select("encargado_user_id").eq("id", mov.sucursal_id).single();
-    if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
-  }
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== mov.sucursal_id) return { error: "No tenés permisos para esta sucursal" };
-  }
+  const accesoErrorAnular = await requireSucursalAccess(supabase, userId, role, mov.sucursal_id);
+  if (accesoErrorAnular) return { error: accesoErrorAnular };
 
   // La caja de ese turno tiene que seguir abierta -- como abrir_caja no deja
   // abrir un turno nuevo sin cerrar el anterior, alcanza con mirar la

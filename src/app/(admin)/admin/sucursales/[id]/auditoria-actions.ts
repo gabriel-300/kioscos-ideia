@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export interface AuditoriaItemInput {
@@ -20,16 +21,8 @@ export async function crearAuditoria(
   const supabase = createAdminClient();
 
   // Mismo scoping que crearMovimiento (movimientos/actions.ts)
-  if (role === "encargado") {
-    const { data: suc } = await supabase
-      .from("sucursales").select("encargado_user_id").eq("id", sucursalId).single();
-    if (suc?.encargado_user_id !== userId) return { error: "No tenés permisos para esta sucursal" };
-  }
-  if (role === "vendedor") {
-    const { data: profile } = await (supabase as any)
-      .from("profiles").select("sucursal_id").eq("id", userId).single();
-    if (profile?.sucursal_id !== sucursalId) return { error: "No tenés permisos para esta sucursal" };
-  }
+  const accesoError = await requireSucursalAccess(supabase, userId, role, sucursalId);
+  if (accesoError) return { error: accesoError };
 
   // La auditoría es "por turno" (una por apertura de caja), no por día --
   // si en un mismo día hay dos turnos, cada uno audita el suyo. Hace falta

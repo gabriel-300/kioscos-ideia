@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export async function registrarRetiro(data: {
@@ -14,23 +15,8 @@ export async function registrarRetiro(data: {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
 
-  if (role === "encargado") {
-    const { data: suc } = await admin
-      .from("sucursales")
-      .select("encargado_user_id")
-      .eq("id", data.sucursal_id)
-      .single();
-    if (suc?.encargado_user_id !== userId) {
-      throw new Error("No tenés permisos para esta sucursal");
-    }
-  }
-  if (role === "vendedor") {
-    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== data.sucursal_id) {
-      throw new Error("No tenés permisos para esta sucursal");
-    }
-  }
+  const accesoError = await requireSucursalAccess(admin, userId, role, data.sucursal_id);
+  if (accesoError) throw new Error(accesoError);
 
   const hoy = fechaHoyAR();
 

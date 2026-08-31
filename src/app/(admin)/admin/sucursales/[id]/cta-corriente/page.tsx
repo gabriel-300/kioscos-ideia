@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PagoBtn } from "./_components/pago-form";
 import { fechaHoyAR } from "@/lib/fecha";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 
 export const revalidate = 0;
 
@@ -27,6 +28,7 @@ export default async function CtaCorrientePage({
   const { mes: mesParam } = await searchParams;
 
   const supabase = await createClient();
+  const admin    = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -47,15 +49,16 @@ export default async function CtaCorrientePage({
   const { data: sucursal } = await supabase.from("sucursales").select("id, nombre, encargado_user_id").eq("id", id).single();
   if (!sucursal) notFound();
 
-  if (role === "encargado" && sucursal.encargado_user_id !== user.id) redirect("/admin/dashboard");
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== id) redirect("/admin/dashboard");
-  }
+  const accesoError = await requireSucursalAccess(admin, user.id, role ?? "", id);
+  if (accesoError) redirect("/admin/dashboard");
 
-  const [ventasRes, personalRes, totalHistRes, pagosRes] = await Promise.all([
-    (supabase as any)
+  // Admin client a propósito en las cuatro consultas de abajo (no las
+  // RLS-scoped de antes): el acceso a esta sucursal puntual ya lo validó
+  // requireSucursalAccess arriba -- no puede depender además de que esta
+  // sea la sucursal ACTIVA del vendedor (my_sucursal_id()), porque ahora
+  // puede estar viendo una sucursal asignada que no es la activa hoy.
+  const [ventasRes, personalRes, personalExtraRes, totalHistRes, pagosRes] = await Promise.all([
+    (admin as any)
       .from("movimientos")
       .select(`
         id, fecha, created_at, notas, personal_id,
@@ -68,27 +71,38 @@ export default async function CtaCorrientePage({
       .lte("fecha", mesFin)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null }>,
-    (supabase as any)
+    (admin as any)
       .from("profiles")
       .select("id, full_name, credito_limite")
       .eq("sucursal_id", id) as unknown as Promise<{ data: { id: string; full_name: string | null; credito_limite: number | null }[] | null }>,
+    // Vendedores habilitados acá que hoy tienen la sucursal ACTIVA en otro
+    // lado -- mismo motivo que en sucursales/[id]/page.tsx.
+    (admin as any)
+      .from("profile_sucursales")
+      .select("profile:profiles(id, full_name, credito_limite)")
+      .eq("sucursal_id", id) as unknown as Promise<{ data: { profile: { id: string; full_name: string | null; credito_limite: number | null } | null }[] | null }>,
     // Total histórico acumulado por persona (sin filtro de mes)
-    (supabase as any)
+    (admin as any)
       .from("movimientos")
       .select("personal_id, movimiento_items(subtotal)")
       .eq("sucursal_id", id)
       .eq("canal", "cuenta_corriente")
       .eq("tipo", "venta") as unknown as Promise<{ data: { personal_id: string | null; movimiento_items: { subtotal: number | null }[] }[] | null }>,
     // Pagos de deuda registrados
-    (supabase as any)
+    (admin as any)
       .from("cta_corriente_pagos")
       .select("id, personal_id, monto, fecha, notas")
       .eq("sucursal_id", id)
       .order("fecha", { ascending: false }) as unknown as Promise<{ data: { id: string; personal_id: string; monto: number; fecha: string; notas: string | null }[] | null }>,
   ]);
 
-  const ventas   = ventasRes.data   ?? [];
-  const personal = personalRes.data ?? [];
+  const ventas = ventasRes.data ?? [];
+  const personalPorId = new Map<string, { full_name: string | null; credito_limite: number | null }>();
+  for (const p of personalRes.data ?? []) personalPorId.set(p.id, { full_name: p.full_name, credito_limite: p.credito_limite });
+  for (const r of personalExtraRes.data ?? []) {
+    if (r.profile) personalPorId.set(r.profile.id, { full_name: r.profile.full_name, credito_limite: r.profile.credito_limite });
+  }
+  const personal = [...personalPorId.entries()].map(([profileId, p]) => ({ id: profileId, full_name: p.full_name, credito_limite: p.credito_limite }));
 
   // Saldo acumulado histórico por persona
   const totalHistorico: Record<string, number> = {};

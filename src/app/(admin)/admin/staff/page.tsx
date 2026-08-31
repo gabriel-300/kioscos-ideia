@@ -20,6 +20,7 @@ export default async function StaffPage() {
     { data: { users }, error },
     { data: sucursales },
     profilesResult,
+    profileSucursalesResult,
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 200 }),
     supabase.from("sucursales").select("id, nombre, encargado_user_id").order("nombre"),
@@ -27,6 +28,11 @@ export default async function StaffPage() {
       .from("profiles")
       .select("id, sucursal_id, credito_limite, es_socio") as unknown as Promise<{
         data: { id: string; sucursal_id: string | null; credito_limite: number | null; es_socio: boolean | null }[] | null;
+      }>,
+    (admin as any)
+      .from("profile_sucursales")
+      .select("profile_id, sucursal_id") as unknown as Promise<{
+        data: { profile_id: string; sucursal_id: string }[] | null;
       }>,
   ]);
 
@@ -44,6 +50,14 @@ export default async function StaffPage() {
   const profileMap: Record<string, ProfileEntry> = {};
   for (const p of profilesResult.data ?? []) {
     profileMap[p.id] = { sucursalId: p.sucursal_id, creditoLimite: p.credito_limite ?? null, esSocio: !!p.es_socio };
+  }
+
+  // Conjunto de sucursales donde cada vendedor está habilitado (distinto de
+  // sucursalIdProfile, que es solo la sucursal ACTIVA ahora -- ver
+  // migración 082 y sucursal-access.ts).
+  const sucursalIdsVendedorMap: Record<string, string[]> = {};
+  for (const ps of profileSucursalesResult.data ?? []) {
+    (sucursalIdsVendedorMap[ps.profile_id] ??= []).push(ps.sucursal_id);
   }
 
   const staff = (users ?? [])
@@ -64,6 +78,7 @@ export default async function StaffPage() {
       nombre:        u.user_metadata?.full_name as string | undefined,
       role:          u.app_metadata?.role as string | undefined,
       sucursalIdProfile: profileMap[u.id]?.sucursalId ?? null,
+      sucursalIdsVendedor: sucursalIdsVendedorMap[u.id] ?? [],
       creditoLimite: profileMap[u.id]?.creditoLimite ?? null,
       esSocio: profileMap[u.id]?.esSocio ?? false,
       isSuspended:   !!(u as any).banned_until && (u as any).banned_until !== "none",

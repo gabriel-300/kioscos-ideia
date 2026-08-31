@@ -99,6 +99,43 @@ export async function asignarSucursal(userId: string, sucursalId: string | null,
     if (error) throw new Error(error.message);
   }
 
+  // Para vendedor (alta inicial desde crearStaff, una sola sucursal): además
+  // de profiles.sucursal_id (sucursal activa), se registra en
+  // profile_sucursales -- si no, el vendedor recién creado quedaría "sin
+  // sucursales" para auth/redirect/page.tsx a pesar de tener una elegida acá.
+  if (sucursalId && role === "vendedor") {
+    await (admin as any)
+      .from("profile_sucursales")
+      .upsert({ profile_id: userId, sucursal_id: sucursalId }, { onConflict: "profile_id,sucursal_id" });
+  }
+
+  revalidatePath("/admin/staff");
+  revalidatePath("/admin/sucursales");
+}
+
+// Reemplaza el conjunto completo de sucursales donde un vendedor está
+// habilitado a trabajar (distinto de asignarSucursal, que solo apunta la
+// sucursal ACTIVA -- ver migración 082 y sucursal-access.ts).
+export async function asignarSucursalesVendedor(userId: string, sucursalIds: string[]) {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  await (admin as any).from("profile_sucursales").delete().eq("profile_id", userId);
+  if (sucursalIds.length > 0) {
+    const { error } = await (admin as any)
+      .from("profile_sucursales")
+      .insert(sucursalIds.map((sucursal_id) => ({ profile_id: userId, sucursal_id })));
+    if (error) throw new Error(error.message);
+  }
+
+  // Si la sucursal activa actual quedó fuera del nuevo set, reapuntarla (o
+  // vaciarla) para que nav/redirect nunca apunten a una sucursal ya no
+  // asignada.
+  const { data: profile } = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
+  if (profile?.sucursal_id && !sucursalIds.includes(profile.sucursal_id)) {
+    await (admin as any).from("profiles").update({ sucursal_id: sucursalIds[0] ?? null }).eq("id", userId);
+  }
+
   revalidatePath("/admin/staff");
   revalidatePath("/admin/sucursales");
 }

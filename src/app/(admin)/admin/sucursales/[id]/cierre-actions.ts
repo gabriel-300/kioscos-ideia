@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 
 export async function cerrarCaja(data: {
   sucursal_id:              string;
@@ -21,23 +22,8 @@ export async function cerrarCaja(data: {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
 
-  if (role === "encargado") {
-    const { data: suc } = await admin
-      .from("sucursales")
-      .select("encargado_user_id")
-      .eq("id", data.sucursal_id)
-      .single();
-    if (suc?.encargado_user_id !== userId) {
-      return { error: "No tenés permisos para esta sucursal" };
-    }
-  }
-  if (role === "vendedor") {
-    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== data.sucursal_id) {
-      return { error: "No tenés permisos para esta sucursal" };
-    }
-  }
+  const accesoError = await requireSucursalAccess(admin, userId, role, data.sucursal_id);
+  if (accesoError) return { error: accesoError };
 
   // Billetera/tarjeta/transferencia: encargado y vendedor no los pueden declarar
   // manualmente (ya los registra el sistema en cada venta) — el frontend los
@@ -170,23 +156,8 @@ export async function getCierreDelDia(sucursalId: string, fecha: string) {
   const { userId, role } = await requireStaff();
   const supabase = createAdminClient();
 
-  if (role === "encargado") {
-    const { data: suc } = await supabase
-      .from("sucursales")
-      .select("encargado_user_id")
-      .eq("id", sucursalId)
-      .single();
-    if (suc?.encargado_user_id !== userId) {
-      throw new Error("No tenés permisos para esta sucursal");
-    }
-  }
-  if (role === "vendedor") {
-    const profileRes = await (supabase as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== sucursalId) {
-      throw new Error("No tenés permisos para esta sucursal");
-    }
-  }
+  const accesoError = await requireSucursalAccess(supabase, userId, role, sucursalId);
+  if (accesoError) throw new Error(accesoError);
 
   const res = await (supabase as any)
     .from("cierres_caja")

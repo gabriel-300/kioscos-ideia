@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
-import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, generarLinkResetPassword, suspenderStaff } from "../actions";
+import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, asignarSucursalesVendedor, generarLinkResetPassword, suspenderStaff } from "../actions";
 import { friendlyError } from "@/lib/utils";
 
 type StaffUser = {
@@ -15,6 +15,7 @@ type StaffUser = {
   nombre: string | undefined;
   role: string | undefined;
   sucursalIdProfile: string | null;
+  sucursalIdsVendedor: string[];
   creditoLimite: number | null;
   esSocio: boolean;
   isSuspended: boolean;
@@ -146,6 +147,11 @@ function EditDrawer({
       : sucursales.find((s) => s.id === user.sucursalIdProfile);
 
   const [sucursalId, setSucursalId] = useState(sucursalActual?.id ?? "");
+  const [sucursalIds, setSucursalIds] = useState<string[]>(user.sucursalIdsVendedor);
+
+  function toggleSucursal(id: string) {
+    setSucursalIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  }
 
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof editSchema>>({
     resolver: zodResolver(editSchema),
@@ -162,7 +168,12 @@ function EditDrawer({
           creditoLimite: limiteNum,
           esSocio,
         });
-        if (sucursalId !== (sucursalActual?.id ?? "")) {
+        if (user.role === "vendedor") {
+          const cambiaron =
+            sucursalIds.length !== user.sucursalIdsVendedor.length ||
+            [...sucursalIds].sort().join(",") !== [...user.sucursalIdsVendedor].sort().join(",");
+          if (cambiaron) await asignarSucursalesVendedor(user.id, sucursalIds);
+        } else if (sucursalId !== (sucursalActual?.id ?? "")) {
           await asignarSucursal(user.id, sucursalId || null, user.role);
         }
         router.refresh();
@@ -215,26 +226,50 @@ function EditDrawer({
               className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm tabular-nums focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
-              Sucursal asignada
-            </label>
-            <select
-              value={sucursalId}
-              onChange={(e) => setSucursalId(e.target.value)}
-              className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
-            >
-              <option value="">Sin sucursal asignada</option>
-              {sucursales.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
-                  {user.role === "encargado" && s.encargado_user_id && s.encargado_user_id !== user.id
-                    ? " (asignada a otro encargado)"
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+          {user.role === "vendedor" ? (
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
+                Sucursales asignadas
+              </label>
+              <div className="space-y-1.5">
+                {sucursales.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700"
+                      checked={sucursalIds.includes(s.id)}
+                      onChange={() => toggleSucursal(s.id)}
+                    />
+                    <span className="text-sm text-neutral-700">{s.nombre}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-1.5">
+                Si marcás más de una, elige en cuál trabaja al abrir el turno — el resto sigue funcionando como siempre.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
+                Sucursal asignada
+              </label>
+              <select
+                value={sucursalId}
+                onChange={(e) => setSucursalId(e.target.value)}
+                className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+              >
+                <option value="">Sin sucursal asignada</option>
+                {sucursales.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                    {user.role === "encargado" && s.encargado_user_id && s.encargado_user_id !== user.id
+                      ? " (asignada a otro encargado)"
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {user.lastSignIn && (
             <div>
               <p className="text-xs text-neutral-400 mb-0.5">Último acceso</p>

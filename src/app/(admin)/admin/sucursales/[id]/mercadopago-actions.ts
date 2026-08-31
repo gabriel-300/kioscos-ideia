@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
+import { requireSucursalAccess as checkAccesoSucursal } from "@/lib/auth/sucursal-access";
 
 // Cobro con QR dinámico de Mercado Pago -- mismo espíritu que
 // transferencia-actions.ts/termos/actions.ts: devuelven {error?} en vez de
@@ -9,24 +10,6 @@ import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 // producción). Sin las credenciales cargadas como secrets de Cloudflare
 // (MERCADOPAGO_ACCESS_TOKEN/MERCADOPAGO_USER_ID), todo responde con un error
 // claro -- mismo criterio que el webhook de PedidosYa antes de tener token.
-
-async function checkAccesoSucursal(
-  admin: ReturnType<typeof createAdminClient>,
-  userId: string,
-  role: string,
-  sucursalId: string
-): Promise<string | null> {
-  if (role === "encargado") {
-    const { data: suc } = await admin.from("sucursales").select("encargado_user_id").eq("id", sucursalId).single();
-    if (suc?.encargado_user_id !== userId) return "No tenés permisos para esta sucursal";
-  }
-  if (role === "vendedor") {
-    const profileRes = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    const profile = profileRes.data as { sucursal_id: string | null } | null;
-    if (profile?.sucursal_id !== sucursalId) return "No tenés permisos para esta sucursal";
-  }
-  return null;
-}
 
 function mpCredenciales() {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
