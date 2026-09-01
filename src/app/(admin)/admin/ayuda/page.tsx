@@ -54,6 +54,7 @@ export default async function AyudaPage() {
 
   const toc = [
     { id: "abrir-caja",  label: "Abrir la caja" },
+    { id: "traspaso",    label: "Traspaso de turno" },
     { id: "vender",      label: "Registrar una venta" },
     { id: "anular",      label: "Anular una venta" },
     { id: "recepcion",   label: "Recepción de mercadería" },
@@ -123,7 +124,31 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      <Section id="vender" title="2. Registrar una venta">
+      <Section id="traspaso" title="2. Traspaso de turno (cambio de persona)">
+        <p className="text-sm text-neutral-600">
+          Desde ahora hay <Campo>una sola caja por día</Campo>. Cuando cambia quién está atendiendo el kiosco, ya no
+          se cierra la caja — se hace un traspaso.
+        </p>
+        <div className="space-y-3">
+          <Paso n={1}>La persona que llega toca <Boton>Traspaso de turno</Boton>, al lado de "Cerrar caja".</Paso>
+          <Paso n={2}>Cuenta toda la plata en efectivo que hay en el cajón en ese momento.</Paso>
+          <Paso n={3}>Carga ese número en <Campo>Contás en el cajón</Campo>.</Paso>
+          <Paso n={4}>
+            El sistema muestra si coincide con lo que esperaba. Si hay diferencia, pide explicar qué pasó antes de
+            dejar continuar — igual que al cerrar caja.
+          </Paso>
+          <Paso n={5}>
+            Confirma con <Boton>Confirmar recepción</Boton>. A partir de ahí, esa persona es quien puede cerrar la
+            caja y ve todo el movimiento del día, no solo el suyo.
+          </Paso>
+        </div>
+        <Nota tipo="warn">
+          La caja <Campo>NO se cierra</Campo> con el traspaso — sigue siendo el mismo turno de todo el día. Cerrar
+          caja (ver más abajo) es solo al terminar el día, no en cada cambio de persona.
+        </Nota>
+      </Section>
+
+      <Section id="vender" title="3. Registrar una venta">
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Registrar venta</Boton>.</Paso>
           <Paso n={2}>
@@ -145,7 +170,7 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="anular" title="3. Anular una venta">
+      <Section id="anular" title="4. Anular una venta">
         <p className="text-sm text-neutral-600">
           Para cuando cargaste una venta por error — por ejemplo, la cargaste dos veces sin darte cuenta, o le
           pusiste otro producto.
@@ -168,7 +193,7 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      <Section id="recepcion" title="4. Recepción de mercadería">
+      <Section id="recepcion" title="5. Recepción de mercadería">
         <p className="text-sm text-neutral-600">Para cargar lo que llega de un proveedor y que sume al stock.</p>
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Registrar recepción</Boton>.</Paso>
@@ -181,7 +206,7 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      <Section id="retiro" title="5. Retiro de efectivo">
+      <Section id="retiro" title="6. Retiro de efectivo">
         <p className="text-sm text-neutral-600">
           Para cuando sacás plata del cajón durante el turno (pagar un flete, dar cambio a otra caja, etc.).
         </p>
@@ -192,7 +217,7 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="merma" title="6. Registrar una merma">
+      <Section id="merma" title="7. Registrar una merma">
         <p className="text-sm text-neutral-600">
           Para productos rotos, vencidos o perdidos — así el stock queda correcto sin que figure como una venta.
         </p>
@@ -203,8 +228,11 @@ export default async function AyudaPage() {
         </div>
       </Section>
 
-      <Section id="cerrar-caja" title="7. Cerrar la caja">
-        <p className="text-sm text-neutral-600">Al final del turno, para conciliar la plata contra lo que vendiste.</p>
+      <Section id="cerrar-caja" title="8. Cerrar la caja">
+        <p className="text-sm text-neutral-600">
+          Al final del <Campo>día</Campo> (no en cada cambio de persona — para eso está el Traspaso de turno de
+          arriba), para conciliar la plata contra todo lo que se vendió.
+        </p>
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Cerrar caja</Boton>.</Paso>
           <Paso n={2}>
@@ -235,18 +263,18 @@ export default async function AyudaPage() {
         </div>
         {esVendedor && (
           <Nota tipo="warn">
-            Solo podés cerrar el turno que vos mismo abriste. Si la caja la abrió otra persona, pedile que la cierre
-            ella, o avisale al encargado.
+            Solo podés cerrar la caja si la tenés vos en este momento — porque la abriste, o porque te la traspasaron
+            (ver arriba). Si la tiene otra persona, pedile un traspaso primero, o avisale al encargado.
           </Nota>
         )}
         {esEncargado && (
           <Nota tipo="info">
-            Como encargado podés cerrar cualquier turno de tu kiosco, aunque lo haya abierto otro vendedor.
+            Como encargado podés cerrar cualquier turno de tu kiosco, sin importar quién lo tenga en ese momento.
           </Nota>
         )}
       </Section>
 
-      <Section id="sobre" title="8. El sobre de efectivo">
+      <Section id="sobre" title="9. El sobre de efectivo">
         <p className="text-sm text-neutral-600">
           Es la plata en efectivo que queda "de más" después de separar el fondo para el turno siguiente — la que hay
           que entregarle a un socio.
@@ -267,7 +295,7 @@ export default async function AyudaPage() {
       </Section>
 
       {(esEncargado || esAdmin) && (
-        <Section id="pagos-proveedores" title="9. Pagos a proveedores">
+        <Section id="pagos-proveedores" title="10. Pagos a proveedores">
           <p className="text-sm text-neutral-600">
             Para registrar cuánto y cómo le pagaste a un proveedor por la mercadería que te entregó. El sistema
             calcula solo cuánto le debés a cada uno, sumando sus entregas y restando lo que ya le pagaste.
@@ -297,7 +325,7 @@ export default async function AyudaPage() {
       )}
 
       {(esEncargado || esAdmin) && (
-        <Section id="socios" title="10. Socios (retiros y devoluciones)">
+        <Section id="socios" title="11. Socios (retiros y devoluciones)">
           <p className="text-sm text-neutral-600">
             Para cuando un socio (Damián, Javier, Gabriel) saca plata del cajón para su cuenta personal, y para
             cuando la devuelve.
@@ -325,7 +353,7 @@ export default async function AyudaPage() {
         </Section>
       )}
 
-      <Section id="stock" title="11. Consultar el stock">
+      <Section id="stock" title="12. Consultar el stock">
         <p className="text-sm text-neutral-600">
           Desde el menú <Campo>Stock</Campo> ves cuánto hay de cada producto en tu kiosco, calculado a partir del
           historial de movimientos (recepciones menos ventas y mermas).
@@ -336,7 +364,7 @@ export default async function AyudaPage() {
       </Section>
 
       {(esEncargado || esAdmin) && (
-        <Section id="pronostico" title="12. Pronóstico">
+        <Section id="pronostico" title="13. Pronóstico">
           <p className="text-sm text-neutral-600">
             Te sugiere cuánto vas a vender de cada producto al día siguiente, calculado con el promedio de ventas de
             ese mismo día de la semana en semanas anteriores. Sirve como referencia para saber qué pedirle al
@@ -346,7 +374,7 @@ export default async function AyudaPage() {
       )}
 
       {esAdmin && (
-        <Section id="sueldos" title="13. Sueldos por empleado">
+        <Section id="sueldos" title="14. Sueldos por empleado">
           <p className="text-sm text-neutral-600">
             Para llevar el sueldo de cada persona por separado dentro de Finanzas, en vez de un monto suelto sin
             saber a quién corresponde.
@@ -371,10 +399,17 @@ export default async function AyudaPage() {
             <p className="text-sm text-neutral-600 mt-0.5">Te falta abrir la caja del día — es el primer paso (ver arriba).</p>
           </div>
           <div>
-            <p className="text-sm font-semibold text-neutral-800">"Esta caja la abrió [otra persona]" al querer cerrarla</p>
+            <p className="text-sm font-semibold text-neutral-800">¿Hay que cerrar la caja cuando cambia quién atiende?</p>
             <p className="text-sm text-neutral-600 mt-0.5">
-              Un vendedor solo puede cerrar el turno que abrió él mismo. Pedile a esa persona que la cierre, o que lo
-              haga el encargado.
+              No. Desde ahora se hace un <Campo>Traspaso de turno</Campo> (ver arriba) — cerrar caja es solo una vez
+              al día, al terminar.
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-neutral-800">"Esta caja la tiene [otra persona]" al querer cerrarla</p>
+            <p className="text-sm text-neutral-600 mt-0.5">
+              Un vendedor solo puede cerrar la caja si la tiene él en este momento. Pedile un{" "}
+              <Campo>Traspaso de turno</Campo> a quien la tiene, o que la cierre el encargado.
             </p>
           </div>
           <div>
