@@ -68,7 +68,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, personalExtraResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: ventasParaTraspaso }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, personalExtraResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -84,6 +84,23 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: any[] | null; error: any }>,
+    // Ventas del día para el preview de Traspaso de turno -- admin client A
+    // PROPÓSITO, no el de RLS: quien todavía no recibió esta caja (el caso
+    // de uso exacto de este botón) no está reconocido como "tenedor" hasta
+    // DESPUÉS de confirmar (ver movimiento_visible_por_turno, migración
+    // 083), así que con el cliente RLS solo vería sus propias ventas y el
+    // preview mostraba un monto muy por debajo del real -- bug confirmado
+    // en producción (vendedor recibiendo un turno de otro vio $15.200 en
+    // vez de ~$111.600). Lo que de verdad queda guardado siempre lo
+    // recalcula la RPC server-side sin RLS -- esto es solo para que la
+    // pantalla no mienta antes de confirmar.
+    (admin as any)
+      .from("movimientos")
+      .select("tipo, canal, anulado_en, created_at, pago_efectivo")
+      .eq("sucursal_id", id)
+      .eq("tipo", "venta") as unknown as Promise<{
+        data: { tipo: string; canal: string | null; anulado_en: string | null; created_at: string; pago_efectivo: number | null }[] | null;
+      }>,
     // .neq("sku", "MULTA-TERMO"): producto de servicio ficticio para cobrar
     // multas de termo (ver 063_multa_alquiler_termo.sql) -- no se vende a
     // mano desde acá, se carga solo desde el cobro de multa.
@@ -717,7 +734,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                 sucursalNombre={sucursal.nombre}
                 aperturaActual={aperturaActual}
                 tenedorActualNombre={tenedorActualNombre}
-                movimientos={(movs as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
+                movimientos={ventasParaTraspaso ?? []}
                 retiros={todosRetiros}
                 pagosProveedor={todosPagosProveedor}
                 pagosCtc={todosPagosCtc}

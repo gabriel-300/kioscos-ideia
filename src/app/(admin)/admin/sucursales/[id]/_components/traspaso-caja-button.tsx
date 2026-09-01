@@ -3,16 +3,30 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { registrarTraspaso } from "../traspaso-actions";
 import { friendlyError } from "@/lib/utils";
-import type { MovimientoCierre } from "./cierre-caja-button";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
+// Tipo propio (no MovimientoCierre de cierre-caja-button) a propósito: ese
+// viene de una consulta con el cliente con RLS, que para un vendedor que
+// TODAVÍA no recibió esta caja solo devuelve SUS PROPIAS ventas (recién
+// queda reconocido como "tenedor" después de confirmar el traspaso -- ver
+// movimiento_visible_por_turno, migración 083). Este preview necesita datos
+// del turno completo, así que se pasa un array aparte, traído por
+// sucursales/[id]/page.tsx con el cliente admin.
+export type VentaParaTraspaso = {
+  tipo:          string;
+  canal:         string | null;
+  anulado_en?:   string | null;
+  created_at:    string;
+  pago_efectivo: number | null;
+};
 
 interface Props {
   sucursalId:     string;
   sucursalNombre: string;
   aperturaActual: { fondo_inicial: number; created_at: string };
   tenedorActualNombre?: string | null;
-  movimientos:    MovimientoCierre[];
+  movimientos:    VentaParaTraspaso[];
   retiros?:        { monto: number; created_at: string }[];
   pagosProveedor?: { monto_efectivo: number; created_at: string }[];
   pagosCtc?:       { monto_efectivo: number; created_at: string }[];
