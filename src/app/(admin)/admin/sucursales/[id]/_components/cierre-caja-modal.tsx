@@ -24,6 +24,7 @@ interface Props {
   pagosSocio?:     { monto_efectivo: number; created_at: string }[];
   role?:           string | null;
   abiertaPorNombre?: string | null;
+  tenedorActualNombre?: string | null;
   puedeCerrarCaja?:  boolean;
   transferenciasSinConciliar?: number;
 }
@@ -72,7 +73,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
   );
 }
 
-export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], pagosProveedor = [], pagosCtc = [], retirosSocio = [], pagosSocio = [], role, abiertaPorNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
+export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], pagosProveedor = [], pagosCtc = [], retirosSocio = [], pagosSocio = [], role, abiertaPorNombre, tenedorActualNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
   const hoy = fechaHoyAR();
   const puedeEditarMedios = role === "admin";
 
@@ -311,7 +312,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
             /* ── Turno abierto por otra persona: no puede cerrarlo ── */
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <p className="text-sm font-semibold text-amber-800">
-                Esta caja la abrió {abiertaPorNombre ?? "otra persona"}.
+                Esta caja la tiene {tenedorActualNombre ?? abiertaPorNombre ?? "otra persona"}.
               </p>
               <p className="text-xs text-amber-700 mt-1">
                 Pedile que la cierre ella, o hacelo como encargado o admin.

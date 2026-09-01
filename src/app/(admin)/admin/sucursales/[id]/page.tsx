@@ -12,6 +12,8 @@ import { AuditoriaButton } from "./_components/auditoria-button";
 import { TransferenciaEnviarButton } from "./_components/transferencia-enviar-button";
 import { TransferenciasPendientes, type Pendiente } from "./_components/transferencias-pendientes";
 import { PagosTransferenciaSinConciliar } from "./_components/pagos-transferencia-sin-conciliar";
+import { TraspasoCajaButton } from "./_components/traspaso-caja-button";
+import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { fechaHoyAR, fmtHora } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -401,8 +403,19 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       abiertaPorNombre = (perfilApertura as { full_name: string | null } | null)?.full_name ?? null;
     }
   }
-  const esMiTurno       = !!aperturaActual?.created_by && aperturaActual.created_by === user.id;
-  const puedeCerrarCaja = role === "admin" || role === "encargado" || esMiTurno;
+  // Tenedor actual (distinto del que abrió si hubo un traspaso de turno, ver
+  // migración 083) -- separado de abiertaPorNombre a propósito: ese sigue
+  // significando "quién abrió" (usado tal cual en AperturaCajaButton), esto
+  // es "quién la tiene ahora" (permisos de cierre + botón de traspaso).
+  let tenedorActualId: string | null = aperturaActual?.created_by ?? null;
+  if (cajaAbierta && aperturaActual) {
+    tenedorActualId = await obtenerTenedorActual(admin, aperturaActual.id, aperturaActual.created_by);
+  }
+  const tenedorActualNombre = tenedorActualId
+    ? (personalMap[tenedorActualId] ?? (tenedorActualId === aperturaActual?.created_by ? abiertaPorNombre : null))
+    : null;
+  const esTenedorActual = !!tenedorActualId && tenedorActualId === user.id;
+  const puedeCerrarCaja = role === "admin" || role === "encargado" || esTenedorActual;
 
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
@@ -688,6 +701,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               ultimoCierre={ultimoCierre}
               aperturaActual={aperturaActual}
               abiertaPorNombre={abiertaPorNombre}
+              tenedorActualNombre={tenedorActualNombre}
               puedeCerrarCaja={puedeCerrarCaja}
               retiros={todosRetiros}
               pagosProveedor={todosPagosProveedor}
@@ -697,6 +711,20 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               role={role}
               transferenciasSinConciliar={ventasTransferenciaCandidatas.length}
             />
+            {cajaAbierta && aperturaActual && (
+              <TraspasoCajaButton
+                sucursalId={sucursal.id}
+                sucursalNombre={sucursal.nombre}
+                aperturaActual={aperturaActual}
+                tenedorActualNombre={tenedorActualNombre}
+                movimientos={(movs as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
+                retiros={todosRetiros}
+                pagosProveedor={todosPagosProveedor}
+                pagosCtc={todosPagosCtc}
+                retirosSocio={todosRetirosSocio}
+                pagosSocio={todosPagosSocio}
+              />
+            )}
           </div>
         </div>
       </div>

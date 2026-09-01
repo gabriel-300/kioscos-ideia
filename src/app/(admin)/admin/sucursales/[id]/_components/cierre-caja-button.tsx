@@ -46,6 +46,7 @@ export function CierreCajaButton({
   pagosSocio,
   role,
   abiertaPorNombre,
+  tenedorActualNombre,
   puedeCerrarCaja,
   transferenciasSinConciliar,
 }: {
@@ -62,6 +63,7 @@ export function CierreCajaButton({
   pagosSocio?:     { monto_efectivo: number; created_at: string }[];
   role?:           string | null;
   abiertaPorNombre?: string | null;
+  tenedorActualNombre?: string | null;
   puedeCerrarCaja?:  boolean;
   transferenciasSinConciliar?: number;
 }) {
@@ -110,6 +112,7 @@ export function CierreCajaButton({
         pagosSocio={pagosSocio}
         role={role}
         abiertaPorNombre={abiertaPorNombre}
+        tenedorActualNombre={tenedorActualNombre}
         puedeCerrarCaja={puedeCerrarCaja}
         transferenciasSinConciliar={transferenciasSinConciliar}
       />

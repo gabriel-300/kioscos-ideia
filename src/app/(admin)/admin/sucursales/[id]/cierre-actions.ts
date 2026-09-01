@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 
 export async function cerrarCaja(data: {
   sucursal_id:              string;
@@ -74,10 +75,15 @@ export async function cerrarCaja(data: {
   }
 
   if (role !== "admin") {
-    // Un vendedor solo puede cerrar el turno que él mismo abrió (el encargado,
-    // ya validado como dueño de la sucursal arriba, puede cerrar cualquiera).
-    if (role === "vendedor" && ultimaApertura?.created_by && ultimaApertura.created_by !== userId) {
-      return { error: "Esta caja la abrió otra persona — pedile que la cierre ella, un encargado o un admin." };
+    // Un vendedor solo puede cerrar el turno que tiene actualmente en
+    // custodia -- quien lo abrió originalmente, o quien lo recibió después
+    // vía traspaso de turno (ver migración 083). El encargado, ya validado
+    // como dueño de la sucursal arriba, puede cerrar cualquiera.
+    const tenedorActualId = ultimaApertura
+      ? await obtenerTenedorActual(admin, ultimaApertura.id, ultimaApertura.created_by)
+      : null;
+    if (role === "vendedor" && tenedorActualId && tenedorActualId !== userId) {
+      return { error: "Esta caja la tiene otra persona — pedile que la cierre ella, un encargado o un admin." };
     }
 
     let ventasQuery = (admin as any)
