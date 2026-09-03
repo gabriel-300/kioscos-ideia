@@ -625,15 +625,25 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
             {(role === "encargado" || role === "vendedor") ? (
               <>
                 <RetiroEfectivoButton sucursalId={sucursal.id} />
-                <NuevaEntregaButton
-                  sucursalId={sucursal.id}
-                  sucursalNombre={sucursal.nombre}
-                  products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
-                  defaultTipo="entrega"
-                  label="Registrar recepción"
-                  variant="ghost"
-                  proveedores={proveedores}
-                />
+                {/* Solo encargado carga entregas -- el costo cargado acá
+                    alimenta Alertas de precio, Pagos a proveedores y
+                    márgenes/rotación, así que se concentra en menos gente
+                    para que se cargue con cuidado (pedido explícito del
+                    usuario, con todo el staff cargando el costo quedaba
+                    descuidado). Server-side también se bloquea en
+                    crearMovimiento, esto es solo para no mostrar un botón
+                    que después va a rebotar. */}
+                {role === "encargado" && (
+                  <NuevaEntregaButton
+                    sucursalId={sucursal.id}
+                    sucursalNombre={sucursal.nombre}
+                    products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
+                    defaultTipo="entrega"
+                    label="Registrar recepción"
+                    variant="ghost"
+                    proveedores={proveedores}
+                  />
+                )}
                 <NuevaEntregaButton
                   sucursalId={sucursal.id}
                   sucursalNombre={sucursal.nombre}

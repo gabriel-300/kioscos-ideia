@@ -59,6 +59,15 @@ export async function crearMovimiento(data: {
     return { movimiento_id: null, error: "No tenés permisos para realizar ajustes de stock" };
   }
 
+  // Solo encargado/admin cargan entregas -- el costo que se tipea acá
+  // alimenta Alertas de precio, Pagos a proveedores/Posición de Caja y
+  // márgenes/rotación en varios informes, así que se concentra en menos
+  // gente para que se cargue con cuidado (pedido explícito del usuario:
+  // con todo el staff cargando, el costo quedaba descuidado).
+  if (role === "vendedor" && data.tipo === "entrega") {
+    return { movimiento_id: null, error: "Solo el encargado o un admin pueden cargar entregas." };
+  }
+
   // Encargados y vendedores solo pueden registrar en su propia sucursal
   const accesoError = await requireSucursalAccess(supabase, userId, role, data.sucursal_id);
   if (accesoError) return { movimiento_id: null, error: accesoError };
