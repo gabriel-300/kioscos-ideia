@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
 
 export interface ItemInput {
@@ -61,6 +62,40 @@ export async function crearMovimiento(data: {
   // Encargados y vendedores solo pueden registrar en su propia sucursal
   const accesoError = await requireSucursalAccess(supabase, userId, role, data.sucursal_id);
   if (accesoError) return { movimiento_id: null, error: accesoError };
+
+  // Un vendedor que no es el tenedor actual de la caja no puede vender --
+  // si vendiera igual, esa venta quedaría atada a él (created_by) pero el
+  // sistema seguiría reconociendo a otra persona como dueña del turno, y
+  // después no podría cerrarlo él mismo (caso real: alguien vendiendo en el
+  // turno de otra persona sin haber hecho "Traspaso de turno" primero). Se
+  // bloquea acá server-side, no solo con un aviso -- pedido explícito del
+  // usuario. Encargado/admin no se restringen (ya pueden cerrar cualquier
+  // turno de su sucursal, tenedor o no).
+  if (role === "vendedor" && data.tipo === "venta") {
+    const { data: ultimaApertura } = await (supabase as any)
+      .from("aperturas_caja")
+      .select("id, created_at, created_by")
+      .eq("sucursal_id", data.sucursal_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ultimaApertura) {
+      const { data: ultimoCierre } = await (supabase as any)
+        .from("cierres_caja")
+        .select("created_at")
+        .eq("sucursal_id", data.sucursal_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const cajaAbierta = !ultimoCierre || ultimoCierre.created_at < ultimaApertura.created_at;
+      if (cajaAbierta) {
+        const tenedorActualId = await obtenerTenedorActual(supabase, ultimaApertura.id, ultimaApertura.created_by);
+        if (tenedorActualId && tenedorActualId !== userId) {
+          return { movimiento_id: null, error: 'No tenés la caja de este turno -- tocá "Traspaso de turno" antes de vender.' };
+        }
+      }
+    }
+  }
 
   // Cantidad negativa/cero solo tiene sentido para "ajuste" (resta manual de stock).
   // En venta/entrega/devolución invertiría el efecto sobre el stock -- una "venta"
