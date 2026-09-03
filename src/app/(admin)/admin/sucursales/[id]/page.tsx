@@ -316,27 +316,37 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     gastosTurno = gastosData ?? [];
   }
 
-  // Ventas del turno para el preview de Traspaso de turno -- admin client A
-  // PROPÓSITO, no el de RLS: quien todavía no recibió esta caja no está
-  // reconocido como "tenedor" hasta DESPUÉS de confirmar (ver
-  // movimiento_visible_por_turno, migración 083), así que con el cliente
-  // RLS solo vería sus propias ventas. Filtrado por fecha AL CONSULTAR
-  // (no traer todo y filtrar en JS) a propósito -- sin esto, una sucursal
-  // con muchas ventas históricas se topaba con el límite de 1000 filas de
-  // PostgREST y el recorte (sin orden garantizado) podía no incluir ninguna
-  // venta de hoy, dando un "efectivo esperado" negativo -- bug confirmado
-  // en producción dos veces (ver memoria del proyecto). Lo que de verdad
-  // queda guardado siempre lo recalcula la RPC server-side; esto es solo
-  // para que la pantalla no mienta antes de confirmar.
-  let ventasParaTraspaso: { tipo: string; canal: string | null; anulado_en: string | null; created_at: string; pago_efectivo: number | null }[] = [];
+  // Movimientos del turno para Cierre de caja Y Traspaso de turno -- admin
+  // client A PROPÓSITO, no el de RLS: quien no es el tenedor actual de esta
+  // caja (ver movimiento_visible_por_turno, migración 083 -- solo reconoce
+  // a quien abrió o a quien recibió un traspaso) no ve con el cliente RLS
+  // las ventas de otra persona en el mismo turno, ni siquiera para mirar el
+  // resumen de Cierre sin confirmar nada -- "Ventas del turno" le mostraba
+  // "No hay ventas registradas hoy" a alguien que no era el tenedor,
+  // aunque sí las hubiera, y de ahí el efectivo esperado le daba negativo
+  // (confirmado en producción). Filtrado por fecha AL CONSULTAR (no traer
+  // todo y filtrar en JS) a propósito -- sin esto, una sucursal con muchas
+  // ventas históricas se topa con el límite de 1000 filas de PostgREST y
+  // el recorte (sin orden garantizado) puede no incluir ninguna venta de
+  // hoy (mismo bug, ya pasó una vez). Lo que de verdad queda guardado
+  // siempre lo recalcula la RPC server-side al cerrar/traspasar; esto es
+  // solo para que la pantalla no mienta antes de confirmar.
+  let movimientosDelTurno: any[] = [];
   if (cajaAbierta && aperturaActual) {
-    const { data: ventasData } = await (admin as any)
+    const { data: movTurnoData } = await (admin as any)
       .from("movimientos")
-      .select("tipo, canal, anulado_en, created_at, pago_efectivo")
+      .select(`
+        id, fecha, tipo, notas, canal, personal_id, created_at, created_by,
+        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
+        anulado_en, anulado_por, motivo_anulacion,
+        movimiento_items(
+          id, cantidad, precio_unitario, subtotal,
+          product:products(id, name, sku)
+        )
+      `)
       .eq("sucursal_id", id)
-      .eq("tipo", "venta")
       .gte("created_at", aperturaActual.created_at);
-    ventasParaTraspaso = ventasData ?? [];
+    movimientosDelTurno = movTurnoData ?? [];
   }
 
   // La auditoría es "por turno" (apertura_id, ver migración 054), no por
@@ -719,7 +729,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
             <CierreCajaButton
               sucursalId={sucursal.id}
               sucursalNombre={sucursal.nombre}
-              movimientos={(movs as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
+              movimientos={(movimientosDelTurno as Parameters<typeof CierreCajaButton>[0]["movimientos"])}
               cajaAbierta={cajaAbierta}
               ultimoCierre={ultimoCierre}
               aperturaActual={aperturaActual}
@@ -740,7 +750,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                 sucursalNombre={sucursal.nombre}
                 aperturaActual={aperturaActual}
                 tenedorActualNombre={tenedorActualNombre}
-                movimientos={ventasParaTraspaso ?? []}
+                movimientos={movimientosDelTurno}
                 retiros={todosRetiros}
                 pagosProveedor={todosPagosProveedor}
                 pagosCtc={todosPagosCtc}
