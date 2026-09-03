@@ -243,6 +243,21 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
         </div>
 
         <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+          {/* Recordatorio de que existe Traspaso de turno -- a raíz de un caso
+              real en producción (UNAM) donde alguien cerró la caja pensando
+              que así se cambiaba de turno, en vez de usar Traspaso, dejando
+              un "sobre" grande sin retirar y confundiendo el efectivo
+              esperado del turno siguiente. */}
+          {cajaAbierta && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold text-amber-800">¿Es un cambio de persona, no el final del día?</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Para eso no hace falta cerrar — cancelá y usá <b>"Traspaso de turno"</b> en su lugar, así la caja
+                sigue siendo la misma. Cerrar acá corta el día y deja el resto como sobre para retirar.
+              </p>
+            </div>
+          )}
+
           {/* Ventas del día */}
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Ventas del turno</p>
@@ -532,6 +547,7 @@ export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, mov
                 <p className="text-xs text-amber-700 mt-1">
                   No se puede deshacer. Vas a dejar <span className="font-semibold">{AR.format(parseFloat(fondoSiguiente) || 0)}</span> en el cajón
                   {" "}y entregar <span className="font-semibold">{AR.format(Math.max(0, efectivoNum - (parseFloat(fondoSiguiente) || 0)))}</span> en el sobre.
+                  {" "}Si es solo un cambio de persona, cancelá y usá Traspaso de turno.
                 </p>
               </div>
             )}
