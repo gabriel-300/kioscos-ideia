@@ -139,6 +139,7 @@ function EditDrawer({
     user.creditoLimite != null ? String(user.creditoLimite) : ""
   );
   const [esSocio, setEsSocio] = useState(user.esSocio);
+  const [role, setRole] = useState(user.role ?? "vendedor");
   const router = useRouter();
 
   const sucursalActual =
@@ -151,6 +152,16 @@ function EditDrawer({
 
   function toggleSucursal(id: string) {
     setSucursalIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  }
+
+  // Si se cambia el rol acá mismo, la asignación de sucursal significa algo
+  // distinto para cada uno (encargado: una sola, exclusiva -- vendedor: un
+  // conjunto) -- no tiene sentido arrastrar el valor del rol anterior, se
+  // arranca en blanco y se elige de nuevo para el rol nuevo.
+  function handleRoleChange(nuevoRol: string) {
+    setRole(nuevoRol);
+    setSucursalId("");
+    setSucursalIds([]);
   }
 
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof editSchema>>({
@@ -167,14 +178,16 @@ function EditDrawer({
           password:      values.password || undefined,
           creditoLimite: limiteNum,
           esSocio,
+          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor") : undefined,
         });
-        if (user.role === "vendedor") {
+        if (role === "vendedor") {
           const cambiaron =
+            user.role !== "vendedor" ||
             sucursalIds.length !== user.sucursalIdsVendedor.length ||
             [...sucursalIds].sort().join(",") !== [...user.sucursalIdsVendedor].sort().join(",");
           if (cambiaron) await asignarSucursalesVendedor(user.id, sucursalIds);
-        } else if (sucursalId !== (sucursalActual?.id ?? "")) {
-          await asignarSucursal(user.id, sucursalId || null, user.role);
+        } else if (role !== user.role || sucursalId !== (sucursalActual?.id ?? "")) {
+          await asignarSucursal(user.id, sucursalId || null, role);
         }
         router.refresh();
         onClose();
@@ -190,7 +203,7 @@ function EditDrawer({
       <aside className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-white shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
           <h2 className="text-base font-semibold font-display text-neutral-900">
-            Editar {ROLE_LABEL[user.role ?? ""] ?? user.role}
+            Editar {ROLE_LABEL[role] ?? role}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors">
             <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -203,6 +216,23 @@ function EditDrawer({
           <div>
             <p className="text-xs text-neutral-400 mb-0.5">Email</p>
             <p className="text-sm font-medium text-neutral-800">{user.email}</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">Rol</label>
+            <select
+              value={role}
+              onChange={(e) => handleRoleChange(e.target.value)}
+              className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+            >
+              <option value="vendedor">Vendedor</option>
+              <option value="encargado">Encargado kiosco</option>
+              <option value="admin">Administrador</option>
+            </select>
+            {role !== user.role && (
+              <p className="text-[11px] text-amber-600 mt-1">
+                Cambiaste el rol — elegí de nuevo la sucursal más abajo, la asignación anterior no se traslada sola.
+              </p>
+            )}
           </div>
           <Input label="Nombre" error={errors.nombre?.message} {...register("nombre")} />
           <Input
@@ -226,7 +256,7 @@ function EditDrawer({
               className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm tabular-nums focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
             />
           </div>
-          {user.role === "vendedor" ? (
+          {role === "vendedor" ? (
             <div>
               <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">
                 Sucursales asignadas
@@ -262,7 +292,7 @@ function EditDrawer({
                 {sucursales.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nombre}
-                    {user.role === "encargado" && s.encargado_user_id && s.encargado_user_id !== user.id
+                    {role === "encargado" && s.encargado_user_id && s.encargado_user_id !== user.id
                       ? " (asignada a otro encargado)"
                       : ""}
                   </option>

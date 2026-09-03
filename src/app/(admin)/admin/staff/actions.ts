@@ -47,13 +47,19 @@ export async function eliminarStaff(userId: string) {
   revalidatePath("/admin/sucursales");
 }
 
-export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean }) {
+export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean; role?: StaffRole }) {
   await requireAdmin();
   const admin = createAdminClient();
-  const update: { user_metadata: Record<string, string>; password?: string } = {
+  const update: { user_metadata: Record<string, string>; app_metadata?: Record<string, unknown>; password?: string } = {
     user_metadata: { full_name: data.nombre },
   };
   if (data.password) update.password = data.password;
+  if (data.role) {
+    // Merge, no reemplazo -- app_metadata puede tener otras claves además de
+    // role a futuro, no hay que perderlas por cambiar el rol.
+    const { data: actual } = await admin.auth.admin.getUserById(userId);
+    update.app_metadata = { ...(actual.user?.app_metadata ?? {}), role: data.role };
+  }
   const { error } = await admin.auth.admin.updateUserById(userId, update);
   if (error) throw new Error(error.message);
   if (data.creditoLimite !== undefined) {
