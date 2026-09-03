@@ -223,7 +223,14 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Serializar ────────────────────────────────────────────
-  const buffer = await wb.xlsx.writeBuffer();
+  // ExcelJS devuelve un Buffer de Node -- en Cloudflare Workers (no es
+  // Node real, aunque corra con nodejs_compat) pasarlo tal cual como body
+  // de la respuesta puede llegar corrompido del otro lado ("Excel no puede
+  // abrir el archivo... formato no válido"), aunque en local (next dev,
+  // Node real) funcione perfecto. Se copia a un Uint8Array plano antes de
+  // mandarlo, que sí se serializa igual en los dos entornos.
+  const raw    = await wb.xlsx.writeBuffer();
+  const buffer = new Uint8Array(raw as ArrayBuffer);
 
   const desde_label = desde ?? "inicio";
   const hasta_label = hasta ?? fechaHoyAR();
