@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { fechaHoyAR } from "@/lib/fecha";
-import ExcelJS from "exceljs";
+import type ExcelJSType from "exceljs";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,6 +15,12 @@ export async function GET(req: NextRequest) {
 }
 
 async function handleGet(req: NextRequest) {
+  // Import dinámico -- exceljs hace chequeos a nivel de módulo (ej.
+  // process.versions.node) que si tiran, un `import` estático los ejecuta
+  // ANTES de que este try/catch pueda atraparlos, y Cloudflare devuelve un
+  // "Internal Server Error" genérico sin decir por qué.
+  const { default: ExcelJS } = (await import("exceljs")) as { default: typeof ExcelJSType };
+
   // Verificar sesión
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -75,15 +81,15 @@ async function handleGet(req: NextRequest) {
 
   const TIERRA = "FF6B3A";   // color primario
   const HEADER_FONT = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
-  const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: TIERRA } };
-  const BORDER: Partial<ExcelJS.Borders> = {
+  const HEADER_FILL: ExcelJSType.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: TIERRA } };
+  const BORDER: Partial<ExcelJSType.Borders> = {
     top:    { style: "thin", color: { argb: "FFE5E7EB" } },
     bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
     left:   { style: "thin", color: { argb: "FFE5E7EB" } },
     right:  { style: "thin", color: { argb: "FFE5E7EB" } },
   };
 
-  function styleHeader(row: ExcelJS.Row) {
+  function styleHeader(row: ExcelJSType.Row) {
     row.eachCell((cell) => {
       cell.font  = HEADER_FONT;
       cell.fill  = HEADER_FILL;
