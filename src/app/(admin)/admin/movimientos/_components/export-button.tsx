@@ -42,7 +42,8 @@ export function ExportButton({ sucursales }: { sucursales: Sucursal[] }) {
       URL.revokeObjectURL(url);
       setOpen(false);
     } else {
-      alert("Error al generar el archivo.");
+      const detalle = await res.text().catch(() => "");
+      alert(`Error al generar el archivo.${detalle ? `\n\n${detalle}` : ""}`);
     }
     setLoading(false);
   }
