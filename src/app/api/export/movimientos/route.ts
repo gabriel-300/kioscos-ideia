@@ -15,28 +15,21 @@ export async function GET(req: NextRequest) {
 }
 
 async function handleGet(req: NextRequest) {
-  // `fstream` (dependencia transitiva de exceljs vía `unzipper`, usada solo
-  // para LEER .xlsx -- nosotros solo escribimos) llama a `process.umask()`
-  // en el nivel superior del módulo apenas se hace require(), aunque nunca
-  // se use esa parte de la librería. El polyfill de Node de Cloudflare
-  // Workers (unenv) no implementa umask() y tira en vez de devolver un
-  // número, lo que rompe el `require` de exceljs entero. Se lo suplanta
-  // antes del import.
-  if (typeof (process as any).umask !== "function") {
-    (process as any).umask = () => 0o022;
-  } else {
-    try {
-      process.umask();
-    } catch {
-      (process as any).umask = () => 0o022;
-    }
-  }
-
-  // Import dinámico -- exceljs hace chequeos a nivel de módulo (ej.
-  // process.versions.node) que si tiran, un `import` estático los ejecuta
-  // ANTES de que este try/catch pueda atraparlos, y Cloudflare devuelve un
-  // "Internal Server Error" genérico sin decir por qué.
-  const { default: ExcelJS } = (await import("exceljs")) as { default: typeof ExcelJSType };
+  // El punto de entrada normal de exceljs ("exceljs" a secas) importa
+  // incondicionalmente WorkbookReader (lectura streaming, que no usamos acá
+  // -- solo escribimos), que arrastra unzipper -> fstream, y fstream llama a
+  // process.umask() en el nivel superior del módulo apenas se lo requiere.
+  // El polyfill de Node de Cloudflare Workers (unenv) no implementa umask()
+  // y tira, rompiendo el import entero. Cloudflare evalúa TODO el grafo de
+  // módulos del bundle al arrancar el Worker (no hay carga diferida real
+  // aunque el import acá sea dinámico), así que ni siquiera parchear
+  // process.umask antes ayuda -- para cuando este código corre, el módulo
+  // ya reventó. La única forma real de evitarlo es no importar esa rama:
+  // se importa la clase Workbook directo, sin pasar por el índice del
+  // paquete que arrastra el reader.
+  // @ts-expect-error -- exceljs no publica tipos para este subpath
+  const Workbook = (await import("exceljs/lib/doc/workbook")) as unknown as { default: typeof ExcelJSType.Workbook };
+  const ExcelJS = { Workbook: Workbook.default };
 
   // Verificar sesión
   const supabase = await createClient();
