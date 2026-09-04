@@ -88,6 +88,7 @@ type ItemConAuditoria = {
   id:          string;
   product_id:  string;
   diferencia:  number;
+  observacion: string | null;
   revisado_por: string | null;
   auditoria:   { sucursal_id: string; fecha: string } | null;
 };
@@ -98,18 +99,30 @@ export async function aprobarAjuste(itemId: string, notaAdmin?: string): Promise
 
   const { data: item, error: errItem } = await (supabase as any)
     .from("auditoria_stock_items")
-    .select("id, product_id, diferencia, revisado_por, auditoria:auditorias_stock(sucursal_id, fecha)")
+    .select("id, product_id, diferencia, observacion, revisado_por, auditoria:auditorias_stock(sucursal_id, fecha)")
     .eq("id", itemId)
     .single();
   const row = item as ItemConAuditoria | null;
   if (errItem || !row || !row.auditoria) return { error: "No se encontró la diferencia" };
   if (row.revisado_por) return { error: "Esta diferencia ya fue revisada" };
 
+  // El movimiento de ajuste llevaba siempre el mismo texto genérico,
+  // perdiendo el motivo real -- ni por qué se pidió (observación de quien
+  // contó) ni por qué se aprobó (nota del admin al momento de aprobar)
+  // quedaban visibles en Historial ni en el export de Excel.
+  const motivos = [
+    row.observacion ? `Motivo: ${row.observacion}` : null,
+    notaAdmin       ? `Nota admin: ${notaAdmin}`    : null,
+  ].filter(Boolean);
+  const notasMovimiento = motivos.length > 0
+    ? `Ajuste aprobado por auditoría diaria -- ${motivos.join(" / ")}`
+    : "Ajuste aprobado por auditoría diaria";
+
   const { error: errRpc } = await (supabase as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id: row.auditoria.sucursal_id,
     p_fecha:       row.auditoria.fecha,
     p_tipo:        "ajuste",
-    p_notas:       "Ajuste aprobado por auditoría diaria",
+    p_notas:       notasMovimiento,
     p_created_by:  userId,
     p_items: [{
       product_id:      row.product_id,
