@@ -15,6 +15,23 @@ export async function GET(req: NextRequest) {
 }
 
 async function handleGet(req: NextRequest) {
+  // `fstream` (dependencia transitiva de exceljs vía `unzipper`, usada solo
+  // para LEER .xlsx -- nosotros solo escribimos) llama a `process.umask()`
+  // en el nivel superior del módulo apenas se hace require(), aunque nunca
+  // se use esa parte de la librería. El polyfill de Node de Cloudflare
+  // Workers (unenv) no implementa umask() y tira en vez de devolver un
+  // número, lo que rompe el `require` de exceljs entero. Se lo suplanta
+  // antes del import.
+  if (typeof (process as any).umask !== "function") {
+    (process as any).umask = () => 0o022;
+  } else {
+    try {
+      process.umask();
+    } catch {
+      (process as any).umask = () => 0o022;
+    }
+  }
+
   // Import dinámico -- exceljs hace chequeos a nivel de módulo (ej.
   // process.versions.node) que si tiran, un `import` estático los ejecuta
   // ANTES de que este try/catch pueda atraparlos, y Cloudflare devuelve un
