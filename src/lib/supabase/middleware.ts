@@ -80,7 +80,12 @@ export async function updateSession(request: NextRequest) {
     }
 
     // ── Redirect logged-in staff away from public pages ────────────────
-    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin")) {
+    // /api no es "página pública" -- son requests hechas con fetch() desde
+    // el propio admin (ej. exportar Excel); redirigirlas manda el HTML del
+    // dashboard en vez del archivo pedido, y como el fetch sigue el redirect
+    // con status 200, el cliente ni se entera y descarga el HTML con
+    // extensión .xlsx.
+    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/api")) {
       const jwtRole = user.app_metadata?.role as string | undefined;
       if (jwtRole && STAFF_ROLES.includes(jwtRole)) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
