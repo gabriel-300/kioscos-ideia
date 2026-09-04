@@ -4,6 +4,17 @@ import { fechaHoyAR } from "@/lib/fecha";
 import ExcelJS from "exceljs";
 
 export async function GET(req: NextRequest) {
+  try {
+    return await handleGet(req);
+  } catch (e: any) {
+    return new NextResponse(`ERROR: ${e?.message ?? String(e)}\n\nSTACK:\n${e?.stack ?? "(sin stack)"}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+}
+
+async function handleGet(req: NextRequest) {
   // Verificar sesión
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
