@@ -36,7 +36,7 @@ export default async function NichosPage() {
 
   let contactosQuery = (admin as any)
     .from("contactos_crm")
-    .select("id, fecha_hora, sucursal_id, nicho_id, canal, nombre_contacto, consulta_mensaje, estado, convertido_pedido, monto, notas, created_at")
+    .select("id, fecha_hora, sucursal_id, nicho_id, canal, nombre_contacto, consulta_mensaje, estado, convertido_pedido, monto, notas, created_at, habilitado_cta_corriente, limite_credito")
     .order("created_at", { ascending: false });
   if (role === "encargado") {
     contactosQuery = sucursalFija ? contactosQuery.eq("sucursal_id", sucursalFija) : contactosQuery.eq("sucursal_id", "00000000-0000-0000-0000-000000000000");

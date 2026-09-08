@@ -26,6 +26,7 @@ export function NuevaEntregaButton({
   categories,
   personal,
   contactos,
+  contactosCtaCorriente,
   cajaAbierta,
   proveedores = [],
   promos,
@@ -43,6 +44,7 @@ export function NuevaEntregaButton({
   categories?:    { id: string; name: string }[];
   personal?:      { id: string; nombre: string }[];
   contactos?:     { id: string; nombre: string }[];
+  contactosCtaCorriente?: { id: string; nombre: string }[];
   cajaAbierta?:   boolean;
   proveedores?:   { id: string; nombre: string; modo_facturacion?: "costo" | "precio_sugerido"; porcentaje_descuento?: number | null }[];
   promos?:        Promo[];
@@ -74,6 +76,7 @@ export function NuevaEntregaButton({
           categories={categories}
           personal={personal}
           contactos={contactos}
+          contactosCtaCorriente={contactosCtaCorriente}
           cajaAbierta={cajaAbierta}
           promos={promos}
           termosDisponibles={termosDisponibles}

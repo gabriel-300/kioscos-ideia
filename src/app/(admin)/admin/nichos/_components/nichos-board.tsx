@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useTransition } from "react";
-import { crearContacto, actualizarContacto } from "../actions";
+import { crearContacto, actualizarContacto, actualizarCtaCorrienteContacto } from "../actions";
 import { friendlyError } from "@/lib/utils";
 
 export type Nicho = { id: string; nombre: string; descripcion: string | null; horario_pico: string | null; color_tag: string | null };
@@ -12,6 +12,7 @@ export type Contacto = {
   nombre_contacto: string | null; consulta_mensaje: string | null;
   estado: "nuevo" | "en_atencion" | "convertido" | "perdido";
   convertido_pedido: boolean; monto: number | null; notas: string | null; created_at: string;
+  habilitado_cta_corriente: boolean; limite_credito: number | null;
 };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -69,6 +70,15 @@ export function NichosBoard({ role, nichos, contactos, sucursales, sucursalFija 
     startTransition(async () => {
       try {
         await actualizarContacto(c.id, c.sucursal_id, { monto, convertido_pedido: true });
+      } catch (e) { setError(friendlyError(e)); }
+    });
+  }
+
+  function guardarCtaCorriente(c: Contacto, habilitado: boolean, limite: number | null) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await actualizarCtaCorrienteContacto(c.id, c.sucursal_id, { habilitado_cta_corriente: habilitado, limite_credito: limite });
       } catch (e) { setError(friendlyError(e)); }
     });
   }
@@ -158,6 +168,35 @@ export function NichosBoard({ role, nichos, contactos, sucursales, sucursalFija 
                           }}
                           className="w-full h-7 px-2 rounded border border-neutral-300 text-xs focus:outline-none focus:border-tierra-700"
                         />
+                      )}
+
+                      {/* Cta. Corriente para este contacto -- admin-only, mismo
+                          criterio que el límite de crédito de personal. Solo
+                          tiene sentido para contactos de ronda de entrega. */}
+                      {role === "admin" && c.canal === "ronda_comunidad" && (
+                        <div className="pt-1 border-t border-neutral-100 space-y-1">
+                          <label className="flex items-center gap-1.5 text-[10px] font-semibold text-neutral-500">
+                            <input
+                              type="checkbox"
+                              checked={c.habilitado_cta_corriente}
+                              onChange={(e) => guardarCtaCorriente(c, e.target.checked, c.limite_credito)}
+                              disabled={pending}
+                            />
+                            Habilitar Cta. Corriente
+                          </label>
+                          {c.habilitado_cta_corriente && (
+                            <input
+                              type="number" min={0} placeholder="Límite $ (vacío = sin límite)"
+                              defaultValue={c.limite_credito ?? ""}
+                              onBlur={(e) => {
+                                const raw = e.target.value;
+                                const v = raw === "" ? null : parseFloat(raw);
+                                if (v !== c.limite_credito) guardarCtaCorriente(c, true, isNaN(v as number) ? null : v);
+                              }}
+                              className="w-full h-7 px-2 rounded border border-neutral-300 text-xs focus:outline-none focus:border-tierra-700"
+                            />
+                          )}
+                        </div>
                       )}
 
                       <div className="flex flex-wrap gap-1 pt-1">

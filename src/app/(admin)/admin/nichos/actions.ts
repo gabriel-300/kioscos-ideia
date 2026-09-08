@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/require-role";
+import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 
 const ESTADOS = ["nuevo", "en_atencion", "convertido", "perdido"] as const;
 type Estado = (typeof ESTADOS)[number];
@@ -65,6 +65,29 @@ export async function actualizarContacto(
   const { error } = await (admin as any)
     .from("contactos_crm")
     .update({ ...data, atendido_por: userId })
+    .eq("id", id)
+    .eq("sucursal_id", sucursalId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/nichos");
+}
+
+// Habilitar Cta. Corriente para un contacto externo y fijar su límite --
+// admin-only, mismo criterio que profiles.credito_limite (029_lock_profiles_sensitive_columns.sql):
+// es plata real, no lo toca cualquiera que administre el CRM de nichos.
+// Arranca en false a propósito (ver comentario de la migración 086) -- un
+// admin tiene que prenderlo a mano, contacto por contacto.
+export async function actualizarCtaCorrienteContacto(
+  id: string,
+  sucursalId: string,
+  data: { habilitado_cta_corriente: boolean; limite_credito: number | null }
+) {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  const { error } = await (admin as any)
+    .from("contactos_crm")
+    .update(data)
     .eq("id", id)
     .eq("sucursal_id", sucursalId);
   if (error) throw new Error(error.message);

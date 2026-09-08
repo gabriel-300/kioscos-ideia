@@ -113,6 +113,7 @@ interface Props {
   categories?:     Category[];
   personal?:       Personal[];
   contactos?:      Contacto[];
+  contactosCtaCorriente?: Contacto[];
   cajaAbierta?:    boolean;
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
@@ -120,7 +121,7 @@ interface Props {
   mercadopagoPosId?:  string | null;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
   const router = useRouter();
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
@@ -575,7 +576,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       setError("El descuento no puede superar el subtotal");
       return;
     }
-    if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
+    if (canal === "cuenta_corriente" && !personalId && !contactoId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (canal === "ambulante" && !personalId) { setError("Seleccioná quién hizo la venta ambulante"); return; }
     if (canal === "ronda_comunidad" && !contactoId) { setError("Seleccioná para qué contacto es esta ronda"); return; }
     if (promoTermoEnCarrito) {
@@ -614,7 +615,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const notasFinal     = [notasMedios, notasDescuento, notas || null].filter(Boolean).join(" — ") || null;
 
     const personalNombre = personal.find((p) => p.id === personalId)?.nombre ?? null;
-    const contactoNombre = contactos.find((c) => c.id === contactoId)?.nombre ?? null;
+    const contactoNombre = [...contactos, ...contactosCtaCorriente].find((c) => c.id === contactoId)?.nombre ?? null;
 
     startTransition(async () => {
       try {
@@ -625,7 +626,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           notas:              notasFinal,
           canal,
           personal_id:        (canal === "cuenta_corriente" || canal === "ambulante") && personalId ? personalId : null,
-          contacto_id:        canal === "ronda_comunidad" && contactoId ? contactoId : null,
+          contacto_id:        (canal === "ronda_comunidad" || canal === "cuenta_corriente") && contactoId ? contactoId : null,
           descuento_total:    esPedidoYa && descuentoPedidoYaNum > 0 ? descuentoPedidoYaNum : null,
           // Redondeado a centavos -- restar el vuelto (float) puede dejar arrastres
           // tipo 1200.0000000000002 que no se ven en el formateo pero quedan guardados así.
@@ -676,7 +677,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
-          personalNombre: canal === "ronda_comunidad" ? contactoNombre : (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
+          personalNombre: (canal === "ronda_comunidad" || (canal === "cuenta_corriente" && contactoId)) ? contactoNombre : (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
         });
       } catch (e) { setError(friendlyError(e)); }
     });
@@ -1152,7 +1153,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   onClick={() => {
                     setCanal(c.id);
                     if (c.id !== "cuenta_corriente" && c.id !== "ambulante") setPersonalId("");
-                    if (c.id !== "ronda_comunidad") setContactoId("");
+                    if (c.id !== "ronda_comunidad" && c.id !== "cuenta_corriente") setContactoId("");
                     // Evita que montos tipeados para otro canal (ej. efectivo cargado
                     // y cancelado) queden pegados si el cajero cambia de canal y
                     // confirma sin darse cuenta -- especialmente grave hacia/desde
@@ -1191,7 +1192,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     {personal.map((p) => (
                       <button
                         key={p.id}
-                        onClick={() => setPersonalId(prev => prev === p.id ? "" : p.id)}
+                        onClick={() => { setPersonalId(prev => prev === p.id ? "" : p.id); setContactoId(""); }}
                         style={{
                           display: "flex", alignItems: "center", justifyContent: "space-between",
                           padding: "8px 10px", borderRadius: 7,
@@ -1212,6 +1213,42 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Clientes externos habilitados para Cta. Corriente (Pieza 1B) --
+                solo aparece si hay al menos uno habilitado desde /admin/nichos.
+                Elegir acá excluye al beneficiario de personal, y viceversa
+                (mismo XOR que exige la base). */}
+            {canal === "cuenta_corriente" && contactosCtaCorriente.length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  O cliente externo
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {contactosCtaCorriente.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setContactoId(prev => prev === c.id ? "" : c.id); setPersonalId(""); }}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "8px 10px", borderRadius: 7,
+                        border: `1.5px solid ${contactoId === c.id ? "#5B21B6" : "#E2E8F0"}`,
+                        background: contactoId === c.id ? "#F5F3FF" : "white",
+                        color: contactoId === c.id ? "#5B21B6" : "#475569",
+                        fontSize: 13, fontWeight: contactoId === c.id ? 700 : 500,
+                        cursor: "pointer", transition: "all .12s", textAlign: "left",
+                      }}
+                    >
+                      <span>{c.nombre}</span>
+                      {contactoId === c.id && (
+                        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1441,7 +1478,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 <p style={{ fontSize: 12, color: "#DC2626", fontWeight: 600, margin: 0 }}>Abrí la caja antes de registrar ventas</p>
               </div>
             )}
-            {cajaAbierta !== false && canal === "cuenta_corriente" && !personalId && seleccionados.length > 0 && (
+            {cajaAbierta !== false && canal === "cuenta_corriente" && !personalId && !contactoId && seleccionados.length > 0 && (
               <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 7, background: "#FFF7ED", border: "1px solid #FED7AA" }}>
                 <p style={{ fontSize: 12, color: "#C2410C", fontWeight: 600, margin: 0 }}>Seleccioná un beneficiario</p>
               </div>
@@ -1459,7 +1496,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 
             {/* Cobrar button */}
             {(() => {
-              const disabled = seleccionados.length === 0 || cajaAbierta === false || ((canal === "cuenta_corriente" || canal === "ambulante") && !personalId) || (canal === "ronda_comunidad" && !contactoId);
+              const disabled = seleccionados.length === 0 || cajaAbierta === false || (canal === "ambulante" && !personalId) || (canal === "cuenta_corriente" && !personalId && !contactoId) || (canal === "ronda_comunidad" && !contactoId);
               return (
                 <button
                   onClick={() => { setError(null); setShowPay(true); }}
@@ -1499,7 +1536,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
             {canal === "cuenta_corriente" ? (
               <div style={{ background: "#F5F3FF", border: "1.5px solid #DDD6FE", borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#5B21B6", margin: 0 }}>
-                  Se carga a la cuenta corriente de {personal.find((p) => p.id === personalId)?.nombre ?? "el beneficiario"}.
+                  Se carga a la cuenta corriente de {personal.find((p) => p.id === personalId)?.nombre ?? contactosCtaCorriente.find((c) => c.id === contactoId)?.nombre ?? "el beneficiario"}.
                 </p>
                 <p style={{ fontSize: 12, color: "#7C6BAE", marginTop: 2 }}>No requiere cobro ahora.</p>
               </div>

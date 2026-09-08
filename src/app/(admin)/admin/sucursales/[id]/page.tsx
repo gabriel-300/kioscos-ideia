@@ -68,7 +68,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
 
-  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, personalExtraResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult, contactosComunidadResult] = await Promise.all([
+  const [{ data: sucursal }, { data: movimentos }, { data: productsRaw }, { data: categories }, { data: cierresData }, { data: stockRows }, { data: aperturasData }, { data: retirosHoy }, personalResult, personalExtraResult, proveedoresResult, promosResult, preciosResult, preciosPromoResult, termosResult, prestamosTermoResult, todasSucursalesResult, transferenciasPendientesResult, pagosTransferenciaSinAsignarResult, ventasTransferenciaRecientesResult, movimientosYaVinculadosResult, pagosProveedorTesoreriaResult, pagosCtcTesoreriaResult, retirosSocioTesoreriaResult, pagosSocioTesoreriaResult, contactosComunidadResult, contactosCtaCorrienteResult] = await Promise.all([
     supabase.from("sucursales").select("*").eq("id", id).single(),
     (supabase as any)
       .from("movimientos")
@@ -251,6 +251,15 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .eq("sucursal_id", id)
       .eq("canal", "ronda_comunidad")
       .order("created_at", { ascending: false }) as unknown as Promise<{ data: { id: string; nombre_contacto: string | null; consulta_mensaje: string | null }[] | null }>,
+    // Contactos habilitados para Cta. Corriente (Pieza 1B, migración 086) --
+    // el admin los habilita desde /admin/nichos, acá solo se leen para el
+    // selector "O cliente externo" de Venta Rápida.
+    (admin as any)
+      .from("contactos_crm")
+      .select("id, nombre_contacto, consulta_mensaje")
+      .eq("sucursal_id", id)
+      .eq("habilitado_cta_corriente", true)
+      .order("nombre_contacto") as unknown as Promise<{ data: { id: string; nombre_contacto: string | null; consulta_mensaje: string | null }[] | null }>,
   ]);
 
   // Precio de promos/recetas es por sucursal (migración 070) -- se resuelve
@@ -408,6 +417,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // Nombre para el picker de "Ronda comunidad": nombre_contacto si se cargó,
   // si no el mensaje/consulta como referencia -- nunca queda un botón vacío.
   const contactos = (contactosComunidadResult.data ?? []).map((c) => ({
+    id: c.id,
+    nombre: c.nombre_contacto || c.consulta_mensaje || "Sin nombre",
+  }));
+  const contactosCtaCorriente = (contactosCtaCorrienteResult.data ?? []).map((c) => ({
     id: c.id,
     nombre: c.nombre_contacto || c.consulta_mensaje || "Sin nombre",
   }));
@@ -670,6 +683,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   categories={categories ?? []}
                   personal={personal}
                   contactos={contactos}
+                  contactosCtaCorriente={contactosCtaCorriente}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
@@ -699,6 +713,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   categories={categories ?? []}
                   personal={personal}
                   contactos={contactos}
+                  contactosCtaCorriente={contactosCtaCorriente}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
