@@ -29,7 +29,7 @@ async function checkAccesoSucursal(sucursalId: string) {
 export async function crearContacto(data: {
   sucursal_id:       string;
   nicho_id:          string | null;
-  canal:             "whatsapp" | "instagram" | "pedidosya" | "otro";
+  canal:             "whatsapp" | "instagram" | "pedidosya" | "otro" | "ronda_comunidad";
   nombre_contacto:   string | null;
   consulta_mensaje:  string | null;
 }) {

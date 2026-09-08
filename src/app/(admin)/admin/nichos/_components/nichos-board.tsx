@@ -8,7 +8,7 @@ export type Nicho = { id: string; nombre: string; descripcion: string | null; ho
 export type SucursalOpt = { id: string; nombre: string };
 export type Contacto = {
   id: string; fecha_hora: string; sucursal_id: string; nicho_id: string | null;
-  canal: "whatsapp" | "instagram" | "pedidosya" | "otro";
+  canal: "whatsapp" | "instagram" | "pedidosya" | "otro" | "ronda_comunidad";
   nombre_contacto: string | null; consulta_mensaje: string | null;
   estado: "nuevo" | "en_atencion" | "convertido" | "perdido";
   convertido_pedido: boolean; monto: number | null; notas: string | null; created_at: string;
@@ -16,7 +16,7 @@ export type Contacto = {
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
-const CANAL_LABEL: Record<Contacto["canal"], string> = { whatsapp: "WhatsApp", instagram: "Instagram", pedidosya: "PedidosYa", otro: "Otro" };
+const CANAL_LABEL: Record<Contacto["canal"], string> = { whatsapp: "WhatsApp", instagram: "Instagram", pedidosya: "PedidosYa", otro: "Otro", ronda_comunidad: "Ronda comunidad" };
 
 const ESTADOS: { id: Contacto["estado"]; label: string; color: string }[] = [
   { id: "nuevo",       label: "Nuevo" },
@@ -251,6 +251,7 @@ function NuevoContactoModal({ nichos, sucursales, sucursalFija, onClose }: {
           <option value="whatsapp">WhatsApp</option>
           <option value="instagram">Instagram</option>
           <option value="pedidosya">PedidosYa</option>
+          <option value="ronda_comunidad">Ronda comunidad</option>
           <option value="otro">Otro</option>
         </select>
         <select
