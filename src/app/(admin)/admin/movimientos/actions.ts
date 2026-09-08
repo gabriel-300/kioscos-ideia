@@ -45,6 +45,7 @@ export async function crearMovimiento(data: {
   remito_image_url?: string | null;
   canal?:            string | null;
   personal_id?:      string | null;
+  contacto_id?:      string | null;
   descuento_total?:  number | null;
   pago_efectivo?:      number | null;
   pago_billetera?:     number | null;
@@ -347,6 +348,7 @@ export async function crearMovimiento(data: {
     p_nro_remito:         data.nro_remito         ?? null,
     p_canal:              data.canal              ?? "consumidor_final",
     p_personal_id:        data.personal_id        ?? null,
+    p_contacto_id:        data.contacto_id        ?? null,
     p_pago_efectivo:      pagoEfectivo,
     p_pago_billetera:     pagoBilletera,
     p_pago_tarjeta:       pagoTarjeta,

@@ -25,6 +25,7 @@ export function NuevaEntregaButton({
   stockMap,
   categories,
   personal,
+  contactos,
   cajaAbierta,
   proveedores = [],
   promos,
@@ -41,6 +42,7 @@ export function NuevaEntregaButton({
   stockMap?:      Record<string, number>;
   categories?:    { id: string; name: string }[];
   personal?:      { id: string; nombre: string }[];
+  contactos?:     { id: string; nombre: string }[];
   cajaAbierta?:   boolean;
   proveedores?:   { id: string; nombre: string; modo_facturacion?: "costo" | "precio_sugerido"; porcentaje_descuento?: number | null }[];
   promos?:        Promo[];
@@ -71,6 +73,7 @@ export function NuevaEntregaButton({
           stockMap={stockMap}
           categories={categories}
           personal={personal}
+          contactos={contactos}
           cajaAbierta={cajaAbierta}
           promos={promos}
           termosDisponibles={termosDisponibles}

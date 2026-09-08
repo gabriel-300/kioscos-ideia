@@ -66,6 +66,7 @@ const CANALES = [
   { id: "pedido_ya_plataforma", label: "Pedido Ya Plataforma", color: "#0369A1", bg: "#F0F9FF" },
   { id: "cuenta_corriente",     label: "Cta. Corriente",       color: "#5B21B6", bg: "#F5F3FF" },
   { id: "ambulante",            label: "Ambulante",            color: "#065F46", bg: "#ECFDF5" },
+  { id: "ronda_comunidad",      label: "Ronda comunidad",      color: "#B45309", bg: "#FFFBEB" },
 ] as const;
 
 type PayMethod = "efectivo" | "mp" | "tarjeta" | "transferencia";
@@ -90,6 +91,7 @@ const PAY_METHODS: { id: PayMethod; label: string; icon: React.ReactNode }[] = [
 ];
 
 type Personal = { id: string; nombre: string };
+type Contacto = { id: string; nombre: string };
 
 type Receipt = {
   fecha: string; hora: string;
@@ -110,6 +112,7 @@ interface Props {
   stockMap?:       Record<string, number>;
   categories?:     Category[];
   personal?:       Personal[];
+  contactos?:      Contacto[];
   cajaAbierta?:    boolean;
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
@@ -117,7 +120,7 @@ interface Props {
   mercadopagoPosId?:  string | null;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
   const router = useRouter();
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
@@ -139,6 +142,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [precioOverride, setPrecioOverride] = useState<Record<string, string>>({});
   const [descuentoPedidoYa, setDescuentoPedidoYa] = useState("");
   const [personalId, setPersonalId] = useState("");
+  const [contactoId, setContactoId] = useState("");
   const [notas,      setNotas]      = useState("");
   const [termoId,      setTermoId]      = useState("");
   const [dniTermo,     setDniTermo]     = useState("");
@@ -416,7 +420,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setCantidades({}); setGramosTexto({}); setMontoTexto({}); setFecha(fechaHoyAR());
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
-    setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setNotas(""); setError(null); setReceipt(null);
+    setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setContactoId(""); setNotas(""); setError(null); setReceipt(null);
     setTermoId(""); setDniTermo(""); setTelefonoTermo(""); setNombreTermo("");
     setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch("");
     detenerPollingQr(); setQrEstado("idle"); setQrExternalRef(null); setQrError(null);
@@ -573,6 +577,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     }
     if (canal === "cuenta_corriente" && !personalId) { setError("Seleccioná un beneficiario para Cta. Corriente"); return; }
     if (canal === "ambulante" && !personalId) { setError("Seleccioná quién hizo la venta ambulante"); return; }
+    if (canal === "ronda_comunidad" && !contactoId) { setError("Seleccioná para qué contacto es esta ronda"); return; }
     if (promoTermoEnCarrito) {
       if (promoTermoEnCarrito.qty !== 1) { setError("Alquilá los termos de a uno por venta"); return; }
       if (!termoId) { setError("Elegí qué termo entregás"); return; }
@@ -609,6 +614,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const notasFinal     = [notasMedios, notasDescuento, notas || null].filter(Boolean).join(" — ") || null;
 
     const personalNombre = personal.find((p) => p.id === personalId)?.nombre ?? null;
+    const contactoNombre = contactos.find((c) => c.id === contactoId)?.nombre ?? null;
 
     startTransition(async () => {
       try {
@@ -619,6 +625,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           notas:              notasFinal,
           canal,
           personal_id:        (canal === "cuenta_corriente" || canal === "ambulante") && personalId ? personalId : null,
+          contacto_id:        canal === "ronda_comunidad" && contactoId ? contactoId : null,
           descuento_total:    esPedidoYa && descuentoPedidoYaNum > 0 ? descuentoPedidoYaNum : null,
           // Redondeado a centavos -- restar el vuelto (float) puede dejar arrastres
           // tipo 1200.0000000000002 que no se ven en el formateo pero quedan guardados así.
@@ -669,7 +676,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
           hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
-          personalNombre: (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
+          personalNombre: canal === "ronda_comunidad" ? contactoNombre : (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
         });
       } catch (e) { setError(friendlyError(e)); }
     });
@@ -1145,6 +1152,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   onClick={() => {
                     setCanal(c.id);
                     if (c.id !== "cuenta_corriente" && c.id !== "ambulante") setPersonalId("");
+                    if (c.id !== "ronda_comunidad") setContactoId("");
                     // Evita que montos tipeados para otro canal (ej. efectivo cargado
                     // y cancelado) queden pegados si el cajero cambia de canal y
                     // confirma sin darse cuenta -- especialmente grave hacia/desde
@@ -1196,6 +1204,47 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                       >
                         <span>{p.nombre}</span>
                         {personalId === p.id && (
+                          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Contacto de la ronda (Ronda comunidad) -- se carga antes desde
+                /admin/nichos con canal "Ronda comunidad"; acá solo se elige,
+                no se crea uno nuevo, para no duplicar esa lógica en dos lugares. */}
+            {canal === "ronda_comunidad" && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E2E8F0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  ¿Para qué contacto es esta ronda?
+                </p>
+                {contactos.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "#F59E0B", fontWeight: 600 }}>
+                    No hay contactos de "Ronda comunidad" cargados -- agregalo primero en /admin/nichos
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {contactos.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setContactoId(prev => prev === c.id ? "" : c.id)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "8px 10px", borderRadius: 7,
+                          border: `1.5px solid ${contactoId === c.id ? "#B45309" : "#E2E8F0"}`,
+                          background: contactoId === c.id ? "#FFFBEB" : "white",
+                          color: contactoId === c.id ? "#B45309" : "#475569",
+                          fontSize: 13, fontWeight: contactoId === c.id ? 700 : 500,
+                          cursor: "pointer", transition: "all .12s", textAlign: "left",
+                        }}
+                      >
+                        <span>{c.nombre}</span>
+                        {contactoId === c.id && (
                           <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
@@ -1402,10 +1451,15 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                 <p style={{ fontSize: 12, color: "#065F46", fontWeight: 600, margin: 0 }}>Seleccioná quién hizo la venta</p>
               </div>
             )}
+            {cajaAbierta !== false && canal === "ronda_comunidad" && !contactoId && seleccionados.length > 0 && (
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 7, background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 12, color: "#B45309", fontWeight: 600, margin: 0 }}>Seleccioná el contacto de la ronda</p>
+              </div>
+            )}
 
             {/* Cobrar button */}
             {(() => {
-              const disabled = seleccionados.length === 0 || cajaAbierta === false || ((canal === "cuenta_corriente" || canal === "ambulante") && !personalId);
+              const disabled = seleccionados.length === 0 || cajaAbierta === false || ((canal === "cuenta_corriente" || canal === "ambulante") && !personalId) || (canal === "ronda_comunidad" && !contactoId);
               return (
                 <button
                   onClick={() => { setError(null); setShowPay(true); }}
