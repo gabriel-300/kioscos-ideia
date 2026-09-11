@@ -50,12 +50,13 @@ export function AperturaCajaModal({ open, onClose, sucursalId, sucursalNombre, c
     setError(null);
     startTransition(async () => {
       try {
-        await abrirCaja({
+        const res = await abrirCaja({
           sucursal_id:   sucursalId,
           fecha:         hoy,
           fondo_inicial: fondoNum,
           notas:         notas || null,
         });
+        if (res.error) { setError(res.error); return; }
         handleClose();
       } catch (e) {
         setError(friendlyError(e));

@@ -5,17 +5,21 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 
+// Devuelve {error} en vez de tirar (throw) -- Next.js oculta el mensaje real
+// de una excepción de Server Action en producción (queda un mensaje
+// genérico con un "digest", sin forma de saber la causa real desde el
+// cliente), ver memoria del proyecto sobre este patrón.
 export async function abrirCaja(data: {
   sucursal_id:   string;
   fecha:         string;
   fondo_inicial: number;
   notas:         string | null;
-}) {
+}): Promise<{ error?: string }> {
   const { userId, role } = await requireStaff();
   const admin = createAdminClient();
 
   const accesoError = await requireSucursalAccess(admin, userId, role, data.sucursal_id);
-  if (accesoError) throw new Error(accesoError);
+  if (accesoError) return { error: accesoError };
 
   // Apertura atómica: la RPC lockea por sucursal y valida que no haya un ciclo abierto
   const { error } = await (admin as any).rpc("abrir_caja", {
@@ -26,7 +30,7 @@ export async function abrirCaja(data: {
     p_created_by:    userId,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   // Un vendedor puede estar habilitado en más de una sucursal
   // (profile_sucursales) -- profiles.sucursal_id pasa a significar "la
@@ -41,4 +45,5 @@ export async function abrirCaja(data: {
   revalidatePath(`/admin/sucursales/${data.sucursal_id}`);
   revalidatePath("/admin/cierres");
   revalidatePath("/admin/tesoreria");
+  return {};
 }
