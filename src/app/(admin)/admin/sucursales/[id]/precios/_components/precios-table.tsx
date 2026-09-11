@@ -97,11 +97,14 @@ function FilaProducto({
   const [precioDist, setPrecioDist] = useState(producto.precioDist != null ? String(producto.precioDist) : "");
   const [costo,      setCosto]      = useState(producto.costo != null ? String(producto.costo) : "");
 
+  // Mismo criterio que /admin/productos (products-table.tsx margenDe):
+  // markup sobre el costo, no sobre el precio de venta -- son números
+  // distintos y hay que mostrar el mismo en todos lados.
   const margen = (() => {
     const pv = parseFloat(precioDist);
     const c  = parseFloat(costo);
-    if (isNaN(pv) || pv <= 0 || isNaN(c)) return null;
-    return ((pv - c) / pv) * 100;
+    if (isNaN(pv) || isNaN(c) || c <= 0) return null;
+    return ((pv - c) / c) * 100;
   })();
 
   function blur() {
