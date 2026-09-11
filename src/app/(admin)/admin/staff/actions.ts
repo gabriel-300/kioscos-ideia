@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 
-type StaffRole = "admin" | "encargado" | "vendedor";
+type StaffRole = "admin" | "encargado" | "vendedor" | "concesionario";
 
 export async function crearStaff(data: {
   email:      string;
@@ -99,8 +99,9 @@ export async function asignarSucursal(userId: string, sucursalId: string | null,
   // Actualizar profiles.sucursal_id para todos los roles
   await (admin as any).from("profiles").update({ sucursal_id: sucursalId ?? null }).eq("id", userId);
 
-  // Para encargados, también actualizar sucursales.encargado_user_id
-  if (sucursalId && (!role || role === "encargado")) {
+  // Para encargados y concesionarios (mismo mecanismo de scoping, ver
+  // sucursal-access.ts), también actualizar sucursales.encargado_user_id
+  if (sucursalId && (!role || role === "encargado" || role === "concesionario")) {
     const { error } = await admin.from("sucursales").update({ encargado_user_id: userId }).eq("id", sucursalId);
     if (error) throw new Error(error.message);
   }

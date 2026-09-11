@@ -16,7 +16,9 @@ export default async function SociosIndexPage() {
   if (!user) redirect("/login");
 
   const role = (user.app_metadata?.role as string) ?? "";
-  if (role === "vendedor") redirect("/admin/dashboard");
+  // concesionario no es socio del negocio -- afuera, ver la versión por
+  // sucursal de este módulo para el motivo completo.
+  if (role === "vendedor" || role === "concesionario") redirect("/admin/dashboard");
 
   if (role === "encargado") {
     const { data: suc } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();

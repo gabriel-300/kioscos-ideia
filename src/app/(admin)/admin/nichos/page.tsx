@@ -14,8 +14,8 @@ export default async function NichosPage() {
   if (!user) redirect("/login");
   const role = (user.app_metadata?.role as string) ?? null;
   // El vendedor de turno no gestiona el CRM -- lo carga el encargado del local
-  // (pedido explícito), o el admin.
-  if (role !== "admin" && role !== "encargado") redirect("/admin/dashboard");
+  // (pedido explícito), el concesionario del suyo, o el admin.
+  if (role !== "admin" && role !== "encargado" && role !== "concesionario") redirect("/admin/dashboard");
 
   let sucursales: SucursalOpt[] = [];
   let sucursalFija: string | null = null;
@@ -38,7 +38,7 @@ export default async function NichosPage() {
     .from("contactos_crm")
     .select("id, fecha_hora, sucursal_id, nicho_id, canal, nombre_contacto, consulta_mensaje, estado, convertido_pedido, monto, notas, created_at, habilitado_cta_corriente, limite_credito")
     .order("created_at", { ascending: false });
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     contactosQuery = sucursalFija ? contactosQuery.eq("sucursal_id", sucursalFija) : contactosQuery.eq("sucursal_id", "00000000-0000-0000-0000-000000000000");
   }
   const contactosRes = await contactosQuery;

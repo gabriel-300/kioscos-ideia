@@ -2,7 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/require-role";
+import { requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+
+// Admin ve/resuelve alertas de cualquier sucursal; concesionario solo las
+// de la suya (mismo criterio que el resto de sus permisos -- ve costo real,
+// pero nunca el de otro kiosco). Vendedor/encargado sin acceso: la variación
+// de costo es plata real, no una tarea operativa más.
+async function requireAdminOAccesoSucursal(sucursalId: string) {
+  const { userId, role } = await requireStaff();
+  if (role === "vendedor" || role === "encargado") throw new Error("No tenés permisos para resolver alertas de precio");
+  if (role !== "admin") {
+    const admin = createAdminClient();
+    const error = await requireSucursalAccess(admin, userId, role, sucursalId);
+    if (error) throw new Error(error);
+  }
+  return { userId };
+}
 
 type AlertaRow = {
   id:             string;
@@ -13,7 +29,6 @@ type AlertaRow = {
 };
 
 export async function actualizarCosto(alertaId: string, notaAdmin?: string): Promise<{ error?: string }> {
-  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
 
   const { data: alerta, error: errAlerta } = await (supabase as any)
@@ -30,6 +45,11 @@ export async function actualizarCosto(alertaId: string, notaAdmin?: string): Pro
   const { data: movimiento } = await supabase.from("movimientos").select("sucursal_id").eq("id", row.movimiento_id).single();
   if (!movimiento) return { error: "No se encontró la entrega asociada a esta alerta" };
   const sucursalId = movimiento.sucursal_id;
+
+  let userId: string;
+  try {
+    userId = (await requireAdminOAccesoSucursal(sucursalId)).userId;
+  } catch (e) { return { error: (e as Error).message }; }
 
   const { data: precioActual } = await supabase
     .from("product_prices").select("costo")
@@ -66,8 +86,18 @@ export async function actualizarCosto(alertaId: string, notaAdmin?: string): Pro
 }
 
 export async function ignorarAlerta(alertaId: string, notaAdmin?: string): Promise<{ error?: string }> {
-  const { userId } = await requireAdmin();
   const supabase = createAdminClient();
+
+  const { data: alerta, error: errAlerta } = await (supabase as any)
+    .from("alertas_precio").select("movimiento_id").eq("id", alertaId).single();
+  if (errAlerta || !alerta) return { error: "No se encontró la alerta" };
+  const { data: movimiento } = await supabase.from("movimientos").select("sucursal_id").eq("id", alerta.movimiento_id).single();
+  if (!movimiento) return { error: "No se encontró la entrega asociada a esta alerta" };
+
+  let userId: string;
+  try {
+    userId = (await requireAdminOAccesoSucursal(movimiento.sucursal_id)).userId;
+  } catch (e) { return { error: (e as Error).message }; }
 
   const { error } = await (supabase as any)
     .from("alertas_precio")

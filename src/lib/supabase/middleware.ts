@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
-const STAFF_ROLES = ["admin", "encargado", "vendedor"];
+const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario"];
 
 // Bloqueadas para encargado Y vendedor
 const ADMIN_ONLY_PREFIXES = [
@@ -68,8 +68,11 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL("/login", request.url));
       }
 
-      // Encargados y vendedores no pueden acceder a rutas exclusivas de admin
-      if ((role === "encargado" || role === "vendedor") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
+      // Encargados, vendedores y concesionarios no pueden acceder a rutas
+      // exclusivas de admin -- productos/categorías/proveedores son catálogo
+      // GLOBAL (todas las sucursales comparten el mismo SKU), así que ni el
+      // concesionario ve el de otros locales acá.
+      if ((role === "encargado" || role === "vendedor" || role === "concesionario") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
       }
 

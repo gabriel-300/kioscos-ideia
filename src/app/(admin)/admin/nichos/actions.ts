@@ -12,7 +12,7 @@ type Estado = (typeof ESTADOS)[number];
 async function checkAccesoSucursal(sucursalId: string) {
   const { userId, role } = await requireStaff();
   if (role === "vendedor") throw new Error("No tenés permisos para el CRM de nichos");
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const admin = createAdminClient();
     const { data: suc } = await admin
       .from("sucursales")

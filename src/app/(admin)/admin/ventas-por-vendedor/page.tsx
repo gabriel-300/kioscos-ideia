@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fechaHoyAR } from "@/lib/fecha";
 import { VendedoresTable, type VendedorFila, type VentaDetalle } from "./_components/vendedores-table";
+import { resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Ventas por vendedor — Kioscos IDEIA" };
@@ -31,13 +32,18 @@ export default async function VentasPorVendedorPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
   const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 29 * 86400000));
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  let sucFilter = sp.sucursal ?? "all";
+  if (role === "concesionario") {
+    const miSucursalId = await resolverSucursalConcesionario(admin, user.id);
+    if (!miSucursalId) redirect("/admin/dashboard");
+    sucFilter = miSucursalId;
+  }
 
   const { data: sucursales } = await supabase
     .from("sucursales")

@@ -48,7 +48,9 @@ export default async function SociosPage({
   const { data: sucursal } = await supabase.from("sucursales").select("id, nombre, encargado_user_id").eq("id", id).single();
   if (!sucursal) notFound();
 
-  if (role === "vendedor") redirect("/admin/dashboard");
+  // concesionario no es socio del negocio -- queda afuera de este módulo a
+  // propósito (ver actions.ts de esta misma carpeta).
+  if (role === "vendedor" || role === "concesionario") redirect("/admin/dashboard");
   if (role === "encargado" && sucursal.encargado_user_id !== user.id) redirect("/admin/dashboard");
 
   // Socios son del negocio entero, no de esta sucursal (decisión del

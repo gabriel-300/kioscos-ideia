@@ -25,15 +25,17 @@ type StaffUser = {
 type Sucursal = { id: string; nombre: string; encargado_user_id: string | null };
 
 const ROLE_LABEL: Record<string, string> = {
-  admin:     "Administrador",
-  encargado: "Encargado kiosco",
-  vendedor:  "Vendedor",
+  admin:         "Administrador",
+  encargado:     "Encargado kiosco",
+  vendedor:      "Vendedor",
+  concesionario: "Encargado Concesionario",
 };
 
 const ROLE_BADGE: Record<string, string> = {
-  admin:     "bg-tierra-50 text-tierra-700 border-tierra-200",
-  encargado: "bg-blue-50 text-blue-700 border-blue-200",
-  vendedor:  "bg-purple-50 text-purple-700 border-purple-200",
+  admin:         "bg-tierra-50 text-tierra-700 border-tierra-200",
+  encargado:     "bg-blue-50 text-blue-700 border-blue-200",
+  vendedor:      "bg-purple-50 text-purple-700 border-purple-200",
+  concesionario: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 // ── Form crear staff ──────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ const createSchema = z.object({
   nombre:     z.string().min(2, "Mínimo 2 caracteres"),
   email:      z.string().email("Email inválido"),
   password:   z.string().min(8, "Mínimo 8 caracteres"),
-  role:       z.enum(["admin", "encargado", "vendedor"]),
+  role:       z.enum(["admin", "encargado", "vendedor", "concesionario"]),
   sucursalId: z.string().optional(),
 });
 
@@ -90,6 +92,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
           >
             <option value="vendedor">Vendedor</option>
             <option value="encargado">Encargado kiosco</option>
+            <option value="concesionario">Encargado Concesionario</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
@@ -102,7 +105,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
             <option value="">Sin asignar por ahora</option>
             {sucursales.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.nombre}{roleValue === "encargado" && s.encargado_user_id ? " (ya tiene encargado)" : ""}
+                {s.nombre}{(roleValue === "encargado" || roleValue === "concesionario") && s.encargado_user_id ? " (ya tiene encargado)" : ""}
               </option>
             ))}
           </select>
@@ -143,7 +146,7 @@ function EditDrawer({
   const router = useRouter();
 
   const sucursalActual =
-    user.role === "encargado"
+    (user.role === "encargado" || user.role === "concesionario")
       ? sucursales.find((s) => s.encargado_user_id === user.id)
       : sucursales.find((s) => s.id === user.sucursalIdProfile);
 
@@ -178,7 +181,7 @@ function EditDrawer({
           password:      values.password || undefined,
           creditoLimite: limiteNum,
           esSocio,
-          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor") : undefined,
+          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor" | "concesionario") : undefined,
         });
         if (role === "vendedor") {
           const cambiaron =
@@ -226,6 +229,7 @@ function EditDrawer({
             >
               <option value="vendedor">Vendedor</option>
               <option value="encargado">Encargado kiosco</option>
+              <option value="concesionario">Encargado Concesionario</option>
               <option value="admin">Administrador</option>
             </select>
             {role !== user.role && (
@@ -292,7 +296,7 @@ function EditDrawer({
                 {sucursales.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nombre}
-                    {role === "encargado" && s.encargado_user_id && s.encargado_user_id !== user.id
+                    {(role === "encargado" || role === "concesionario") && s.encargado_user_id && s.encargado_user_id !== user.id
                       ? " (asignada a otro encargado)"
                       : ""}
                   </option>
@@ -471,7 +475,7 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
             <tbody className="divide-y divide-neutral-100">
               {staff.map((u) => {
                 const sucursal =
-                  u.role === "encargado"
+                  (u.role === "encargado" || u.role === "concesionario")
                     ? sucursales.find((s) => s.encargado_user_id === u.id)
                     : sucursales.find((s) => s.id === u.sucursalIdProfile);
                 return (

@@ -16,7 +16,7 @@ async function requireEditRole(sucursalId: string) {
   const { userId, role } = await requireStaff();
   if (role === "vendedor") throw new Error("No tenés permisos para Cta. Corriente");
   const admin = createAdminClient();
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data: suc } = await admin
       .from("sucursales")
       .select("encargado_user_id")

@@ -20,12 +20,12 @@ export default async function TransferenciasPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (!role || !["admin", "encargado", "vendedor"].includes(role)) redirect("/admin/dashboard");
+  if (!role || !["admin", "encargado", "vendedor", "concesionario"].includes(role)) redirect("/admin/dashboard");
 
-  // Encargado/vendedor solo ven las transferencias de SU sucursal (enviadas
-  // o recibidas) -- el listado sin filtro es privado de admin.
+  // Encargado/vendedor/concesionario solo ven las transferencias de SU
+  // sucursal (enviadas o recibidas) -- el listado sin filtro es privado de admin.
   let miSucursalId: string | null = null;
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
     miSucursalId = data?.id ?? null;
   } else if (role === "vendedor") {

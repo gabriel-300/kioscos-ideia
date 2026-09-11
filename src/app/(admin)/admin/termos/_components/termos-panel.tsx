@@ -67,7 +67,7 @@ export function TermosPanel({ role, sucursales, sucursalFija, termos, prestamosA
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sucursalFiltro, setSucursalFiltro] = useState(sucursalFija ?? (sucursales[0]?.id ?? ""));
-  const puedeGestionar = role === "admin" || role === "encargado";
+  const puedeGestionar = role === "admin" || role === "encargado" || role === "concesionario";
 
   const [nuevoOpen,   setNuevoOpen]   = useState(false);
   const [nuevoNumero, setNuevoNumero] = useState("");

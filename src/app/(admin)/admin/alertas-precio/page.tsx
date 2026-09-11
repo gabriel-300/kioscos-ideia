@@ -19,7 +19,7 @@ type AlertaRowData = {
   costo_actualizado:  boolean;
   nota_admin:         string | null;
   product:            { name: string; sku: string } | null;
-  movimiento:         { fecha: string; sucursal: { nombre: string } | null } | null;
+  movimiento:         { fecha: string; sucursal_id: string; sucursal: { nombre: string } | null } | null;
 };
 
 export default async function AlertasPrecioPage({
@@ -34,7 +34,15 @@ export default async function AlertasPrecioPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
+
+  // concesionario solo ve las alertas de SU sucursal -- es plata real de un
+  // solo local, no del resto del negocio (mismo criterio que costo/margen).
+  let miSucursalId: string | null = null;
+  if (role === "concesionario") {
+    const { data: suc } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).maybeSingle();
+    miSucursalId = (suc as { id: string } | null)?.id ?? null;
+  }
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
@@ -46,12 +54,15 @@ export default async function AlertasPrecioPage({
     .select(`
       id, proveedor, costo_anterior, costo_nuevo, revisado_por, costo_actualizado, nota_admin,
       product:products(name, sku),
-      movimiento:movimientos(fecha, sucursal:sucursales(nombre))
+      movimiento:movimientos(fecha, sucursal_id, sucursal:sucursales(nombre))
     `)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
 
   let alertas = (alertasRaw ?? []) as AlertaRowData[];
+  if (miSucursalId) {
+    alertas = alertas.filter((a) => a.movimiento?.sucursal_id === miSucursalId);
+  }
   alertas = alertas.filter((a) => {
     const fecha = a.movimiento?.fecha;
     if (!fecha) return true;

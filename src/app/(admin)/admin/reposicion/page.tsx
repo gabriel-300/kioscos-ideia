@@ -31,7 +31,15 @@ export default async function ReposicionPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
+
+  // concesionario solo ve/pide para su propia sucursal -- se fuerza acá,
+  // ignorando cualquier ?sucursal= que le llegue en la URL.
+  let miSucursalId: string | null = null;
+  if (role === "concesionario") {
+    const { data: suc } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).maybeSingle();
+    miSucursalId = (suc as { id: string } | null)?.id ?? null;
+  }
 
   const sp = await searchParams;
 
@@ -43,7 +51,8 @@ export default async function ReposicionPage({
   ]);
 
   const pasaFiltros = (f: ItemReposicion) => {
-    if (sp.sucursal && f.sucursalId !== sp.sucursal) return false;
+    if (miSucursalId && f.sucursalId !== miSucursalId) return false;
+    if (!miSucursalId && sp.sucursal && f.sucursalId !== sp.sucursal) return false;
     if (sp.categoria && f.categoryId !== sp.categoria) return false;
     if (sp.proveedor && f.proveedorId !== sp.proveedor) return false;
     if (sp.q) {

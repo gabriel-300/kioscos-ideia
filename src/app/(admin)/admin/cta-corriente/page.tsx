@@ -17,7 +17,7 @@ export default async function CtaCorrienteIndexPage() {
 
   const role = (user.app_metadata?.role as string) ?? "";
 
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data: suc } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
     if (!suc) redirect("/admin/dashboard");
     redirect(`/admin/sucursales/${suc.id}/cta-corriente`);

@@ -63,19 +63,24 @@ type NavGroup = { label: string; icon: string; children: NavItem[] };
 
 // Ítems sueltos que van antes de los grupos
 const NAV_HEAD: NavItem[] = [
-  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                          icon: "dashboard" },
-  { href: "/admin/sucursales", label: "Kioscos",   roles: ["admin", "encargado", "vendedor"], icon: "sucursales" },
+  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                                          icon: "dashboard" },
+  { href: "/admin/sucursales", label: "Kioscos",   roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "sucursales" },
 ];
 
 // Agrupados en dropdown — demasiados módulos sueltos para una barra horizontal
+// "concesionario" (dueño económico de UNA sola sucursal a cambio de un % de
+// lo que vende, ver conversación con Gabriel set. 2026) ve costo/margen y
+// los informes/herramientas de SU sucursal -- mismo nivel que encargado más
+// eso, pero nunca ve Socios (no es socio del negocio) ni nada global/de
+// catálogo (ver mapeo completo de permisos hecho antes de armar el rol).
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Ventas", icon: "ventas",
     children: [
-      { href: "/admin/ventas",             label: "Ventas",           roles: ["admin"], icon: "ventas" },
-      { href: "/admin/ventas-diarias",      label: "Por día",          roles: ["admin"], icon: "ventasdiarias" },
-      { href: "/admin/ventas-por-horario",  label: "Por horario",      roles: ["admin"], icon: "horario" },
-      { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin"], icon: "staff" },
+      { href: "/admin/ventas",             label: "Ventas",           roles: ["admin", "concesionario"], icon: "ventas" },
+      { href: "/admin/ventas-diarias",      label: "Por día",          roles: ["admin", "concesionario"], icon: "ventasdiarias" },
+      { href: "/admin/ventas-por-horario",  label: "Por horario",      roles: ["admin", "concesionario"], icon: "horario" },
+      { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin", "concesionario"], icon: "staff" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
       { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
     ],
@@ -87,27 +92,27 @@ const NAV_GROUPS: NavGroup[] = [
     // -- todo lo que es plata/liquidez del negocio va acá ahora.
     label: "Finanzas", icon: "gastos",
     children: [
-      { href: "/admin/gastos",            label: "Gastos",              roles: ["admin"],                          icon: "gastos" },
-      { href: "/admin/cierres",           label: "Cierres",             roles: ["admin"],                          icon: "cierres" },
-      { href: "/admin/tesoreria",         label: "Posición de Caja",    roles: ["admin", "socio"],                 icon: "tesoreria" },
-      { href: "/admin/pagos-proveedores", label: "Pagos a proveedores", roles: ["admin", "encargado"],             icon: "proveedores" },
-      { href: "/admin/socios",            label: "Socios",              roles: ["admin", "encargado"],             icon: "nichos" },
-      { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor"], icon: "staff" },
+      { href: "/admin/gastos",            label: "Gastos",              roles: ["admin"],                                          icon: "gastos" },
+      { href: "/admin/cierres",           label: "Cierres",             roles: ["admin", "concesionario"],                         icon: "cierres" },
+      { href: "/admin/tesoreria",         label: "Posición de Caja",    roles: ["admin", "socio"],                                 icon: "tesoreria" },
+      { href: "/admin/pagos-proveedores", label: "Pagos a proveedores", roles: ["admin", "encargado", "concesionario"],             icon: "proveedores" },
+      { href: "/admin/socios",            label: "Socios",              roles: ["admin", "encargado"],                             icon: "nichos" },
+      { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "staff" },
     ],
   },
   {
     label: "Stock", icon: "stock",
     children: [
-      { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],                          icon: "movimientos" },
-      { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor"], icon: "stock" },
-      { href: "/admin/mermas",      label: "Mermas",     roles: ["admin"],                          icon: "mermas" },
-      { href: "/admin/rotacion-productos", label: "Rotación", roles: ["admin"],                    icon: "rotacion" },
-      { href: "/admin/pronostico",  label: "Pronóstico", roles: ["admin", "encargado"],              icon: "pronostico" },
-      { href: "/admin/auditoria",   label: "Auditoría",  roles: ["admin"],                          icon: "auditoria" },
-      { href: "/admin/alertas-precio", label: "Alertas de precio", roles: ["admin"],                icon: "alertaprecio" },
-      { href: "/admin/termos",      label: "Termos",     roles: ["admin", "encargado", "vendedor"], icon: "termos" },
-      { href: "/admin/transferencias", label: "Transferencias", roles: ["admin", "encargado", "vendedor"], icon: "transferencias" },
-      { href: "/admin/reposicion", label: "Reposición", roles: ["admin"], icon: "reposicion" },
+      { href: "/admin/movimientos", label: "Historial",  roles: ["admin"],                                          icon: "movimientos" },
+      { href: "/admin/stock",       label: "Stock",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "stock" },
+      { href: "/admin/mermas",      label: "Mermas",     roles: ["admin", "concesionario"],                         icon: "mermas" },
+      { href: "/admin/rotacion-productos", label: "Rotación", roles: ["admin", "concesionario"],                   icon: "rotacion" },
+      { href: "/admin/pronostico",  label: "Pronóstico", roles: ["admin", "encargado", "concesionario"],             icon: "pronostico" },
+      { href: "/admin/auditoria",   label: "Auditoría",  roles: ["admin"],                                          icon: "auditoria" },
+      { href: "/admin/alertas-precio", label: "Alertas de precio", roles: ["admin", "concesionario"],               icon: "alertaprecio" },
+      { href: "/admin/termos",      label: "Termos",     roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "termos" },
+      { href: "/admin/transferencias", label: "Transferencias", roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "transferencias" },
+      { href: "/admin/reposicion", label: "Reposición", roles: ["admin", "concesionario"], icon: "reposicion" },
     ],
   },
   {
@@ -125,15 +130,16 @@ const NAV_GROUPS: NavGroup[] = [
 // "socio" no es un rol real (vive en profiles.es_socio, no en app_metadata.role)
 // -- se resuelve más abajo como un rol sintético agregado a effectiveRoles.
 const NAV_TAIL: NavItem[] = [
-  { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado"],  icon: "nichos" },
+  { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado", "concesionario"],  icon: "nichos" },
   { href: "/admin/staff",  label: "Staff",    roles: ["admin"],               icon: "staff" },
-  { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor"], icon: "ayuda" },
+  { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ayuda" },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
-  admin:     "Administrador",
-  encargado: "Encargado",
-  vendedor:  "Vendedor",
+  admin:         "Administrador",
+  encargado:     "Encargado",
+  vendedor:      "Vendedor",
+  concesionario: "Encargado Concesionario",
 };
 
 /* ─── Component ──────────────────────────────── */
@@ -226,7 +232,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
   }
 
   function resolveItem(item: NavItem): NavItem {
-    if ((role === "encargado" || role === "vendedor") && sucursalId && item.href === "/admin/sucursales") {
+    if ((role === "encargado" || role === "vendedor" || role === "concesionario") && sucursalId && item.href === "/admin/sucursales") {
       return { ...item, href: `/admin/sucursales/${sucursalId}`, label: "Mi Kiosco" };
     }
     return item;

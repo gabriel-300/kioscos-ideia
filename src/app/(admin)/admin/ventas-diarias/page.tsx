@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fechaHoyAR } from "@/lib/fecha";
+import { resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 import { VentasPorDiaChart } from "./_components/ventas-por-dia-chart";
 import { DiasTable, type DiaFila, type TurnoFila } from "./_components/dias-table";
 
@@ -21,13 +22,20 @@ export default async function VentasDiariasPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
   const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 13 * 86400000));
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  // concesionario solo ve su propia sucursal, ignorando cualquier
+  // ?sucursal= de la URL -- nunca cae a "all" (todo el negocio).
+  let sucFilter = sp.sucursal ?? "all";
+  if (role === "concesionario") {
+    const miSucursalId = await resolverSucursalConcesionario(admin, user.id);
+    if (!miSucursalId) redirect("/admin/dashboard");
+    sucFilter = miSucursalId;
+  }
 
   const { data: sucursales } = await supabase
     .from("sucursales")

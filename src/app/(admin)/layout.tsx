@@ -3,7 +3,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
 
-const STAFF_ROLES = ["admin", "encargado", "vendedor"];
+const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario"];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -21,7 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const esSocio = (profileSocio as { es_socio: boolean | null } | null)?.es_socio ?? false;
 
   let sucursalId: string | null = null;
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data } = await supabase
       .from("sucursales")
       .select("id")
@@ -89,7 +89,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       const stockMap = new Map((stockRows ?? []).map((r) => [`${r.sucursal_id}:${r.product_id}`, r.stock_actual]));
       reposicionPendientes = puntosConPedido.filter((p) => (stockMap.get(`${p.sucursal_id}:${p.product_id}`) ?? 0) <= p.punto_pedido).length;
     }
-  } else if ((role === "encargado" || role === "vendedor") && sucursalId) {
+  } else if ((role === "encargado" || role === "vendedor" || role === "concesionario") && sucursalId) {
     // Acá el badge es solo lo que ESE kiosco tiene pendiente de recibir --
     // no el total global (eso es privado de admin, ver arriba).
     const { count } = await (supabase as any)

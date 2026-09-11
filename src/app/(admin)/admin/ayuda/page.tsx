@@ -49,7 +49,7 @@ export default async function AyudaPage() {
 
   const role = (user.app_metadata?.role as string) ?? "";
   const esVendedor  = role === "vendedor";
-  const esEncargado = role === "encargado";
+  const esEncargado = role === "encargado" || role === "concesionario";
   const esAdmin     = role === "admin";
 
   const toc = [

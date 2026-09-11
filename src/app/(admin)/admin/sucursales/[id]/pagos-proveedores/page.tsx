@@ -48,7 +48,7 @@ export default async function PagosProveedoresPage({
   if (!sucursal) notFound();
 
   if (role === "vendedor") redirect("/admin/dashboard");
-  if (role === "encargado" && sucursal.encargado_user_id !== user.id) redirect("/admin/dashboard");
+  if ((role === "encargado" || role === "concesionario") && sucursal.encargado_user_id !== user.id) redirect("/admin/dashboard");
 
   const [entregasRes, proveedoresRes, totalHistRes, pagosRes] = await Promise.all([
     (supabase as any)

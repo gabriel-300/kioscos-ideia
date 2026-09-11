@@ -13,7 +13,7 @@ export default async function AuthRedirectPage() {
 
   if (role === "admin") {
     redirect("/admin/dashboard");
-  } else if (role === "encargado") {
+  } else if (role === "encargado" || role === "concesionario") {
     const { data: sucursal } = await admin
       .from("sucursales")
       .select("id")

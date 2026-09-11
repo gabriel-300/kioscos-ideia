@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { primerDiaMesAR, fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
+import { resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Rotación por producto — Kioscos IDEIA" };
@@ -83,7 +84,7 @@ export default async function RotacionProductosPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
@@ -91,7 +92,12 @@ export default async function RotacionProductosPage({
   // curso) -- esta página es la versión "abierta por producto" de esa métrica.
   const desde = sp.desde ?? primerDiaMesAR();
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  let sucFilter = sp.sucursal ?? "all";
+  if (role === "concesionario") {
+    const miSucursalId = await resolverSucursalConcesionario(admin, user.id);
+    if (!miSucursalId) redirect("/admin/dashboard");
+    sucFilter = miSucursalId;
+  }
   // Sin orden explícito: rotación ascendente (peores primero) -- el orden
   // original de esta página, pensado para saltar directo a lo que no rota.
   const ordenActual: OrdenKey = ORDEN_KEYS.includes(sp.orden as OrdenKey) ? (sp.orden as OrdenKey) : "rotacion";

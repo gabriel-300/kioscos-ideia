@@ -2,13 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/require-role";
+import { requireStaff } from "@/lib/auth/require-role";
+import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+
+// Admin ve/marca reposición de cualquier sucursal; concesionario solo la
+// suya. Vendedor/encargado quedan afuera -- reposición es decisión de compra,
+// no una tarea de turno.
+async function requireAdminOAccesoSucursal(sucursalId: string): Promise<{ userId: string; error?: string }> {
+  const { userId, role } = await requireStaff();
+  if (role === "vendedor" || role === "encargado") return { userId, error: "No tenés permisos para reposición" };
+  if (role !== "admin") {
+    const admin = createAdminClient();
+    const error = await requireSucursalAccess(admin, userId, role, sucursalId);
+    if (error) return { userId, error };
+  }
+  return { userId };
+}
 
 // Marcar "ya pedido" no borra ni ajusta stock -- solo silencia el ítem del
 // aviso de reposición hasta que llegue una entrega nueva de ese producto en
 // esa sucursal (ver src/lib/reposicion.ts, obtenerItemsReposicion).
 export async function marcarPedidoRealizado(productId: string, sucursalId: string): Promise<{ error?: string }> {
-  const { userId } = await requireAdmin();
+  const { userId, error: accesoError } = await requireAdminOAccesoSucursal(sucursalId);
+  if (accesoError) return { error: accesoError };
   const supabase = createAdminClient();
   const { error } = await (supabase as any)
     .from("reposicion_marcas_pedido")
@@ -22,7 +38,8 @@ export async function marcarPedidoRealizado(productId: string, sucursalId: strin
 }
 
 export async function desmarcarPedido(productId: string, sucursalId: string): Promise<{ error?: string }> {
-  await requireAdmin();
+  const { error: accesoError } = await requireAdminOAccesoSucursal(sucursalId);
+  if (accesoError) return { error: accesoError };
   const supabase = createAdminClient();
   const { error } = await (supabase as any)
     .from("reposicion_marcas_pedido")

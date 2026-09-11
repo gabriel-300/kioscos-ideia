@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fechaHoyAR, horaNumAR, diaSemanaIdxAR } from "@/lib/fecha";
 import { HeatmapHorario, type CeldaHeatmap } from "./_components/heatmap-horario";
+import { resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Ventas por horario — Kioscos IDEIA" };
@@ -25,7 +26,7 @@ export default async function VentasPorHorarioPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
@@ -33,7 +34,12 @@ export default async function VentasPorHorarioPage({
   // día de semana (necesita varias repeticiones de cada día para promediar bien).
   const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 29 * 86400000));
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  let sucFilter = sp.sucursal ?? "all";
+  if (role === "concesionario") {
+    const miSucursalId = await resolverSucursalConcesionario(admin, user.id);
+    if (!miSucursalId) redirect("/admin/dashboard");
+    sucFilter = miSucursalId;
+  }
 
   const { data: sucursales } = await supabase
     .from("sucursales")

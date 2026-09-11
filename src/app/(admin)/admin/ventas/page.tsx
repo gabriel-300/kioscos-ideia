@@ -5,6 +5,7 @@ import Link from "next/link";
 import { VentasExportButton } from "./_components/export-button";
 import { fechaHoyAR } from "@/lib/fecha";
 import { formatKg } from "@/lib/utils";
+import { resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe de ventas — Kioscos IDEIA" };
@@ -47,13 +48,21 @@ export default async function VentasPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");
 
   const sp    = await searchParams;
   const hoy   = fechaHoyAR();
   const desde = sp.desde ?? hoy;
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  // concesionario solo ve su propia sucursal -- se ignora cualquier
+  // ?sucursal= que llegue en la URL, se fuerza a la suya. Si por algún motivo
+  // no tiene sucursal asignada, NUNCA cae a "all" (mostraría todo el negocio).
+  let sucFilter = sp.sucursal ?? "all";
+  if (role === "concesionario") {
+    const miSucursalId = await resolverSucursalConcesionario(admin, user.id);
+    if (!miSucursalId) redirect("/admin/dashboard");
+    sucFilter = miSucursalId;
+  }
 
   const { data: sucursales } = await supabase
     .from("sucursales")

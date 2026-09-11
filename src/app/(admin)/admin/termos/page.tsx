@@ -14,10 +14,10 @@ export default async function TermosPage() {
   if (!user) redirect("/login");
 
   const role = (user.app_metadata?.role as string) ?? "";
-  const isStaff = role === "encargado" || role === "vendedor";
+  const isStaff = role === "encargado" || role === "vendedor" || role === "concesionario";
 
   let staffSucursalId: string | null = null;
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
     staffSucursalId = data?.id ?? null;
   } else if (role === "vendedor") {

@@ -19,6 +19,15 @@ export default async function SucursalesPage() {
   // auth/redirect/page.tsx) -- SucursalesList es una pantalla de admin
   // completa (crear/editar/activar), nunca pensada para que la vea un
   // vendedor, así que se le muestra una vista de solo lectura aparte.
+  // concesionario nunca debería ver el listado completo de sucursales (ni
+  // aunque sea de solo lectura) -- "que solo vea la suya, no los demás
+  // locales" fue un pedido explícito, así que va directo a su propia
+  // sucursal en vez de caer en la pantalla de administración de abajo.
+  if (role === "concesionario") {
+    const { data: suc } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
+    redirect(suc?.id ? `/admin/sucursales/${suc.id}` : "/admin/dashboard");
+  }
+
   if (role === "vendedor") {
     const { data: asignadas } = await (admin as any)
       .from("profile_sucursales")

@@ -30,7 +30,7 @@ export default async function PronosticoPage({
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin" && role !== "encargado") redirect("/admin/dashboard");
+  if (role !== "admin" && role !== "encargado" && role !== "concesionario") redirect("/admin/dashboard");
 
   const { data: sucursales } = await supabase
     .from("sucursales")
@@ -41,7 +41,7 @@ export default async function PronosticoPage({
   const sp = await searchParams;
 
   let sucursalId: string | null;
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data } = await supabase.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
     sucursalId = data?.id ?? null;
     if (!sucursalId) redirect("/admin/dashboard");

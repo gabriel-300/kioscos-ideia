@@ -8,7 +8,12 @@ import { requireStaff } from "@/lib/auth/require-role";
 // usuario): admin y encargado de esa sucursal, nunca vendedor.
 async function requireEditRole(sucursalId: string) {
   const { userId, role } = await requireStaff();
-  if (role === "vendedor") return { error: "No tenés permisos para Socios" };
+  // concesionario queda afuera a propósito, a diferencia de Cta. Corriente y
+  // Pagos a proveedores: acá se manejan retiros de LOS SOCIOS DEL NEGOCIO
+  // (Gabriel/Damián/Javier), no algo que le corresponda tocar a alguien que
+  // opera un kiosco a concesión y no es socio (ver conversación con Gabriel,
+  // set. 2026).
+  if (role === "vendedor" || role === "concesionario") return { error: "No tenés permisos para Socios" };
   const admin = createAdminClient();
   if (role === "encargado") {
     const { data: suc } = await admin.from("sucursales").select("encargado_user_id").eq("id", sucursalId).single();

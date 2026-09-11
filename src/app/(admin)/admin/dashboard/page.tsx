@@ -97,7 +97,7 @@ export default async function DashboardPage() {
 
   const role = user.app_metadata?.role as string | undefined;
 
-  if (role === "encargado") {
+  if (role === "encargado" || role === "concesionario") {
     const { data: sucursal } = await supabase
       .from("sucursales")
       .select("id")

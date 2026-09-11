@@ -428,7 +428,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
 
   // Staff solo puede ver su propia sucursal
   const role = user.app_metadata?.role as string | undefined;
-  if (role === "encargado" && sucursal.encargado_user_id !== user.id) {
+  if ((role === "encargado" || role === "concesionario") && sucursal.encargado_user_id !== user.id) {
     redirect("/admin/dashboard");
   }
   if (role === "vendedor" && !personal.some((p) => p.id === user.id)) {
@@ -445,9 +445,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   });
 
   // Costo/margen es informacion sensible del negocio -- se saca del payload
-  // para encargado/vendedor antes de que llegue a ningun componente cliente
-  // (nadie de esta pantalla necesita costo, solo Productos lo edita).
-  const products: any[] = role === "admin"
+  // para encargado/vendedor antes de que llegue a ningun componente cliente.
+  // "concesionario" (dueño económico de esta sucursal, mercadería a
+  // concesión, ver conversación con Gabriel set. 2026) SÍ lo ve -- es plata
+  // suya, no de otro kiosco -- pero solo llega acá si esta es su propia
+  // sucursal (requireSucursalAccess ya lo garantiza antes de este punto).
+  const products: any[] = (role === "admin" || role === "concesionario")
     ? productsConPrecio
     : productsConPrecio.map((p: any) => {
         const { costo, margen_dist, margen_gastro, margen_min, ...safe } = p;
@@ -478,7 +481,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     ? (personalMap[tenedorActualId] ?? (tenedorActualId === aperturaActual?.created_by ? abiertaPorNombre : null))
     : null;
   const esTenedorActual = !!tenedorActualId && tenedorActualId === user.id;
-  const puedeCerrarCaja = role === "admin" || role === "encargado" || esTenedorActual;
+  const puedeCerrarCaja = role === "admin" || role === "encargado" || role === "concesionario" || esTenedorActual;
 
   const movs       = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
@@ -522,7 +525,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     }
   }
   function enMiTurnoHoy(fecha: string, createdAt: string): boolean {
-    if (role === "admin") return true;
+    // concesionario es dueño económico de TODA esta sucursal, no un turno
+    // más -- ve el día completo, no solo lo que pasó en su propio turno
+    // (mismo criterio que admin, acotado a este único local).
+    if (role === "admin" || role === "concesionario") return true;
     if (fecha !== hoy) return true; // no se restringen días anteriores
     if (!miTurnoInicio) return false; // no abrí ningún turno hoy -> no veo nada de hoy todavía
     if (createdAt < miTurnoInicio) return false;
@@ -537,7 +543,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const NOTAS_MERMA_AUTOMATICA = "Merma de cocción automática (congelado → cocido) generada por la venta";
   const movsVisibles      = movs
     .filter((m) => enMiTurnoHoy(m.fecha, m.created_at))
-    .filter((m) => role === "admin" || !(m.tipo === "merma" && m.notas === NOTAS_MERMA_AUTOMATICA));
+    .filter((m) => role === "admin" || role === "concesionario" || !(m.tipo === "merma" && m.notas === NOTAS_MERMA_AUTOMATICA));
   const retirosVisibles   = todosRetiros.filter((r) => enMiTurnoHoy(r.fecha, r.created_at));
   const retirosHoyFilt    = retirosVisibles.filter((r) => r.fecha === hoy);
 
@@ -550,7 +556,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     return { ...c, retiros: retirosDelTurno };
   });
   // No-admin: solo ve los cierres de hoy, y dentro de hoy solo el propio (no el de un compañero)
-  const cierresVisibles = role === "admin"
+  const cierresVisibles = (role === "admin" || role === "concesionario")
     ? cierresConDetalle
     : cierresConDetalle.filter((c) => c.fecha === hoy && enMiTurnoHoy(c.fecha, c.created_at));
 
@@ -600,7 +606,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const ventasDelMesTodas = movs.filter(
     (m) => m.tipo === "venta" && !m.anulado_en && m.fecha >= mesInicio && m.fecha <= mesFin
   );
-  const ventasDelMes = role === "admin"
+  const ventasDelMes = (role === "admin" || role === "concesionario")
     ? ventasDelMesTodas
     : ventasDelMesTodas.filter((m) => m.created_by === user.id);
   const totalesPago = {
@@ -754,7 +760,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
               stockMap={stockActual}
               auditoriaHoy={auditoriaHoy}
             />
-            {(role === "admin" || role === "encargado" || role === "vendedor") && (
+            {(role === "admin" || role === "encargado" || role === "vendedor" || role === "concesionario") && (
               <TransferenciaEnviarButton
                 sucursalId={sucursal.id}
                 sucursales={todasSucursales}
@@ -807,6 +813,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       </div>
 
       {/* ── Caja del día (staff) ── */}
+      {/* concesionario NO entra acá -- ve las stats grandes de abajo, como
+          admin, porque es dueño de todo el local y no de un solo turno. */}
       {(role === "encargado" || role === "vendedor") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {/* Apertura */}
@@ -905,8 +913,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
         </div>
       )}
 
-      {/* Stats — precios de distribución, solo admin (revela estructura de costos) */}
-      {role === "admin" && (
+      {/* Stats — precios de distribución. Admin y concesionario (revela
+          estructura de costos, pero al concesionario le pertenece la de
+          este local). */}
+      {(role === "admin" || role === "concesionario") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Total entregado"
@@ -971,7 +981,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-neutral-900">
-            Análisis del mes{role !== "admin" && <span className="text-neutral-400 font-normal"> · tus ventas</span>}
+            Análisis del mes{(role !== "admin" && role !== "concesionario") && <span className="text-neutral-400 font-normal"> · tus ventas</span>}
           </h2>
           <div className="flex items-center gap-1.5">
             <Link
@@ -1066,7 +1076,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           </svg>
           Ver cuenta corriente
         </Link>
-        {(role === "admin" || (role === "encargado" && sucursal.encargado_user_id === user.id)) && (
+        {(role === "admin" || ((role === "encargado" || role === "concesionario") && sucursal.encargado_user_id === user.id)) && (
           <>
             <Link
               href={`/admin/sucursales/${sucursal.id}/pagos-proveedores`}

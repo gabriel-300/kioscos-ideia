@@ -75,7 +75,7 @@ function MontoInput({ label, icon, value, onChange, sugerido, hint, inputRef, re
 
 export function CierreCajaModal({ open, onClose, sucursalId, sucursalNombre, movimientos, cajaAbierta, ultimoCierre, aperturaActual, retiros = [], pagosProveedor = [], pagosCtc = [], retirosSocio = [], pagosSocio = [], role, abiertaPorNombre, tenedorActualNombre, puedeCerrarCaja = true, transferenciasSinConciliar = 0 }: Props) {
   const hoy = fechaHoyAR();
-  const puedeEditarMedios = role === "admin";
+  const puedeEditarMedios = role === "admin" || role === "concesionario";
 
   const [efectivo,       setEfectivo]       = useState("");
   const [mp,             setMp]             = useState("");
