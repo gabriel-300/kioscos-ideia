@@ -5,7 +5,6 @@ import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
 import { HistorialCierres, type CierreConDetalle } from "./_components/historial-cierres";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
-import { ConfigSucursalButton } from "./_components/config-sucursal-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
 import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
@@ -1102,14 +1101,6 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
             </svg>
             Precios
           </Link>
-        )}
-        {role === "admin" && (
-          <ConfigSucursalButton
-            sucursalId={sucursal.id}
-            categorias={(categories ?? []).map((c) => ({ id: c.id, name: c.name }))}
-            categoriasHabilitadas={categoriasHabilitadas}
-            canalesHabilitadas={(sucursal as any).canales_habilitados ?? null}
-          />
         )}
         {(role === "admin" || ((role === "encargado" || role === "concesionario") && sucursal.encargado_user_id === user.id)) && (
           <>

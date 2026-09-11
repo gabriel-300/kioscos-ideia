@@ -49,13 +49,18 @@ export default async function SucursalesPage() {
     );
   }
 
-  const [{ data: sucursales }, { data: { users } }] = await Promise.all([
+  const [{ data: sucursales }, { data: { users } }, { data: categories }] = await Promise.all([
     supabase.from("sucursales").select("*").order("nombre"),
     admin.auth.admin.listUsers({ perPage: 200 }),
+    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
 
+  // "concesionario" (dueño económico de una sola sucursal, ver memoria del
+  // proyecto) se asigna con el mismo mecanismo que encargado
+  // (sucursales.encargado_user_id) -- tiene que aparecer acá para poder
+  // asignarlo/reasignarlo desde esta pantalla, no solo desde Staff.
   const encargadoUsers = (users ?? [])
-    .filter((u) => u.app_metadata?.role === "encargado")
+    .filter((u) => u.app_metadata?.role === "encargado" || u.app_metadata?.role === "concesionario")
     .map((u) => ({
       id:     u.id,
       email:  u.email ?? "",
@@ -69,7 +74,7 @@ export default async function SucursalesPage() {
         <p className="text-sm text-neutral-400 mt-0.5">Kioscos y puntos de reventa atendidos por IDEIA</p>
       </div>
 
-      <SucursalesList sucursales={sucursales ?? []} encargadoUsers={encargadoUsers} />
+      <SucursalesList sucursales={sucursales ?? []} encargadoUsers={encargadoUsers} categorias={categories ?? []} />
     </div>
   );
 }

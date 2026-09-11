@@ -9,6 +9,7 @@ import type { Database } from "@/types/database";
 
 type Sucursal = Database["public"]["Tables"]["sucursales"]["Row"];
 type EncargadoUser = { id: string; email: string; nombre: string };
+type Categoria = { id: string; name: string };
 
 function ToggleActiva({ id, activa }: { id: string; activa: boolean }) {
   const [pending, startTransition] = useTransition();
@@ -24,7 +25,7 @@ function ToggleActiva({ id, activa }: { id: string; activa: boolean }) {
   );
 }
 
-export function SucursalesList({ sucursales, encargadoUsers }: { sucursales: Sucursal[]; encargadoUsers: EncargadoUser[] }) {
+export function SucursalesList({ sucursales, encargadoUsers, categorias = [] }: { sucursales: Sucursal[]; encargadoUsers: EncargadoUser[]; categorias?: Categoria[] }) {
   const [search, setSearch]         = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing]       = useState<Sucursal | null>(null);
@@ -129,6 +130,7 @@ export function SucursalesList({ sucursales, encargadoUsers }: { sucursales: Suc
         sucursal={editing}
         onClose={closeDrawer}
         encargadoUsers={encargadoUsers}
+        categorias={categorias}
       />
     </>
   );

@@ -6,12 +6,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearSucursal, actualizarSucursal, listarCajasMercadoPago, asignarExternalIdCaja } from "../actions";
+import { crearSucursal, actualizarSucursal, listarCajasMercadoPago, asignarExternalIdCaja, actualizarCategoriasHabilitadas, actualizarCanalesHabilitados } from "../actions";
 import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
 type Sucursal = Database["public"]["Tables"]["sucursales"]["Row"];
 type EncargadoUser = { id: string; email: string; nombre: string };
+type Categoria = { id: string; name: string };
+
+const TODOS_LOS_CANALES = [
+  { id: "consumidor_final",     label: "Consumidor Final" },
+  { id: "pedido_ya_efectivo",   label: "Pedido Ya Efectivo" },
+  { id: "pedido_ya_plataforma", label: "Pedido Ya Plataforma" },
+  { id: "cuenta_corriente",     label: "Cta. Corriente" },
+  { id: "ambulante",            label: "Ambulante" },
+  { id: "ronda_comunidad",      label: "Ronda comunidad" },
+];
 
 const schema = z.object({
   nombre:              z.string().min(2, "Mínimo 2 caracteres"),
@@ -35,11 +45,37 @@ interface Props {
   sucursal:        Sucursal | null;
   onClose:         () => void;
   encargadoUsers:  EncargadoUser[];
+  categorias?:     Categoria[];
 }
 
-export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Props) {
+export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, categorias = [] }: Props) {
   const [pending, startTransition] = useTransition();
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Categorías/canales habilitados (migración 088) -- solo tiene sentido
+  // para una sucursal que ya existe (necesita su id), así que se maneja
+  // aparte del form principal, no como campo de react-hook-form. Todo
+  // tildado = sin restricción (se guarda null, no la lista completa, para
+  // que una categoría nueva no quede bloqueada por default).
+  const [catsHabilitadas, setCatsHabilitadas] = useState<string[]>([]);
+  const [canalesHab,      setCanalesHab]      = useState<string[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      const catsGuardadas = (sucursal as any)?.categorias_habilitadas as string[] | null | undefined;
+      setCatsHabilitadas(catsGuardadas && catsGuardadas.length > 0 ? catsGuardadas : categorias.map((c) => c.id));
+      const canalesGuardados = (sucursal as any)?.canales_habilitados as string[] | null | undefined;
+      setCanalesHab(canalesGuardados && canalesGuardados.length > 0 ? canalesGuardados : TODOS_LOS_CANALES.map((c) => c.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sucursal]);
+
+  function toggleCat(id: string) {
+    setCatsHabilitadas((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleCanal(id: string) {
+    setCanalesHab((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   // Buscador de Cajas de Mercado Pago -- evita que alguien tenga que andar
   // buscando el external_pos_id a mano en el panel de Mercado Pago. Las que
@@ -133,6 +169,15 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
       try {
         if (sucursal) {
           await actualizarSucursal(sucursal.id, payload);
+          // Todo tildado equivale a "sin restricción" -- se guarda vacío
+          // ([] -> null en el server), no la lista completa.
+          const catsAGuardar    = catsHabilitadas.length === categorias.length ? [] : catsHabilitadas;
+          const canalesAGuardar = canalesHab.length === TODOS_LOS_CANALES.length ? [] : canalesHab;
+          const [r1, r2] = await Promise.all([
+            actualizarCategoriasHabilitadas(sucursal.id, catsAGuardar),
+            actualizarCanalesHabilitados(sucursal.id, canalesAGuardar),
+          ]);
+          if (r1.error || r2.error) { alert(r1.error ?? r2.error); return; }
         } else {
           await crearSucursal(payload);
         }
@@ -283,6 +328,49 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers }: Prop
               </span>
             </span>
           </label>
+
+          {sucursal && categorias.length > 0 && (
+            <>
+              <div className="pt-2 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Catálogo y canales</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Qué categorías y qué canales de venta usa esta sucursal. Todo tildado = sin restricción, como hoy.
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-600 mb-1.5">Categorías habilitadas</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {categorias.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 cursor-pointer select-none text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+                        checked={catsHabilitadas.includes(c.id)}
+                        onChange={() => toggleCat(c.id)}
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-neutral-600 mb-1.5">Canales de venta habilitados</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {TODOS_LOS_CANALES.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 cursor-pointer select-none text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+                        checked={canalesHab.includes(c.id)}
+                        onChange={() => toggleCanal(c.id)}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="pt-2 pb-1">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Integraciones</p>
