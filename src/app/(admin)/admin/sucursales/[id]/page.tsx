@@ -271,7 +271,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // porque también filtra las promos, no solo los productos sueltos.
   const categoriasHabilitadas: string[] | null = (sucursal as any).categorias_habilitadas ?? null;
   const promosTodas = (promosResult.data ?? []).map((p) => ({ ...p, price: preciosPromoSucursal.get(p.id) ?? p.price ?? 0 }));
-  const promos = categoriasHabilitadas && categoriasHabilitadas.length > 0
+  // Apagado total de promos (migración 089) -- independiente de categoría,
+  // para el caso "esta sucursal no usa promociones, ninguna, nunca".
+  const promosHabilitadas: boolean = (sucursal as any).promos_habilitadas ?? true;
+  const promos = !promosHabilitadas
+    ? []
+    : categoriasHabilitadas && categoriasHabilitadas.length > 0
     ? promosTodas.filter((p: any) => p.category_id && categoriasHabilitadas.includes(p.category_id))
     : promosTodas;
   const termosDisponibles = termosResult.data ?? [];

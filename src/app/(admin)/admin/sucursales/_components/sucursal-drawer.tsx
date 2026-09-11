@@ -34,6 +34,7 @@ const schema = z.object({
   provincia:           z.string().min(2, "Requerido"),
   notas:               z.string().optional(),
   auditoria_obligatoria: z.boolean().optional(),
+  promos_habilitadas:  z.boolean().optional(),
   pedidoya_store_id:   z.string().optional(),
   mercadopago_pos_id:  z.string().optional(),
 });
@@ -118,6 +119,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
       provincia:          "Misiones",
       notas:              "",
       auditoria_obligatoria: false,
+      promos_habilitadas: true,
       pedidoya_store_id:  "",
       mercadopago_pos_id: "",
     },
@@ -136,6 +138,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
         provincia:          sucursal.provincia,
         notas:              sucursal.notas             ?? "",
         auditoria_obligatoria: sucursal.auditoria_obligatoria ?? false,
+        promos_habilitadas: (sucursal as any).promos_habilitadas ?? true,
         pedidoya_store_id:  sucursal.pedidoya_store_id  ?? "",
         mercadopago_pos_id: (sucursal as any).mercadopago_pos_id ?? "",
       } : {
@@ -143,6 +146,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
         encargado_email: "", encargado_user_id: "", direccion: "",
         localidad: "Posadas", provincia: "Misiones", notas: "",
         auditoria_obligatoria: false,
+        promos_habilitadas: true,
         pedidoya_store_id: "",
         mercadopago_pos_id: "",
       });
@@ -161,6 +165,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
       provincia:          values.provincia,
       notas:              values.notas              || null,
       auditoria_obligatoria: values.auditoria_obligatoria ?? false,
+      promos_habilitadas: values.promos_habilitadas ?? true,
       pedidoya_store_id:  values.pedidoya_store_id  || null,
       mercadopago_pos_id: values.mercadopago_pos_id || null,
     };
@@ -369,6 +374,19 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
                   ))}
                 </div>
               </div>
+              <label className="flex items-start gap-2.5 rounded-lg border border-neutral-200 p-3 cursor-pointer hover:bg-neutral-50 transition-colors">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+                  {...register("promos_habilitadas")}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-neutral-800">Mostrar promociones</span>
+                  <span className="block text-xs text-neutral-400 mt-0.5">
+                    Desmarcá para que esta sucursal no vea ninguna promoción, sin importar la categoría -- ni las que ya existen ni las que se creen después.
+                  </span>
+                </span>
+              </label>
             </>
           )}
 
