@@ -5,6 +5,7 @@ import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
 import { HistorialCierres, type CierreConDetalle } from "./_components/historial-cierres";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
+import { ConfigSucursalButton } from "./_components/config-sucursal-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
 import { AperturaCajaButton } from "./_components/apertura-caja-button";
 import { RetiroEfectivoButton } from "./_components/retiro-efectivo-button";
@@ -439,10 +440,23 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // antes de cualquier otra cosa, con default 0 si por algún motivo faltara
   // la fila en product_prices (no debería pasar con el backfill obligatorio,
   // pero así se ve como "sin precio" en vez de romper la página).
-  const productsConPrecio = (productsRaw ?? []).map((p: any) => {
+  const productsConPrecioTodas = (productsRaw ?? []).map((p: any) => {
     const precio = preciosSucursal.get(p.id);
     return { ...p, precio_dist: precio?.precio_dist ?? 0, costo: precio?.costo ?? 0 };
   });
+
+  // Categorías habilitadas para esta sucursal (migración 088) -- null/[]
+  // significa "todas" (comportamiento de siempre). Caso real: una sucursal a
+  // concesión que solo vende una línea del catálogo (ej. "Minutas"), no todo
+  // lo que venden los demás kioscos -- afecta Venta Rápida, entregas,
+  // auditoría y transferencias, que comparten esta misma lista de productos.
+  const categoriasHabilitadas: string[] | null = (sucursal as any).categorias_habilitadas ?? null;
+  const productsConPrecio = categoriasHabilitadas && categoriasHabilitadas.length > 0
+    ? productsConPrecioTodas.filter((p: any) => p.category_id && categoriasHabilitadas.includes(p.category_id))
+    : productsConPrecioTodas;
+  const categoriasVisibles = categoriasHabilitadas && categoriasHabilitadas.length > 0
+    ? (categories ?? []).filter((c) => categoriasHabilitadas.includes(c.id))
+    : (categories ?? []);
 
   // Costo/margen es informacion sensible del negocio -- se saca del payload
   // para encargado/vendedor antes de que llegue a ningun componente cliente.
@@ -686,10 +700,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   products={(products ?? []) as Parameters<typeof NuevaEntregaButton>[0]["products"]}
                   defaultTipo="venta"
                   stockMap={stockActual}
-                  categories={categories ?? []}
+                  categories={categoriasVisibles}
                   personal={personal}
                   contactos={contactos}
                   contactosCtaCorriente={contactosCtaCorriente}
+                  canalesHabilitados={(sucursal as any).canales_habilitados ?? null}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
@@ -716,10 +731,11 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   defaultTipo="venta"
                   variant="ghost"
                   stockMap={stockActual}
-                  categories={categories ?? []}
+                  categories={categoriasVisibles}
                   personal={personal}
                   contactos={contactos}
                   contactosCtaCorriente={contactosCtaCorriente}
+                  canalesHabilitados={(sucursal as any).canales_habilitados ?? null}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
@@ -1076,6 +1092,25 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           </svg>
           Ver cuenta corriente
         </Link>
+        {(role === "admin" || (role === "concesionario" && sucursal.encargado_user_id === user.id)) && (
+          <Link
+            href={`/admin/sucursales/${sucursal.id}/precios`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-neutral-200 bg-white hover:border-tierra-300 hover:bg-tierra-50 transition-colors text-sm font-medium text-neutral-700 hover:text-tierra-700"
+          >
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Precios
+          </Link>
+        )}
+        {role === "admin" && (
+          <ConfigSucursalButton
+            sucursalId={sucursal.id}
+            categorias={(categories ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            categoriasHabilitadas={categoriasHabilitadas}
+            canalesHabilitadas={(sucursal as any).canales_habilitados ?? null}
+          />
+        )}
         {(role === "admin" || ((role === "encargado" || role === "concesionario") && sucursal.encargado_user_id === user.id)) && (
           <>
             <Link

@@ -35,6 +35,38 @@ export async function actualizarSucursal(id: string, data: Update) {
   revalidatePath("/admin/staff");
 }
 
+// Categorías que esa sucursal puede vender/recibir (migración 088) -- null o
+// [] significa "todas" (comportamiento de siempre). Caso real: una sucursal
+// a concesión que solo vende una línea del catálogo (ej. "Minutas"), no todo
+// lo que venden los demás kioscos.
+export async function actualizarCategoriasHabilitadas(sucursalId: string, categoriaIds: string[]): Promise<{ error?: string }> {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({ categorias_habilitadas: categoriaIds.length > 0 ? categoriaIds : null })
+    .eq("id", sucursalId);
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/sucursales/${sucursalId}`);
+  return {};
+}
+
+// Canales de venta que esa sucursal puede usar en Venta Rápida (migración
+// 088) -- null o [] significa "todos" (comportamiento de siempre). Mismo
+// caso de uso que categorías: una sucursal a concesión que solo cobra
+// Consumidor Final, sin Pedido Ya/Cta. Corriente/Ronda comunidad.
+export async function actualizarCanalesHabilitados(sucursalId: string, canales: string[]): Promise<{ error?: string }> {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({ canales_habilitados: canales.length > 0 ? canales : null })
+    .eq("id", sucursalId);
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/sucursales/${sucursalId}`);
+  return {};
+}
+
 export async function toggleSucursalActiva(id: string, activa: boolean) {
   await requireAdmin();
   const supabase = createAdminClient();

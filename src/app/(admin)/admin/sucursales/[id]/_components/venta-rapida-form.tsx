@@ -114,6 +114,7 @@ interface Props {
   personal?:       Personal[];
   contactos?:      Contacto[];
   contactosCtaCorriente?: Contacto[];
+  canalesHabilitados?: string[] | null;
   cajaAbierta?:    boolean;
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
@@ -121,7 +122,12 @@ interface Props {
   mercadopagoPosId?:  string | null;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], canalesHabilitados = null, cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+  // Canales que esta sucursal puede usar (migración 088) -- null/[] = todos.
+  // Caso real: una sucursal a concesión que solo cobra Consumidor Final.
+  const canalesDisponibles = canalesHabilitados && canalesHabilitados.length > 0
+    ? CANALES.filter((c) => canalesHabilitados.includes(c.id))
+    : CANALES;
   const router = useRouter();
   const [cantidades,    setCantidades]    = useState<Record<string, number>>({});
   const [gramosTexto,   setGramosTexto]   = useState<Record<string, string>>({});
@@ -1147,7 +1153,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
 
             {/* Canal de venta */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 10 }}>
-              {CANALES.map((c) => (
+              {canalesDisponibles.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => {
