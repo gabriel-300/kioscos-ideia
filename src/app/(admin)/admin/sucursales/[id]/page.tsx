@@ -649,6 +649,27 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   }
   const rankingProductos = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 5);
 
+  // "Más vendidos" (acceso rápido en Venta Rápida) -- top 12 productos por
+  // cantidad vendida este mes en esta sucursal, sin importar quién vendió
+  // (es un catálogo compartido de accesos directos, no una estadística
+  // personal como ventasDelMes de más arriba). Se cruza contra `products`
+  // (ya filtrado por categorías habilitadas, ver categoriasHabilitadas más
+  // arriba) para que un producto que dejó de estar habilitado no aparezca.
+  const cantidadPorProductoMes: Record<string, number> = {};
+  for (const v of ventasDelMesTodas) {
+    for (const item of v.movimiento_items as any[]) {
+      const pid = item.product?.id;
+      if (!pid) continue;
+      cantidadPorProductoMes[pid] = (cantidadPorProductoMes[pid] ?? 0) + Number(item.cantidad);
+    }
+  }
+  const idsProductosHabilitados = new Set(products.map((p: any) => p.id));
+  const masVendidosIds = Object.entries(cantidadPorProductoMes)
+    .filter(([pid]) => idsProductosHabilitados.has(pid))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([pid]) => pid);
+
   return (
     <div className="p-4 md:p-8 max-w-4xl">
       {/* Header */}
@@ -711,6 +732,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   contactos={contactos}
                   contactosCtaCorriente={contactosCtaCorriente}
                   canalesHabilitados={(sucursal as any).canales_habilitados ?? null}
+                  masVendidosIds={masVendidosIds}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}
@@ -742,6 +764,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                   contactos={contactos}
                   contactosCtaCorriente={contactosCtaCorriente}
                   canalesHabilitados={(sucursal as any).canales_habilitados ?? null}
+                  masVendidosIds={masVendidosIds}
                   cajaAbierta={cajaAbierta}
                   promos={promos}
                   termosDisponibles={termosDisponibles}

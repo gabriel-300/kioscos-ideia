@@ -115,6 +115,7 @@ interface Props {
   contactos?:      Contacto[];
   contactosCtaCorriente?: Contacto[];
   canalesHabilitados?: string[] | null;
+  masVendidosIds?: string[];
   cajaAbierta?:    boolean;
   promos?:         Promo[];
   termosDisponibles?: TermoDisponible[];
@@ -122,7 +123,7 @@ interface Props {
   mercadopagoPosId?:  string | null;
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], canalesHabilitados = null, cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], canalesHabilitados = null, masVendidosIds = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
   // Canales que esta sucursal puede usar (migración 088) -- null/[] = todos.
   // Caso real: una sucursal a concesión que solo cobra Consumidor Final.
   const canalesDisponibles = canalesHabilitados && canalesHabilitados.length > 0
@@ -197,14 +198,25 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     return categories.filter((c) => ids.has(c.id));
   }, [categories, sellableProducts, promos]);
 
+  // "Más vendidos" -- top productos por cantidad vendida este mes en ESTA
+  // sucursal (calculado server-side, no una lista curada a mano). Se
+  // preserva el orden de venta (más vendido primero), no alfabético.
+  const masVendidosProducts = useMemo(() => {
+    if (masVendidosIds.length === 0) return [];
+    const porId = new Map(sellableProducts.map((p) => [p.id, p]));
+    return masVendidosIds.map((id) => porId.get(id)).filter((p): p is Product => !!p);
+  }, [sellableProducts, masVendidosIds]);
+
   const filtered = useMemo(() => {
-    let list = catFilter === "all" || catFilter === "promos" ? sellableProducts : sellableProducts.filter((p) => p.category_id === catFilter);
+    let list = catFilter === "mas_vendidos" ? masVendidosProducts
+      : catFilter === "all" || catFilter === "promos" ? sellableProducts
+      : sellableProducts.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
     return list;
-  }, [sellableProducts, catFilter, search]);
+  }, [sellableProducts, masVendidosProducts, catFilter, search]);
 
   const promoMap = useMemo(() => new Map(promos.map((p) => [p.id, p])), [promos]);
 
@@ -215,7 +227,10 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   // vendedor, sin andar cambiando de pestaña primero) no encontraba las
   // recetas categorizadas aunque existieran.
   const filteredPromos = useMemo(() => {
-    let list = catFilter === "promos" ? promosSinCategoria
+    // Sin promos en "Más vendidos" -- ver comentario en masVendidosIds más
+    // arriba, se calcula solo con ventas de productos sueltos.
+    let list = catFilter === "mas_vendidos" ? []
+      : catFilter === "promos" ? promosSinCategoria
       : catFilter === "all" ? promos
       : promos.filter((p) => p.category_id === catFilter);
     if (search.trim()) {
@@ -962,6 +977,22 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </svg>
               Todos
             </button>
+            {masVendidosProducts.length > 0 && (
+              <button
+                onClick={() => setCatFilter("mas_vendidos")}
+                className="flex items-center gap-2 px-5 h-[60px] text-[13px] font-semibold shrink-0 transition-all border-b-[3px]"
+                style={{
+                  color: catFilter === "mas_vendidos" ? "#B45309" : "#64748B",
+                  borderBottomColor: catFilter === "mas_vendidos" ? "#B45309" : "transparent",
+                  background: catFilter === "mas_vendidos" ? "#FFFBEB" : "transparent",
+                }}
+              >
+                <svg width={18} height={18} viewBox="0 0 24 24" fill={catFilter === "mas_vendidos" ? "#B45309" : "none"} stroke={catFilter === "mas_vendidos" ? "#B45309" : "#94A3B8"} strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                </svg>
+                Más vendidos
+              </button>
+            )}
             {promosSinCategoria.length > 0 && (
               <button
                 onClick={() => setCatFilter("promos")}
@@ -1005,7 +1036,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
           <div className="flex-1 overflow-y-auto" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 14, padding: 18, alignContent: "start" } as CSSProperties}>
             {tiles.length === 0 ? (
               <div className="col-span-full text-center py-16 text-sm" style={{ color: "#94A3B8" }}>
-                {search ? `Sin resultados para "${search}"` : catFilter === "promos" ? "Sin promociones activas" : "Sin productos"}
+                {search ? `Sin resultados para "${search}"` : catFilter === "promos" ? "Sin promociones activas" : catFilter === "mas_vendidos" ? "Todavía sin ventas este mes" : "Sin productos"}
               </div>
             ) : tiles.map((tile) => {
               const qty      = cantidades[tile.id] ?? 0;
