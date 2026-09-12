@@ -649,7 +649,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   }
   const rankingProductos = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 5);
 
-  // "Más vendidos" (acceso rápido en Venta Rápida) -- top 12 productos por
+  // "Más vendidos" (acceso rápido en Venta Rápida) -- top 20 productos por
   // cantidad vendida este mes en esta sucursal, sin importar quién vendió
   // (es un catálogo compartido de accesos directos, no una estadística
   // personal como ventasDelMes de más arriba). Se cruza contra `products`
@@ -667,7 +667,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const masVendidosIds = Object.entries(cantidadPorProductoMes)
     .filter(([pid]) => idsProductosHabilitados.has(pid))
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 12)
+    .slice(0, 20)
     .map(([pid]) => pid);
 
   return (
