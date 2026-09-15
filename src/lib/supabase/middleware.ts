@@ -88,7 +88,10 @@ export async function updateSession(request: NextRequest) {
     // dashboard en vez del archivo pedido, y como el fetch sigue el redirect
     // con status 200, el cliente ni se entera y descarga el HTML con
     // extensión .xlsx.
-    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/api")) {
+    // /pedir tampoco: es el storefront público (catálogo por sucursal) -- un
+    // admin/encargado/vendedor tiene que poder mirarlo igual que un cliente
+    // cualquiera, sin que lo manden de vuelta al dashboard.
+    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
       const jwtRole = user.app_metadata?.role as string | undefined;
       if (jwtRole && STAFF_ROLES.includes(jwtRole)) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
