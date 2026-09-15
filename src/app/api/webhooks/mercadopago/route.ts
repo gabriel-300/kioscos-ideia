@@ -103,8 +103,21 @@ export async function POST(request: NextRequest) {
             })
             .eq("external_reference", payment.external_reference)
             .eq("estado", "pendiente")
-            .select("id");
+            .select("id, pedido_id");
           matcheoOrdenQr = !!actualizados && actualizados.length > 0;
+
+          // Fase 2 del storefront: esta es la ÚNICA vez que se puede disparar
+          // la venta de un pedido público -- el UPDATE de arriba solo matchea
+          // (row-locking de Postgres) la primera vez que esta orden pasa de
+          // 'pendiente' a 'pagado', nunca en un reenvío de la misma
+          // notificación. pedido_id es siempre null en el tráfico real de
+          // hoy (staff cobrando desde el mostrador), así que esto no cambia
+          // nada de lo que ya funciona.
+          if (matcheoOrdenQr && actualizados[0].pedido_id) {
+            const { crearVentaPublica } = await import("@/lib/pedidos/crear-venta-publica");
+            const res = await crearVentaPublica(admin, actualizados[0].pedido_id);
+            if (res.error) console.error("[mercadopago webhook] crearVentaPublica falló:", res.error);
+          }
 
           // Mercado Pago puede reenviar la notificación del MISMO pago más
           // de una vez -- la segunda vez ya no hay ninguna fila 'pendiente'
@@ -165,7 +178,7 @@ export async function POST(request: NextRequest) {
       const paymentId = order.transactions?.payments?.[0]?.id ?? String(dataId);
 
       if (pagoAprobado && order.external_reference) {
-        await (admin as any)
+        const { data: actualizados } = await (admin as any)
           .from("mercadopago_qr_orders")
           .update({
             estado:               "pagado",
@@ -174,7 +187,15 @@ export async function POST(request: NextRequest) {
             raw_webhook_payload:  order,
           })
           .eq("external_reference", order.external_reference)
-          .eq("estado", "pendiente");
+          .eq("estado", "pendiente")
+          .select("id, pedido_id");
+
+        // Mismo criterio que la rama "payment" de arriba -- ver comentario ahí.
+        if (actualizados && actualizados.length > 0 && actualizados[0].pedido_id) {
+          const { crearVentaPublica } = await import("@/lib/pedidos/crear-venta-publica");
+          const res = await crearVentaPublica(admin, actualizados[0].pedido_id);
+          if (res.error) console.error("[mercadopago webhook] crearVentaPublica falló (order/qr):", res.error);
+        }
       }
     }
   } catch (e) {

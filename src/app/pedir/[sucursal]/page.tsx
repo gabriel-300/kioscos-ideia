@@ -1,27 +1,28 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
+import { CatalogoConCarrito, type CategoriaConItems, type ItemCatalogo } from "./_components/catalogo-con-carrito";
 
-// Fase 1 del storefront público (ver plan "linked-brewing-moon"): solo
-// catálogo de lectura, SIN carrito ni ninguna acción de escritura -- eso es
-// la Fase 2, a propósito no se construye todavía. Nadie necesita sesión para
-// entrar acá (ver la exclusión agregada en src/lib/supabase/middleware.ts
-// para que tampoco redirija a un admin/vendedor logueado que la mire).
+// Fase 1 (catálogo) + Fase 2 (carrito/checkout) del storefront público (ver
+// plan "linked-brewing-moon"). Nadie necesita sesión para entrar acá (ver la
+// exclusión agregada en src/lib/supabase/middleware.ts para que tampoco
+// redirija a un admin/vendedor logueado que la mire).
 //
 // Usa createAdminClient() (service role) igual que el resto del admin, no el
 // cliente de sesión -- acá no hay ninguna sesión de la que depender. Nunca
 // se lee/muestra costo ni margen (mismas columnas que ya se ocultan a
 // encargado/vendedor en sucursales/[id]/page.tsx).
+//
+// La carga de datos y el filtrado (categorias_habilitadas/promos_habilitadas/
+// vendible_pos) siguen siendo 100% server-side -- el Client Component solo
+// recibe el catálogo ya resuelto, no vuelve a consultar Supabase.
 
 export const revalidate = 0;
-
-const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 type Categoria = { id: string; name: string };
 type Producto = {
   id: string;
   name: string;
-  description: string | null;
   cover_image_url: string | null;
   category_id: string | null;
   unit_label: string | null;
@@ -66,7 +67,7 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
     admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (admin as any)
       .from("products")
-      .select("id, name, description, cover_image_url, category_id, unit_label, vendible_pos")
+      .select("id, name, cover_image_url, category_id, unit_label, vendible_pos")
       .eq("is_active", true)
       .neq("sku", "MULTA-TERMO")
       .order("name"),
@@ -89,7 +90,6 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
     .map((p: any) => ({
       id: p.id,
       name: p.name,
-      description: p.description,
       cover_image_url: p.cover_image_url,
       category_id: p.category_id,
       unit_label: p.unit_label,
@@ -105,11 +105,33 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
   }
   const promosSinCategoria = promos.filter((p) => !p.category_id);
 
-  const categoriasConItems = categorias.filter(
-    (c) => productos.some((p) => p.category_id === c.id) || promos.some((p) => p.category_id === c.id)
-  );
+  function itemDeProducto(p: Producto): ItemCatalogo {
+    return {
+      id: p.id, esPromo: false, name: p.name, price: p.precio_dist, image: p.cover_image_url,
+      unit: p.unit_label === "kg" ? "por kg" : undefined, category_id: p.category_id,
+    };
+  }
+  function itemDePromo(p: Promo): ItemCatalogo {
+    return {
+      id: p.id, esPromo: true, name: p.name, price: p.price ?? 0, image: p.cover_image_url,
+      badge: p.tipo === "receta" ? "Receta" : "Promo", category_id: p.category_id,
+    };
+  }
 
-  const sinNada = categoriasConItems.length === 0 && promosSinCategoria.length === 0;
+  const categoriasConItems: CategoriaConItems[] = categorias
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      items: [
+        ...promos.filter((p) => p.category_id === c.id).map(itemDePromo),
+        ...productos.filter((p) => p.category_id === c.id).map(itemDeProducto),
+      ],
+    }))
+    .filter((c) => c.items.length > 0);
+
+  const itemsSinCategoria: ItemCatalogo[] = promosSinCategoria.map(itemDePromo);
+
+  const sinNada = categoriasConItems.length === 0 && itemsSinCategoria.length === 0;
 
   return (
     <div className="min-h-screen bg-crema-50">
@@ -122,10 +144,10 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
         )}
       </header>
 
-      {!sinNada && (categoriasConItems.length > 0) && (
+      {!sinNada && (
         <nav className="sticky top-0 z-10 bg-white border-b border-neutral-200 overflow-x-auto">
           <div className="flex gap-2 px-4 py-2.5 md:px-8">
-            {promosSinCategoria.length > 0 && (
+            {itemsSinCategoria.length > 0 && (
               <a href="#promos" className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full bg-tierra-50 text-tierra-700 border border-tierra-100">
                 Promos
               </a>
@@ -149,65 +171,13 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
             Todavía no hay productos cargados para pedir acá.
           </p>
         ) : (
-          <div className="space-y-8">
-            {promosSinCategoria.length > 0 && (
-              <section id="promos">
-                <h2 className="text-lg font-display font-semibold text-neutral-900 mb-3">Promos</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {promosSinCategoria.map((p) => <ItemCard key={`promo-${p.id}`} name={p.name} price={p.price ?? 0} image={p.cover_image_url} badge={p.tipo === "receta" ? "Receta" : "Promo"} />)}
-                </div>
-              </section>
-            )}
-            {categoriasConItems.map((c) => {
-              const productosCat = productos.filter((p) => p.category_id === c.id);
-              const promosCat = promos.filter((p) => p.category_id === c.id);
-              return (
-                <section key={c.id} id={`cat-${c.id}`}>
-                  <h2 className="text-lg font-display font-semibold text-neutral-900 mb-3">{c.name}</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {promosCat.map((p) => <ItemCard key={`promo-${p.id}`} name={p.name} price={p.price ?? 0} image={p.cover_image_url} badge={p.tipo === "receta" ? "Receta" : "Promo"} />)}
-                    {productosCat.map((p) => (
-                      <ItemCard key={p.id} name={p.name} price={p.precio_dist} image={p.cover_image_url} unit={p.unit_label === "kg" ? "por kg" : undefined} />
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+          <CatalogoConCarrito sucursalId={sucursalId} categorias={categoriasConItems} itemsSinCategoria={itemsSinCategoria} />
         )}
       </main>
 
       <footer className="text-center text-xs text-neutral-400 py-8">
-        Kioscos IDEIA — este catálogo es solo para mirar por ahora, todavía no se puede pedir desde acá.
+        Kioscos IDEIA — retirás tu pedido en el local, pagás con QR de Mercado Pago.
       </footer>
-    </div>
-  );
-}
-
-function ItemCard({ name, price, image, badge, unit }: { name: string; price: number; image: string | null; badge?: string; unit?: string }) {
-  return (
-    <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-      <div className="aspect-square bg-neutral-100 relative flex items-center justify-center">
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt={name} loading="lazy" className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-2xl font-display font-semibold text-neutral-300">
-            {name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-          </span>
-        )}
-        {badge && (
-          <span className="absolute top-1.5 left-1.5 text-[10px] font-bold uppercase tracking-wide bg-tierra-700 text-white px-2 py-0.5 rounded-full">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="p-2.5">
-        <p className="text-sm font-medium text-neutral-900 leading-tight line-clamp-2">{name}</p>
-        <p className="text-sm font-bold text-tierra-700 mt-1">
-          {price > 0 ? AR.format(price) : "Consultar"}{unit && <span className="text-xs font-normal text-neutral-400"> {unit}</span>}
-        </p>
-      </div>
     </div>
   );
 }
