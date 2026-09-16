@@ -33,6 +33,8 @@ export function CatalogoConCarrito({
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [notas, setNotas] = useState("");
+  const [tipoEntrega, setTipoEntrega] = useState<"retiro_local" | "delivery">("retiro_local");
+  const [direccion, setDireccion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pedido, setPedido] = useState<{ pedido_id: string; total: number } | null>(null);
@@ -73,6 +75,10 @@ export function CatalogoConCarrito({
       setError("Completá tu nombre y teléfono");
       return;
     }
+    if (tipoEntrega === "delivery" && !direccion.trim()) {
+      setError("Completá la dirección de entrega");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const res = await iniciarPedido({
@@ -80,6 +86,8 @@ export function CatalogoConCarrito({
         cliente_nombre: nombre,
         cliente_telefono: telefono,
         notas: notas || null,
+        tipo_entrega: tipoEntrega,
+        direccion_entrega: tipoEntrega === "delivery" ? direccion : null,
         items: carrito.map(([id, cantidad]) => {
           const item = itemsMap.get(id)!;
           return item.esPromo ? { promo_id: id, cantidad } : { product_id: id, cantidad };
@@ -222,6 +230,22 @@ export function CatalogoConCarrito({
                     <button type="button" onClick={() => setUpsell(null)} className="shrink-0 text-neutral-400 text-sm px-1">✕</button>
                   </div>
                 )}
+                <div className="flex rounded-lg border border-neutral-300 overflow-hidden mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoEntrega("retiro_local")}
+                    className={`flex-1 h-10 text-sm font-semibold ${tipoEntrega === "retiro_local" ? "bg-tierra-700 text-white" : "bg-white text-neutral-600"}`}
+                  >
+                    Retiro en local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoEntrega("delivery")}
+                    className={`flex-1 h-10 text-sm font-semibold ${tipoEntrega === "delivery" ? "bg-tierra-700 text-white" : "bg-white text-neutral-600"}`}
+                  >
+                    Delivery
+                  </button>
+                </div>
                 <input
                   type="text" placeholder="Tu nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
                   className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm mb-2"
@@ -230,12 +254,20 @@ export function CatalogoConCarrito({
                   type="tel" placeholder="Tu teléfono" value={telefono} onChange={(e) => setTelefono(e.target.value)}
                   className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm mb-2"
                 />
+                {tipoEntrega === "delivery" && (
+                  <textarea
+                    placeholder="Dirección de entrega" value={direccion} onChange={(e) => setDireccion(e.target.value)} rows={2}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm mb-2"
+                  />
+                )}
                 <textarea
                   placeholder="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} rows={2}
                   className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm mb-3"
                 />
                 {error && <p className="text-xs text-danger mb-3">{error}</p>}
-                <p className="text-xs text-neutral-400 mb-3">Retirás el pedido en el local. Pagás con QR de Mercado Pago al confirmar.</p>
+                <p className="text-xs text-neutral-400 mb-3">
+                  {tipoEntrega === "delivery" ? "Te lo llevamos a la dirección que dejaste." : "Retirás el pedido en el local."} Pagás con QR de Mercado Pago al confirmar.
+                </p>
                 <button
                   type="button"
                   onClick={confirmarPedido}
@@ -257,7 +289,7 @@ export function CatalogoConCarrito({
                 )}
                 <button
                   type="button"
-                  onClick={() => { setCheckoutOpen(false); setPedido(null); setCantidades({}); setEstadoPedido(null); setUpsell(null); }}
+                  onClick={() => { setCheckoutOpen(false); setPedido(null); setCantidades({}); setEstadoPedido(null); setUpsell(null); setTipoEntrega("retiro_local"); setDireccion(""); }}
                   className="mt-4 text-sm text-neutral-500 underline"
                 >
                   Cerrar

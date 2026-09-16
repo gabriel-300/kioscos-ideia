@@ -13,12 +13,17 @@ export async function iniciarPedido(data: {
   cliente_nombre:   string;
   cliente_telefono: string;
   notas:            string | null;
+  tipo_entrega:      "retiro_local" | "delivery";
+  direccion_entrega: string | null;
   items:            ItemCarritoInput[]; // nunca lleva precio -- el público no lo manda
 }): Promise<{ pedido_id?: string; external_reference?: string; total?: number; error?: string }> {
   const admin = createAdminClient();
 
   if (!data.cliente_nombre?.trim() || !data.cliente_telefono?.trim()) {
     return { error: "Faltan tus datos de contacto" };
+  }
+  if (data.tipo_entrega === "delivery" && !data.direccion_entrega?.trim()) {
+    return { error: "Falta la dirección de entrega" };
   }
 
   const identificador = await identificadorCliente(data.cliente_telefono);
@@ -50,7 +55,8 @@ export async function iniciarPedido(data: {
       sucursal_id:      data.sucursal_id,
       origen:           "storefront",
       estado:           "pendiente_pago",
-      tipo_entrega:     "retiro_local",
+      tipo_entrega:      data.tipo_entrega,
+      direccion_entrega: data.tipo_entrega === "delivery" ? data.direccion_entrega!.trim() : null,
       cliente_nombre:   data.cliente_nombre.trim(),
       cliente_telefono: data.cliente_telefono.trim(),
       notas:            data.notas?.trim() || null,

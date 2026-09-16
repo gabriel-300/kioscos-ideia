@@ -33,6 +33,8 @@ export default async function AuthRedirectPage() {
     if (lista.length === 0) redirect("/admin/dashboard");
     else if (lista.length === 1) redirect(`/admin/sucursales/${lista[0].sucursal_id}`);
     else redirect("/admin/sucursales");
+  } else if (role === "repartidor") {
+    redirect("/admin/repartos");
   } else {
     redirect("/login");
   }

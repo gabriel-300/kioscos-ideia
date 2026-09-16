@@ -63,10 +63,10 @@ export default async function StaffPage() {
   const staff = (users ?? [])
     .filter((u) => {
       const role = u.app_metadata?.role as string | undefined;
-      return role === "admin" || role === "encargado" || role === "vendedor" || role === "concesionario";
+      return role === "admin" || role === "encargado" || role === "vendedor" || role === "concesionario" || role === "repartidor";
     })
     .sort((a, b) => {
-      const order: Record<string, number> = { admin: 0, encargado: 1, concesionario: 2, vendedor: 3 };
+      const order: Record<string, number> = { admin: 0, encargado: 1, concesionario: 2, vendedor: 3, repartidor: 4 };
       const ra = (a.app_metadata?.role as string) ?? "";
       const rb = (b.app_metadata?.role as string) ?? "";
       if (order[ra] !== order[rb]) return (order[ra] ?? 9) - (order[rb] ?? 9);

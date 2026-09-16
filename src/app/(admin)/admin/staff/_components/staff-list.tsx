@@ -29,6 +29,7 @@ const ROLE_LABEL: Record<string, string> = {
   encargado:     "Encargado kiosco",
   vendedor:      "Vendedor",
   concesionario: "Encargado Concesionario",
+  repartidor:    "Repartidor",
 };
 
 const ROLE_BADGE: Record<string, string> = {
@@ -36,6 +37,7 @@ const ROLE_BADGE: Record<string, string> = {
   encargado:     "bg-blue-50 text-blue-700 border-blue-200",
   vendedor:      "bg-purple-50 text-purple-700 border-purple-200",
   concesionario: "bg-amber-50 text-amber-700 border-amber-200",
+  repartidor:    "bg-green-50 text-green-700 border-green-200",
 };
 
 // ── Form crear staff ──────────────────────────────────────────────────────────
@@ -43,7 +45,7 @@ const createSchema = z.object({
   nombre:     z.string().min(2, "Mínimo 2 caracteres"),
   email:      z.string().email("Email inválido"),
   password:   z.string().min(8, "Mínimo 8 caracteres"),
-  role:       z.enum(["admin", "encargado", "vendedor", "concesionario"]),
+  role:       z.enum(["admin", "encargado", "vendedor", "concesionario", "repartidor"]),
   sucursalId: z.string().optional(),
 });
 
@@ -93,6 +95,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
             <option value="vendedor">Vendedor</option>
             <option value="encargado">Encargado kiosco</option>
             <option value="concesionario">Encargado Concesionario</option>
+            <option value="repartidor">Repartidor</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
@@ -181,7 +184,7 @@ function EditDrawer({
           password:      values.password || undefined,
           creditoLimite: limiteNum,
           esSocio,
-          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor" | "concesionario") : undefined,
+          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor" | "concesionario" | "repartidor") : undefined,
         });
         if (role === "vendedor") {
           const cambiaron =
@@ -230,6 +233,7 @@ function EditDrawer({
               <option value="vendedor">Vendedor</option>
               <option value="encargado">Encargado kiosco</option>
               <option value="concesionario">Encargado Concesionario</option>
+              <option value="repartidor">Repartidor</option>
               <option value="admin">Administrador</option>
             </select>
             {role !== user.role && (

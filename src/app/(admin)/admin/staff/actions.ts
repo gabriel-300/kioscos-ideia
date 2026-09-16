@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 
-type StaffRole = "admin" | "encargado" | "vendedor" | "concesionario";
+type StaffRole = "admin" | "encargado" | "vendedor" | "concesionario" | "repartidor";
 
 export async function crearStaff(data: {
   email:      string;

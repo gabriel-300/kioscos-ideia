@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
-const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario"];
+const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario", "repartidor"];
 
 // Bloqueadas para encargado Y vendedor
 const ADMIN_ONLY_PREFIXES = [
@@ -80,6 +80,18 @@ export async function updateSession(request: NextRequest) {
       if (role === "vendedor" && VENDEDOR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
         return NextResponse.redirect(new URL("/admin/dashboard", request.url));
       }
+
+      // Repartidor: contención total, no una lista de exclusiones como el
+      // resto de los roles -- solo puede ver su cola de entregas. A
+      // diferencia de encargado/vendedor/concesionario (que ya tenían
+      // acceso amplio al admin antes de esta feature), repartidor es un rol
+      // nuevo de bajo privilegio y el resto del admin (47 archivos con
+      // chequeos de rol dispersos, sin una matriz central) nunca fue
+      // auditado pensando en él -- contenerlo acá evita tener que revisar
+      // cada uno de esos archivos uno por uno.
+      if (role === "repartidor" && !pathname.startsWith("/admin/repartos")) {
+        return NextResponse.redirect(new URL("/admin/repartos", request.url));
+      }
     }
 
     // ── Redirect logged-in staff away from public pages ────────────────
@@ -94,7 +106,8 @@ export async function updateSession(request: NextRequest) {
     if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
       const jwtRole = user.app_metadata?.role as string | undefined;
       if (jwtRole && STAFF_ROLES.includes(jwtRole)) {
-        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+        const destino = jwtRole === "repartidor" ? "/admin/repartos" : "/admin/dashboard";
+        return NextResponse.redirect(new URL(destino, request.url));
       }
     }
   } catch {
