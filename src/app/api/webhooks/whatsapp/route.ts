@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// Webhook entrante de WhatsApp Cloud API (Fase 3 del brief de comunidades --
-// ver memoria del proyecto). Solo REGISTRA cada mensaje como contacto en el
-// CRM de nichos -- no manda nada de vuelta, no detecta palabras clave, no
-// responde solo. Esa parte automática quedó fuera a propósito (costo por
-// mensaje sin techo + riesgo real de que Meta banee el número si se
-// automatiza mal, ver conversación con Gabriel, set. 2026).
+// Webhook entrante de WhatsApp Cloud API. Siempre REGISTRA cada mensaje
+// como contacto en el CRM de nichos (esto no cambió desde que se armó este
+// webhook, set. 2026: costo por mensaje sin techo + riesgo real de que Meta
+// banee el número si se automatiza mal, ver memoria del proyecto).
+//
+// Fase 3 del storefront (ver plan) reabre esa decisión A PROPÓSITO, pero
+// solo para las sucursales que el usuario habilitó a vender online
+// (mercadopago_pos_id cargado, mismo gate que ya usa el storefront) -- para
+// cualquier otra sucursal el comportamiento sigue siendo el de siempre:
+// solo logea el contacto, no responde nada.
 //
 // WHATSAPP_VERIFY_TOKEN y WHATSAPP_APP_SECRET se completan cuando Gabriel
 // termine de dar de alta la app de WhatsApp Cloud API en Meta Business
 // Manager -- mientras tanto ambos endpoints responden 501 y no aceptan nada.
+// WHATSAPP_ACCESS_TOKEN (necesaria para que el bot pueda mandar algo de
+// vuelta) todavía no existe tampoco -- hasta entonces, procesarMensajeBot()
+// corre igual (guarda el carrito, etc.) pero enviarTexto/enviarBotones/
+// enviarLista devuelven not_configured en vez de mandar nada real.
 
 // Verificación inicial que hace Meta al configurar el webhook: un GET con
 // hub.mode/hub.verify_token/hub.challenge -- si el token coincide, hay que
@@ -60,10 +68,14 @@ async function verificarFirma(rawBody: string, signatureHeader: string | null, a
   return diff === 0;
 }
 
+type WhatsAppInteractive = {
+  button_reply?: { id?: string; title?: string };
+  list_reply?:   { id?: string; title?: string };
+};
 type WhatsAppValue = {
   metadata?:  { phone_number_id?: string };
   contacts?:  { profile?: { name?: string }; wa_id?: string }[];
-  messages?:  { id?: string; from?: string; type?: string; text?: { body?: string } }[];
+  messages?:  { id?: string; from?: string; type?: string; text?: { body?: string }; interactive?: WhatsAppInteractive }[];
 };
 
 export async function POST(request: Request) {
@@ -98,18 +110,25 @@ export async function POST(request: Request) {
       const phoneNumberId = value.metadata?.phone_number_id ?? null;
 
       let sucursalId: string | null = null;
+      let sucursalHabilitadaParaBot = false;
       if (phoneNumberId) {
         const sucursalRes = await (supabase as any)
-          .from("sucursales").select("id")
+          .from("sucursales").select("id, is_active, mercadopago_pos_id")
           .eq("whatsapp_phone_number_id", phoneNumberId)
           .maybeSingle();
-        sucursalId = (sucursalRes.data as { id: string } | null)?.id ?? null;
+        const sucursalRow = sucursalRes.data as { id: string; is_active: boolean; mercadopago_pos_id: string | null } | null;
+        sucursalId = sucursalRow?.id ?? null;
+        sucursalHabilitadaParaBot = !!sucursalRow?.is_active && !!sucursalRow?.mercadopago_pos_id;
       }
 
       for (const msg of value.messages) {
         const waId          = msg.from ?? null;
         const contactoNombre = value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? null;
-        const texto          = msg.type === "text" ? (msg.text?.body ?? null) : `[${msg.type ?? "mensaje"}]`;
+        // Para el log del CRM se usa el título tocado en un mensaje
+        // interactivo en vez del placeholder "[interactive]" de antes --
+        // mejora chica de paso, no cambia el criterio de qué se guarda.
+        const textoInteractivo = msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? null;
+        const texto          = msg.type === "text" ? (msg.text?.body ?? null) : (textoInteractivo ? `[${textoInteractivo}]` : `[${msg.type ?? "mensaje"}]`);
 
         // Insertar el evento PRIMERO reclama el slot de deduplicación de
         // forma atómica (índice único en wa_message_id) -- evita la ventana
@@ -150,6 +169,26 @@ export async function POST(request: Request) {
         await (supabase as any).from("whatsapp_webhook_events")
           .update({ contacto_id: contactoRes.data.id })
           .eq("id", eventoRes.data.id);
+
+        // Fase 3 del storefront: el bot de pedidos, solo para sucursales
+        // que vender online (mercadopago_pos_id cargado). Nunca debe poder
+        // romper la respuesta 200 a Meta -- mismo criterio defensivo que ya
+        // usa el webhook de Mercado Pago con crearVentaPublica.
+        if (sucursalHabilitadaParaBot && waId) {
+          try {
+            const { procesarMensajeBot } = await import("@/lib/pedidos/bot-whatsapp");
+            await procesarMensajeBot(supabase, {
+              sucursalId: sucursalId!,
+              phoneNumberId: phoneNumberId!,
+              waId,
+              nombrePerfil: contactoNombre,
+              texto: msg.type === "text" ? (msg.text?.body ?? null) : null,
+              interactive: msg.interactive ?? null,
+            });
+          } catch (e) {
+            console.error("[whatsapp webhook] error en bot de pedidos:", (e as Error).message);
+          }
+        }
       }
     }
   }
