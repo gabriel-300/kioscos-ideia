@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { iniciarPedido, consultarEstadoPedidoPublico } from "@/lib/pedidos/actions";
+import { iniciarPedido, consultarEstadoPedidoPublico, sugerirUpsellPublico } from "@/lib/pedidos/actions";
+
+type Upsell = { id: string; esPromo: boolean; name: string; price: number; mensaje: string };
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -35,6 +37,7 @@ export function CatalogoConCarrito({
   const [pending, startTransition] = useTransition();
   const [pedido, setPedido] = useState<{ pedido_id: string; total: number } | null>(null);
   const [estadoPedido, setEstadoPedido] = useState<string | null>(null);
+  const [upsell, setUpsell] = useState<Upsell | null>(null);
 
   const todosLosItems = [...itemsSinCategoria, ...categorias.flatMap((c) => c.items)];
   const itemsMap = new Map(todosLosItems.map((i) => [i.id, i]));
@@ -50,7 +53,19 @@ export function CatalogoConCarrito({
   function abrirCheckout() {
     if (carrito.length === 0) return;
     setError(null);
+    setUpsell(null);
     setCheckoutOpen(true);
+    // Fase 4: sugerencia de IA para subir el ticket, mejor esfuerzo -- si
+    // falla o tarda, el checkout sigue andando igual, no bloquea nada.
+    sugerirUpsellPublico(sucursalId, carrito.map(([id]) => id))
+      .then((res) => setUpsell(res))
+      .catch(() => setUpsell(null));
+  }
+
+  function agregarUpsell() {
+    if (!upsell) return;
+    cambiarCantidad(upsell.id, 1);
+    setUpsell(null);
   }
 
   function confirmarPedido() {
@@ -172,13 +187,13 @@ export function CatalogoConCarrito({
 
       {/* Modal de checkout */}
       {checkoutOpen && (
-        <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center bg-black/40" onClick={() => !pedido && setCheckoutOpen(false)}>
+        <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center bg-black/40" onClick={() => { if (!pedido) { setCheckoutOpen(false); setUpsell(null); } }}>
           <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[85vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
             {!pedido ? (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-display font-semibold">Tu pedido</h3>
-                  <button type="button" onClick={() => setCheckoutOpen(false)} className="text-neutral-400 text-xl">✕</button>
+                  <button type="button" onClick={() => { setCheckoutOpen(false); setUpsell(null); }} className="text-neutral-400 text-xl">✕</button>
                 </div>
                 <div className="space-y-2 mb-4">
                   {carrito.map(([id, qty]) => {
@@ -194,6 +209,19 @@ export function CatalogoConCarrito({
                     <span>Total</span><span>{AR.format(totalCarrito)}</span>
                   </div>
                 </div>
+                {upsell && (
+                  <div className="flex items-center gap-2 mb-4 p-2.5 rounded-lg bg-crema-50 border border-crema-100">
+                    <p className="flex-1 text-xs text-neutral-700">{upsell.mensaje}</p>
+                    <button
+                      type="button"
+                      onClick={agregarUpsell}
+                      className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-tierra-700 text-white"
+                    >
+                      Agregar {AR.format(upsell.price)}
+                    </button>
+                    <button type="button" onClick={() => setUpsell(null)} className="shrink-0 text-neutral-400 text-sm px-1">✕</button>
+                  </div>
+                )}
                 <input
                   type="text" placeholder="Tu nombre" value={nombre} onChange={(e) => setNombre(e.target.value)}
                   className="w-full h-10 rounded-lg border border-neutral-300 px-3 text-sm mb-2"
@@ -229,7 +257,7 @@ export function CatalogoConCarrito({
                 )}
                 <button
                   type="button"
-                  onClick={() => { setCheckoutOpen(false); setPedido(null); setCantidades({}); setEstadoPedido(null); }}
+                  onClick={() => { setCheckoutOpen(false); setPedido(null); setCantidades({}); setEstadoPedido(null); setUpsell(null); }}
                   className="mt-4 text-sm text-neutral-500 underline"
                 >
                   Cerrar
