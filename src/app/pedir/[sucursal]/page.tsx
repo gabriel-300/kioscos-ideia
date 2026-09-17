@@ -135,20 +135,30 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
 
   return (
     <div className="min-h-screen bg-crema-50">
-      <header className="bg-tierra-700 text-white px-4 py-6 md:px-8">
-        <h1 className="text-2xl md:text-3xl font-display font-semibold">{sucursal.nombre}</h1>
-        {(sucursal.direccion || sucursal.localidad) && (
-          <p className="text-sm text-white/70 mt-1">
-            {[sucursal.direccion, sucursal.localidad].filter(Boolean).join(", ")}
-          </p>
-        )}
+      <header className="relative overflow-hidden bg-tierra-800 text-white px-4 pt-7 pb-8 md:px-8">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{ background: "radial-gradient(120% 140% at 15% -10%, var(--color-tierra-500) 0%, transparent 55%)" }}
+        />
+        <div className="relative max-w-3xl mx-auto">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-tierra-200 mb-1.5">Pedí online</p>
+          <h1 className="text-[28px] leading-tight md:text-4xl font-display font-semibold">{sucursal.nombre}</h1>
+          {(sucursal.direccion || sucursal.localidad) && (
+            <p className="flex items-center gap-1.5 text-sm text-white/65 mt-2">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5 shrink-0">
+                <path fillRule="evenodd" d="M9.69 18.933a.75.75 0 00.62 0c.058-.026.157-.079.28-.156a19.302 19.302 0 002.617-1.956C15.09 15.041 17 12.634 17 9.75 17 5.365 13.866 2 10 2S3 5.365 3 9.75c0 2.884 1.909 5.291 3.79 7.071a19.298 19.298 0 002.899 2.112zM10 12a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" clipRule="evenodd" />
+              </svg>
+              {[sucursal.direccion, sucursal.localidad].filter(Boolean).join(", ")}
+            </p>
+          )}
+        </div>
       </header>
 
       {!sinNada && (
-        <nav className="sticky top-0 z-10 bg-white border-b border-neutral-200 overflow-x-auto">
-          <div className="flex gap-2 px-4 py-2.5 md:px-8">
+        <nav className="sticky top-0 z-10 bg-crema-50/90 backdrop-blur-sm border-b border-neutral-200/70 overflow-x-auto">
+          <div className="flex gap-2 px-4 py-3 md:px-8 max-w-3xl mx-auto">
             {itemsSinCategoria.length > 0 && (
-              <a href="#promos" className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full bg-tierra-50 text-tierra-700 border border-tierra-100">
+              <a href="#promos" className="shrink-0 text-xs font-semibold px-3.5 py-2 rounded-full bg-tierra-700 text-white shadow-sm shadow-tierra-700/20">
                 Promos
               </a>
             )}
@@ -156,7 +166,7 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
               <a
                 key={c.id}
                 href={`#cat-${c.id}`}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                className="shrink-0 text-xs font-semibold px-3.5 py-2 rounded-full bg-white text-neutral-600 border border-neutral-200 hover:border-tierra-300 hover:text-tierra-700 transition-colors"
               >
                 {c.name}
               </a>
@@ -165,18 +175,19 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
         </nav>
       )}
 
-      <main className="max-w-3xl mx-auto px-4 py-6 md:px-8">
+      <main className="max-w-3xl mx-auto px-4 py-7 md:px-8">
         {sinNada ? (
-          <p className="text-center text-neutral-400 py-16 text-sm">
-            Todavía no hay productos cargados para pedir acá.
-          </p>
+          <div className="text-center py-20">
+            <p className="text-sm text-neutral-400">Todavía no hay productos cargados para pedir acá.</p>
+          </div>
         ) : (
           <CatalogoConCarrito sucursalId={sucursalId} categorias={categoriasConItems} itemsSinCategoria={itemsSinCategoria} />
         )}
       </main>
 
-      <footer className="text-center text-xs text-neutral-400 py-8">
-        Kioscos IDEIA — retirás tu pedido en el local, pagás con QR de Mercado Pago.
+      <footer className="text-center text-xs text-neutral-400 py-10 px-4">
+        <p className="font-display text-sm text-neutral-500 mb-1">Kioscos IDEIA</p>
+        Retirás tu pedido en el local o lo pedís por delivery. Pagás con QR de Mercado Pago.
       </footer>
     </div>
   );
