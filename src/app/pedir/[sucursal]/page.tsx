@@ -142,7 +142,11 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
         />
         <div className="relative max-w-3xl mx-auto">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-tierra-200 mb-1.5">Pedí online</p>
-          <h1 className="text-[28px] leading-tight md:text-4xl font-display font-semibold">{sucursal.nombre}</h1>
+          {/* style inline a propósito: globals.css tiene "h1,h2,h3,h4{color:var(--color-neutral-900)}"
+              con más prioridad que la clase text-white heredada del header (specificity),
+              así que sin esto el título queda casi invisible sobre el fondo oscuro -- bug
+              real visto en producción (captura del usuario, 2026-09-17). */}
+          <h1 className="text-[28px] leading-tight md:text-4xl font-display font-semibold" style={{ color: "#ffffff" }}>{sucursal.nombre}</h1>
           {(sucursal.direccion || sucursal.localidad) && (
             <p className="flex items-center gap-1.5 text-sm text-white/65 mt-2">
               <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5 shrink-0">
