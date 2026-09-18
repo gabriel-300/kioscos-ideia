@@ -6,6 +6,7 @@ import { fmt } from "../_lib/tema";
 import { telefonoValido } from "@/lib/pedidos/validaciones";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
 import { IconAtras } from "./iconos";
+import { Panel } from "./panel";
 
 const campoBase =
   "w-full rounded-[14px] border-[1.5px] bg-white px-4 text-[16px] text-pd-ink-900 placeholder:text-pd-ink-300 focus:outline-none";
@@ -105,7 +106,7 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
       : `Confirmar pedido · ${fmt(total)}`;
 
   return (
-    <div className="pd-slideup fixed inset-0 z-40 flex flex-col bg-pd-paper">
+    <Panel>
       <div className="flex items-center gap-3 border-b border-pd-line bg-white px-4 pb-3 pt-5">
         <button type="button" onClick={onVolver} aria-label="Volver" className="flex size-11 items-center justify-center rounded-[14px] border border-pd-line bg-pd-tint text-pd-ink-900">
           <IconAtras className="size-5" />
@@ -255,6 +256,6 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
           </>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }

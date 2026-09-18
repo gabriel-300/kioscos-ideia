@@ -6,6 +6,7 @@ import { fmt } from "../_lib/tema";
 import { sugerirUpsellPublico } from "@/lib/pedidos/actions";
 import { Foto, QtyStepper } from "./producto-ui";
 import { IconAtras } from "./iconos";
+import { Panel } from "./panel";
 
 type Upsell = { id: string; name: string; price: number; mensaje: string };
 
@@ -42,7 +43,7 @@ export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, o
   const desde = enviosDisponibles ? Math.min(...config.zonas.map((z) => z.costo)) : null;
 
   return (
-    <div className="pd-slideup fixed inset-0 z-40 flex flex-col bg-pd-paper">
+    <Panel>
       <div className="flex items-center gap-3 border-b border-pd-line bg-white px-4 pb-3 pt-5">
         <button type="button" onClick={onVolver} aria-label="Volver" className="flex size-11 items-center justify-center rounded-[14px] border border-pd-line bg-pd-tint text-pd-ink-900">
           <IconAtras className="size-5" />
@@ -106,6 +107,6 @@ export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, o
           Continuar <span className="tabular-nums">{fmt(subtotal)}</span>
         </button>
       </div>
-    </div>
+    </Panel>
   );
 }

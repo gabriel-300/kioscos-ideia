@@ -4,6 +4,7 @@ import type { ConfigTienda, PedidoConfirmado } from "../_lib/tipos";
 import { fmt } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
 import { IconCheck } from "./iconos";
+import { Panel } from "./panel";
 
 // Mensaje pre-armado para avisarle al local por WhatsApp. El pedido ya está
 // guardado en el servidor -- esto es un aviso extra, no la fuente de verdad.
@@ -34,7 +35,7 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
   const eta = pedido.etaMin != null ? `${pedido.etaMin}–${pedido.etaMax} min` : null;
 
   return (
-    <div className="pd-fadein fixed inset-0 z-50 flex flex-col overflow-y-auto bg-pd-ink px-5 pb-8 pt-16 text-pd-paper">
+    <Panel fondo="bg-pd-ink text-pd-paper" z="z-50" animacion="pd-fadein"><div className="flex flex-1 flex-col overflow-y-auto px-5 pb-8 pt-16 md:pt-14">
       <div className="pd-popin flex size-[66px] items-center justify-center rounded-full bg-pd-success-lt text-white">
         <IconCheck className="size-8" />
       </div>
@@ -90,6 +91,6 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
           Volver al menú
         </button>
       </div>
-    </div>
+    </div></Panel>
   );
 }

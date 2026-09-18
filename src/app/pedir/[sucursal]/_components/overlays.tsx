@@ -5,6 +5,7 @@ import type { ItemCatalogo } from "../_lib/tipos";
 import { fmt } from "../_lib/tema";
 import { Foto, QtyStepper } from "./producto-ui";
 import { IconAtras, IconChevron } from "./iconos";
+import { Panel } from "./panel";
 
 // Detalle de producto: foto grande, precio y "Agregar $X". No hay variantes
 // (cada tamaño es un producto propio en este sistema, con su stock y precio
@@ -15,7 +16,7 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
   const [cantidad, setCantidad] = useState(1);
 
   return (
-    <div className="pd-slideup fixed inset-0 z-50 flex flex-col bg-pd-paper" role="dialog" aria-modal="true" aria-label={item.name}>
+    <Panel z="z-50"><div role="dialog" aria-modal="true" aria-label={item.name} className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="relative h-[300px] w-full">
           <Foto item={item} className="absolute inset-0 size-full bg-white !object-contain" eager textoClase="text-[26px]" />
@@ -57,7 +58,7 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
           </button>
         </div>
       )}
-    </div>
+    </div></Panel>
   );
 }
 
@@ -67,7 +68,7 @@ export function CartBar({ cantidad, total, onAbrir }: { cantidad: number; total:
       <button
         type="button"
         onClick={onAbrir}
-        className="pd-popin pointer-events-auto mx-auto flex h-[60px] w-full max-w-[560px] items-center justify-between rounded-[19px] bg-pd-ember px-3.5 text-white active:bg-pd-ember-dark"
+        className="pd-popin pointer-events-auto mx-auto flex h-[60px] w-full max-w-[520px] items-center justify-between rounded-[19px] bg-pd-ember px-3.5 text-white active:bg-pd-ember-dark"
         style={{ boxShadow: "0 16px 30px -12px rgba(217,63,30,.75)" }}
       >
         <span className="flex items-center gap-2.5 text-[15px] font-bold">
@@ -87,8 +88,8 @@ export function CartBar({ cantidad, total, onAbrir }: { cantidad: number; total:
 // bloquea el catálogo (se puede armar el pedido igual).
 export function ClosedSheet({ proxima, onCerrar }: { proxima: string | null; onCerrar: () => void }) {
   return (
-    <div className="pd-fadein fixed inset-0 z-[60] flex items-end bg-black/45" role="dialog" aria-modal="true" aria-label="Local cerrado">
-      <div className="pd-slideup w-full rounded-t-[28px] bg-pd-paper px-5 pb-8 pt-6">
+    <div className="pd-fadein fixed inset-0 z-[60] flex items-end justify-center bg-black/45 md:items-center md:p-6" role="dialog" aria-modal="true" aria-label="Local cerrado">
+      <div className="pd-slideup w-full max-w-[480px] rounded-t-[28px] bg-pd-paper px-5 pb-8 pt-6 md:rounded-[28px]">
         <span className="inline-block rounded-full bg-pd-warn px-3 py-1.5 text-[11.5px] font-bold tracking-[0.06em] text-pd-warn-ink">CERRADO AHORA</span>
         <h2 className="mt-3 text-[26px] text-pd-ink-900">{proxima ? `Abrimos ${proxima}` : "Ahora estamos cerrados"}</h2>
         <p className="mt-2 text-[14.5px] text-pd-ink-600">Podés mirar el menú y dejar el pedido armado: lo preparamos apenas abrimos.</p>

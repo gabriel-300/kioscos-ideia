@@ -14,12 +14,13 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
   const chip = "inline-flex items-center rounded-full px-3 py-1.5 text-[12.5px] font-bold text-pd-cream bg-white/10 whitespace-nowrap";
 
   return (
-    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-14 pb-6">
+    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-14 pb-6 md:pt-10">
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 -right-20 size-72 rounded-full"
         style={{ background: "radial-gradient(circle at 40% 40%, rgba(217,63,30,.75), rgba(217,63,30,0) 68%)" }}
       />
+      <div className="relative mx-auto max-w-[1100px]">
       <div className="relative flex items-start gap-3.5">
         <div
           className="shrink-0 size-16 rounded-[18px] flex flex-col items-center justify-center text-center text-white leading-[1.05] pd-display font-extrabold text-[11px] tracking-[0.02em] shadow-lg"
@@ -42,15 +43,18 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
         {desde != null && <span className={chip}>Envío desde {fmt(desde)}</span>}
         {!enviosDisponibles && config.retiroHabilitado && <span className={chip}>Retiro en el local</span>}
       </div>
+      </div>
     </header>
   );
 }
 
 export function ClosedBanner({ proxima }: { proxima: string | null }) {
   return (
-    <div className="flex items-start gap-2.5 bg-pd-warn text-pd-warn-ink px-4 py-3 text-[13px] leading-snug">
-      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-[#F0A03C]" />
-      <p>Ahora cerrado. Podés armar el pedido y lo preparamos al abrir{proxima ? `, ${proxima}` : ""}.</p>
+    <div className="bg-pd-warn text-pd-warn-ink px-4 py-3 text-[13px] leading-snug">
+      <div className="mx-auto flex max-w-[1100px] items-start gap-2.5">
+        <span className="mt-1.5 size-2 shrink-0 rounded-full bg-[#F0A03C]" />
+        <p>Ahora cerrado. Podés armar el pedido y lo preparamos al abrir{proxima ? `, ${proxima}` : ""}.</p>
+      </div>
     </div>
   );
 }

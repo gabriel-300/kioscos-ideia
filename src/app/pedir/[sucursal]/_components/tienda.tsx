@@ -278,18 +278,20 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
-          Los pedidos online de esta sucursal llegan pronto. Mientras tanto podés mirar el menú.
+          <div className="mx-auto max-w-[1100px]">Los pedidos online de esta sucursal llegan pronto. Mientras tanto podés mirar el menú.</div>
         </div>
       )}
 
       {/* Bloque fijo: buscador + categorías */}
       <div className="sticky top-0 z-40 bg-pd-paper px-4 pt-3" style={{ boxShadow: "0 8px 16px -14px rgba(34,25,15,.6)" }}>
-        <SearchBar value={busqueda} onChange={setBusqueda} placeholder={placeholderBusqueda} />
-        {!buscando && <CategoryNav categorias={catalogo} activaId={activaId} onElegir={irACategoria} />}
-        {buscando && <div className="h-2.5" />}
+        <div className="mx-auto max-w-[1100px]">
+          <SearchBar value={busqueda} onChange={setBusqueda} placeholder={placeholderBusqueda} />
+          {!buscando && <CategoryNav categorias={catalogo} activaId={activaId} onElegir={irACategoria} />}
+          {buscando && <div className="h-2.5" />}
+        </div>
       </div>
 
-      <main className="px-4 pb-32 pt-4">
+      <main className="mx-auto max-w-[1100px] px-4 pb-32 pt-4">
         {catalogo.length === 0 ? (
           <p className="py-20 text-center text-[14px] text-pd-ink-400">Todavía no hay productos cargados para pedir acá.</p>
         ) : buscando ? (
@@ -303,7 +305,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
                 <p className="mt-1.5 text-[13.5px] text-pd-ink-600">Probá con otra palabra, o mirá las categorías.</p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 md:max-w-[760px]">
                 {resultados.map((item) => {
                   const qty = cantidades[item.id] ?? 0;
                   return (
@@ -341,7 +343,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
                   <h2 id={`cat-t-${c.id}`} className="text-[23px]">{c.name}</h2>
                   <span className="text-[12px] text-pd-ink-300">{c.items.length} {c.items.length === 1 ? "producto" : "productos"}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
                   {c.items.map((item, i) => tarjeta(item, ci === 0 ? i : 99))}
                 </div>
               </section>
