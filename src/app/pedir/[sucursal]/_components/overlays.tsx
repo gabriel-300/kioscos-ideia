@@ -18,7 +18,7 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
     <div className="pd-slideup fixed inset-0 z-50 flex flex-col bg-pd-paper" role="dialog" aria-modal="true" aria-label={item.name}>
       <div className="flex-1 overflow-y-auto">
         <div className="relative h-[300px] w-full">
-          <Foto item={item} className="absolute inset-0 size-full" eager textoClase="text-[26px]" />
+          <Foto item={item} className="absolute inset-0 size-full bg-white !object-contain" eager textoClase="text-[26px]" />
           <button
             type="button"
             onClick={onCerrar}

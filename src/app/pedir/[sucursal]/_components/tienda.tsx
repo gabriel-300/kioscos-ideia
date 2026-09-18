@@ -175,7 +175,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     if (!seccion) return;
     bloqueoSpy.current = Date.now() + 800;
     setActivaId(id);
-    window.scrollTo({ top: seccion.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
+    window.scrollTo({ top: seccion.getBoundingClientRect().top + window.scrollY - 136, behavior: "smooth" });
   }
 
   // ── Búsqueda ───────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     for (const c of catalogo) {
       if (c.id === "promos") continue;
       const palabra = c.items[0]?.name.trim().split(/\s+/)[0]?.toLowerCase();
-      if (palabra && !ejemplos.includes(palabra)) ejemplos.push(palabra);
+      if (palabra && palabra.length > 3 && !palabra.startsWith("promo") && !ejemplos.includes(palabra)) ejemplos.push(palabra);
       if (ejemplos.length === 3) break;
     }
     return ejemplos.length ? `Buscar ${ejemplos.join(", ")}…` : "Buscar en el menú…";
@@ -336,7 +336,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
         ) : (
           <div className="space-y-9">
             {catalogo.map((c, ci) => (
-              <section key={c.id} id={`cat-${c.id}`} data-seccion={c.id} aria-labelledby={`cat-t-${c.id}`} className="scroll-mt-[130px]">
+              <section key={c.id} id={`cat-${c.id}`} data-seccion={c.id} aria-labelledby={`cat-t-${c.id}`} className="scroll-mt-[140px]">
                 <div className="mb-3 flex items-baseline justify-between">
                   <h2 id={`cat-t-${c.id}`} className="text-[23px]">{c.name}</h2>
                   <span className="text-[12px] text-pd-ink-300">{c.items.length} {c.items.length === 1 ? "producto" : "productos"}</span>

@@ -3,7 +3,8 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
 
-const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario"];
+// repartidor entra al layout pero middleware.ts lo contiene a /admin/repartos (ver ahí).
+const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario", "repartidor"];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();

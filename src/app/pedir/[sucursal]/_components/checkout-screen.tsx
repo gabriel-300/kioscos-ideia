@@ -173,7 +173,7 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
               <MsgError texto={errores["pd-f-calle"]} />
             </div>
             <div>
-              <input id="pd-f-referencia" value={form.referencia} onChange={(e) => setForm({ referencia: e.target.value })} placeholder="Entre calles / referencia (portón, color de casa)" className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`} />
+              <input id="pd-f-referencia" value={form.referencia} onChange={(e) => setForm({ referencia: e.target.value })} placeholder="Entre calles / referencia (portón, casa)" className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`} />
               <MsgError texto={errores["pd-f-referencia"]} />
             </div>
           </section>

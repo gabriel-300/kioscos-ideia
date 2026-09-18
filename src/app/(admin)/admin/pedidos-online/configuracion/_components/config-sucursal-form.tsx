@@ -26,11 +26,14 @@ type FilaDia = { abierto: boolean; abre: string; cierra: string };
 
 function filasDesdeHorario(horario: TramoHorario[] | null): Record<number, FilaDia> {
   const filas: Record<number, FilaDia> = {};
+  const sinHorarioCargado = !horario;
   for (const { dia } of DIAS) {
     const t = horario?.find((x) => x.dia === dia);
+    // Sin horario cargado, al tildar "tengo horario" arrancan todos los días
+    // abiertos (más fácil de ajustar que tener que tildar siete).
     filas[dia] = t
       ? { abierto: true, abre: t.abre.padStart(5, "0"), cierra: t.cierra.padStart(5, "0") }
-      : { abierto: false, abre: "08:00", cierra: "00:00" };
+      : { abierto: sinHorarioCargado, abre: "08:00", cierra: sinHorarioCargado ? "22:00" : "00:00" };
   }
   return filas;
 }
@@ -62,6 +65,10 @@ export function ConfigSucursalForm({ sucursalId, inicial }: { sucursalId: string
 
   function guardar() {
     setMensaje(null);
+    if (!sinHorario && !DIAS.some(({ dia }) => filas[dia].abierto)) {
+      setMensaje({ ok: false, texto: "Marcá al menos un día abierto, o elegí 'Sin horario (siempre abierto)'" });
+      return;
+    }
     const horario: TramoHorario[] = sinHorario
       ? []
       : DIAS.filter(({ dia }) => filas[dia].abierto).map(({ dia }) => ({ dia, abre: filas[dia].abre, cierra: filas[dia].cierra }));
