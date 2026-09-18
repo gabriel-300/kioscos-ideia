@@ -110,6 +110,27 @@
   --spacing-18: 4.5rem;
   --spacing-22: 5.5rem;
   --spacing-26: 6.5rem;
+
+  /* ── Catálogo público (/pedir): paleta cálida de comida, ver ESPECIFICACION de diseño */
+  --color-pd-ember:       #D93F1E;
+  --color-pd-ember-dark:  #A72C12;
+  --color-pd-ink:         #22190F;
+  --color-pd-ink-900:     #2A211B;
+  --color-pd-ink-600:     #6B5A4B;
+  --color-pd-ink-400:     #8A7867;
+  --color-pd-ink-300:     #9B8875;
+  --color-pd-paper:       #FBF7F1;
+  --color-pd-warm:        #EFE7DC;
+  --color-pd-line:        #EADFD1;
+  --color-pd-line-strong: #E2D6C6;
+  --color-pd-tint:        #FBF3EC;
+  --color-pd-tint-line:   #F0C9B8;
+  --color-pd-success:     #2C6B3F;
+  --color-pd-success-lt:  #3E8C5A;
+  --color-pd-warn:        #5A3A12;
+  --color-pd-warn-2:      #8A5A18;
+  --color-pd-warn-ink:    #FFE9C7;
+  --color-pd-cream:       #FFF3E2;
 }
 
 /* ─────────────────────────────────────────────
@@ -207,3 +228,45 @@ img, video {
   .rounded-2xl, .rounded-xl { border-radius: 0 !important; }
   .shadow-2xl, .shadow-lg { box-shadow: none !important; }
 }
+
+/* ─────────────────────────────────────────────
+   CATÁLOGO PÚBLICO (/pedir/[sucursal])
+   Todo cuelga de la clase raíz .pd -- resetea las reglas globales de
+   h1-h4 (color/tipografía) que si no le ganan a las clases de Tailwind.
+   ───────────────────────────────────────────── */
+.pd {
+  background: var(--color-pd-paper);
+  color: var(--color-pd-ink-900);
+  font-family: var(--font-pd-body), system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+.pd h1, .pd h2, .pd h3, .pd h4 {
+  font-family: var(--font-pd-display), system-ui, sans-serif;
+  color: inherit;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: pretty;
+}
+.pd .pd-display { font-family: var(--font-pd-display), system-ui, sans-serif; letter-spacing: -0.02em; }
+.pd input, .pd textarea, .pd select, .pd button { font-family: inherit; }
+.pd button { cursor: pointer; }
+.pd p { text-wrap: pretty; }
+.pd ::selection { background: var(--color-pd-ember); color: #fff; }
+.pd :focus-visible { outline: 2px solid var(--color-pd-ember); outline-offset: 2px; }
+.pd .pd-noscroll::-webkit-scrollbar { display: none; }
+.pd .pd-noscroll { scrollbar-width: none; }
+
+/* html/body tienen overflow-x:hidden globalmente, lo que convierte a body en
+   un contenedor de scroll y rompe position:sticky -- clip recorta igual sin
+   crear scroll container. */
+html:has(.pd), body:has(.pd) { overflow-x: clip; }
+
+@keyframes pd-popin  { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pd-slideup { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes pd-fadein { from { opacity: 0; } to { opacity: 1; } }
+.pd .pd-popin   { animation: pd-popin .22s ease both; }
+.pd .pd-slideup { animation: pd-slideup .26s cubic-bezier(.16,1,.3,1) both; }
+.pd .pd-fadein  { animation: pd-fadein .18s ease both; }

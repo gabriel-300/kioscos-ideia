@@ -4,30 +4,17 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { aplicarTransicion } from "@/lib/pedidos/transiciones";
+import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
 
 // Fase 5 del storefront (delivery, ver plan): primera pantalla del admin
 // para ver pedidos que vinieron del storefront/bot de WhatsApp más allá de
-// la venta que terminan generando. No existía nada de esto antes -- hacía
-// falta para que asignar un repartidor tenga sentido.
+// la venta que terminan generando. La máquina de estados vive en
+// src/lib/pedidos/transiciones.ts (la comparte /admin/repartos).
 
-// Qué estados siguen son válidos desde el estado actual, según el tipo de
-// entrega -- se valida siempre server-side, los botones del cliente son
-// solo una sugerencia de UI.
-function transicionesPermitidas(estadoActual: string, tipoEntrega: string, tieneRepartidor: boolean): string[] {
-  switch (estadoActual) {
-    case "pagado":
-      return ["en_preparacion"];
-    case "en_preparacion":
-      return tipoEntrega === "delivery"
-        ? (tieneRepartidor ? ["en_reparto"] : [])
-        : ["listo_retiro"];
-    case "listo_retiro":
-      return ["entregado"];
-    case "en_reparto":
-      return ["entregado"];
-    default:
-      return [];
-  }
+function refrescar() {
+  revalidatePath("/admin/pedidos-online");
+  revalidatePath("/admin/repartos");
 }
 
 export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string): Promise<{ error?: string }> {
@@ -36,7 +23,7 @@ export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string)
 
   const { data: pedido } = await (admin as any)
     .from("pedidos")
-    .select("sucursal_id, estado, tipo_entrega, repartidor_id")
+    .select("id, sucursal_id, estado, tipo_entrega, repartidor_id, medio_pago")
     .eq("id", pedidoId)
     .single();
   if (!pedido) return { error: "No se encontró el pedido" };
@@ -44,27 +31,10 @@ export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string)
   const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
   if (accesoError) return { error: accesoError };
 
-  const permitidos = transicionesPermitidas(pedido.estado, pedido.tipo_entrega, !!pedido.repartidor_id);
-  if (!permitidos.includes(nuevoEstado)) {
-    return { error: pedido.tipo_entrega === "delivery" && pedido.estado === "en_preparacion" && !pedido.repartidor_id
-      ? "Asigná un repartidor antes de pasarlo a reparto"
-      : "Transición de estado inválida" };
-  }
+  const res = await aplicarTransicion(admin, pedido, nuevoEstado);
+  if (res.error) return res;
 
-  // Atómico: solo aplica si el estado sigue siendo el que se leyó arriba --
-  // mismo patrón idempotente ya usado en toda la Fase 2/3 para evitar
-  // dobles clicks / carreras entre dos personas mirando la misma pantalla.
-  const { data: actualizado, error } = await (admin as any)
-    .from("pedidos")
-    .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
-    .eq("id", pedidoId)
-    .eq("estado", pedido.estado)
-    .select("id");
-  if (error) return { error: error.message };
-  if (!actualizado?.length) return { error: "El pedido ya cambió de estado, refrescá la página" };
-
-  revalidatePath("/admin/pedidos-online");
-  revalidatePath("/admin/repartos");
+  refrescar();
   return {};
 }
 
@@ -96,7 +66,68 @@ export async function asignarRepartidor(pedidoId: string, repartidorUserId: stri
     .eq("id", pedidoId);
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/pedidos-online");
-  revalidatePath("/admin/repartos");
+  refrescar();
+  return {};
+}
+
+// Pedido pagado con Mercado Pago por link (el local manda el link por
+// WhatsApp y confirma acá cuando ve el pago en su cuenta). Reusa
+// crearVentaPublica: hace la transición pendiente_pago -> pagado y la venta.
+// Confirmar que entró plata es una decisión de dueño/encargado, no de turno.
+export async function confirmarPagoRecibido(pedidoId: string): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  if (role !== "admin" && role !== "encargado") return { error: "No tenés permisos para confirmar pagos" };
+  const admin = createAdminClient();
+
+  const { data: pedido } = await (admin as any)
+    .from("pedidos")
+    .select("sucursal_id, estado, medio_pago")
+    .eq("id", pedidoId)
+    .single();
+  if (!pedido) return { error: "No se encontró el pedido" };
+  if (pedido.medio_pago !== "mercadopago_link") return { error: "Este pedido no se paga por link de Mercado Pago" };
+  if (pedido.estado !== "pendiente_pago") {
+    return { error: pedido.estado === "expirado" ? "El pedido ya venció, hay que cargarlo de nuevo" : "El pedido ya no está esperando el pago" };
+  }
+
+  const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const res = await crearVentaPublica(admin, pedidoId);
+  if (res.error) return { error: `No se pudo registrar la venta: ${res.error}` };
+
+  refrescar();
+  return {};
+}
+
+// Solo pedidos que todavía no generaron una venta: los cobrados por Mercado
+// Pago ya tienen movimiento y se anulan desde la venta, no desde acá.
+export async function cancelarPedido(pedidoId: string): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaff();
+  const admin = createAdminClient();
+
+  const { data: pedido } = await (admin as any)
+    .from("pedidos")
+    .select("sucursal_id, estado, movimiento_id")
+    .eq("id", pedidoId)
+    .single();
+  if (!pedido) return { error: "No se encontró el pedido" };
+
+  const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  if (pedido.movimiento_id) return { error: "Este pedido ya tiene una venta registrada -- anulala desde el historial de ventas" };
+  if (["entregado", "cancelado", "expirado", "carrito"].includes(pedido.estado)) return { error: "Este pedido ya no se puede cancelar" };
+
+  const { data: actualizado, error } = await (admin as any)
+    .from("pedidos")
+    .update({ estado: "cancelado", updated_at: new Date().toISOString() })
+    .eq("id", pedidoId)
+    .eq("estado", pedido.estado)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!actualizado?.length) return { error: "El pedido ya cambió de estado, refrescá la página" };
+
+  refrescar();
   return {};
 }

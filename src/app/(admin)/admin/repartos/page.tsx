@@ -24,7 +24,7 @@ export default async function RepartosPage() {
 
   let query = (admin as any)
     .from("pedidos")
-    .select("id, cliente_nombre, cliente_telefono, direccion_entrega, total, created_at, sucursales(nombre)")
+    .select("id, numero, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, zona_nombre, medio_pago, pago_con, total, created_at, sucursales(nombre)")
     .eq("estado", "en_reparto")
     .order("created_at", { ascending: true });
   if (role === "repartidor") query = query.eq("repartidor_id", user.id);
@@ -50,8 +50,17 @@ export default async function RepartosPage() {
               <div>
                 <p className="font-medium text-neutral-900">{p.cliente_nombre ?? "Sin nombre"}</p>
                 <p className="text-sm text-neutral-600 mt-0.5">{p.direccion_entrega}</p>
+                {p.direccion_referencia && <p className="text-xs text-neutral-500">{p.direccion_referencia}</p>}
                 <p className="text-xs text-neutral-400 mt-1">{p.cliente_telefono} · {p.sucursales?.nombre}</p>
                 <p className="text-sm font-semibold text-tierra-700 mt-1.5">{AR.format(p.total)}</p>
+                {p.medio_pago === "efectivo" ? (
+                  <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-2 inline-block">
+                    Cobrar en efectivo {AR.format(p.total)}
+                    {p.pago_con ? ` · paga con ${AR.format(p.pago_con)} (vuelto ${AR.format(p.pago_con - p.total)})` : ""}
+                  </p>
+                ) : (
+                  <p className="text-xs text-neutral-400 mt-1">Ya pagado</p>
+                )}
               </div>
               <MarcarEntregadoButton pedidoId={p.id} />
             </div>

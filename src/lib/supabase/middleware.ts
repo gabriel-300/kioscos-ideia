@@ -10,6 +10,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/staff",
   "/admin/movimientos",
   "/admin/productos",
+  "/admin/pedidos-online/configuracion",
 ];
 
 // Bloqueadas solo para vendedor (encargado sí puede)

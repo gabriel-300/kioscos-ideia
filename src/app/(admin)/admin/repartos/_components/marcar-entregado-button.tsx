@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { avanzarEstadoPedido } from "../../pedidos-online/actions";
+import { marcarEntregadoRepartidor } from "../actions";
 
 export function MarcarEntregadoButton({ pedidoId }: { pedidoId: string }) {
   const [pending, startTransition] = useTransition();
@@ -15,7 +15,7 @@ export function MarcarEntregadoButton({ pedidoId }: { pedidoId: string }) {
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            const res = await avanzarEstadoPedido(pedidoId, "entregado");
+            const res = await marcarEntregadoRepartidor(pedidoId);
             if (res.error) setError(res.error);
           });
         }}
