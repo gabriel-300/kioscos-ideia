@@ -121,7 +121,7 @@ export default async function InformeMensualPage({
       .from("pagos_socio")
       .select("sucursal_id, monto_efectivo, monto_billetera")
       .in("sucursal_id", sucursalIds)
-      .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string; monto: number; monto_billetera: number }[] | null }>,
+      .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string; monto_efectivo: number; monto_billetera: number }[] | null }>,
     // gastos: de estas sucursales O generales (sucursal_id null) -- un gasto
     // general (alquiler, sueldo, etc.) es un egreso real igual, no atado a
     // un kiosco puntual. Se muestra en su propia columna "Generales".
