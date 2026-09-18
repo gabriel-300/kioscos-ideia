@@ -101,6 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/gastos",            label: "Gastos",              roles: ["admin"],                                          icon: "gastos" },
       { href: "/admin/cierres",           label: "Cierres",             roles: ["admin", "concesionario"],                         icon: "cierres" },
       { href: "/admin/tesoreria",         label: "Posición de Caja",    roles: ["admin", "socio"],                                 icon: "tesoreria" },
+      { href: "/admin/informe-mensual",   label: "Informe mensual",     roles: ["admin", "socio"],                                 icon: "ventasdiarias" },
       { href: "/admin/pagos-proveedores", label: "Pagos a proveedores", roles: ["admin", "encargado", "concesionario"],             icon: "proveedores" },
       { href: "/admin/socios",            label: "Socios",              roles: ["admin", "encargado"],                             icon: "nichos" },
       { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "staff" },
