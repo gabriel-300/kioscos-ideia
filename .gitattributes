@@ -1,0 +1,4 @@
+
+# Scripts de shell y hooks: siempre finales de línea LF (con CRLF fallan en sh)
+scripts/git-hooks/* text eol=lf
+scripts/*.sh text eol=lf
