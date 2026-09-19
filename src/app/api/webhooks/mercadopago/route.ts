@@ -52,6 +52,39 @@ async function firmaValida(request: NextRequest, dataId: string): Promise<boolea
   return timingSafeEqualHex(computedHex, v1);
 }
 
+// Un pago aprobado cuya external_reference SÍ es de una orden nuestra pero que
+// no se pudo pasar de "pendiente" a "pagado": o es un reenvío del mismo aviso
+// (ya procesado, no hay nada que hacer) o es plata real que llegó sobre una
+// orden cancelada/vencida (el cliente escaneó justo cuando el cajero canceló,
+// o el QR quedó a la vista) o un SEGUNDO pago sobre una orden ya cobrada. Antes
+// esos casos se daban por "ya procesados" y la plata no aparecía en ninguna
+// lista (auditoría 19/09/2026, M-02): ahora quedan en "pagos sin conciliar".
+// Devuelve true si la external_reference pertenece a una orden nuestra.
+async function registrarPagoSinOrdenPendiente(
+  admin: any,
+  externalReference: string,
+  mpPaymentId: string,
+  monto: number,
+  raw: unknown,
+): Promise<boolean> {
+  const { data: orden } = await admin
+    .from("mercadopago_qr_orders")
+    .select("sucursal_id, estado, mp_payment_id")
+    .eq("external_reference", externalReference)
+    .maybeSingle();
+  if (!orden) return false;
+  if (orden.estado === "pagado" && orden.mp_payment_id === mpPaymentId) return true; // reenvío ya procesado
+
+  await admin
+    .from("mercadopago_transferencias_recibidas")
+    .upsert(
+      { mp_payment_id: mpPaymentId, monto, sucursal_id: orden.sucursal_id, raw_payload: raw },
+      { onConflict: "mp_payment_id", ignoreDuplicates: true },
+    );
+  console.warn(`[mercadopago webhook] pago ${mpPaymentId} sobre orden en estado "${orden.estado}" -- guardado en pagos sin conciliar`);
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!accessToken) {
@@ -132,12 +165,9 @@ export async function POST(request: NextRequest) {
           // Mercado Pago reporta con payment_type_id "bank_transfer" igual
           // que una transferencia manual).
           if (!matcheoOrdenQr) {
-            const { data: ordenExistente } = await (admin as any)
-              .from("mercadopago_qr_orders")
-              .select("id")
-              .eq("external_reference", payment.external_reference)
-              .limit(1);
-            matcheoOrdenQr = !!ordenExistente && ordenExistente.length > 0;
+            matcheoOrdenQr = await registrarPagoSinOrdenPendiente(
+              admin, payment.external_reference, String(dataId), payment.transaction_amount, payment,
+            );
           }
         }
 

@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { fechaHoyAR } from "@/lib/fecha";
+import { fetchAll } from "@/lib/supabase/paginar";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Informe mensual — Kioscos IDEIA" };
@@ -90,13 +91,20 @@ export default async function InformeMensualPage({
     { data: pagosSocioRaw },
     { data: gastosRaw },
   ] = sucursalIds.length === 0 ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }] : await Promise.all([
-    (admin as any)
-      .from("movimientos")
-      .select("sucursal_id, canal, pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)")
-      .in("sucursal_id", sucursalIds)
-      .eq("tipo", "venta")
-      .is("anulado_en", null)
-      .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: MovRow[] | null }>,
+    // Paginado: un mes de ventas de un solo kiosco ya pasa las 1.000 filas de
+    // PostgREST (auditoría 19/09/2026, A-03) -- sin esto el informe mostraba
+    // solo una fracción del total, sin avisar.
+    fetchAll<MovRow>((desde, hasta) =>
+      (admin as any)
+        .from("movimientos")
+        .select("sucursal_id, canal, pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia, movimiento_items(subtotal)", { count: "exact" })
+        .in("sucursal_id", sucursalIds)
+        .eq("tipo", "venta")
+        .is("anulado_en", null)
+        .gte("fecha", mesInicio).lte("fecha", mesFin)
+        .order("id")
+        .range(desde, hasta)
+    ).then((data) => ({ data })),
     (admin as any)
       .from("cta_corriente_pagos")
       .select("sucursal_id, monto_efectivo, monto_billetera")

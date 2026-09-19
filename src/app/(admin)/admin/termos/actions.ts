@@ -40,7 +40,7 @@ export async function actualizarFotoTermo(termoId: string, sucursalId: string, i
   const accesoError = await checkAccesoSucursal(admin, userId, role, sucursalId);
   if (accesoError) return { error: accesoError };
 
-  const { error } = await (admin as any).from("termos").update({ image_url: imageUrl }).eq("id", termoId);
+  const { error } = await (admin as any).from("termos").update({ image_url: imageUrl }).eq("id", termoId).eq("sucursal_id", sucursalId);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/termos");
@@ -59,7 +59,7 @@ export async function actualizarTermo(data: { termo_id: string; sucursal_id: str
   const numero = data.numero.trim();
   if (!numero) return { error: "Ingresá un número de termo" };
 
-  const { error } = await (admin as any).from("termos").update({ numero, tipo: data.tipo }).eq("id", data.termo_id);
+  const { error } = await (admin as any).from("termos").update({ numero, tipo: data.tipo }).eq("id", data.termo_id).eq("sucursal_id", data.sucursal_id);
   if (error) {
     if (error.code === "23505") return { error: `Ya existe un termo N° ${numero} en esta sucursal` };
     return { error: error.message };
@@ -77,12 +77,13 @@ export async function darDeBajaTermo(termoId: string, sucursalId: string): Promi
   const accesoError = await checkAccesoSucursal(admin, userId, role, sucursalId);
   if (accesoError) return { error: accesoError };
 
-  const { data: termo } = await (admin as any).from("termos").select("estado").eq("id", termoId).single();
+  const { data: termo } = await (admin as any).from("termos").select("estado").eq("id", termoId).eq("sucursal_id", sucursalId).single();
+  if (!termo) return { error: "No se encontró ese termo en esta sucursal" };
   if (termo?.estado === "prestado") {
     return { error: "No podés dar de baja un termo prestado -- registrá la devolución primero" };
   }
 
-  const { error } = await (admin as any).from("termos").update({ estado: "baja" }).eq("id", termoId);
+  const { error } = await (admin as any).from("termos").update({ estado: "baja" }).eq("id", termoId).eq("sucursal_id", sucursalId);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/termos");
@@ -97,7 +98,7 @@ export async function reactivarTermo(termoId: string, sucursalId: string): Promi
   const accesoError = await checkAccesoSucursal(admin, userId, role, sucursalId);
   if (accesoError) return { error: accesoError };
 
-  const { error } = await (admin as any).from("termos").update({ estado: "disponible" }).eq("id", termoId);
+  const { error } = await (admin as any).from("termos").update({ estado: "disponible" }).eq("id", termoId).eq("sucursal_id", sucursalId);
   if (error) return { error: error.message };
 
   revalidatePath("/admin/termos");
@@ -123,6 +124,12 @@ export async function prestarTermo(data: {
   const telefono = data.telefono.trim();
   if (!telefono) return { error: "Ingresá el teléfono" };
 
+  // La RPC prestar_termo no recibe sucursal: sin este chequeo, alguien con
+  // acceso a la sucursal A podía prestar un termo de la B (auditoría 19/09, M-01).
+  const { data: termoDeSucursal } = await (admin as any)
+    .from("termos").select("id").eq("id", data.termo_id).eq("sucursal_id", data.sucursal_id).maybeSingle();
+  if (!termoDeSucursal) return { error: "Ese termo no pertenece a esta sucursal" };
+
   const { data: rpcData, error } = await (admin as any).rpc("prestar_termo", {
     p_termo_id:      data.termo_id,
     p_dni:           dni,
@@ -144,6 +151,10 @@ export async function devolverTermo(data: { prestamo_id: string; sucursal_id: st
 
   const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
   if (accesoError) return { error: accesoError };
+
+  const { data: prestamoDeSucursal } = await (admin as any)
+    .from("prestamos_termo").select("id").eq("id", data.prestamo_id).eq("sucursal_id", data.sucursal_id).maybeSingle();
+  if (!prestamoDeSucursal) return { error: "Ese préstamo no pertenece a esta sucursal" };
 
   const { data: rpcData, error } = await (admin as any).rpc("devolver_termo", {
     p_prestamo_id: data.prestamo_id,
@@ -181,8 +192,9 @@ export async function pagarMultaTermo(data: {
     .from("prestamos_termo")
     .select("dni, monto_multa, multa_pagada_en")
     .eq("id", data.prestamo_id)
+    .eq("sucursal_id", data.sucursal_id) // la multa se cobra en la caja de SU sucursal
     .single();
-  if (!prestamo) return { error: "Préstamo no encontrado" };
+  if (!prestamo) return { error: "Préstamo no encontrado en esta sucursal" };
   if (prestamo.multa_pagada_en) return { error: "Esta multa ya está pagada" };
   if (!(prestamo.monto_multa > 0)) return { error: "Este préstamo no tiene multa" };
 
@@ -193,6 +205,17 @@ export async function pagarMultaTermo(data: {
 
   const { data: producto } = await (admin as any).from("products").select("id").eq("sku", "MULTA-TERMO").single();
   if (!producto) return { error: "Falta el producto de servicio MULTA-TERMO -- avisale a soporte" };
+
+  // Se "reclama" la multa ANTES de crear la venta, con un update condicional
+  // (solo si sigue sin pagar): dos cobros simultáneos ya no pueden crear dos
+  // ventas por la misma multa -- el segundo no encuentra fila para reclamar.
+  const { data: reclamada } = await (admin as any)
+    .from("prestamos_termo")
+    .update({ multa_pagada_en: new Date().toISOString() })
+    .eq("id", data.prestamo_id)
+    .is("multa_pagada_en", null)
+    .select("id");
+  if (!reclamada?.length) return { error: "Esta multa ya está pagada" };
 
   const { data: movRes, error: movError } = await (admin as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id:             data.sucursal_id,
@@ -210,11 +233,15 @@ export async function pagarMultaTermo(data: {
     p_created_by:              userId,
     p_items: [{ product_id: producto.id, cantidad: 1, precio_unitario: prestamo.monto_multa, subtotal: prestamo.monto_multa, promo_id: null }],
   });
-  if (movError) return { error: movError.message };
+  if (movError) {
+    // La venta no se creó: se libera el reclamo para poder reintentar.
+    await (admin as any).from("prestamos_termo").update({ multa_pagada_en: null }).eq("id", data.prestamo_id);
+    return { error: movError.message };
+  }
 
   const { error: updError } = await (admin as any)
     .from("prestamos_termo")
-    .update({ multa_pagada_en: new Date().toISOString(), multa_movimiento_id: movRes })
+    .update({ multa_movimiento_id: movRes })
     .eq("id", data.prestamo_id);
   if (updError) return { error: updError.message };
 

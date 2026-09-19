@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { fechaHoyAR } from "@/lib/fecha";
+import { fetchAll } from "@/lib/supabase/paginar";
 import type ExcelJSType from "exceljs";
 
 export async function GET(req: NextRequest) {
@@ -44,38 +45,50 @@ async function handleGet(req: NextRequest) {
   const tipo       = searchParams.get("tipo"); // "entrega" | "devolucion" | "venta" | "ajuste" | "merma" | null (todos)
 
   const admin = createAdminClient();
-  let query = (admin as any)
-    .from("movimientos")
-    .select(`
-      id, fecha, tipo, notas, created_at, proveedor, nro_remito, canal, sucursal_id,
-      sucursal:sucursales(nombre, localidad),
-      movimiento_items(
-        product_id, cantidad, precio_unitario, subtotal,
-        product:products(name, sku)
-      )
-    `)
-    .order("fecha", { ascending: false })
-    .order("created_at", { ascending: false });
 
-  if (desde)      query = query.gte("fecha", desde);
-  if (hasta)      query = query.lte("fecha", hasta);
-  if (sucursalId) query = query.eq("sucursal_id", sucursalId);
-  if (tipo)       query = query.eq("tipo", tipo);
+  // Paginado: PostgREST corta en 1.000 filas y hay ~16.000 movimientos -- un
+  // export sin filtro (o de un mes de un kiosco) salía truncado en silencio
+  // (auditoría 19/09/2026, A-03). El orden termina en id para que las páginas
+  // no repitan ni salteen filas.
+  let movimientos: any[];
+  let preciosRaw: { sucursal_id: string; product_id: string; costo: number | null }[];
+  try {
+    movimientos = await fetchAll<any>((d, h) => {
+      let query = (admin as any)
+        .from("movimientos")
+        .select(`
+          id, fecha, tipo, notas, created_at, proveedor, nro_remito, canal, sucursal_id,
+          sucursal:sucursales(nombre, localidad),
+          movimiento_items(
+            product_id, cantidad, precio_unitario, subtotal,
+            product:products(name, sku)
+          )
+        `, { count: "exact" })
+        .order("fecha", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id");
+      if (desde)      query = query.gte("fecha", desde);
+      if (hasta)      query = query.lte("fecha", hasta);
+      if (sucursalId) query = query.eq("sucursal_id", sucursalId);
+      if (tipo)       query = query.eq("tipo", tipo);
+      return query.range(d, h);
+    });
 
-  const { data, error } = await query as { data: any[] | null; error: any };
-  if (error) return new NextResponse(error.message, { status: 500 });
+    // Ajustes casi nunca traen precio_unitario/subtotal cargado a mano (se
+    // usan para corregir cantidades, no para registrar plata) -- sin esto el
+    // reporte de "valor de mercadería" para descontar al personal saldría en
+    // blanco. Se completa con el costo ACTUAL del producto en esa sucursal
+    // (product_prices), marcado aparte como estimado en la hoja de detalle --
+    // no es el costo histórico al momento del ajuste, es el mejor dato
+    // disponible hoy.
+    preciosRaw = await fetchAll((d, h) =>
+      admin.from("product_prices").select("sucursal_id, product_id, costo", { count: "exact" }).order("id").range(d, h)
+    );
+  } catch (e: any) {
+    return new NextResponse(e?.message ?? "Error consultando movimientos", { status: 500 });
+  }
 
-  const movimientos = data ?? [];
-
-  // Ajustes casi nunca traen precio_unitario/subtotal cargado a mano (se
-  // usan para corregir cantidades, no para registrar plata) -- sin esto el
-  // reporte de "valor de mercadería" para descontar al personal saldría en
-  // blanco. Se completa con el costo ACTUAL del producto en esa sucursal
-  // (product_prices), marcado aparte como estimado en la hoja de detalle --
-  // no es el costo histórico al momento del ajuste, es el mejor dato
-  // disponible hoy.
-  const { data: preciosRaw } = await admin.from("product_prices").select("sucursal_id, product_id, costo");
-  const costoMap = new Map((preciosRaw ?? []).map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
+  const costoMap = new Map(preciosRaw.map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
 
   function valorItem(sucursalId: string, item: { product_id: string; cantidad: number; subtotal: number | null }): { valor: number; estimado: boolean } {
     if (item.subtotal != null) return { valor: item.subtotal, estimado: false };

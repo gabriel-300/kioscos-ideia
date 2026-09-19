@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { fetchAll } from "@/lib/supabase/paginar";
 import { fechaHoyAR, fmtFechaHora, fmtFechaSolo } from "@/lib/fecha";
 
 export const revalidate = 0;
@@ -33,25 +34,35 @@ export default async function ConciliacionMercadoPagoPage({
 
   const [{ data: sucursales }, qrRes, transfRes, ventasRes] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
-    (admin as any)
-      .from("mercadopago_qr_orders")
-      .select("sucursal_id, monto, paid_at, movimiento_id")
-      .eq("estado", "pagado")
-      .gte("paid_at", `${desde}T00:00:00`)
-      .lte("paid_at", `${hasta}T23:59:59`) as unknown as Promise<{ data: QrOrder[] | null }>,
+    // Paginados (tope de 1.000 filas de PostgREST): con un rango amplio las
+    // órdenes/ventas pasan ese límite y la conciliación mostraba diferencias falsas.
+    fetchAll<QrOrder>((d, h) =>
+      (admin as any)
+        .from("mercadopago_qr_orders")
+        .select("sucursal_id, monto, paid_at, movimiento_id", { count: "exact" })
+        .eq("estado", "pagado")
+        .gte("paid_at", `${desde}T00:00:00`)
+        .lte("paid_at", `${hasta}T23:59:59`)
+        .order("id")
+        .range(d, h)
+    ).then((data) => ({ data })),
     (admin as any)
       .from("mercadopago_transferencias_recibidas")
       .select("sucursal_id, monto, recibido_en, movimiento_id")
       .gte("recibido_en", `${desde}T00:00:00`)
       .lte("recibido_en", `${hasta}T23:59:59`) as unknown as Promise<{ data: Transferencia[] | null }>,
-    (admin as any)
-      .from("movimientos")
-      .select("id, fecha, sucursal_id, pago_billetera, pago_transferencia")
-      .eq("tipo", "venta")
-      .is("anulado_en", null)
-      .gte("fecha", desde)
-      .lte("fecha", hasta)
-      .or("pago_billetera.gt.0,pago_transferencia.gt.0") as unknown as Promise<{ data: Venta[] | null }>,
+    fetchAll<Venta>((d, h) =>
+      (admin as any)
+        .from("movimientos")
+        .select("id, fecha, sucursal_id, pago_billetera, pago_transferencia", { count: "exact" })
+        .eq("tipo", "venta")
+        .is("anulado_en", null)
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .or("pago_billetera.gt.0,pago_transferencia.gt.0")
+        .order("id")
+        .range(d, h)
+    ).then((data) => ({ data })),
   ]);
 
   const sucNombreMap = new Map((sucursales ?? []).map((s) => [s.id, s.nombre]));

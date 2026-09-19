@@ -15,6 +15,7 @@ import { PagosTransferenciaSinConciliar } from "./_components/pagos-transferenci
 import { TraspasoCajaButton } from "./_components/traspaso-caja-button";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { fechaHoyAR, fmtHora } from "@/lib/fecha";
+import { fetchAll } from "@/lib/supabase/paginar";
 
 export const revalidate = 0;
 
@@ -623,8 +624,26 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // ventas del mes (por created_by), no las de un compañero; admin ve todo.
   // A diferencia de "Ventas Hoy"/Historial (que se acotan por turno de HOY, sin
   // tocar días anteriores), acá el corte es por persona a lo largo de todo el mes.
-  const ventasDelMesTodas = movs.filter(
-    (m) => m.tipo === "venta" && !m.anulado_en && m.fecha >= mesInicio && m.fecha <= mesFin
+  // Consulta PROPIA y paginada: `movs` (arriba) trae solo los 1.000 movimientos
+  // más nuevos de la sucursal (tope de PostgREST) y en un kiosco con ~100
+  // ventas por día eso no alcanza para cubrir un mes -- el análisis, el
+  // ranking y los "Más vendidos" salían de una fracción del mes (auditoría
+  // 19/09/2026, A-03). Los cards de "Entregado/Devuelto" siguen calculándose
+  // sobre `movs`: ver informe de auditoría.
+  const ventasDelMesTodas = await fetchAll<any>((desde, hasta) =>
+    (admin as any)
+      .from("movimientos")
+      .select(`
+        id, fecha, created_by,
+        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
+        movimiento_items(cantidad, subtotal, product:products(id, name))
+      `, { count: "exact" })
+      .eq("sucursal_id", id)
+      .eq("tipo", "venta")
+      .is("anulado_en", null)
+      .gte("fecha", mesInicio).lte("fecha", mesFin)
+      .order("id")
+      .range(desde, hasta)
   );
   const ventasDelMes = (role === "admin" || role === "concesionario")
     ? ventasDelMesTodas

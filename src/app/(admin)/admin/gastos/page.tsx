@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { GastosView, type GastoRow } from "./_components/gastos-view";
 import { GastosFijosView, type GastoFijoRow } from "./_components/gastos-fijos-view";
 import { fechaHoyAR } from "@/lib/fecha";
+import { fetchAll } from "@/lib/supabase/paginar";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Finanzas — Kioscos IDEIA" };
@@ -50,13 +51,18 @@ export default async function GastosPage({
       .order("dia_vencimiento") as unknown as Promise<{
         data: Omit<GastoFijoRow, "pago">[] | null;
       }>,
-    (admin as any)
-      .from("movimientos")
-      .select("canal, movimiento_items(subtotal)")
-      .eq("tipo", "venta")
-      .gte("fecha", desde).lte("fecha", hasta) as unknown as Promise<{
-        data: { canal: string | null; movimiento_items: { subtotal: number | null }[] }[] | null;
-      }>,
+    // Paginado (PostgREST corta en 1.000 filas, un mes de ventas lo pasa: A-03 de
+    // la auditoría 19/09/2026) y sin ventas anuladas.
+    fetchAll<{ canal: string | null; movimiento_items: { subtotal: number | null }[] }>((d, h) =>
+      (admin as any)
+        .from("movimientos")
+        .select("canal, movimiento_items(subtotal)", { count: "exact" })
+        .eq("tipo", "venta")
+        .is("anulado_en", null)
+        .gte("fecha", desde).lte("fecha", hasta)
+        .order("id")
+        .range(d, h)
+    ).then((data) => ({ data })),
     admin.auth.admin.listUsers({ perPage: 200 }),
   ]);
 

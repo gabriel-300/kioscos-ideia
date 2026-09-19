@@ -122,6 +122,19 @@ export async function cancelarQrMercadoPago(externalReference: string): Promise<
   const accesoError = await checkAccesoSucursal(admin, userId, role, orden.sucursal_id);
   if (accesoError) return { error: accesoError };
 
+  // Se cancela PRIMERO en nuestra base y solo si sigue "pendiente": si el pago
+  // entra justo ahora, el webhook ya la pasó a "pagado" y este update no
+  // matchea -- antes el update era incondicional y pisaba un "pagado" con
+  // "cancelado" (auditoría 19/09/2026, M-02).
+  const { data: cancelada, error: errCancel } = await (admin as any)
+    .from("mercadopago_qr_orders")
+    .update({ estado: "cancelado" })
+    .eq("external_reference", externalReference)
+    .eq("estado", "pendiente")
+    .select("id");
+  if (errCancel) return { error: errCancel.message };
+  if (!cancelada?.length) return { error: "Esta orden ya no está pendiente (puede que se haya pagado justo ahora), refrescá la pantalla" };
+
   const cred = mpCredenciales();
   if (cred) {
     const { data: sucursal } = await (admin as any)
@@ -137,9 +150,6 @@ export async function cancelarQrMercadoPago(externalReference: string): Promise<
       ).catch(() => {});
     }
   }
-
-  const { error } = await (admin as any).from("mercadopago_qr_orders").update({ estado: "cancelado" }).eq("external_reference", externalReference);
-  if (error) return { error: error.message };
 
   return {};
 }

@@ -1,44 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
-import { z } from "zod";
+import { NextResponse } from "next/server";
 
-const Schema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(8),
-  empresa:  z.string().min(2),
-  canal:    z.enum(["dist", "gastro", "min"]),
-  zonaId:   z.string().uuid(),
-  zonaNombre: z.string().optional(),
-});
-
-export async function POST(request: NextRequest) {
-  let body: unknown;
-  try { body = await request.json(); } catch {
-    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
-  }
-
-  const parsed = Schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
-  }
-
-  const { email, password, empresa, canal, zonaId, zonaNombre } = parsed.data;
-  const supabase = createAdminClient();
-
-  // Crear usuario con confirmación automática (B2B: aprobación manual de todas formas)
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: empresa, canal, zona_id: zonaId },
-  });
-
-  if (error) {
-    const msg = error.message.includes("already been registered")
-      ? "Ya existe una cuenta con ese email."
-      : error.message;
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
-
-  return NextResponse.json({ ok: true, userId: data.user.id });
+// El registro público (remanente del alta B2B) está deshabilitado a propósito:
+// esta ruta creaba usuarios `authenticated` sin sesión, sin límite y con el
+// email ya confirmado, y con eso cualquiera podía escribir en Storage
+// (auditoría 19/09/2026, hallazgo A-02). El staff se da de alta solo desde
+// /admin/staff (crearStaff, requiere admin). Se puede borrar este archivo.
+function gone() {
+  return NextResponse.json({ error: "El registro público está deshabilitado." }, { status: 410 });
 }
+
+export const POST = gone;
+export const GET = gone;
