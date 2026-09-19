@@ -17,6 +17,10 @@ export function redondearMoneda(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Topes de un pedido público (un kiosco no vende 1.000 unidades de un producto por la web).
+const MAX_CANTIDAD_LINEA = 1000;
+const MAX_LINEAS_CARRITO = 100;
+
 export type ItemCarritoInput =
   | { product_id: string; cantidad: number }
   | { promo_id: string; cantidad: number };
@@ -43,7 +47,11 @@ export async function resolverItemsPedido(
   itemsCarrito: ItemCarritoInput[]
 ): Promise<Resultado> {
   if (itemsCarrito.length === 0) return { error: "El carrito está vacío" };
-  if (itemsCarrito.some((i) => i.cantidad <= 0)) return { error: "Cantidad inválida en el carrito" };
+  // `cantidad <= 0` dejaba pasar NaN (NaN <= 0 es false) y no había tope: una Server Action
+  // recibe NaN/Infinity sin problema (auditoría 19/09, H-12).
+  if (itemsCarrito.length > MAX_LINEAS_CARRITO) return { error: "El carrito tiene demasiados productos" };
+  if (itemsCarrito.some((i) => !Number.isFinite(i.cantidad) || i.cantidad <= 0)) return { error: "Cantidad inválida en el carrito" };
+  if (itemsCarrito.some((i) => i.cantidad > MAX_CANTIDAD_LINEA)) return { error: "Cantidad demasiado grande en el carrito" };
 
   const { data: sucursal } = await (admin as any)
     .from("sucursales")

@@ -109,7 +109,7 @@ describe("crearPedidoPublico", () => {
 
   // Hallazgo de auditoría: la sucursal puede tener horario_pedidos (abierto/cerrado) pero
   // el servidor no lo valida -- solo la UI. Un POST directo a iniciarPedido() entra igual.
-  it.fails("rechaza pedidos fuera del horario de atención de la sucursal", async () => {
+  it("rechaza pedidos fuera del horario de atención de la sucursal", async () => {
     const cerrado = [{ dia: 0, abre: "08:00", cierra: "09:00" }, { dia: 1, abre: "08:00", cierra: "09:00" }, { dia: 2, abre: "08:00", cierra: "09:00" }, { dia: 3, abre: "08:00", cierra: "09:00" }, { dia: 4, abre: "08:00", cierra: "09:00" }, { dia: 5, abre: "08:00", cierra: "09:00" }, { dia: 6, abre: "08:00", cierra: "09:00" }];
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-09-19T18:00:00Z")); // 15:00 AR, todos los días cierra a las 9
     const r = await crearPedidoPublico(mundo({ sucursal: { horario_pedidos: cerrado } }).admin, datos(), "ip");

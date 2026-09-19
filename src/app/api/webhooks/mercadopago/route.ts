@@ -100,6 +100,13 @@ export async function POST(request: NextRequest) {
 
   if (!dataId) return NextResponse.json({ ok: true }); // nada que procesar, no es un error
 
+  // El id se interpola en la URL de la API de Mercado Pago con NUESTRO token: solo caracteres de id
+  // (letras, números, guion). Un valor con "../" apuntaría a otros endpoints (auditoría 19/09, H-11).
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(dataId))) {
+    console.warn("[mercadopago webhook] data.id con formato inválido, se ignora");
+    return NextResponse.json({ ok: true });
+  }
+
   // NO se rechaza la notificación por firma inválida/ausente -- Mercado Pago
   // documenta que las notificaciones de Código QR no siempre son validables
   // con x-signature (confirmado con datos reales: llegaron sin firma
@@ -126,7 +133,21 @@ export async function POST(request: NextRequest) {
       if (payment.status === "approved") {
         let matcheoOrdenQr = false;
         if (payment.external_reference) {
-          const { data: actualizados } = await (admin as any)
+          // El monto cobrado tiene que ser el de la orden: si es otro, NO se marca como pagada (el
+          // QR es de importe fijo, así que una diferencia es rara) y el pago queda en "pagos sin
+          // conciliar" para revisarlo a mano (auditoría 19/09, H-11).
+          const { data: ordenPrevia } = await (admin as any)
+            .from("mercadopago_qr_orders")
+            .select("monto, estado")
+            .eq("external_reference", payment.external_reference)
+            .maybeSingle();
+          const montoDistinto = !!ordenPrevia && ordenPrevia.estado === "pendiente"
+            && Math.round(Number(ordenPrevia.monto) * 100) !== Math.round(Number(payment.transaction_amount) * 100);
+          if (montoDistinto) {
+            await registrarPagoSinOrdenPendiente(admin, payment.external_reference, String(dataId), payment.transaction_amount, payment);
+          }
+
+          const { data: actualizados } = montoDistinto ? { data: null } : await (admin as any)
             .from("mercadopago_qr_orders")
             .update({
               estado:               "pagado",
@@ -137,7 +158,7 @@ export async function POST(request: NextRequest) {
             .eq("external_reference", payment.external_reference)
             .eq("estado", "pendiente")
             .select("id, pedido_id");
-          matcheoOrdenQr = !!actualizados && actualizados.length > 0;
+          matcheoOrdenQr = montoDistinto || (!!actualizados && actualizados.length > 0);
 
           // Fase 2 del storefront: esta es la ÚNICA vez que se puede disparar
           // la venta de un pedido público -- el UPDATE de arriba solo matchea
@@ -146,7 +167,7 @@ export async function POST(request: NextRequest) {
           // notificación. pedido_id es siempre null en el tráfico real de
           // hoy (staff cobrando desde el mostrador), así que esto no cambia
           // nada de lo que ya funciona.
-          if (matcheoOrdenQr && actualizados[0].pedido_id) {
+          if (actualizados?.[0]?.pedido_id) {
             const { crearVentaPublica } = await import("@/lib/pedidos/crear-venta-publica");
             const res = await crearVentaPublica(admin, actualizados[0].pedido_id);
             if (res.error) console.error("[mercadopago webhook] crearVentaPublica falló:", res.error);

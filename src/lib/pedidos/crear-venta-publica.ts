@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { fechaHoyAR } from "@/lib/fecha";
 
 // Sin "use server" a propósito -- esto NO es una Server Action invocable
 // desde el browser, solo se llama desde el webhook de Mercado Pago
@@ -50,7 +51,7 @@ export async function crearVentaPublica(
     return { movimiento_id: null, error: itemsError?.message ?? "El pedido no tiene items" };
   }
 
-  const fecha = new Date().toISOString().slice(0, 10);
+  const fecha = fechaHoyAR();
 
   const rpcRes = await (admin as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id: pedido.sucursal_id,
@@ -125,7 +126,7 @@ export async function registrarVentaCobroEnEntrega(
 
   const rpcRes = await (admin as any).rpc("crear_movimiento_con_items", {
     p_sucursal_id: pedido.sucursal_id,
-    p_fecha: new Date().toISOString().slice(0, 10),
+    p_fecha: fechaHoyAR(),
     p_tipo: "venta",
     p_notas: `Pedido online #${pedido.numero ?? pedidoId.slice(0, 8)} (efectivo)`,
     p_proveedor: null,

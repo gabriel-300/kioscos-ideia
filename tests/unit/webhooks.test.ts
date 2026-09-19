@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { fakeAdmin, eqDe, type Q, type Resp } from "../helpers/fake-supabase";
 
 // Webhooks públicos (sin sesión): lo único que los protege es la firma o la
-// consulta contra la API de Mercado Pago. `it.fails` = hallazgo abierto (H-11).
+// consulta contra la API de Mercado Pago (H-11 corregido: id validado y monto comparado).
 
 const h = vi.hoisted(() => ({ admin: null as any }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin, createClient: async () => ({}) }));
@@ -109,7 +109,7 @@ describe("webhook de Mercado Pago", () => {
   });
 
   // H-11: data.id se interpola tal cual en la URL de la API con nuestro token: "../" apunta a otros endpoints.
-  it.fails("rechaza un data.id no numérico sin llamar a la API", async () => {
+  it("rechaza un data.id no numérico sin llamar a la API", async () => {
     conToken();
     base(() => undefined);
     const fetchMock = mp(aprobado);
@@ -118,7 +118,7 @@ describe("webhook de Mercado Pago", () => {
   });
 
   // H-11: el monto pagado nunca se compara con el de la orden.
-  it.fails("no marca 'pagado' una orden si el monto cobrado es distinto al de la orden", async () => {
+  it("no marca 'pagado' una orden si el monto cobrado es distinto al de la orden", async () => {
     conToken();
     const f = base((q) => {
       if (q.op === "select" && q.table === "mercadopago_qr_orders") return { data: { monto: 15000, estado: "pendiente" } };

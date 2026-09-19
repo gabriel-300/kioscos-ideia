@@ -76,7 +76,7 @@ npm run dev                  # desarrollo
 npm run build                # next build (con chequeo de tipos)
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 14 archivos, 204 tests (verificado 2026-09-19)
+npm test                     # vitest run: 15 archivos, 218 tests (verificado 2026-09-19)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -89,18 +89,19 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 204 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 218 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
 - **Qué cubren**: precios y promos del storefront (`pricing`), reparto de combos y redondeo de moneda (en las dos rutas:
   storefront y staff), rate limit, stock liviano, horario, máquina de estados de pedidos, `fetchAll`, fechas UTC-3,
-  `crearMovimiento` (precio autoritativo, descuento de Pedido Ya, medios de pago, permisos, tenedor de la caja),
+  `crearMovimiento` (precio autoritativo, descuento de Pedido Ya, medios de pago, permisos, caja abierta, reglas por
+  sucursal), nichos, `/auth/callback`,
   `cerrarCaja` (recálculo de totales, auditoría obligatoria, quién puede cerrar), guardas de rol y de sucursal,
   contención de `middleware.ts` y los webhooks de Mercado Pago y WhatsApp (firma, idempotencia, deduplicación).
 - **`it.fails` = hallazgo abierto de la auditoría**: el test describe el comportamiento correcto y hoy falla. Cuando se
   corrige el bug, el test pasa a "inesperadamente verde" y hay que **sacarle el `.fails` en el mismo commit**.
-  Hay 8 en la ruta del staff y las guardas, 2 en webhooks y varios en el storefront.
+  Quedan 2: redondeo half-up de `redondearMoneda` (1.005) y rate limit no atómico.
 - **E2E (`e2e/`, Playwright, 21 pruebas)**: de humo y **solo lectura**, contra producción (no hay staging): redirecciones
   sin sesión, endpoints sin credencial, RLS con la anon key, bucket `remitos`. Sin login ni escrituras: los flujos que
   escriben (venta, cierre, pedido online) no se automatizan hasta tener un segundo proyecto de Supabase.
@@ -188,7 +189,7 @@ cada Server Action:
 5. Recalcular en el servidor todo lo que sea plata (precio, totales, medios de pago del cierre); nunca confiar en
    lo que manda el cliente.
 6. Toda escritura filtra por `id` **y** `sucursal_id`; nunca hacer `.update({ ...data })` con el objeto del cliente
-   (mass-assignment: `nichos/actions.ts:67` permite que un encargado habilite Cta. Corriente; ver §10).
+   (mass-assignment: `nichos/actions.ts` lo permitía y desde el 2026-09-19 usa una lista blanca de campos).
 7. Devolver `{ error }` (no lanzar) y `revalidatePath(...)`.
 
 **Lecturas**: cada `page.tsx` verifica el rol y, para encargado/vendedor/concesionario, la sucursal. Las consultas
@@ -256,8 +257,8 @@ y cada `page.tsx` verifica el rol.
 policies de Storage exigen rol de staff).
 
 **Flujos**: `/auth/redirect` decide el destino por rol (agregar un rol nuevo exige tocarlo: el repartidor entró en un
-bucle a `/login` hasta que se corrigió); `/auth/callback` verifica el token y redirige a `next` **sin validarlo** (open
-redirect, ver §10); `/auth/set-password`.
+bucle a `/login` hasta que se corrigió); `/auth/callback` verifica el token y redirige a `next` solo si es una ruta interna (una sola `/` al
+principio; antes era una redirección abierta); `/auth/set-password`.
 
 ---
 
@@ -304,7 +305,9 @@ Reglas del modelo que hay que conocer
 - Toma un lock por (sucursal, producto). El chequeo de stock negativo está **comentado** (`DESACTIVADO TEMPORALMENTE`
   desde la migración 024, a propósito).
 - **No** valida que los pagos sumen el total, ni categorías/canales habilitados, ni que haya caja abierta, ni es
-  idempotente. Esas validaciones viven en `crearMovimiento` (o faltan: ver §10).
+  idempotente. Esas validaciones viven en `crearMovimiento` (desde el 2026-09-19 valida canal, categoría, promos, precio de
+  sucursal y caja abierta; la idempotencia falta: ver §10). Quien llame al RPC por otra vía (`crearVentaPublica`,
+  multas de termos) tiene que hacerlas por su cuenta.
 
 **`abrir_caja` / `cerrar_caja`** (lock por sucursal)
 - `abrir_caja` falla si ya hay una caja abierta.
@@ -335,11 +338,12 @@ Regla general: **el precio nunca se confía del cliente**; el servidor lo resuel
 
 ### Venta (POS, `crearMovimiento`)
 1. `requireStaff()` y `requireSucursalAccess()`. Solo admin hace ajustes; el vendedor no carga entregas.
-2. Un vendedor solo vende si es el **tenedor actual** de la caja (quien abrió el turno o quien lo recibió por
-   traspaso); si no: "tocá Traspaso de turno antes de vender".
+2. Una venta de staff (no admin) exige una **caja abierta**; y un vendedor solo vende si es el **tenedor actual** de la
+   caja (quien abrió el turno o quien lo recibió por traspaso); si no: "tocá Traspaso de turno antes de vender".
+   Además se validan los canales, categorías y promos habilitados de la sucursal.
 3. Precio por línea = `product_prices.precio_dist` de la sucursal. Excepción: en canales Pedido Ya se acepta un precio del
-   cliente si es **mayor o igual** al de catálogo. Si el producto no tiene fila de precio en la sucursal, hoy se acepta
-   el del cliente (hallazgo H-08).
+   cliente si es **mayor o igual** al de catálogo. Un producto sin fila de precio en la sucursal se rechaza (antes se
+   aceptaba el precio del cliente: hubo 2 ventas a $0).
 4. Promos/recetas: se expanden a sus componentes y el precio de la promo se reparte **proporcional al costo** de cada
    componente (el último absorbe el resto del redondeo). Todo se redondea a centavos con `redondearMoneda`.
 5. Canales `cuenta_corriente` y `pedido_ya_plataforma`: se descartan los medios de pago (no se cobra en el momento).
@@ -455,7 +459,7 @@ repartidor solo marca `entregado` sus pedidos en `en_reparto` (`/admin/repartos`
 delivery, mínimo) es solo admin.
 
 **Horario**: `sucursales.horario_pedidos` (UTC-3 fijo, sin horario de verano). Sin horario cargado = siempre abierto. Se
-valida en pantalla, **no en el servidor** (H-12).
+valida en pantalla y también en `crearPedidoPublico`.
 
 **Bot de WhatsApp** (`lib/pedidos/bot-whatsapp.ts`): menú por botones y, para texto libre, Groq como atajo (nunca escribe
 ítems: arma una propuesta que el cliente confirma). Solo actúa en sucursales con `mercadopago_pos_id` cargado y con
@@ -463,8 +467,8 @@ valida en pantalla, **no en el servidor** (H-12).
 
 **Estado real al 2026-09-19**: `pedidos_online_habilitado = true` en Parque de las Fiestas y UNAM, sin horario, sin
 zonas (`zonas_entrega` vacía) y con `delivery_habilitado = false`: hoy solo se puede retirar. Hay 1 pedido de prueba.
-Latente antes de habilitar delivery: el envío no es un ítem pero sí entra a los pagos (H-05), la venta online se fecha en
-UTC (H-13) y queda con `created_by` nulo.
+Latente antes de habilitar delivery: el envío no es un ítem pero sí entra a los pagos (H-05) y la venta online queda con
+`created_by` nulo (H-13; la fecha ya se calcula en hora argentina).
 
 ---
 
@@ -497,7 +501,7 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
    Devolver `{ error }` en las acciones nuevas (varias acciones viejas todavía lanzan).
 4. **UTC vs UTC-3.** La base guarda `timestamptz` en UTC, el Worker corre en UTC y el negocio vive en UTC-3 (sin horario
    de verano). Para "hoy" usar `fechaHoyAR()` (`src/lib/fecha.ts`); **nunca** `new Date().toISOString().slice(0, 10)`
-   (entre las 21:00 y las 24:00 da el día siguiente). Las ventas online todavía tienen ese bug (H-13).
+   (entre las 21:00 y las 24:00 da el día siguiente). Las ventas online tenían ese bug y se corrigió el 2026-09-19.
 5. **`globals.css` fuerza color y fuente en `h1`–`h4`.** El catálogo público va dentro de la clase `.pd`, que los resetea;
    un título nuevo fuera de `.pd` hereda el estilo del admin.
 6. **`html, body { overflow-x: hidden }` rompe `position: sticky`.** El catálogo usa `overflow-x: clip` con
@@ -514,7 +518,8 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
     en `package.json` lo que se use.
 12. **Cookies de sesión armadas a mano** no sirven para probar Server Components con curl; usar Playwright con login real.
 13. **`aperturas_caja` sin UNIQUE** es intencional (multi-turno); la unicidad de "caja abierta" la da el lock de `abrir_caja`.
-14. **Ninguna venta puede quedar fuera de un turno**: hoy lo garantiza la pantalla (0 casos en la historia) y no el servidor.
+14. **Ninguna venta puede quedar fuera de un turno**: `crearMovimiento` lo exige desde el 2026-09-19 para el staff (0 casos
+    en la historia). Las ventas online (`crearVentaPublica`) y las multas de termos llaman al RPC directo y no lo verifican.
 15. **No hay staging.** Toda prueba con escritura corre contra producción: crear datos de prueba, **borrarlos** (incluida la
     merma automática que genera cada venta) y solo entonces avisar.
 
@@ -524,8 +529,7 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
 
 Resumen de la auditoría del 2026-09-19 (informe completo, con archivo:línea y escenarios:
 https://claude.ai/artifact/XVUPwuWmUiTWvkyXkk6QHf; hay otra auditoría paralela del mismo día:
-https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado verificado después de los commits `af51edf`, `d7fb2d0` y
-`30ea688` y de la migración 095.
+https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde), con 218 tests en verde.
 
 **Corregido y en producción**
 - Registro público (410), `/api/ping` falla cerrado (y `CRON_SECRET` ya está cargado), listado anónimo de `remitos`
@@ -533,7 +537,17 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado verificado después d
 - Paginación con `fetchAll` en informe mensual, gastos, exportación Excel, conciliación de Mercado Pago y análisis del mes
   del detalle de sucursal.
 - Termos (filtro por sucursal, multa atómica), cancelación de QR condicional y pagos sobre órdenes canceladas.
-- Base de pruebas: 204 tests unitarios y 21 pruebas E2E de humo de solo lectura (ver §1, "Pruebas automáticas").
+- Base de pruebas y compuerta de CI (`npm test` antes del build).
+
+**Corregido en código (commits del 2026-09-19 posteriores a la auditoría)**
+- **H-07** nichos con lista blanca de campos. **H-08** canales, categorías, promos y precio de sucursal validados en el
+  servidor. **H-10 (parcial)** una venta de staff exige caja abierta. **H-24** `/auth/callback` solo redirige a rutas internas.
+- **H-25**/**H-26** redondeo a centavos en el efectivo de Pedido Ya y en los totales del cierre. **H-27**
+  `requireSucursalAccess` niega por defecto. Cantidad NaN/Infinity rechazada (staff y storefront) y topes en el carrito.
+- **H-11** el webhook de Mercado Pago valida el formato de `data.id` y compara el monto (si difiere, no marca pagado y deja el
+  pago en "sin conciliar"). **H-12 (parcial)** horario validado en el servidor y topes de cantidad. **H-13 (parcial)** las
+  ventas online usan la fecha argentina. **H-20 (parcial)** cabeceras `X-Frame-Options`, `nosniff` y `Referrer-Policy`.
+- **H-06** escrito en `supabase/migrations/096_confirmar_transferencia_bloqueo_fila.sql`: **falta aplicarla a mano** en el SQL Editor.
 
 **Abierto (ordenado por gravedad)**
 | ID | Sev. | Riesgo |
@@ -543,20 +557,15 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado verificado después d
 | H-02 | Alta (parcial) | Siguen sin paginar: pronóstico (`pronostico/page.tsx:71`), tarjetas "Entregado/Devuelto" del detalle de sucursal, `lib/reposicion.ts` y el layout (latentes). |
 | H-05 | Alta (latente) | Delivery: el envío entra a los pagos pero no a los ítems (cierres con diferencia falsa) y el efectivo del repartidor cuenta como caja del local. Resolver antes de habilitar delivery. |
 | H-23 | Media | 142 cobros QR pagados sin venta vinculada ($733.980; 48 desde el 10/08 = $258.105). |
-| H-06 | Media | `confirmar_transferencia_stock` sin bloqueo de fila: doble confirmación duplica el stock. |
-| H-07 | Media | `nichos/actions.ts:67` (`...data`): un encargado puede habilitar Cta. Corriente y fijar su límite. |
-| H-08 | Media | Categorías, canales y promos habilitados por sucursal solo se validan en pantalla; precio del cliente aceptado si falta el precio de sucursal. |
-| H-09 | Media | Sin idempotencia en ventas (5 pares idénticos en <10 s). |
-| H-10 | Media | El cierre calcula los totales fuera de la transacción del RPC. |
-| H-11 | Media | Webhook de Mercado Pago: `data.id` sin validar, monto no comparado, errores devuelven 200. |
-| H-12 | Media | Storefront: sugerencia de IA sin límite, pedidos en efectivo sin verificación, horario solo en pantalla, cantidades sin tope. |
-| H-13 | Media (latente) | Ventas online con fecha UTC y `created_by` nulo. |
-| H-14 | Media | Anular venta no anula su merma automática; borrado y edición de fecha sin rastro. |
+| H-06 | Media | Falta **aplicar la migración 096** (bloqueo de fila en `confirmar_transferencia_stock`). |
+| H-09 | Media | Sin idempotencia en ventas (5 pares idénticos en <10 s). Requiere una columna nueva (migración). |
+| H-10 | Media | El cierre calcula los totales fuera de la transacción del RPC; las ventas online y las multas de termos no exigen caja abierta. |
+| H-11 | Media (resto) | Falta un conciliador periódico contra la API de Mercado Pago: si la consulta falla, se responde 200 y la orden queda `pendiente` (62 órdenes viejas). |
+| H-12 | Media (resto) | Sugerencia de IA sin límite por IP y pedidos en efectivo sin verificación del teléfono; rate limit no atómico. |
+| H-13 | Media (latente) | Ventas online con `created_by` nulo. |
+| H-14 | Media | Anular venta no anula su merma automática; borrado y edición de fecha sin rastro. Requiere vincular la merma a su venta (migración). |
 | H-15 | Media | El repo no reconstruye la base (migraciones sin archivo, policies sin archivo). |
-| H-25 | Baja | `pedido_ya_efectivo` guarda `pago_efectivo` sin redondear (`movimientos/actions.ts`, `items.reduce`): hay 1 caso real en la base (30/07: 11865.999999999998). El resto de float entra a la suma de efectivo del traspaso de turno. |
-| H-26 | Baja (latente) | `cerrarCaja` suma los subtotales sin redondear a centavos antes de llamar al RPC (0 cierres afectados en 203). |
-| H-27 | Baja | `requireSucursalAccess` no niega por defecto: un rol desconocido devuelve "permitido" (hoy lo frena `requireStaff()` antes). |
-| H-24 y bajos | Baja | Redirección abierta en `/auth/callback`; tokens comparados con `!==`; `"use server"` en `require-role.ts`; tickets con HTML sin escapar (`document.write`); HIBP apagado, contraseña mínima de 6, sin CSP; 389 `as any`; lógica de precio copiada 3 veces. |
+| Bajos | Baja | Tokens comparados con `!==`; `"use server"` en `require-role.ts`; tickets con HTML sin escapar (`document.write`); HIBP apagado, contraseña mínima de 6, sin CSP; 389 `as any`; lógica de precio copiada 3 veces; redondeo half-up de `redondearMoneda`. |
 
 Los bloques de riesgo de fondo: la plata depende de que cada acción recuerde validar rol y sucursal; no hay
 staging; no hay backups; no hay monitoreo (ni Sentry, ni `error.tsx`, ni health check público; `wrangler.toml` no habilita

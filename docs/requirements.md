@@ -46,7 +46,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   Pedido Ya Plataforma, Cta. Corriente, Ambulante (pide "quién vendió") y Ronda comunidad; promos y recetas descuentan el
   stock de sus componentes; los productos por kg admiten decimales; si un producto tiene "% de merma al preparar" la
   venta genera sola un movimiento de merma (15% hoy, en los productos configurados).
-- **Casos borde**: doble clic crea dos ventas (no hay idempotencia); una venta se anula solo con la caja abierta y con motivo.
+- **Casos borde**: doble clic crea dos ventas (no hay idempotencia); una venta de staff exige caja abierta y un producto sin precio de
+  la sucursal no se vende; una venta se anula solo con la caja abierta y con motivo.
 - **Estado**: **Funcionando** (11.300 ventas desde julio).
 
 ### Caja: apertura, cierre, traspaso y sobre
@@ -215,7 +216,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
   navegador de quien no debe verlos; los datos de clientes (nombre, teléfono, dirección de los pedidos) solo los ve el staff.
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups, sin monitoreo de errores
   y sin entorno de staging. Es el principal riesgo operativo.
-- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (204 unitarias, compuerta de CI desde el
+- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (218 unitarias, compuerta de CI desde el
   2026-09-19) o el build fallan, no se despliega. Además hay 21 E2E de humo de solo lectura, que se corren a mano.
 
 ---
@@ -229,6 +230,7 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | **Backups**: pasar Supabase a Pro o programar un `pg_dump` diario; confirmar quién es dueño de la organización | ❌ Pendiente (0 backups) |
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |
 | Aplicar la migración 095 (Storage) | ✅ Hecho (el listado anónimo de remitos da 0) |
+| **Aplicar la migración 096** (`confirmar_transferencia_stock` con bloqueo de fila) en el SQL Editor | ❌ Escrita, sin aplicar |
 | **Zonas de envío reales** en `/admin/pedidos-online/configuracion` | ❌ 0 zonas |
 | **Horario de pedidos** en Parque y UNAM (hoy sin horario = siempre abierto) | ❌ Sin cargar |
 | **WhatsApp real** de cada sucursal (número para el catálogo) | ❌ Sin cargar |

@@ -62,9 +62,17 @@ export async function actualizarContacto(
     throw new Error("Estado inválido");
   }
 
+  // Lista blanca de campos: TypeScript no valida en runtime, y un `...data` dejaba que un
+  // encargado mandara `habilitado_cta_corriente`/`limite_credito` (control solo de admin,
+  // ver actualizarCtaCorrienteContacto) o hasta `sucursal_id` (auditoría 19/09, H-07).
+  const permitido: Record<string, unknown> = {};
+  for (const campo of ["estado", "convertido_pedido", "monto", "notas"] as const) {
+    if (data[campo] !== undefined) permitido[campo] = data[campo];
+  }
+
   const { error } = await (admin as any)
     .from("contactos_crm")
-    .update({ ...data, atendido_por: userId })
+    .update({ ...permitido, atendido_por: userId })
     .eq("id", id)
     .eq("sucursal_id", sucursalId);
   if (error) throw new Error(error.message);

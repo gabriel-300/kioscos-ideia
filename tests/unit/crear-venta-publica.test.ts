@@ -49,7 +49,7 @@ describe("crearVentaPublica (pago por Mercado Pago)", () => {
   // `new Date().toISOString().slice(0, 10)` da la fecha UTC. A las 22:30 de Argentina
   // (01:30Z del día siguiente) la venta se guarda con la fecha de MAÑANA: cae en otro
   // día en los informes y en la lógica de turnos. El resto del sistema usa fechaHoyAR().
-  it.fails("22:30 AR: la venta se registra con la fecha de hoy en Argentina", async () => {
+  it("22:30 AR: la venta se registra con la fecha de hoy en Argentina", async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-09-19T01:30:00Z"));
     const { admin, rpcCalls } = mundo();
     await crearVentaPublica(admin, "ped-1");
@@ -76,7 +76,7 @@ describe("registrarVentaCobroEnEntrega (efectivo)", () => {
     expect((await registrarVentaCobroEnEntrega(admin, "ped-1")).error).toMatch(/efectivo/);
   });
 
-  it.fails("22:30 AR: la venta en efectivo también usa la fecha argentina", async () => {
+  it("22:30 AR: la venta en efectivo también usa la fecha argentina", async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-09-19T01:30:00Z"));
     const { admin, rpcCalls } = mundo();
     await registrarVentaCobroEnEntrega(admin, "ped-1");

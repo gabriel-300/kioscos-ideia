@@ -3,6 +3,7 @@ import { chequearRateLimit } from "./rate-limit";
 import { resolverItemsPedido, redondearMoneda, type ItemCarritoInput } from "./pricing";
 import { chequearStockLiviano } from "./stock";
 import { telefonoValido } from "./validaciones";
+import { estadoHorario, normalizarHorario } from "./horario";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -64,11 +65,17 @@ export async function crearPedidoPublico(
   // ── Sucursal habilitada para lo que se pide ───────────────────────────
   const { data: sucursal } = await (admin as any)
     .from("sucursales")
-    .select("is_active, pedidos_online_habilitado, delivery_habilitado, retiro_habilitado, pedido_minimo_envio, retiro_eta_min, retiro_eta_max")
+    .select("is_active, pedidos_online_habilitado, delivery_habilitado, retiro_habilitado, pedido_minimo_envio, retiro_eta_min, retiro_eta_max, horario_pedidos")
     .eq("id", data.sucursal_id)
     .single();
   if (!sucursal?.is_active || !sucursal.pedidos_online_habilitado) {
     return { error: "Esta sucursal todavía no acepta pedidos online" };
+  }
+  // El horario de atención también se valida acá, no solo en la pantalla (auditoría 19/09, H-12).
+  // Sin horario cargado la sucursal está siempre abierta.
+  const horario = estadoHorario(normalizarHorario(sucursal.horario_pedidos));
+  if (!horario.abierto) {
+    return { error: `El local está cerrado por ahora${horario.proximaApertura ? `. Abre ${horario.proximaApertura}` : ""}` };
   }
   if (data.tipo_entrega === "delivery" && !sucursal.delivery_habilitado) return { error: "Esta sucursal no hace envíos por ahora" };
   if (data.tipo_entrega === "retiro_local" && !sucursal.retiro_habilitado) return { error: "Esta sucursal no tiene retiro en el local por ahora" };

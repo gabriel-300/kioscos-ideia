@@ -84,11 +84,11 @@ describe("resolverItemsPedido -- productos sueltos", () => {
 
   // Hallazgo de auditoría: `cantidad <= 0` deja pasar NaN (NaN <= 0 es false) y no
   // hay tope superior. Un Server Action recibe NaN/Infinity sin problema.
-  it.fails("rechaza cantidad NaN", async () => {
+  it("rechaza cantidad NaN", async () => {
     const r = await resolverItemsPedido(admin(base), SUC, [{ product_id: "p1", cantidad: NaN }]);
     expect(r).toHaveProperty("error");
   });
-  it.fails("rechaza cantidades absurdas (tope por línea)", async () => {
+  it("rechaza cantidades absurdas (tope por línea)", async () => {
     const r = await resolverItemsPedido(admin(base), SUC, [{ product_id: "p1", cantidad: 1_000_000 }]);
     expect(r).toHaveProperty("error");
   });
