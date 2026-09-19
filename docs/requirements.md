@@ -216,7 +216,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups, sin monitoreo de errores
   y sin entorno de staging. Es el principal riesgo operativo.
 - **Cada cambio llega a producción al pushear a `master`**: si el build falla no se despliega. Las pruebas automáticas
-  (103 unitarias y un smoke E2E de solo lectura) todavía no son una compuerta de CI.
+  (204 unitarias y 21 E2E de humo de solo lectura) todavía no son una compuerta de CI.
 
 ---
 

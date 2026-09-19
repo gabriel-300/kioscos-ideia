@@ -76,7 +76,7 @@ npm run dev                  # desarrollo
 npm run build                # next build (con chequeo de tipos)
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 9 archivos, 103 tests (verificado 2026-09-19)
+npm test                     # vitest run: 14 archivos, 204 tests (verificado 2026-09-19)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -87,6 +87,25 @@ Motivo: el 18/09 un error de tipos rompió el deploy de `master`.
 Los hooks de `.git` no viajan con el repo: **en cada copia (ej. la notebook) correr `sh scripts/instalar-hooks.sh`**.
 Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF en scripts y hooks (con CRLF fallan
 en otra máquina).
+
+### Pruebas automáticas
+- **Unitarias (`tests/unit/`, vitest, 204 tests)**: corren en 6 s y **no tocan la base real**. Usan
+  `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
+  (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
+  mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
+- **Qué cubren**: precios y promos del storefront (`pricing`), reparto de combos y redondeo de moneda (en las dos rutas:
+  storefront y staff), rate limit, stock liviano, horario, máquina de estados de pedidos, `fetchAll`, fechas UTC-3,
+  `crearMovimiento` (precio autoritativo, descuento de Pedido Ya, medios de pago, permisos, tenedor de la caja),
+  `cerrarCaja` (recálculo de totales, auditoría obligatoria, quién puede cerrar), guardas de rol y de sucursal,
+  contención de `middleware.ts` y los webhooks de Mercado Pago y WhatsApp (firma, idempotencia, deduplicación).
+- **`it.fails` = hallazgo abierto de la auditoría**: el test describe el comportamiento correcto y hoy falla. Cuando se
+  corrige el bug, el test pasa a "inesperadamente verde" y hay que **sacarle el `.fails` en el mismo commit**.
+  Hay 8 en la ruta del staff y las guardas, 2 en webhooks y varios en el storefront.
+- **E2E (`e2e/`, Playwright, 21 pruebas)**: de humo y **solo lectura**, contra producción (no hay staging): redirecciones
+  sin sesión, endpoints sin credencial, RLS con la anon key, bucket `remitos`. Sin login ni escrituras: los flujos que
+  escriben (venta, cierre, pedido online) no se automatizan hasta tener un segundo proyecto de Supabase.
+- **No son una compuerta de CI todavía** (`deploy.yml` solo hace build). El `tsconfig` incluye `**/*.ts`: un error de
+  tipos en un test también rompe el build del deploy.
 
 ### Herramientas de desarrollo con Claude Code
 Hooks en `.claude/` (secret-scanner sobre Bash, bloqueo de escritura en `.env*`). El MCP de Supabase está en **solo
@@ -513,7 +532,7 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado verificado después d
 - Paginación con `fetchAll` en informe mensual, gastos, exportación Excel, conciliación de Mercado Pago y análisis del mes
   del detalle de sucursal.
 - Termos (filtro por sucursal, multa atómica), cancelación de QR condicional y pagos sobre órdenes canceladas.
-- Base de pruebas: 103 tests unitarios y un smoke E2E de solo lectura.
+- Base de pruebas: 204 tests unitarios y 21 pruebas E2E de humo de solo lectura (ver §1, "Pruebas automáticas").
 
 **Abierto (ordenado por gravedad)**
 | ID | Sev. | Riesgo |
@@ -533,6 +552,9 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado verificado después d
 | H-13 | Media (latente) | Ventas online con fecha UTC y `created_by` nulo. |
 | H-14 | Media | Anular venta no anula su merma automática; borrado y edición de fecha sin rastro. |
 | H-15 | Media | El repo no reconstruye la base (migraciones sin archivo, policies sin archivo). |
+| H-25 | Baja | `pedido_ya_efectivo` guarda `pago_efectivo` sin redondear (`movimientos/actions.ts`, `items.reduce`): hay 1 caso real en la base (30/07: 11865.999999999998). El resto de float entra a la suma de efectivo del traspaso de turno. |
+| H-26 | Baja (latente) | `cerrarCaja` suma los subtotales sin redondear a centavos antes de llamar al RPC (0 cierres afectados en 203). |
+| H-27 | Baja | `requireSucursalAccess` no niega por defecto: un rol desconocido devuelve "permitido" (hoy lo frena `requireStaff()` antes). |
 | H-24 y bajos | Baja | Redirección abierta en `/auth/callback`; tokens comparados con `!==`; `"use server"` en `require-role.ts`; tickets con HTML sin escapar (`document.write`); HIBP apagado, contraseña mínima de 6, sin CSP; 389 `as any`; lógica de precio copiada 3 veces. |
 
 Los bloques de riesgo de fondo: la plata depende de que cada acción recuerde validar rol y sucursal; no hay
