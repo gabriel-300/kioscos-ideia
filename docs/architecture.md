@@ -34,8 +34,8 @@ lo importa ningún módulo.
 ### Despliegue
 - **Cada push a `master` despliega** (`.github/workflows/deploy.yml`, también `workflow_dispatch`): Node 22 →
   `npm ci` → `npm run build:cloudflare` → `npx wrangler deploy`.
-- **Si el build falla, no se despliega y producción queda en la versión anterior.** `next build` incluye el chequeo de
-  tipos; el workflow **no corre `vitest` ni `eslint`**: los tests no son una compuerta de CI hoy.
+- **Si los tests o el build fallan, no se despliega y producción queda en la versión anterior.** El workflow corre
+  `npm test` (vitest) y después `next build`, que incluye el chequeo de tipos; **no corre `eslint`**.
 - URL de producción: `https://kioscos-ideia.lytwyn-ideia.workers.dev` (Worker `kioscos-ideia`, `wrangler.toml`:
   `nodejs_compat`, assets en `.open-next/assets`, sin `[observability]` ni `[triggers]`).
 - `middleware.ts` se queda con ese nombre: `proxy.ts` (el nombre nuevo en Next 16) resultó incompatible con
@@ -104,8 +104,9 @@ en otra máquina).
 - **E2E (`e2e/`, Playwright, 21 pruebas)**: de humo y **solo lectura**, contra producción (no hay staging): redirecciones
   sin sesión, endpoints sin credencial, RLS con la anon key, bucket `remitos`. Sin login ni escrituras: los flujos que
   escriben (venta, cierre, pedido online) no se automatizan hasta tener un segundo proyecto de Supabase.
-- **No son una compuerta de CI todavía** (`deploy.yml` solo hace build). El `tsconfig` incluye `**/*.ts`: un error de
-  tipos en un test también rompe el build del deploy.
+- **Compuerta de CI**: `deploy.yml` corre `npm test` antes del build; si una prueba falla no se despliega. Los E2E
+  no corren en CI (pegan contra producción). El `tsconfig` incluye `**/*.ts`: un error de tipos en un test también
+  rompe el build del deploy.
 
 ### Herramientas de desarrollo con Claude Code
 Hooks en `.claude/` (secret-scanner sobre Bash, bloqueo de escritura en `.env*`). El MCP de Supabase está en **solo

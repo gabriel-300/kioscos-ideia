@@ -18,6 +18,12 @@ jobs:
 
       - run: npm ci
 
+      # Compuerta: si una prueba falla, no se despliega (producción queda en la
+      # versión anterior). Un it.fails que pasa a verde también corta: hay que
+      # sacarle el .fails en el mismo commit que corrige el bug.
+      - name: Tests unitarios
+        run: npm test
+
       - name: Build
         run: npm run build:cloudflare
         env:

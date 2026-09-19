@@ -215,8 +215,8 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
   navegador de quien no debe verlos; los datos de clientes (nombre, teléfono, dirección de los pedidos) solo los ve el staff.
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups, sin monitoreo de errores
   y sin entorno de staging. Es el principal riesgo operativo.
-- **Cada cambio llega a producción al pushear a `master`**: si el build falla no se despliega. Las pruebas automáticas
-  (204 unitarias y 21 E2E de humo de solo lectura) todavía no son una compuerta de CI.
+- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (204 unitarias, compuerta de CI desde el
+  2026-09-19) o el build fallan, no se despliega. Además hay 21 E2E de humo de solo lectura, que se corren a mano.
 
 ---
 
