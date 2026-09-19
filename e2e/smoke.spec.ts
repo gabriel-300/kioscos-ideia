@@ -49,15 +49,15 @@ test.describe("storefront público", () => {
   });
 });
 
-test.describe("hallazgos de auditoría (deben empezar a pasar cuando se corrijan)", () => {
-  // Confirmado contra producción (19/09/2026): responde 200 => CRON_SECRET no está
-  // configurado en el Worker y el chequeo `Bearer ${undefined}` falla abierto.
-  test.fail("/api/ping no acepta 'Bearer undefined' (falla abierto si falta CRON_SECRET)", async ({ request }) => {
+test.describe("hallazgos de auditoría (los que siguen con test.fail están abiertos; los demás son guardias de regresión)", () => {
+  // Corregido el 19/09/2026 (CRON_SECRET cargado + el endpoint falla cerrado): guardia de regresión.
+  test("/api/ping no acepta 'Bearer undefined' (falla abierto si falta CRON_SECRET)", async ({ request }) => {
     const r = await request.get("/api/ping", { headers: { authorization: "Bearer undefined" } });
     expect(r.status()).toBe(401);
   });
 
-  test.fail("el registro público /api/auth/registro está deshabilitado (hoy responde 400 = sigue vivo)", async ({ request }) => {
+  // Corregido el 19/09/2026 (la ruta responde 410): guardia de regresión.
+  test("el registro público /api/auth/registro está deshabilitado", async ({ request }) => {
     // Body inválido a propósito: NO crea ningún usuario.
     const r = await request.post("/api/auth/registro", { data: { email: "no-es-un-email" } });
     expect([404, 410, 401, 403]).toContain(r.status());
