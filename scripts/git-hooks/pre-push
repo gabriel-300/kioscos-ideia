@@ -1,0 +1,27 @@
+#!/bin/sh
+# Chequeo antes de cada `git push`: verifica los tipos de todo el proyecto
+# (lo mismo que hace `next build` en el deploy de GitHub) y frena el push si
+# hay errores REALES. Motivo: el 18/09 un error de tipos en un commit rompió
+# el deploy de master y nadie se enteró hasta después del push.
+#
+# Ignora los errores de la carpeta .next/ (archivos generados a medias por un
+# servidor de desarrollo interrumpido) -- no son del código.
+# Para saltearlo en una emergencia:  git push --no-verify
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+echo "[pre-push] verificando tipos (tsc)..."
+salida=$(npx tsc --noEmit 2>&1)
+errores=$(printf '%s\n' "$salida" | grep 'error TS' | grep -v '^\.next/')
+
+if [ -n "$errores" ]; then
+  echo ""
+  echo "[pre-push] HAY ERRORES DE TIPOS -- el push se canceló (el deploy de GitHub también fallaría):"
+  printf '%s\n' "$errores" | head -20
+  echo ""
+  echo "Arreglalos y volvé a pushear (o 'git push --no-verify' si es una emergencia)."
+  exit 1
+fi
+
+echo "[pre-push] tipos OK."
+exit 0
