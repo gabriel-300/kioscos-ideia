@@ -63,7 +63,8 @@ test.describe("hallazgos de auditoría (los que siguen con test.fail están abie
     expect([404, 410, 401, 403]).toContain(r.status());
   });
 
-  test.fail("respuestas con cabeceras de seguridad (clickjacking / sniffing)", async ({ request }) => {
+  // Corregido el 19/09/2026 (next.config.ts agrega X-Frame-Options / nosniff): guardia de regresión.
+  test("respuestas con cabeceras de seguridad (clickjacking / sniffing)", async ({ request }) => {
     const r = await request.get("/login");
     const h = r.headers();
     expect(h["x-frame-options"] ?? h["content-security-policy"]).toBeTruthy();
