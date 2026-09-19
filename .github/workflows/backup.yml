@@ -1,0 +1,91 @@
+name: Backup
+
+# Copia de la base de Supabase (public + auth + storage) y de los archivos de Storage,
+# cifrada con age y guardada en Cloudflare R2. Cómo se restaura: docs/backups.md
+#
+# Frecuencia: cada 6 horas (hora UTC; Argentina es UTC-3).
+#   - 03:17 UTC (00:17 ART): base + Storage
+#   - 09:17, 15:17 y 21:17 UTC: solo la base (Storage cambia poco y pesa más)
+# Los horarios "en punto" se evitan a propósito: GitHub los retrasa cuando hay mucha carga.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+    - cron: '17 9,15,21 * * *'
+  workflow_dispatch:
+    inputs:
+      include_storage:
+        description: 'Copiar también los archivos de Storage'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# Dos backups a la vez pisarían el mismo cupo de conexiones: se encolan, no se cancelan.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir alcance
+        id: alcance
+        env:
+          EVENTO: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+          INPUT_STORAGE: ${{ inputs.include_storage }}
+        run: |
+          if [ "$EVENTO" = "schedule" ]; then
+            if [ "$CRON" = "17 3 * * *" ]; then echo "storage=true" >> "$GITHUB_OUTPUT"; else echo "storage=false" >> "$GITHUB_OUTPUT"; fi
+          else
+            echo "storage=$INPUT_STORAGE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Construir imagen de herramientas (Postgres 17, age, awscli)
+        run: docker build -t kioscos-backup-tools:1 scripts/backup
+
+      - name: Backup cifrado a R2
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          INCLUDE_STORAGE: ${{ steps.alcance.outputs.storage }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/backup-out"
+          # Las variables se pasan por nombre (-e VAR): el valor nunca queda en la línea de comandos.
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$GITHUB_WORKSPACE/scripts/backup:/scripts:ro" \
+            -v "$RUNNER_TEMP/backup-out:/out" \
+            -e SUPABASE_DB_URL -e SUPABASE_URL -e SUPABASE_SERVICE_ROLE_KEY -e BACKUP_AGE_RECIPIENT \
+            -e R2_ACCOUNT_ID -e R2_ACCESS_KEY_ID -e R2_SECRET_ACCESS_KEY -e R2_BUCKET \
+            -e INCLUDE_STORAGE -e GIT_SHA \
+            kioscos-backup-tools:1 bash /scripts/backup.sh
+
+      - name: Resumen
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/backup-out/summary.md" ]; then cat "$RUNNER_TEMP/backup-out/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Avisar que falló
+        if: failure()
+        run: |
+          {
+            echo "## ❌ EL BACKUP FALLÓ"
+            echo
+            echo "**Hasta que se arregle no hay copias nuevas de la base.** La última copia buena sigue en R2."
+            echo "El motivo está en el log del paso «Backup cifrado a R2» (línea marcada como error)."
+            echo "Guía de problemas frecuentes: docs/backups.md, sección «Si el backup falla»."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=BACKUP FALLÓ::No hay copias nuevas de Supabase. Ver el log del paso anterior y docs/backups.md"

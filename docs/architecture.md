@@ -66,7 +66,12 @@ lo importa ningún módulo.
   profiles), la tabla `cta_corriente_pagos` sin `CREATE` y el bucket `remitos` sin migración. **Repetir las migraciones
   no reconstruye la base viva.** Estado verificado el 2026-09-19: 000–095 aplicadas (la 095 la corrió el usuario).
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
-- **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. No hay copia restaurable.
+- **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
+  (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
+  age (la clave privada no está en GitHub) y guardado en Cloudflare R2, cada 6 horas, con 30 días de retención. Restauración y
+  operación en **`docs/backups.md`**. Estado: construido y ensayado en local (Docker + MinIO); **no cuenta como respaldo hasta
+  que corra en GitHub con los secrets cargados y se restaure una copia real en un segundo proyecto**. Cuesta ≈ 2,7 GB/mes de
+  egress de Supabase (estimado; verificar en Usage).
 - **Cuota excedida (diagnosticada 2026-09-19)**: el plan Free de Supabase permite 5 GB de *Cached Egress* (tráfico servido por el
   CDN, o sea las imágenes públicas) y el ciclo 23/08–23/09 lleva **8,4 GB (168%)**; el resto está muy por debajo (base 40 MB de
   500, Storage 22 MB de 1 GB, egress normal 0,8 GB de 5). Si sigue excedida, Supabase **restringe el proyecto desde el
@@ -564,7 +569,7 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde)
 **Abierto (ordenado por gravedad)**
 | ID | Sev. | Riesgo |
 |---|---|---|
-| H-03 | Alta | **Sin backups** (plan Free). |
+| H-03 | Alta | **Sin backups** (plan Free). Solución construida (`docs/backups.md`); sigue abierto hasta la primera corrida real y la restauración probada en un segundo proyecto. |
 | H-04 | Alta | `next` 16.2.12: los avisos críticos piden 16.3.3 o más (sugerido 16.3.5). No son explotables en Workers, pero conviene subir. No usar `npm audit fix --force`. |
 | H-02 | Alta (parcial) | Siguen sin paginar: pronóstico (`pronostico/page.tsx:71`), tarjetas "Entregado/Devuelto" del detalle de sucursal, `lib/reposicion.ts` y el layout (latentes). |
 | H-05 | Alta (latente) | Delivery: el envío entra a los pagos pero no a los ítems (cierres con diferencia falsa) y el efectivo del repartidor cuenta como caja del local. Resolver antes de habilitar delivery. |
