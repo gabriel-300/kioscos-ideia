@@ -5,8 +5,8 @@ import { fakeAdmin, type Q } from "../helpers/fake-supabase";
 // autoritativo del servidor, reparto de combos, descuento de Pedido Ya, medios
 // de pago y permisos. Se prueba con el doble en memoria de Supabase y sin
 // tocar la lógica (solo se mockean las fronteras: sesión, base, caché, IA).
-// Los `it.fails` son hallazgos de la auditoría del 19/09/2026 (informe H-xx):
-// pasan a "inesperadamente verdes" cuando se corrijan -- ahí se les saca el .fails.
+// Los tests que cubren hallazgos de la auditoría del 19/09/2026 (informe H-xx) se escribieron
+// primero como `it.fails`; al corregir el bug se les sacó el .fails (los que sigan abiertos, ojo: son `it.fails`).
 
 const h = vi.hoisted(() => ({ session: { userId: "u1", role: "vendedor" }, admin: null as any }));
 
@@ -99,7 +99,7 @@ describe("crearMovimiento -- el precio lo decide el servidor", () => {
   });
 
   // H-08: si el producto no tiene fila de precio en la sucursal, precioAutorizado devuelve el del cliente.
-  it.fails("un producto SIN precio de sucursal no puede venderse con el precio del cliente", async () => {
+  it("un producto SIN precio de sucursal no puede venderse con el precio del cliente", async () => {
     const t = montar({ precios: [] });
     const r = await crearMovimiento(base({ items: [{ product_id: "sin-precio", cantidad: 1, precio_unitario: 0.01 }] }));
     expect(r.error).toBeTruthy();
@@ -185,7 +185,7 @@ describe("crearMovimiento -- descuento de Pedido Ya", () => {
   // Hallazgo nuevo de esta fase: `pagoEfectivo = items.reduce(...)` no se redondea. Hay 1 caso real en la
   // base (movimiento del 30/07, pedido_ya_efectivo, pago_efectivo = 11865.999999999998). Ese resto de float
   // entra a la suma de efectivo del traspaso de turno y puede volver "distinta de cero" una diferencia de $0.
-  it.fails("pedido_ya_efectivo: p_pago_efectivo queda redondeado a centavos", async () => {
+  it("pedido_ya_efectivo: p_pago_efectivo queda redondeado a centavos", async () => {
     const t = montar({ precios: [P("a", 0.1), P("b", 0.2)] });
     await crearMovimiento(base({ canal: "pedido_ya_efectivo", items: [{ product_id: "a", cantidad: 1 }, { product_id: "b", cantidad: 1 }] }));
     expect(t.args().p_pago_efectivo).toBe(0.3);
@@ -272,7 +272,7 @@ describe("crearMovimiento -- permisos y validaciones", () => {
   });
 
   // La comprobación es `cantidad <= 0` y NaN <= 0 es false: NaN pasa hasta la base.
-  it.fails("rechaza cantidad NaN", async () => {
+  it("rechaza cantidad NaN", async () => {
     const t = montar({ precios: [P("p1", 1000)] });
     const r = await crearMovimiento(base({ items: [{ product_id: "p1", cantidad: NaN }] }));
     expect(r.error).toBeTruthy();
@@ -321,7 +321,7 @@ describe("crearMovimiento -- tenedor de la caja", () => {
   });
 
   // H-10: el servidor no verifica que haya caja abierta; hoy lo evita solo la pantalla (0 ventas fuera de turno en la base).
-  it.fails("un vendedor no puede vender con la caja CERRADA", async () => {
+  it("un vendedor no puede vender con la caja CERRADA", async () => {
     const cerrada = { apertura: { id: "a1", created_at: "2026-09-19T10:00:00Z", created_by: "v1" }, ultimoCierre: { created_at: "2026-09-19T12:00:00Z" } };
     const t = montar({ role: "vendedor", userId: "v1", vendedorEnSucursal: true, precios: [P("p1", 1000)], ...cerrada });
     const r = await vender();
@@ -332,7 +332,7 @@ describe("crearMovimiento -- tenedor de la caja", () => {
 
 describe("crearMovimiento -- reglas por sucursal (H-08)", () => {
   // Villa Sarita: solo una categoría y solo consumidor_final. Hoy se aplica únicamente en la pantalla.
-  it.fails("un concesionario no puede vender por un canal que su sucursal no tiene habilitado", async () => {
+  it("un concesionario no puede vender por un canal que su sucursal no tiene habilitado", async () => {
     const t = montar({
       role: "concesionario", userId: "conc", precios: [P("p1", 1000)],
       sucursal: { canales_habilitados: ["consumidor_final"], categorias_habilitadas: ["minutas"] },
@@ -342,7 +342,7 @@ describe("crearMovimiento -- reglas por sucursal (H-08)", () => {
     expect(t.args()).toBeUndefined();
   });
 
-  it.fails("un concesionario no puede vender un producto de una categoría no habilitada", async () => {
+  it("un concesionario no puede vender un producto de una categoría no habilitada", async () => {
     const t = montar({
       role: "concesionario", userId: "conc", precios: [P("p1", 1000)], productos: [{ id: "p1", category_id: "helados" }],
       sucursal: { categorias_habilitadas: ["minutas"] },
@@ -350,6 +350,55 @@ describe("crearMovimiento -- reglas por sucursal (H-08)", () => {
     const r = await crearMovimiento(base({ items: [{ product_id: "p1", cantidad: 1 }] }));
     expect(r.error).toBeTruthy();
     expect(t.args()).toBeUndefined();
+  });
+});
+
+describe("crearMovimiento -- caja abierta y reglas por sucursal (más casos)", () => {
+  const vender = () => crearMovimiento(base({ items: [{ product_id: "p1", cantidad: 1 }] }));
+
+  it("un encargado sin caja abierta tampoco puede vender; el admin está exento", async () => {
+    let t = montar({ role: "encargado", userId: "enc", precios: [P("p1", 1000)], apertura: null });
+    expect((await vender()).error).toMatch(/caja abierta/);
+    expect(t.args()).toBeUndefined();
+    t = montar({ role: "admin", precios: [P("p1", 1000)], apertura: null });
+    expect((await vender()).error).toBeUndefined();
+  });
+
+  it("solo las VENTAS exigen caja abierta: una entrega o una merma no", async () => {
+    const t = montar({ role: "encargado", userId: "enc", precios: [P("p1", 5)], apertura: null });
+    expect((await crearMovimiento(base({ tipo: "entrega", proveedor: "P", items: [{ product_id: "p1", cantidad: 1, precio_unitario: 5 }] }))).error).toBeUndefined();
+    expect((await crearMovimiento(base({ tipo: "merma", notas: "se cayó", items: [{ product_id: "p1", cantidad: 1, precio_unitario: null }] }))).error).toBeUndefined();
+    expect(t.rpcCalls.length).toBe(2);
+  });
+
+  it("un canal habilitado, y un producto de una categoría habilitada, pasan", async () => {
+    const t = montar({
+      role: "concesionario", userId: "conc", precios: [P("p1", 1000)], productos: [{ id: "p1", category_id: "minutas" }],
+      sucursal: { canales_habilitados: ["consumidor_final"], categorias_habilitadas: ["minutas"] },
+      apertura: { id: "a1", created_at: "2026-09-19T10:00:00Z", created_by: "conc" },
+    });
+    expect((await vender()).error).toBeUndefined();
+    expect(t.args()).toBeDefined();
+  });
+
+  it("sucursal con promos deshabilitadas o promo de otra categoría: se rechaza", async () => {
+    const promo = [{ id: "promo1", price: 100, is_active: true, category_id: "helados", promo_items: [{ product_id: "a", cantidad: 1 }] }];
+    let t = montar({ promos: promo as any, precios: [P("a", 1)], sucursal: { promos_habilitadas: false } });
+    expect((await crearMovimiento(base({ items: [{ promo_id: "promo1", cantidad: 1 }] }))).error).toMatch(/promociones/);
+    expect(t.args()).toBeUndefined();
+    t = montar({ promos: promo as any, precios: [P("a", 1)], sucursal: { categorias_habilitadas: ["minutas"] } });
+    expect((await crearMovimiento(base({ items: [{ promo_id: "promo1", cantidad: 1 }] }))).error).toMatch(/promociones/);
+    expect(t.args()).toBeUndefined();
+  });
+
+  it("las reglas de canal y categoría solo aplican a ventas (no a entregas del encargado)", async () => {
+    const t = montar({
+      role: "encargado", userId: "enc", precios: [P("p1", 5)], productos: [{ id: "p1", category_id: "otra" }],
+      sucursal: { canales_habilitados: ["consumidor_final"], categorias_habilitadas: ["minutas"] },
+    });
+    const r = await crearMovimiento(base({ tipo: "entrega", proveedor: "P", items: [{ product_id: "p1", cantidad: 1, precio_unitario: 5 }] }));
+    expect(r.error).toBeUndefined();
+    expect(t.args()).toBeDefined();
   });
 });
 

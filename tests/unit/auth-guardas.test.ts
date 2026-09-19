@@ -99,7 +99,7 @@ describe("requireSucursalAccess", () => {
 
   // Hallazgo de la auditoría: la guarda solo conoce 4 roles; cualquier otro (repartidor, un rol nuevo) pasa
   // con `null` = "permitido". Hoy lo frena requireStaff() antes, pero la guarda debería negar por defecto.
-  it.fails("rechaza un rol desconocido (negar por defecto)", async () => {
+  it("rechaza un rol desconocido (negar por defecto)", async () => {
     expect(await requireSucursalAccess(admin({ encargado: "yo" }), "yo", "repartidor", SUC)).toMatch(/permisos/);
   });
 });

@@ -6,6 +6,12 @@ import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 
+// Un archivo "use server" solo exporta funciones async: por eso esta copia local
+// de redondearMoneda (mismo criterio que lib/pedidos/pricing.ts).
+function redondearMoneda(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export async function cerrarCaja(data: {
   sucursal_id:              string;
   fecha:                    string;
@@ -111,21 +117,24 @@ export async function cerrarCaja(data: {
     const ventasFiadoTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "cuenta_corriente");
     const ventasPlataformaTurno = (ventasTurnoRaw ?? []).filter((m) => m.canal === "pedido_ya_plataforma");
 
-    billeteraDeclarada     = ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0);
-    tarjetaDeclarada       = ventasTurno.reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0);
-    transferenciaDeclarada = ventasTurno.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0);
+    // Todos los totales se redondean a centavos: la suma de floats de JS deja restos
+    // (0.1 + 0.2 = 0.30000000000000004) y el RPC calcula la diferencia contra ese
+    // número exacto (auditoría 19/09, H-26).
+    billeteraDeclarada     = redondearMoneda(ventasTurno.reduce((s, m) => s + (m.pago_billetera ?? 0), 0));
+    tarjetaDeclarada       = redondearMoneda(ventasTurno.reduce((s, m) => s + (m.pago_tarjeta ?? 0), 0));
+    transferenciaDeclarada = redondearMoneda(ventasTurno.reduce((s, m) => s + (m.pago_transferencia ?? 0), 0));
     // total_ventas tampoco se confía del cliente -- se recalcula desde los movimientos
     // reales del turno (mismo criterio que el resto: no se puede manipular con devtools
     // para que la diferencia "cuadre" ocultando un faltante real).
-    totalVentas = ventasTurno.reduce(
+    totalVentas = redondearMoneda(ventasTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
-    );
-    totalFiado = ventasFiadoTurno.reduce(
+    ));
+    totalFiado = redondearMoneda(ventasFiadoTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
-    );
-    totalPlataforma = ventasPlataformaTurno.reduce(
+    ));
+    totalPlataforma = redondearMoneda(ventasPlataformaTurno.reduce(
       (s, m) => s + m.movimiento_items.reduce((ss, i) => ss + (i.subtotal ?? 0), 0), 0
-    );
+    ));
 
     // Ver comentario donde se declara fondoInicial más arriba -- si hay una
     // apertura registrada, ese es el fondo real, no lo que mande el cliente.

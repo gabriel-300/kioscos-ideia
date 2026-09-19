@@ -5,7 +5,7 @@ import { fakeAdmin, eqDe, type Q } from "../helpers/fake-supabase";
 // concesionario el servidor IGNORA los totales del cliente y los recalcula desde
 // los movimientos del turno (auditoría 08/08: antes se podía fabricar una
 // diferencia en cero para esconder un faltante). Se prueba con el doble en
-// memoria de Supabase, sin tocar la lógica. `it.fails` = hallazgo abierto.
+// memoria de Supabase. `it.fails` = hallazgo abierto (hoy no queda ninguno acá).
 
 const h = vi.hoisted(() => ({ session: { userId: "u1", role: "encargado" }, admin: null as any }));
 
@@ -137,7 +137,7 @@ describe("cerrarCaja -- los totales los recalcula el servidor", () => {
   // Latente: la suma en JS no se redondea. Con subtotales de 2 decimales (ej. 0.1 + 0.2) el total queda con
   // resto de float y el RPC calcula la diferencia contra ese número: un turno cuadrado al centavo podría pedir nota.
   // En la base hay 0 cierres con ese problema (203 revisados), por eso es un riesgo latente y no un bug vivo.
-  it.fails("el total de ventas se pasa al RPC redondeado a centavos", async () => {
+  it("el total de ventas se pasa al RPC redondeado a centavos", async () => {
     const t = montar({ ventas: [venta("consumidor_final", [0.1, 0.2])] });
     await cerrarCaja(datos());
     expect(t.args().p_total_ventas).toBe(0.3);

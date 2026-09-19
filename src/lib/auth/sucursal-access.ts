@@ -14,6 +14,11 @@ export async function requireSucursalAccess(
   role: string,
   sucursalId: string
 ): Promise<string | null> {
+  // Negar por defecto (auditoría 19/09, H-27): un rol que no sea uno de estos cuatro
+  // (repartidor, un rol nuevo, undefined) no accede a ninguna sucursal por acá.
+  if (!["admin", "encargado", "concesionario", "vendedor"].includes(role)) {
+    return "No tenés permisos para esta sucursal";
+  }
   // "concesionario" (Encargado Concesionario -- dueño económico de UNA sola
   // sucursal a cambio de un % de lo que vende, ver conversación con Gabriel
   // set. 2026) se scopea con el mismo mecanismo que encargado: la persona

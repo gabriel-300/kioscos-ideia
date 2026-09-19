@@ -81,7 +81,13 @@ export async function crearMovimiento(data: {
   // bloquea acá server-side, no solo con un aviso -- pedido explícito del
   // usuario. Encargado/admin no se restringen (ya pueden cerrar cualquier
   // turno de su sucursal, tenedor o no).
-  if (role === "vendedor" && data.tipo === "venta") {
+  //
+  // Además, una venta de staff (no admin) exige una caja ABIERTA en la
+  // sucursal: la pantalla ya lo impide, pero un formulario abierto de antes
+  // del cierre podía seguir vendiendo, y una venta hecha entre un cierre y la
+  // próxima apertura no entra en ningún cierre (auditoría 19/09, H-10). Hoy
+  // hay 0 ventas fuera de turno en la base, así que no bloquea nada real.
+  if (role !== "admin" && data.tipo === "venta") {
     const { data: ultimaApertura } = await (supabase as any)
       .from("aperturas_caja")
       .select("id, created_at, created_by")
@@ -89,6 +95,7 @@ export async function crearMovimiento(data: {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    let cajaAbierta = false;
     if (ultimaApertura) {
       const { data: ultimoCierre } = await (supabase as any)
         .from("cierres_caja")
@@ -97,12 +104,15 @@ export async function crearMovimiento(data: {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const cajaAbierta = !ultimoCierre || ultimoCierre.created_at < ultimaApertura.created_at;
-      if (cajaAbierta) {
-        const tenedorActualId = await obtenerTenedorActual(supabase, ultimaApertura.id, ultimaApertura.created_by);
-        if (tenedorActualId && tenedorActualId !== userId) {
-          return { movimiento_id: null, error: 'No tenés la caja de este turno -- tocá "Traspaso de turno" antes de vender.' };
-        }
+      cajaAbierta = !ultimoCierre || ultimoCierre.created_at < ultimaApertura.created_at;
+    }
+    if (!cajaAbierta) {
+      return { movimiento_id: null, error: "No hay una caja abierta en esta sucursal -- abrí la caja antes de vender." };
+    }
+    if (role === "vendedor") {
+      const tenedorActualId = await obtenerTenedorActual(supabase, ultimaApertura.id, ultimaApertura.created_by);
+      if (tenedorActualId && tenedorActualId !== userId) {
+        return { movimiento_id: null, error: 'No tenés la caja de este turno -- tocá "Traspaso de turno" antes de vender.' };
       }
     }
   }
@@ -111,6 +121,10 @@ export async function crearMovimiento(data: {
   // En venta/entrega/devolución invertiría el efecto sobre el stock -- una "venta"
   // con cantidad negativa SUMARÍA stock en vez de restarlo (y el futuro chequeo de
   // stock insuficiente nunca lo va a detectar, porque nunca deja el stock negativo).
+  // NaN/Infinity también se rechazan: `NaN <= 0` es false y pasaría hasta la base.
+  if (data.items.some((i) => !Number.isFinite(i.cantidad))) {
+    return { movimiento_id: null, error: "Cantidad inválida" };
+  }
   if (data.tipo !== "ajuste" && data.items.some((i) => i.cantidad <= 0)) {
     return { movimiento_id: null, error: "La cantidad debe ser mayor a 0" };
   }
@@ -163,6 +177,51 @@ export async function crearMovimiento(data: {
     precioProductoMap = new Map((precios ?? []).map((p) => [p.product_id, p.precio_dist]));
   }
 
+  // Reglas por sucursal (auditoría 19/09, H-08): canales, categorías y promos
+  // habilitados, y precio de sucursal obligatorio. Antes solo se aplicaban en
+  // la pantalla: un concesionario (Villa Sarita: solo "Minutas" y solo
+  // Consumidor Final) podía saltearlas llamando a la acción, y un producto sin
+  // fila en product_prices se vendía al precio que mandara el cliente (hay 2
+  // ventas reales a $0 del 11/09 por eso).
+  let categoriasHabilitadas: string[] | null = null;
+  if (esVenta) {
+    const { data: reglas } = await (supabase as any)
+      .from("sucursales")
+      .select("canales_habilitados, categorias_habilitadas, promos_habilitadas")
+      .eq("id", data.sucursal_id)
+      .single();
+    const canal = data.canal ?? "consumidor_final";
+    const canales: string[] | null = reglas?.canales_habilitados ?? null;
+    if (canales && canales.length > 0 && !canales.includes(canal)) {
+      return { movimiento_id: null, error: "Esta sucursal no tiene habilitado ese canal de venta" };
+    }
+    if (promoInputs.length > 0 && reglas?.promos_habilitadas === false) {
+      return { movimiento_id: null, error: "Esta sucursal no tiene promociones habilitadas" };
+    }
+    const cats: string[] | null = reglas?.categorias_habilitadas ?? null;
+    if (cats && cats.length > 0) categoriasHabilitadas = cats;
+
+    if (categoriasHabilitadas && productInputs.length > 0) {
+      const { data: prods, error: prodsError } = await (supabase as any)
+        .from("products").select("id, category_id")
+        .in("id", [...new Set(productInputs.map((i) => i.product_id))]);
+      if (prodsError) return { movimiento_id: null, error: prodsError.message };
+      const catDe = new Map<string, string | null>((prods ?? []).map((p: { id: string; category_id: string | null }) => [p.id, p.category_id]));
+      for (const i of productInputs) {
+        const cat = catDe.get(i.product_id);
+        if (!cat || !categoriasHabilitadas.includes(cat)) {
+          return { movimiento_id: null, error: "Uno de los productos no está habilitado para vender en esta sucursal" };
+        }
+      }
+    }
+
+    for (const i of productInputs) {
+      if (precioProductoMap.get(i.product_id) == null) {
+        return { movimiento_id: null, error: "Uno de los productos no tiene precio cargado en esta sucursal" };
+      }
+    }
+  }
+
   // Costo actual, para comparar contra el precio de la entrega y avisar si el
   // proveedor cambió el precio (ver alertas_precio más abajo, después del RPC).
   let costoProductoMap = new Map<string, number | null>();
@@ -190,12 +249,12 @@ export async function crearMovimiento(data: {
     const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
     const { data: promos, error: promosError } = await (supabase as any)
       .from("promos")
-      .select("id, price, is_active, promo_items(product_id, cantidad)")
+      .select("id, price, is_active, category_id, promo_items(product_id, cantidad)")
       .in("id", promoIds);
     if (promosError) return { movimiento_id: null, error: promosError.message };
 
     type PromoItemRow = { product_id: string; cantidad: number };
-    type PromoRow = { id: string; price: number; is_active: boolean; promo_items: PromoItemRow[] };
+    type PromoRow = { id: string; price: number; is_active: boolean; category_id?: string | null; promo_items: PromoItemRow[] };
     const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
 
     // El precio de la promo es por sucursal desde la migración 070 (mismo caso
@@ -229,6 +288,9 @@ export async function crearMovimiento(data: {
       const promo = promoMap.get(input.promo_id);
       if (!promo) return { movimiento_id: null, error: "Promoción no encontrada" };
       if (!promo.is_active) return { movimiento_id: null, error: `La promoción "${promo.id}" ya no está activa` };
+      if (categoriasHabilitadas && (!promo.category_id || !categoriasHabilitadas.includes(promo.category_id))) {
+        return { movimiento_id: null, error: "Una de las promociones no está habilitada para vender en esta sucursal" };
+      }
       if (!promo.promo_items || promo.promo_items.length === 0) {
         return { movimiento_id: null, error: "La promoción no tiene productos configurados" };
       }
@@ -311,7 +373,9 @@ export async function crearMovimiento(data: {
   // importar qué mande el cliente en el resto de los medios), así entra a la
   // conciliación de caja como una venta en efectivo más, igual que Consumidor Final.
   if (esVenta && esPedidoYaEfectivo) {
-    const totalVentaEfectivo = items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
+    // Redondeado a centavos: sin esto queda el resto de float de la suma (hay un caso real
+    // en la base, 11865.999999999998) y ensucia la suma de efectivo del traspaso (H-25).
+    const totalVentaEfectivo = redondearMoneda(items.reduce((s, i) => s + (i.subtotal ?? 0), 0));
     pagoEfectivo      = totalVentaEfectivo || null;
     pagoBilletera     = null;
     pagoTarjeta       = null;
