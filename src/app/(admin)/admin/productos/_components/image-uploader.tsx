@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { reducirImagen } from "@/lib/imagen";
 
 interface Props {
   value:    string | null;
@@ -24,12 +25,16 @@ export function ImageUploader({ value, onChange, folder = "products" }: Props) {
     setUploading(true);
     try {
       const supabase = createClient();
-      const ext  = file.name.split(".").pop() ?? "jpg";
+      // Se reduce antes de subir (una foto de 2 MB por producto agotó la cuota de tráfico de Supabase).
+      const optimizada = await reducirImagen(file);
+      const ext  = optimizada.name.split(".").pop() ?? "jpg";
       const path = `${folder}/${crypto.randomUUID()}.${ext}`;
 
+      // El nombre lleva un UUID nuevo en cada subida, así que la imagen nunca cambia bajo la misma
+      // URL: se puede cachear un año (antes eran 3600 s y cada pantalla la bajaba de nuevo cada hora).
       const { error: uploadError } = await supabase.storage
         .from("product-images")
-        .upload(path, file, { upsert: true });
+        .upload(path, optimizada, { upsert: true, cacheControl: "31536000", contentType: optimizada.type });
 
       if (uploadError) throw uploadError;
 

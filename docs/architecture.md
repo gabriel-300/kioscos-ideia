@@ -67,9 +67,14 @@ lo importa ningún módulo.
   no reconstruye la base viva.** Estado verificado el 2026-09-19: 000–095 aplicadas (la 095 la corrió el usuario).
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. No hay copia restaurable.
-- **Cuota excedida**: el panel de Supabase (2026-09-19) avisa que la organización superó su cuota del ciclo anterior y que
-  **restringe los proyectos el 18/10/2026** si sigue excedida. No es el disco (40 MB de 500 MB) ni Storage (22 MB de 1 GB);
-  cuál es la cuota excedida **(sin verificar)**: mirar Organization → Usage (lo más probable es el tráfico de salida).
+- **Cuota excedida (diagnosticada 2026-09-19)**: el plan Free de Supabase permite 5 GB de *Cached Egress* (tráfico servido por el
+  CDN, o sea las imágenes públicas) y el ciclo 23/08–23/09 lleva **8,4 GB (168%)**; el resto está muy por debajo (base 40 MB de
+  500, Storage 22 MB de 1 GB, egress normal 0,8 GB de 5). Si sigue excedida, Supabase **restringe el proyecto desde el
+  18/10/2026** (las requests devuelven 402). Causa: el bucket `product-images` tiene 3 PNG de ~2 MB y uno de ellos es la imagen de
+  un producto activo (Chipa Bocadito), que pesa el 70% de las imágenes propias de una carga del catálogo; el uploader subía
+  las fotos sin reducir y con caché de 1 hora. De los 161 productos activos con imagen, solo 7 están en el bucket: el resto
+  apunta a URLs externas (no cuentan). Corrección en código: `src/lib/imagen.ts` reduce a 1000 px en WebP antes de subir y el
+  uploader pone `cacheControl` de un año; falta **re-subir** la imagen pesada (ver `docs/requirements.md` §5).
 - Tipos: `src/types/database.ts` está parchado a mano (`supabase gen types` se cuelga con segfault en esta máquina
   Windows/Node 24); por eso el código usa mucho `(supabase as any)` (ver §9).
 
@@ -79,7 +84,7 @@ npm run dev                  # desarrollo
 npm run build                # next build (con chequeo de tipos)
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 15 archivos, 218 tests (verificado 2026-09-19)
+npm test                     # vitest run: 16 archivos, 222 tests (verificado 2026-09-19)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -92,7 +97,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 218 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 222 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -532,7 +537,7 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
 
 Resumen de la auditoría del 2026-09-19 (informe completo, con archivo:línea y escenarios:
 https://claude.ai/artifact/XVUPwuWmUiTWvkyXkk6QHf; hay otra auditoría paralela del mismo día:
-https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde), con 218 tests en verde.
+https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde), con 222 tests en verde.
 
 **Corregido y en producción**
 - Registro público (410), `/api/ping` falla cerrado (y `CRON_SECRET` ya está cargado), listado anónimo de `remitos`

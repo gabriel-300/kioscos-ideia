@@ -216,7 +216,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
   navegador de quien no debe verlos; los datos de clientes (nombre, teléfono, dirección de los pedidos) solo los ve el staff.
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups, sin monitoreo de errores
   y sin entorno de staging. Es el principal riesgo operativo.
-- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (218 unitarias, compuerta de CI desde el
+- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (222 unitarias, compuerta de CI desde el
   2026-09-19) o el build fallan, no se despliega. Además hay 21 E2E de humo de solo lectura, que se corren a mano.
 
 ---
@@ -228,7 +228,7 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | Pendiente | Estado |
 |---|---|
 | **Backups**: pasar Supabase a Pro o programar un `pg_dump` diario; confirmar quién es dueño de la organización | ❌ Pendiente (0 backups) |
-| **Cuota de Supabase excedida**: el panel avisa que restringe los proyectos el **18/10/2026** si sigue excedida; ver Organization → Usage y decidir el plan (Pro resuelve esto y los backups) | ❌ Urgente, con fecha |
+| **Cuota de Supabase excedida (Cached Egress 8,4 GB de 5 GB)**: restringe el proyecto el **18/10/2026** si sigue excedida. Causa: imágenes pesadas. **Re-subir la imagen de "Chipa Bocadito Congelada x500g"** desde Productos (el uploader ya la reduce) y decidir el plan: Pro incluye 250 GB y los backups | ❌ Urgente, con fecha |
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |
 | Aplicar la migración 095 (Storage) | ✅ Hecho (el listado anónimo de remitos da 0) |
 | **Aplicar la migración 096** (`confirmar_transferencia_stock` con bloqueo de fila) en el SQL Editor | ❌ Escrita, sin aplicar |
