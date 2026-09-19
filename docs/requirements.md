@@ -117,6 +117,10 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Reglas**: precio y costo son **por sucursal**; un producto activo no se guarda si falta el precio en alguna sucursal
   activa; todo cambio queda en el historial; una entrega con un costo distinto al del catálogo genera una alerta (sin
   umbral); el catálogo público oculta los productos sin precio.
+- **Regla de imágenes** (desde el 2026-09-19): las imágenes de productos y promos que se suben deben ser JPG, PNG o WebP, pesar
+  hasta 1 MB y medir al menos 400 px de lado; lo ideal es cuadrada (1:1), 1000 × 1000 px, fondo liso y el producto centrado. Si
+  no se cumple, el cargador no la sube y abre una ventana que muestra el modelo y los motivos. Motivo: cada imagen se descarga en
+  cada pantalla de venta y en el catálogo público, y las pesadas agotaron la cuota de tráfico de Supabase.
 - **Estado**: **Funcionando** (225 productos, 196 activos; 209 alertas).
 
 ### Cobro con QR de Mercado Pago (mostrador)
@@ -216,7 +220,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
   navegador de quien no debe verlos; los datos de clientes (nombre, teléfono, dirección de los pedidos) solo los ve el staff.
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups, sin monitoreo de errores
   y sin entorno de staging. Es el principal riesgo operativo.
-- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (222 unitarias, compuerta de CI desde el
+- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (229 unitarias, compuerta de CI desde el
   2026-09-19) o el build fallan, no se despliega. Además hay 21 E2E de humo de solo lectura, que se corren a mano.
 
 ---
@@ -228,7 +232,8 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | Pendiente | Estado |
 |---|---|
 | **Backups**: pasar Supabase a Pro o programar un `pg_dump` diario; confirmar quién es dueño de la organización | ❌ Pendiente (0 backups) |
-| **Cuota de Supabase excedida (Cached Egress 8,4 GB de 5 GB)**: restringe el proyecto el **18/10/2026** si sigue excedida. Causa: imágenes pesadas. **Re-subir la imagen de "Chipa Bocadito Congelada x500g"** desde Productos (el uploader ya la reduce) y decidir el plan: Pro incluye 250 GB y los backups | ❌ Urgente, con fecha |
+| **Cuota de Supabase excedida (Cached Egress 8,4 GB de 5 GB)**: restringe el proyecto el **18/10/2026** si sigue excedida. Causa: imágenes pesadas. La imagen de "Chipa Bocadito Congelada x500g" ya se quitó (19/09); el consumo del ciclo actual no baja, solo deja de crecer. Falta decidir el plan: Pro incluye 250 GB y los backups | ❌ Urgente, con fecha |
+| **Aplicar la migración 097** (tope de 1 MB en el bucket `product-images`) y **borrar los 3 PNG pesados** del bucket desde Storage (products/393e9d8b…, c10cb17f…, 422466ae…, ~6 MB, sin uso) | ❌ Pendiente |
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |
 | Aplicar la migración 095 (Storage) | ✅ Hecho (el listado anónimo de remitos da 0) |
 | **Aplicar la migración 096** (`confirmar_transferencia_stock` con bloqueo de fila) en el SQL Editor | ❌ Escrita, sin aplicar |

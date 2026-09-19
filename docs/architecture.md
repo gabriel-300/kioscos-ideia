@@ -73,8 +73,12 @@ lo importa ningún módulo.
   18/10/2026** (las requests devuelven 402). Causa: el bucket `product-images` tiene 3 PNG de ~2 MB y uno de ellos es la imagen de
   un producto activo (Chipa Bocadito), que pesa el 70% de las imágenes propias de una carga del catálogo; el uploader subía
   las fotos sin reducir y con caché de 1 hora. De los 161 productos activos con imagen, solo 7 están en el bucket: el resto
-  apunta a URLs externas (no cuentan). Corrección en código: `src/lib/imagen.ts` reduce a 1000 px en WebP antes de subir y el
-  uploader pone `cacheControl` de un año; falta **re-subir** la imagen pesada (ver `docs/requirements.md` §5).
+  apunta a URLs externas (no cuentan). Corrección en código: `src/lib/imagen.ts` define la **regla de subida** (JPG/PNG/WebP, hasta 1 MB, lado mínimo 400 px; el cargador la
+  valida y, si no se cumple, abre una ventana con el modelo de imagen y los motivos), reduce a 1000 px en WebP y el uploader pone
+  `cacheControl` de un año. La misma regla la hace cumplir la base con la migración `097_product_images_limite_1mb.sql`
+  (`file_size_limit` = 1 MB; **falta aplicarla a mano**). El producto pesado ya quedó sin imagen (2026-09-19), pero los 3 PNG
+  siguen en el bucket sin referencias y hay que borrarlos desde el panel de Storage. La cuota del ciclo actual no baja: el
+  consumo ya hecho cuenta hasta el 23/09 y el panel de uso tarda hasta 1 hora en refrescar.
 - Tipos: `src/types/database.ts` está parchado a mano (`supabase gen types` se cuelga con segfault en esta máquina
   Windows/Node 24); por eso el código usa mucho `(supabase as any)` (ver §9).
 
@@ -84,7 +88,7 @@ npm run dev                  # desarrollo
 npm run build                # next build (con chequeo de tipos)
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 16 archivos, 222 tests (verificado 2026-09-19)
+npm test                     # vitest run: 16 archivos, 229 tests (verificado 2026-09-19)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -97,7 +101,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 222 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 229 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -537,7 +541,7 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
 
 Resumen de la auditoría del 2026-09-19 (informe completo, con archivo:línea y escenarios:
 https://claude.ai/artifact/XVUPwuWmUiTWvkyXkk6QHf; hay otra auditoría paralela del mismo día:
-https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde), con 222 tests en verde.
+https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde), con 229 tests en verde.
 
 **Corregido y en producción**
 - Registro público (410), `/api/ping` falla cerrado (y `CRON_SECRET` ya está cargado), listado anónimo de `remitos`

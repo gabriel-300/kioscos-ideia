@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { reducirImagen } from "@/lib/imagen";
+import { reducirImagen, leerDimensiones, validarImagen } from "@/lib/imagen";
+import { ImagenRequisitosDialog, type RechazoImagen } from "./imagen-requisitos-dialog";
 
 interface Props {
   value:    string | null;
@@ -15,13 +16,25 @@ export function ImageUploader({ value, onChange, folder = "products" }: Props) {
   const [error,     setError]     = useState<string | null>(null);
   const [showUrl,   setShowUrl]   = useState(false);
   const [urlValue,  setUrlValue]  = useState("");
+  const [guiaAbierta, setGuiaAbierta] = useState(false);
+  const [rechazo, setRechazo] = useState<RechazoImagen | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
-    if (!file.type.startsWith("image/")) { setError("Solo se permiten imágenes"); return; }
-    if (file.size > 5 * 1024 * 1024)    { setError("Máximo 5 MB"); return; }
-
     setError(null);
+
+    // Regla de imágenes (src/lib/imagen.ts, REQUISITOS_IMAGEN): formato, peso máximo y tamaño mínimo. Si no
+    // cumple, no se sube y se abre la ventana que explica cómo tiene que ser el modelo.
+    const dims = await leerDimensiones(file);
+    const validacion = dims
+      ? validarImagen({ tipo: file.type, bytes: file.size, ancho: dims.ancho, alto: dims.alto })
+      : { ok: false as const, motivos: ["No se pudo leer el archivo como imagen (está dañado o no es una imagen)."] };
+    if (!validacion.ok) {
+      setRechazo({ nombre: file.name, motivos: validacion.motivos });
+      setGuiaAbierta(true);
+      return;
+    }
+
     setUploading(true);
     try {
       const supabase = createClient();
@@ -146,6 +159,16 @@ export function ImageUploader({ value, onChange, folder = "products" }: Props) {
       )}
 
       {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
+
+      <button
+        type="button"
+        onClick={() => { setRechazo(null); setGuiaAbierta(true); }}
+        className="mt-1.5 text-xs text-neutral-400 hover:text-tierra-700 transition-colors block"
+      >
+        ¿Cómo debe ser la imagen?
+      </button>
+
+      <ImagenRequisitosDialog abierto={guiaAbierta} rechazo={rechazo} onClose={() => { setGuiaAbierta(false); setRechazo(null); }} />
     </div>
   );
 }

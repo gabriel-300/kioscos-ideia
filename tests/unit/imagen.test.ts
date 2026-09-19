@@ -35,3 +35,53 @@ describe("escalarA", () => {
     }
   });
 });
+
+import { validarImagen, formatearPeso, REQUISITOS_IMAGEN } from "@/lib/imagen";
+
+describe("validarImagen (regla de subida de imágenes)", () => {
+  const ok = { tipo: "image/jpeg", bytes: 200 * 1024, ancho: 1000, alto: 1000 };
+
+  it("acepta una imagen dentro de la regla", () => {
+    expect(validarImagen(ok)).toEqual({ ok: true });
+    expect(validarImagen({ ...ok, tipo: "image/png" })).toEqual({ ok: true });
+    expect(validarImagen({ ...ok, tipo: "image/webp", ancho: 400, alto: 900 })).toEqual({ ok: true });
+  });
+
+  it("el caso real que agotó la cuota: un PNG de 2 MB se rechaza por peso", () => {
+    const r = validarImagen({ tipo: "image/png", bytes: 2_194_310, ancho: 1200, alto: 1200 });
+    expect(r).toEqual({ ok: false, motivos: ["Pesa 2,1 MB y el máximo es 1,0 MB."] });
+  });
+
+  it("el límite es exacto: 1 MB pasa, 1 MB + 1 byte no", () => {
+    expect(validarImagen({ ...ok, bytes: REQUISITOS_IMAGEN.pesoMaxBytes }).ok).toBe(true);
+    expect(validarImagen({ ...ok, bytes: REQUISITOS_IMAGEN.pesoMaxBytes + 1 }).ok).toBe(false);
+  });
+
+  it("rechaza formatos que no son JPG, PNG o WebP (GIF, SVG, HEIC, vacío)", () => {
+    for (const tipo of ["image/gif", "image/svg+xml", "image/heic", "application/pdf", ""]) {
+      const r = validarImagen({ ...ok, tipo });
+      expect(r.ok, tipo).toBe(false);
+    }
+  });
+
+  it("rechaza imágenes muy chicas: el lado más chico tiene que tener al menos 400 px", () => {
+    expect(validarImagen({ ...ok, ancho: 399, alto: 2000 }).ok).toBe(false);
+    expect(validarImagen({ ...ok, ancho: 2000, alto: 399 }).ok).toBe(false);
+    expect(validarImagen({ ...ok, ancho: 400, alto: 400 }).ok).toBe(true);
+  });
+
+  it("junta TODOS los motivos, para mostrarlos de una vez en la ventana", () => {
+    const r = validarImagen({ tipo: "image/gif", bytes: 5 * 1024 * 1024, ancho: 100, alto: 100 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivos).toHaveLength(3);
+  });
+});
+
+describe("formatearPeso", () => {
+  it("usa KB por debajo de 1 MB y MB con coma decimal por encima", () => {
+    expect(formatearPeso(300 * 1024)).toBe("300 KB");
+    expect(formatearPeso(100)).toBe("1 KB");
+    expect(formatearPeso(1024 * 1024)).toBe("1,0 MB");
+    expect(formatearPeso(2_194_310)).toBe("2,1 MB");
+  });
+});
