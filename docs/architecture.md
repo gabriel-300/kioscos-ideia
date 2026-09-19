@@ -67,6 +67,9 @@ lo importa ningún módulo.
   no reconstruye la base viva.** Estado verificado el 2026-09-19: 000–095 aplicadas (la 095 la corrió el usuario).
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. No hay copia restaurable.
+- **Cuota excedida**: el panel de Supabase (2026-09-19) avisa que la organización superó su cuota del ciclo anterior y que
+  **restringe los proyectos el 18/10/2026** si sigue excedida. No es el disco (40 MB de 500 MB) ni Storage (22 MB de 1 GB);
+  cuál es la cuota excedida **(sin verificar)**: mirar Organization → Usage (lo más probable es el tráfico de salida).
 - Tipos: `src/types/database.ts` está parchado a mano (`supabase gen types` se cuelga con segfault en esta máquina
   Windows/Node 24); por eso el código usa mucho `(supabase as any)` (ver §9).
 

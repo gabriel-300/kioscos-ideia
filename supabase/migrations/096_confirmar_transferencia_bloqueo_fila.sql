@@ -8,7 +8,8 @@
 -- Cambio: SELECT ... FOR UPDATE de la fila de transferencias_stock (la segunda confirmación espera,
 -- después ve "recibida" y falla) y chequeo de anulada_en dentro del RPC.
 --
--- Misma firma que la función viva (5 parámetros): create or replace, no agrega un overload.
+-- Misma firma que la función viva (5 parámetros, con los DEFAULT de p_recibido_por, p_notas_recepcion y
+-- p_items: si se omiten, Postgres rechaza el create or replace con 42P13): no agrega un overload.
 -- Idempotente. NO se aplica sola: correrla a mano en el SQL Editor de Supabase.
 --
 -- Verificación después:
@@ -19,9 +20,9 @@
 create or replace function public.confirmar_transferencia_stock(
   p_transferencia_id uuid,
   p_fecha            date,
-  p_recibido_por     uuid,
-  p_notas_recepcion  text,
-  p_items            jsonb
+  p_recibido_por     uuid  default null,
+  p_notas_recepcion  text  default null,
+  p_items            jsonb default '[]'::jsonb
 )
 returns uuid
 language plpgsql

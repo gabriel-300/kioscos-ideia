@@ -228,6 +228,7 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | Pendiente | Estado |
 |---|---|
 | **Backups**: pasar Supabase a Pro o programar un `pg_dump` diario; confirmar quién es dueño de la organización | ❌ Pendiente (0 backups) |
+| **Cuota de Supabase excedida**: el panel avisa que restringe los proyectos el **18/10/2026** si sigue excedida; ver Organization → Usage y decidir el plan (Pro resuelve esto y los backups) | ❌ Urgente, con fecha |
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |
 | Aplicar la migración 095 (Storage) | ✅ Hecho (el listado anónimo de remitos da 0) |
 | **Aplicar la migración 096** (`confirmar_transferencia_stock` con bloqueo de fila) en el SQL Editor | ❌ Escrita, sin aplicar |
