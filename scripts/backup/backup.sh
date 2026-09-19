@@ -250,7 +250,7 @@ if [[ "$INCLUDE_STORAGE" == "true" ]]; then
   STAGE="retención de Storage"
   prune storage "$MIN_KEEP_STORAGE"
 else
-  echo "- Storage: no se copió en esta corrida (solo una de cada cuatro lo hace)." >>"$SUMMARY"
+  echo "- Storage: no se copió en esta corrida (se copia una vez por semana)." >>"$SUMMARY"
 fi
 
 # ---------------------------------------------------------------- 5) resultado

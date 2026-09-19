@@ -231,7 +231,7 @@ Estado verificado el 2026-09-19 en la base y en producción.
 
 | Pendiente | Estado |
 |---|---|
-| **Backups**: workflow de GitHub cada 6 h → copia cifrada en Cloudflare R2 (decisión: sin pasar a Pro por ahora). Construido y ensayado en local. Faltan: crear el bucket de R2, generar la clave de cifrado, cargar los secrets, la primera corrida real y restaurar una copia en un segundo proyecto (ver `docs/backups.md`). Sigue pendiente confirmar quién es dueño de la organización | 🟡 En curso (todavía 0 copias reales) |
+| **Backups**: workflow de GitHub (base cada 12 h, Storage semanal) → copia cifrada en Cloudflare R2 (decisión: sin pasar a Pro por ahora). Construido y ensayado en local. Faltan: crear el bucket de R2, generar la clave de cifrado, cargar los secrets, la primera corrida real y restaurar una copia en un segundo proyecto (ver `docs/backups.md`). Sigue pendiente confirmar quién es dueño de la organización | 🟡 En curso (todavía 0 copias reales) |
 | **Cuota de Supabase excedida (Cached Egress 8,4 GB de 5 GB)**: restringe el proyecto el **18/10/2026** si sigue excedida. Causa: imágenes pesadas. La imagen de "Chipa Bocadito Congelada x500g" ya se quitó (19/09); el consumo del ciclo actual no baja, solo deja de crecer. Falta decidir el plan: Pro incluye 250 GB y los backups | ❌ Urgente, con fecha |
 | **Aplicar la migración 097** (tope de 1 MB en el bucket `product-images`) y **borrar los 3 PNG pesados** del bucket desde Storage (products/393e9d8b…, c10cb17f…, 422466ae…, ~6 MB, sin uso) | ❌ Pendiente |
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |

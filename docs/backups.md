@@ -24,9 +24,11 @@ abiertas dejan de valer al cambiar de proyecto: todos tienen que volver a inicia
 
 ## 2. Cómo funciona
 
-- **Cuándo:** `.github/workflows/backup.yml`, cada 6 horas (03:17, 09:17, 15:17 y 21:17 UTC = 00:17, 06:17, 12:17 y
-  18:17 en Argentina). La corrida de las 03:17 UTC copia también Storage; las otras tres solo la base. También se puede
-  lanzar a mano: Actions → Backup → Run workflow.
+- **Cuándo:** `.github/workflows/backup.yml`. **La base, cada 12 horas** (03:17 y 15:17 UTC = 00:17 y 12:17 en
+  Argentina). **Storage, una vez por semana** (domingo 03:17 UTC): la corrida de ese horario copia base + Storage.
+  Peor caso de pérdida de datos de la base: 12 horas; de fotos subidas a Storage: 7 días. También se puede lanzar a
+  mano: Actions → Backup → Run workflow (por defecto incluye Storage). Se eligió esta frecuencia para cuidar el egress
+  (§5); si se mide que sobra margen, la base puede volver a cada 6 horas agregando corridas al `cron`.
 - **Cómo:** una imagen Docker con Postgres 17 (`scripts/backup/Dockerfile`) corre `scripts/backup/backup.sh`:
   un solo `pg_dump` de `public + auth + storage` (una foto consistente), verificaciones de sanidad (tamaño mínimo,
   filas mínimas), conteo de filas del propio dump, cifrado con **age** y subida a R2 con verificación de tamaño.
@@ -92,11 +94,12 @@ está vacío, o si la clave no corresponde a la copia.
 ## 5. Costo en egress de Supabase (importante)
 
 El backup **lee** la base y Storage, y eso cuenta en el egress del plan Free (5 GB por ciclo; a 19/09 el uso normal era
-0,8 GB). Estimado: dump ≈ hasta 20 MB (la mitad es `mercadopago_qr_orders`) × 4 por día ≈ **2 GB/mes**, más Storage
-≈ 22 MB × 1 por día ≈ **0,7 GB/mes**. Total ≈ 2,7 GB/mes adicionales. **Es una estimación**: hay que mirar Supabase →
-Organization → Usage unos días después de la primera corrida y compararla. Para bajarlo, editar los `cron` de
-`backup.yml`: pasar a 2 o 1 corridas por día para la base, o hacer Storage semanal. Un backup que hace pasar la
-organización de la cuota (y la restringe) es peor que uno menos frecuente.
+0,8 GB). Estimado como **techo**: dump ≈ hasta 20 MB (la mitad es `mercadopago_qr_orders`) × 2 por día ≈ **1,2 GB/mes**,
+más Storage ≈ 22 MB × 1 por semana ≈ **0,1 GB/mes**. Total ≈ **1,3 GB/mes** adicionales (con la frecuencia anterior,
+base cada 6 h y Storage diario, hubieran sido ≈ 2,7 GB). **Es una estimación**: hay que mirar Supabase → Organization →
+Usage unos días después de la primera corrida y compararla con la real; el tamaño de la base crece con el tiempo.
+Para ajustar, editar los `cron` de `backup.yml`. Un backup que hace pasar la organización de la cuota (y la
+restringe) es peor que uno menos frecuente.
 
 ## 6. Si el backup falla
 

@@ -3,14 +3,16 @@ name: Backup
 # Copia de la base de Supabase (public + auth + storage) y de los archivos de Storage,
 # cifrada con age y guardada en Cloudflare R2. Cómo se restaura: docs/backups.md
 #
-# Frecuencia: cada 6 horas (hora UTC; Argentina es UTC-3).
-#   - 03:17 UTC (00:17 ART): base + Storage
-#   - 09:17, 15:17 y 21:17 UTC: solo la base (Storage cambia poco y pesa más)
+# Frecuencia (hora UTC; Argentina es UTC-3): la base cada 12 horas, Storage una vez por semana.
+#   - domingo 03:17 UTC (00:17 ART): base + Storage
+#   - lunes a sábado 03:17 UTC y todos los días 15:17 UTC (12:17 ART): solo la base
+# Se eligió así para cuidar el egress del plan Free de Supabase (5 GB/mes): ver docs/backups.md §5.
 # Los horarios "en punto" se evitan a propósito: GitHub los retrasa cuando hay mucha carga.
 on:
   schedule:
-    - cron: '17 3 * * *'
-    - cron: '17 9,15,21 * * *'
+    - cron: '17 3 * * 0'
+    - cron: '17 3 * * 1-6'
+    - cron: '17 15 * * *'
   workflow_dispatch:
     inputs:
       include_storage:
@@ -41,7 +43,7 @@ jobs:
           INPUT_STORAGE: ${{ inputs.include_storage }}
         run: |
           if [ "$EVENTO" = "schedule" ]; then
-            if [ "$CRON" = "17 3 * * *" ]; then echo "storage=true" >> "$GITHUB_OUTPUT"; else echo "storage=false" >> "$GITHUB_OUTPUT"; fi
+            if [ "$CRON" = "17 3 * * 0" ]; then echo "storage=true" >> "$GITHUB_OUTPUT"; else echo "storage=false" >> "$GITHUB_OUTPUT"; fi
           else
             echo "storage=$INPUT_STORAGE" >> "$GITHUB_OUTPUT"
           fi

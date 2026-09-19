@@ -68,10 +68,10 @@ lo importa ningún módulo.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
-  age (la clave privada no está en GitHub) y guardado en Cloudflare R2, cada 6 horas, con 30 días de retención. Restauración y
+  age (la clave privada no está en GitHub) y guardado en Cloudflare R2 (base cada 12 horas, Storage una vez por semana), con 30 días de retención. Restauración y
   operación en **`docs/backups.md`**. Estado: construido y ensayado en local (Docker + MinIO); **no cuenta como respaldo hasta
-  que corra en GitHub con los secrets cargados y se restaure una copia real en un segundo proyecto**. Cuesta ≈ 2,7 GB/mes de
-  egress de Supabase (estimado; verificar en Usage).
+  que corra en GitHub con los secrets cargados y se restaure una copia real en un segundo proyecto**. Cuesta ≈ 1,3 GB/mes de
+  egress de Supabase (techo estimado; verificar en Usage).
 - **Cuota excedida (diagnosticada 2026-09-19)**: el plan Free de Supabase permite 5 GB de *Cached Egress* (tráfico servido por el
   CDN, o sea las imágenes públicas) y el ciclo 23/08–23/09 lleva **8,4 GB (168%)**; el resto está muy por debajo (base 40 MB de
   500, Storage 22 MB de 1 GB, egress normal 0,8 GB de 5). Si sigue excedida, Supabase **restringe el proyecto desde el
@@ -282,6 +282,8 @@ principio; antes era una redirección abierta); `/auth/set-password`.
 ## 5. Modelo de datos por dominio
 
 42 tablas en `public` (verificado). Los nombres son los reales.
+
+Para leer la base en castellano (qué es cada tabla y cada columna, diagramas de relaciones por dominio, columnas heredadas): [`docs/base-de-datos.md`](base-de-datos.md). Se genera con `scripts/mapa-base/generar.js` a partir de la base viva.
 
 | Dominio | Tablas |
 |---|---|
