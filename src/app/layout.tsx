@@ -1,18 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Archivo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const fraunces = Fraunces({
+// Una sola familia para todo el admin y el login (titulares, interfaz y cifras).
+// Variable: admite cualquier peso (los títulos usan 650). El catálogo público
+// (/pedir) carga sus propias fuentes en su layout y no depende de esta.
+const archivo = Archivo({
   subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-  axes: ["opsz", "SOFT", "WONK"],
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-archivo",
   display: "swap",
 });
 
@@ -60,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-AR"
-      className={`${fraunces.variable} ${inter.variable}`}
+      className={archivo.variable}
       suppressHydrationWarning
     >
       <body>

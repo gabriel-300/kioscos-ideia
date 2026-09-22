@@ -28,12 +28,13 @@ function promoIdOf(id: string)  { return id.slice(PROMO_PREFIX.length); }
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 /* ── Colores del prototipo ── */
-const NAVY     = "#15375E";
-const NAVY_D   = "#0F2742";
-const NAVY_L   = "#EEF4FB";
-const NAVY_M   = "#D4E3F4";
-const GREEN_L  = "#DCFCE9";
-const GREEN    = "#0B6B4F";
+// (los nombres NAVY_* son históricos: hoy son el verde de marca "Yerba")
+const NAVY     = "#14453A";
+const NAVY_D   = "#12312A";
+const NAVY_L   = "#EAF4EE";
+const NAVY_M   = "#D6EBE0";
+const GREEN_L  = "#E6F4EC";
+const GREEN    = "#0F7A4D";
 const RED_L    = "#FDE4E2";
 const RED      = "#9B2222";
 
@@ -1067,7 +1068,7 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                     transition: "all .15s",
                     boxShadow: qty > 0 ? `0 0 0 1px ${NAVY}` : "none",
                   }}
-                  onMouseOver={(e) => { e.currentTarget.style.borderColor = NAVY; e.currentTarget.style.boxShadow = "0 3px 12px rgba(30,58,138,.1)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = NAVY; e.currentTarget.style.boxShadow = "0 3px 12px rgba(20,69,58,.12)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
                   onMouseOut={(e) => { e.currentTarget.style.borderColor = qty > 0 ? NAVY : "#E2E8F0"; e.currentTarget.style.boxShadow = qty > 0 ? `0 0 0 1px ${NAVY}` : "none"; e.currentTarget.style.transform = "none"; }}
                 >
                   {agotado ? (

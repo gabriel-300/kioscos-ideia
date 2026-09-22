@@ -14,10 +14,10 @@ const ORDEN_DIAS = [1, 2, 3, 4, 5, 6, 0];
 
 // Rampa secuencial de un solo hue (tierra, de más claro a más oscuro) -- misma
 // paleta que ya usa el resto de la app para magnitud, nunca un arcoíris.
-const RAMPA = ["#EAF3FB", "#C4DCF2", "#8DBDE0", "#4D8EC8", "#2A64AB", "#1C4585", "#153464", "#0E2544"];
+const RAMPA = ["#EAF4EE", "#D6EBE0", "#B4DAC9", "#86C4AB", "#4FA687", "#2E8768", "#1C6B52", "#14453A"];
 
 function colorDeValor(valor: number, max: number): string {
-  if (valor <= 0 || max <= 0) return "#F5F7FA"; // neutral-50, sin ventas
+  if (valor <= 0 || max <= 0) return "#F1F6F3"; // neutral-50, sin ventas
   const paso = Math.min(RAMPA.length - 1, Math.floor((valor / max) * (RAMPA.length - 1)) + 1);
   return RAMPA[paso];
 }
@@ -68,7 +68,7 @@ export function HeatmapHorario({ celdas, horaMin, horaMax }: { celdas: CeldaHeat
                     style={{
                       width: CELL, height: CELL,
                       background: colorDeValor(valor, max),
-                      outline: esActiva ? "2px solid #0E2544" : "none",
+                      outline: esActiva ? "2px solid #14453A" : "none",
                       outlineOffset: -2,
                     }}
                     onMouseEnter={() => setActiva(key)}

@@ -7,8 +7,9 @@ import { createPortal } from "react-dom";
 import { createBrowserClient } from "@supabase/ssr";
 
 /* ─── Tokens ─────────────────────────────────── */
-const NAVY   = "#15375E";
-const NAVY_D = "#0F2742";
+const NAVY     = "#12312A";                                          // verde profundo (marca)
+const NAVY_BAR = "linear-gradient(180deg,#12312A 0%,#17493D 100%)";  // barra superior de escritorio
+const LIME     = "#C9DE6A";                                          // solo el isotipo "KI"
 
 /* ─── Icon system ────────────────────────────── */
 const PATHS: Record<string, React.ReactNode> = {
@@ -270,9 +271,9 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
 
   const LogoBox = (size: number, radius: number, fontSize: number) => (
     <div style={{
-      width: size, height: size, borderRadius: radius, background: NAVY_D,
+      width: size, height: size, borderRadius: radius, background: LIME,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontWeight: 800, fontSize, color: "white", letterSpacing: "-.5px", flexShrink: 0,
+      fontWeight: 700, fontSize, color: NAVY, letterSpacing: "-.5px", flexShrink: 0,
     }}>KI</div>
   );
 
@@ -281,7 +282,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
       {/* ══════════ DESKTOP TOPBAR ══════════ */}
       <header
         className="hidden md:flex items-stretch shrink-0"
-        style={{ background: NAVY, height: 60, borderBottom: "1px solid rgba(0,0,0,0.18)" }}
+        style={{ background: NAVY_BAR, height: 60, borderBottom: "1px solid rgba(0,0,0,0.18)" }}
       >
         {/* Brand */}
         <Link
@@ -350,7 +351,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
                     {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Ventas" && ventasGroupPendientes > 0)) && (
                       <span style={{
                         position: "absolute", top: -3, right: -3, width: 7, height: 7,
-                        borderRadius: "50%", background: "#DC2626", border: "1.5px solid " + NAVY,
+                        borderRadius: "50%", background: "#FFD9B8", border: "1.5px solid " + NAVY,
                       }} />
                     )}
                   </span>
@@ -369,7 +370,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
                   <div
                     ref={dropdownRef}
                     className="fixed z-50 rounded-lg overflow-hidden shadow-xl"
-                    style={{ top: dropdownPos.top, left: dropdownPos.left, minWidth: 190, background: "white", border: "1px solid #E2E8F0" }}
+                    style={{ top: dropdownPos.top, left: dropdownPos.left, minWidth: 190, background: "white", border: "1px solid #DCE7E1" }}
                   >
                     {group.children.map((child) => {
                       const childActive = isActive(child.href);
@@ -383,18 +384,18 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
                             padding: "9px 14px",
                             fontSize: 13,
                             fontWeight: childActive ? 600 : 400,
-                            color: childActive ? "#15375E" : "#475569",
-                            background: childActive ? "#EEF2F7" : "white",
+                            color: childActive ? "#14453A" : "#35604F",
+                            background: childActive ? "#E9F0EC" : "white",
                           }}
                         >
-                          <span style={{ display: "flex", color: childActive ? "#15375E" : "#94A3B8" }}>
+                          <span style={{ display: "flex", color: childActive ? "#14453A" : "#86A096" }}>
                             <NavIcon name={child.icon} size={15} />
                           </span>
                           <span style={{ flex: 1 }}>{child.label}</span>
                           {(badgeCounts[child.href] ?? 0) > 0 && (
                             <span style={{
                               minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
-                              background: "#FEE2E2", color: "#DC2626", fontSize: 11, fontWeight: 700,
+                              background: "#FDF1E3", color: "#B54708", fontSize: 11, fontWeight: 700,
                               display: "flex", alignItems: "center", justifyContent: "center",
                             }}>
                               {badgeCounts[child.href]}
@@ -580,7 +581,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
                     {(badgeCounts[child.href] ?? 0) > 0 && (
                       <span style={{
                         minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
-                        background: "#DC2626", color: "white", fontSize: 11, fontWeight: 700,
+                        background: "#8A3A12", color: "#FFD9B8", fontSize: 11, fontWeight: 700,
                         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                       }}>
                         {badgeCounts[child.href]}

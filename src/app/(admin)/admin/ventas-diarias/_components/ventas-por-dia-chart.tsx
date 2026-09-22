@@ -64,7 +64,7 @@ export function VentasPorDiaChart({ dias }: { dias: DiaChart[] }) {
       {puntosTendencia && (
         <div className="flex items-center gap-2 mb-2 text-xs">
           <span className="inline-flex items-center gap-1.5 text-neutral-500">
-            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: "#334155" }} />
+            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: "#35604F" }} />
             Tendencia
           </span>
           {variacionTendencia !== null && (
@@ -82,7 +82,7 @@ export function VentasPorDiaChart({ dias }: { dias: DiaChart[] }) {
           >
             <polyline
               points={puntosTendencia.map((p) => `${p.x},${p.y}`).join(" ")}
-              fill="none" stroke="#334155" strokeWidth={2} strokeDasharray="5,4" strokeLinecap="round"
+              fill="none" stroke="#35604F" strokeWidth={2} strokeDasharray="5,4" strokeLinecap="round"
             />
           </svg>
         )}

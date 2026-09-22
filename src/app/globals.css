@@ -10,68 +10,75 @@
   --color-white: #ffffff;
   --color-black: #000000;
 
-  /* ── Paleta Azul Glaciar (primario de marca) */
-  --color-tierra-900: #040C1A;
-  --color-tierra-800: #07152A;
-  --color-tierra-700: #0E2544;
-  --color-tierra-600: #153464;
-  --color-tierra-500: #1C4585;
-  --color-tierra-400: #2A64AB;
-  --color-tierra-300: #4D8EC8;
-  --color-tierra-200: #8DBDE0;
-  --color-tierra-100: #C4DCF2;
-  --color-tierra-50:  #EAF3FB;
+  /* NOTA: los nombres de las escalas (tierra, crema, selva, dorado) son históricos
+     y se conservan para no tocar ~90 archivos: hoy son la paleta "Yerba"
+     (verde de marca). El rediseño está en el handoff "Kioscos IDEIA". */
 
-  /* ── Paleta Hielo (fondos fríos) */
-  --color-crema-50:  #F3F7FC;
-  --color-crema-100: #E6EFF8;
-  --color-crema-200: #D2E3F2;
-  --color-crema-300: #BBCFE8;
+  /* ── Verde de marca (primario). 700 = botón primario, 800 = barra/sidebar, 600 = acción/links */
+  --color-tierra-900: #0B211C;
+  --color-tierra-800: #12312A;
+  --color-tierra-700: #14453A;
+  --color-tierra-600: #1C6B52;
+  --color-tierra-500: #2E8768;
+  --color-tierra-400: #4FA687;
+  --color-tierra-300: #86C4AB;
+  --color-tierra-200: #B4DAC9;
+  --color-tierra-100: #D6EBE0;
+  --color-tierra-50:  #EAF4EE;
 
-  /* ── Paleta Verde Agua (success) */
-  --color-selva-900: #081A12;
-  --color-selva-800: #0F2920;
-  --color-selva-700: #18402F;
-  --color-selva-600: #225940;
-  --color-selva-500: #2B6E50;
-  --color-selva-400: #3B8A66;
-  --color-selva-300: #55A882;
-  --color-selva-200: #95CEBB;
-  --color-selva-100: #B8DDCA;
-  --color-selva-50:  #E4F5EE;
+  /* ── Fondos de página y bordes (verdosos) */
+  --color-crema-50:  #F1F6F3;
+  --color-crema-100: #E4EDE8;
+  --color-crema-200: #DCE7E1;
+  --color-crema-300: #C4D6CC;
 
-  /* ── Paleta Agua (acento claro / interactivos) */
-  --color-dorado-600: #1660A8;
-  --color-dorado-500: #2278CC;
-  --color-dorado-400: #4698E0;
-  --color-dorado-300: #78BBF5;
-  --color-dorado-100: #CEE9FB;
+  /* ── Verde "OK" (success). Deliberadamente más claro/vivo que el verde de marca
+        para que un estado correcto nunca se confunda con el cromo de la interfaz. */
+  --color-selva-900: #073D27;
+  --color-selva-800: #0A5C3B;
+  --color-selva-700: #0F7A4D;
+  --color-selva-600: #0F7A4D;
+  --color-selva-500: #17925E;
+  --color-selva-400: #34AB78;
+  --color-selva-300: #6CC79C;
+  --color-selva-200: #A5DBBE;
+  --color-selva-100: #CDEBDA;
+  --color-selva-50:  #E6F4EC;
 
-  /* ── Neutros fríos */
-  --color-neutral-900: #0C1420;
-  --color-neutral-800: #18222F;
-  --color-neutral-700: #2A3848;
-  --color-neutral-600: #425260;
-  --color-neutral-500: #60727E;
-  --color-neutral-400: #8698A6;
-  --color-neutral-300: #B4C3CC;
-  --color-neutral-200: #CED8DF;
-  --color-neutral-100: #E4EAEE;
-  --color-neutral-50:  #F3F7FA;
+  /* ── Acento interactivo (foco, halos). Poco usado; sigue a la marca. */
+  --color-dorado-600: #1C6B52;
+  --color-dorado-500: #2E8768;
+  --color-dorado-400: #4FA687;
+  --color-dorado-300: #86C4AB;
+  --color-dorado-100: #D6EBE0;
 
-  /* ── Semánticos */
-  --color-success:     #1E6B45;
-  --color-success-bg:  #BDE0CE;
-  --color-warning:     #B8850A;
-  --color-warning-bg:  #FEF3C7;
-  --color-danger:      #C02820;
-  --color-danger-bg:   #FAD7CE;
-  --color-info:        #1660A8;
-  --color-info-bg:     #D0E8FA;
+  /* ── Neutros con matiz verde. 500 se mantiene más oscuro que el #6F8A80 del
+        handoff: ese da 3,7:1 sobre blanco y no llega a 4,5:1 (AA) para texto chico. */
+  --color-neutral-900: #0F2B24;
+  --color-neutral-800: #173A31;
+  --color-neutral-700: #244A3F;
+  --color-neutral-600: #35604F;
+  --color-neutral-500: #5A766B;
+  --color-neutral-400: #86A096;
+  --color-neutral-300: #BFD0C7;
+  --color-neutral-200: #DCE7E1;
+  --color-neutral-100: #E7EFEA;
+  --color-neutral-50:  #F1F6F3;
 
-  /* ── Tipografía */
-  --font-display: "Fraunces Variable", "Playfair Display", Georgia, serif;
-  --font-sans:    "Inter Variable", "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* ── Semánticos: éxito, atención, error, info y neutro (violeta solo para "fuera de caja") */
+  --color-success:     #0F7A4D;
+  --color-success-bg:  #E6F4EC;
+  --color-warning:     #B54708;
+  --color-warning-bg:  #FDF1E3;
+  --color-danger:      #B42318;
+  --color-danger-bg:   #FDECEA;
+  --color-info:        #1C6B52;
+  --color-info-bg:     #E9F0EC;
+
+  /* ── Tipografía: una sola familia (Archivo) para todo el admin. La variable
+        --font-archivo la declara next/font en <html> (ver app/layout.tsx). */
+  --font-display: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans:    var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 
   /* ── Escala tipográfica fluid */
@@ -94,12 +101,12 @@
   --radius-full: 9999px;
 
   /* ── Sombras */
-  --shadow-sm: 0 1px 2px rgba(10,20,40,0.04), 0 1px 3px rgba(10,20,40,0.06);
-  --shadow-md: 0 4px 12px rgba(10,20,40,0.06), 0 2px 4px rgba(10,20,40,0.04);
-  --shadow-lg: 0 12px 32px rgba(10,20,40,0.10), 0 4px 8px rgba(10,20,40,0.06);
-  --shadow-xl: 0 24px 48px rgba(10,20,40,0.12), 0 8px 16px rgba(10,20,40,0.08);
-  --shadow-glow-dorado: 0 0 0 4px rgba(34,120,204,0.25);
-  --shadow-glow-tierra: 0 0 0 4px rgba(14,37,68,0.20);
+  --shadow-sm: 0 1px 2px rgba(15,43,36,0.04), 0 1px 3px rgba(15,43,36,0.06);
+  --shadow-md: 0 4px 12px rgba(15,43,36,0.06), 0 2px 4px rgba(15,43,36,0.04);
+  --shadow-lg: 0 12px 32px rgba(15,43,36,0.10), 0 4px 8px rgba(15,43,36,0.06);
+  --shadow-xl: 0 24px 48px rgba(15,43,36,0.12), 0 8px 16px rgba(15,43,36,0.08);
+  --shadow-glow-dorado: 0 0 0 4px rgba(46,135,104,0.25);
+  --shadow-glow-tierra: 0 0 0 4px rgba(20,69,58,0.20);
 
   /* ── Transiciones */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -161,6 +168,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1;
+  /* Cifras tabulares en todo el admin: las columnas de plata alinean solas.
+     Se hereda; el catálogo público (.pd) lo desactiva más abajo. */
+  font-variant-numeric: tabular-nums;
 }
 
 h1, h2, h3, h4 {
@@ -170,6 +180,8 @@ h1, h2, h3, h4 {
   letter-spacing: -0.025em;
   color: var(--color-neutral-900);
 }
+
+h1 { font-weight: 650; }
 
 a {
   color: inherit;
@@ -241,6 +253,7 @@ img, video {
   font-size: 14px;
   line-height: 1.45;
   min-height: 100vh;
+  font-variant-numeric: normal;
 }
 .pd h1, .pd h2, .pd h3, .pd h4 {
   font-family: var(--font-pd-display), system-ui, sans-serif;
