@@ -92,12 +92,18 @@
   --text-4xl:  clamp(3rem,     2.4rem  + 3vw,    4.75rem);
   --text-5xl:  clamp(3.5rem,   2.8rem  + 4vw,    6rem);
 
-  /* ── Radios */
+  /* ── Radios. Bajados del handoff "Kioscos IDEIA": a la densidad del admin
+     el radio grande (16/24/32px) hacía ver todo inflado. rounded-lg es el que
+     usan los controles (inputs, botones chicos) → 7–10px; rounded-xl son las
+     tarjetas → 12–14px; rounded-2xl son modales y la tarjeta de login →
+     16–18px ("contenedor de pantalla"). El catálogo público (/pedir) tiene
+     su propia identidad (todo bien redondeado) y restaura los valores viejos
+     de rounded-xl/2xl más abajo, en su bloque .pd. */
   --radius-sm:   6px;
   --radius-md:   10px;
-  --radius-lg:   16px;
-  --radius-xl:   24px;
-  --radius-2xl:  32px;
+  --radius-lg:   10px;
+  --radius-xl:   14px;
+  --radius-2xl:  18px;
   --radius-full: 9999px;
 
   /* ── Sombras */
@@ -254,6 +260,10 @@ img, video {
   line-height: 1.45;
   min-height: 100vh;
   font-variant-numeric: normal;
+  /* El admin bajó su escala de radios (ver @theme); acá se restauran los
+     valores de siempre -- el catálogo público mantiene todo bien redondeado. */
+  --radius-xl:  24px;
+  --radius-2xl: 32px;
 }
 .pd h1, .pd h2, .pd h3, .pd h4 {
   font-family: var(--font-pd-display), system-ui, sans-serif;
