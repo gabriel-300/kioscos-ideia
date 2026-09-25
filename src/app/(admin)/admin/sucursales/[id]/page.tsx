@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
@@ -52,7 +52,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const supabase      = await createClient();
   const admin         = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
 
   const hoy       = fechaHoyAR();
@@ -65,6 +65,28 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const nextMes    = (() => { const d = new Date(mesYear, mesMonth, 1);     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
   const mesLabel   = new Date(mesYear, mesMonth - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const canGoNext  = mes < mesActual;
+
+  // Ventas del mes (analytics, ranking y "más vendidos"): no dependen de nada de
+  // lo que traen las demás consultas, así que arrancan YA y se leen más abajo
+  // (antes esperaban a que terminaran las ~27 de arriba y otras 5 en cola).
+  // El .catch vacío solo evita un aviso si la página redirige antes de leerlas;
+  // el error sigue saliendo en el await de más abajo.
+  const ventasDelMesP = fetchAll<any>((desde, hasta) =>
+    (admin as any)
+      .from("movimientos")
+      .select(`
+        id, fecha, created_by,
+        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
+        movimiento_items(cantidad, subtotal, product:products(id, name))
+      `, { count: "exact" })
+      .eq("sucursal_id", id)
+      .eq("tipo", "venta")
+      .is("anulado_en", null)
+      .gte("fecha", mesInicio).lte("fecha", mesFin)
+      .order("id")
+      .range(desde, hasta)
+  );
+  ventasDelMesP.catch(() => {});
 
   type CierreRow = { id: string; fecha: string; fondo_inicial: number; total_ventas: number; efectivo_declarado: number; billetera_declarada: number; tarjeta_declarada: number | null; transferencia_declarada: number | null; diferencia: number | null; notas: string | null; created_at: string; fondo_siguiente: number | null; numero_liquidacion: number | null; sobre_retirado_por: string | null; sobre_retirado_en: string | null };
   type AperturaRow = { id: string; fondo_inicial: number; notas: string | null; created_at: string; created_by: string | null };
@@ -339,14 +361,60 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // Gastos cargados durante este turno (Fix 1 de Tesorería, versión
   // informativa v1: gastos no tiene medio de pago ni está atado a un turno,
   // así que por ahora solo se avisa -- no entra a la fórmula de diferencia).
+  // Las consultas que dependen del turno abierto (gastos, movimientos del turno,
+  // auditoría, tenedor y apertura propia) se lanzan JUNTAS: antes eran una cola
+  // de awaits, uno detrás del otro, y cada uno sumaba un viaje completo a
+  // Supabase. Cada resultado se lee más abajo, en el mismo lugar de siempre.
+  const turnoAbierto = cajaAbierta && aperturaActual ? aperturaActual : null;
+  const rolTurno = user.app_metadata?.role as string | undefined;
+  const [gastosRes, movTurnoRes, auditoriaRes, tenedorRes, miAperturaRes] = await Promise.all([
+    turnoAbierto
+      ? (admin as any).from("gastos").select("id, monto").eq("sucursal_id", id).gte("created_at", turnoAbierto.created_at)
+      : null,
+    turnoAbierto
+      ? (admin as any)
+          .from("movimientos")
+          .select(`
+            id, fecha, tipo, notas, canal, personal_id, created_at, created_by,
+            pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
+            anulado_en, anulado_por, motivo_anulacion,
+            movimiento_items(
+              id, cantidad, precio_unitario, subtotal,
+              product:products(id, name, sku)
+            )
+          `)
+          .eq("sucursal_id", id)
+          .gte("created_at", turnoAbierto.created_at)
+      : null,
+    turnoAbierto
+      ? (admin as any)
+          .from("auditorias_stock")
+          .select(`
+            id,
+            auditoria_stock_items(
+              stock_sistema, stock_contado, observacion, revisado_por, revisado_en, ajuste_aplicado,
+              product:products(name, sku)
+            )
+          `)
+          .eq("apertura_id", turnoAbierto.id)
+          .maybeSingle()
+      : null,
+    turnoAbierto ? obtenerTenedorActual(admin, turnoAbierto.id, turnoAbierto.created_by) : null,
+    rolTurno === "encargado" || rolTurno === "vendedor"
+      ? (supabase as any)
+          .from("aperturas_caja")
+          .select("created_at")
+          .eq("sucursal_id", id)
+          .eq("created_by", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : null,
+  ]);
+
   let gastosTurno: { id: string; monto: number }[] = [];
-  if (cajaAbierta && aperturaActual) {
-    const { data: gastosData } = await (admin as any)
-      .from("gastos")
-      .select("id, monto")
-      .eq("sucursal_id", id)
-      .gte("created_at", aperturaActual.created_at);
-    gastosTurno = gastosData ?? [];
+  if (turnoAbierto) {
+    gastosTurno = gastosRes?.data ?? [];
   }
 
   // Movimientos del turno para Cierre de caja Y Traspaso de turno -- admin
@@ -365,21 +433,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // siempre lo recalcula la RPC server-side al cerrar/traspasar; esto es
   // solo para que la pantalla no mienta antes de confirmar.
   let movimientosDelTurno: any[] = [];
-  if (cajaAbierta && aperturaActual) {
-    const { data: movTurnoData } = await (admin as any)
-      .from("movimientos")
-      .select(`
-        id, fecha, tipo, notas, canal, personal_id, created_at, created_by,
-        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
-        anulado_en, anulado_por, motivo_anulacion,
-        movimiento_items(
-          id, cantidad, precio_unitario, subtotal,
-          product:products(id, name, sku)
-        )
-      `)
-      .eq("sucursal_id", id)
-      .gte("created_at", aperturaActual.created_at);
-    movimientosDelTurno = movTurnoData ?? [];
+  if (turnoAbierto) {
+    movimientosDelTurno = movTurnoRes?.data ?? [];
   }
 
   // La auditoría es "por turno" (apertura_id, ver migración 054), no por
@@ -387,18 +442,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // recién ahí se sabe qué apertura es "la de este turno". Admin client --
   // mismo motivo que stock_sucursal más arriba, no depende de RLS por turno.
   let auditoriaHoy: { items: { productName: string; sku: string; stockSistema: number; stockContado: number; diferencia: number; observacion: string | null; revisado: boolean; ajusteAplicado: boolean }[] } | null = null;
-  if (cajaAbierta && aperturaActual) {
-    const { data: auditoriaTurno } = await (admin as any)
-      .from("auditorias_stock")
-      .select(`
-        id,
-        auditoria_stock_items(
-          stock_sistema, stock_contado, observacion, revisado_por, revisado_en, ajuste_aplicado,
-          product:products(name, sku)
-        )
-      `)
-      .eq("apertura_id", aperturaActual.id)
-      .maybeSingle();
+  if (turnoAbierto) {
+    const auditoriaTurno = auditoriaRes?.data;
     if (auditoriaTurno) {
       auditoriaHoy = {
         items: auditoriaTurno.auditoria_stock_items.map((i: any) => ({
@@ -495,8 +540,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // significando "quién abrió" (usado tal cual en AperturaCajaButton), esto
   // es "quién la tiene ahora" (permisos de cierre + botón de traspaso).
   let tenedorActualId: string | null = aperturaActual?.created_by ?? null;
-  if (cajaAbierta && aperturaActual) {
-    tenedorActualId = await obtenerTenedorActual(admin, aperturaActual.id, aperturaActual.created_by);
+  if (turnoAbierto) {
+    tenedorActualId = tenedorRes;
   }
   const tenedorActualNombre = tenedorActualId
     ? (personalMap[tenedorActualId] ?? (tenedorActualId === aperturaActual?.created_by ? abiertaPorNombre : null))
@@ -529,14 +574,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // esta sucursal, sin importar su fecha -- si hace mucho que no abre
     // turno, igual no afecta nada porque enMiTurnoHoy() solo restringe
     // movimientos con fecha = hoy.
-    const { data: miAperturaHoy } = await (supabase as any)
-      .from("aperturas_caja")
-      .select("created_at")
-      .eq("sucursal_id", id)
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const miAperturaHoy = miAperturaRes?.data;
     if (miAperturaHoy?.created_at) {
       miTurnoInicio = miAperturaHoy.created_at;
       const cierresPosteriores = historicosCierres
@@ -630,21 +668,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // ranking y los "Más vendidos" salían de una fracción del mes (auditoría
   // 19/09/2026, A-03). Los cards de "Entregado/Devuelto" siguen calculándose
   // sobre `movs`: ver informe de auditoría.
-  const ventasDelMesTodas = await fetchAll<any>((desde, hasta) =>
-    (admin as any)
-      .from("movimientos")
-      .select(`
-        id, fecha, created_by,
-        pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
-        movimiento_items(cantidad, subtotal, product:products(id, name))
-      `, { count: "exact" })
-      .eq("sucursal_id", id)
-      .eq("tipo", "venta")
-      .is("anulado_en", null)
-      .gte("fecha", mesInicio).lte("fecha", mesFin)
-      .order("id")
-      .range(desde, hasta)
-  );
+  const ventasDelMesTodas = await ventasDelMesP;
   const ventasDelMes = (role === "admin" || role === "concesionario")
     ? ventasDelMesTodas
     : ventasDelMesTodas.filter((m) => m.created_by === user.id);

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SucursalesList } from "./_components/sucursales-list";
 import { SucursalesPickerList } from "./_components/sucursales-picker-list";
@@ -9,7 +9,7 @@ export const revalidate = 0;
 
 export default async function SucursalesPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;

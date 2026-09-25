@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { normalizarHorario } from "@/lib/pedidos/horario";
 import { ConfigSucursalForm } from "./_components/config-sucursal-form";
@@ -17,7 +17,7 @@ export default async function ConfiguracionPedidosOnlinePage({
   const supabase = await createClient();
   const admin    = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
   if (user.app_metadata?.role !== "admin") redirect("/admin/pedidos-online");
 

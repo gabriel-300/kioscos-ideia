@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
@@ -8,7 +8,7 @@ const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario", "reparti
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
 
   if (!user) redirect("/login");
 
@@ -18,20 +18,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const email = user.email ?? null;
   const name  = (user.user_metadata?.full_name as string | null) ?? null;
 
-  const { data: profileSocio } = await (supabase as any).from("profiles").select("es_socio").eq("id", user.id).single();
+  // es_socio y la sucursal del usuario no dependen uno del otro: se piden juntos
+  // (esto corre en CADA navegación del admin; antes eran dos viajes seguidos).
+  const [{ data: profileSocio }, sucursalRes] = await Promise.all([
+    (supabase as any).from("profiles").select("es_socio").eq("id", user.id).single(),
+    role === "encargado" || role === "concesionario"
+      ? supabase.from("sucursales").select("id").eq("encargado_user_id", user.id).single()
+      : role === "vendedor"
+      ? (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single()
+      : null,
+  ]);
   const esSocio = (profileSocio as { es_socio: boolean | null } | null)?.es_socio ?? false;
 
   let sucursalId: string | null = null;
   if (role === "encargado" || role === "concesionario") {
-    const { data } = await supabase
-      .from("sucursales")
-      .select("id")
-      .eq("encargado_user_id", user.id)
-      .single();
-    sucursalId = data?.id ?? null;
+    sucursalId = (sucursalRes?.data as { id: string } | null)?.id ?? null;
   } else if (role === "vendedor") {
-    const res = await (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
-    sucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
+    sucursalId = (sucursalRes?.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
   }
 
   let auditoriaPendientes = 0;

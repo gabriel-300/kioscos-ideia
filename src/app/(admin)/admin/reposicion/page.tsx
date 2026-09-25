@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatKg } from "@/lib/utils";
@@ -28,7 +28,7 @@ export default async function ReposicionPage({
   const supabase = await createClient();
   const admin    = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin" && role !== "concesionario") redirect("/admin/dashboard");

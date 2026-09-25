@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { Database } from "@/types/database";
 
 // Cliente con service role — bypasea RLS, solo usar en server actions admin
@@ -35,3 +36,14 @@ export async function createClient() {
     }
   );
 }
+
+// Usuario de la request, validado UNA sola vez por render. El layout del admin y
+// la página piden el usuario a la vez; sin cache() cada uno hacía su propio
+// viaje a Supabase Auth (además del middleware). React.cache vive solo durante
+// una request, no se comparte entre usuarios. Las Server Actions NO lo usan:
+// cada acción valida por su cuenta (requireAdmin/requireStaff).
+export const getUser = cache(async () => {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});

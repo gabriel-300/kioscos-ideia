@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PagoProveedorBtn } from "./_components/pago-proveedor-form";
@@ -27,7 +27,7 @@ export default async function PagosProveedoresPage({
   const { mes: mesParam } = await searchParams;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;

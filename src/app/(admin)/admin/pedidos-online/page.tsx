@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PedidoOnlineAcciones } from "./_components/pedido-online-acciones";
 
@@ -29,7 +29,7 @@ export default async function PedidosOnlinePage() {
   const supabase = await createClient();
   const admin    = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getUser();
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;

@@ -6,3 +6,10 @@ main = ".open-next/worker.js"
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+# El Worker corre pegado a la base (Supabase está en sa-east-1). Cada pantalla
+# del admin hace decenas de consultas; con el Worker en Buenos Aires cada una
+# pagaba un viaje de ida y vuelta a São Paulo. Reversible: borrar estas líneas.
+[placement]
+mode = "targeted"
+region = "aws:sa-east-1"
