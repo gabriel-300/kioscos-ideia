@@ -44,10 +44,22 @@ export type ResultadoPedidoPublico = {
   error?:       string;
 };
 
+// Solo lo puede pasar código de servidor (el bot de WhatsApp), NUNCA viene del
+// browser: por eso no es parte de DatosPedidoPublico, que la Server Action
+// recibe tal cual del cliente. Con `pedido_existente_id` el pedido no se
+// inserta: se completa la fila "carrito" donde el bot venía armando la
+// conversación (así el número de pedido no salta y no queda una fila vacía).
+export type ContextoPedido = {
+  origen:            "whatsapp";
+  cliente_wa_id:     string;
+  pedido_existente_id: string;
+};
+
 export async function crearPedidoPublico(
   admin: ReturnType<typeof createAdminClient>,
   data: DatosPedidoPublico,
-  identificadorRateLimit: string
+  identificadorRateLimit: string,
+  contexto?: ContextoPedido
 ): Promise<ResultadoPedidoPublico> {
   // ── Validaciones baratas, sin tocar la base ni el rate limit ──────────
   if (data.cliente_nombre?.trim().length < 2) return { error: "Escribí tu nombre" };
@@ -123,11 +135,10 @@ export async function crearPedidoPublico(
   // ── Efectivo: queda aceptado, cobro pendiente. Mercado Pago (link): espera el pago ──
   const esEfectivo = data.medio_pago === "efectivo";
 
-  const { data: pedido, error: pedidoError } = await (admin as any)
-    .from("pedidos")
-    .insert({
+  const fila = {
       sucursal_id:          data.sucursal_id,
-      origen:               "storefront",
+      origen:               contexto?.origen ?? "storefront",
+      cliente_wa_id:        contexto?.cliente_wa_id ?? null,
       estado:               esEfectivo ? "confirmado" : "pendiente_pago",
       tipo_entrega:         data.tipo_entrega,
       direccion_entrega:    data.tipo_entrega === "delivery" ? data.direccion_entrega!.trim() : null,
@@ -145,9 +156,18 @@ export async function crearPedidoPublico(
       eta_min:              etaMin,
       eta_max:              etaMax,
       expira_en:            esEfectivo ? null : new Date(Date.now() + EXPIRACION_MP_LINK_MS).toISOString(),
-    })
-    .select("id, numero, estado")
-    .single();
+  };
+
+  const { data: pedido, error: pedidoError } = contexto
+    ? await (admin as any)
+        .from("pedidos")
+        .update(fila)
+        .eq("id", contexto.pedido_existente_id)
+        .eq("sucursal_id", data.sucursal_id)
+        .eq("estado", "carrito") // atómico: dos "confirmar" seguidos no generan dos pedidos
+        .select("id, numero, estado")
+        .single()
+    : await (admin as any).from("pedidos").insert(fila).select("id, numero, estado").single();
   if (pedidoError || !pedido) return { error: pedidoError?.message ?? "No se pudo crear el pedido" };
 
   const { error: itemsError } = await (admin as any)
@@ -155,8 +175,12 @@ export async function crearPedidoPublico(
     .insert(resuelto.items.map((i) => ({ pedido_id: pedido.id, ...i })));
   if (itemsError) {
     // Un pedido "confirmado" sin ítems le aparecería al local como pedido
-    // vacío -- se borra en vez de dejarlo huérfano.
-    await (admin as any).from("pedidos").delete().eq("id", pedido.id);
+    // vacío: se borra (o, si era la conversación del bot, vuelve a "carrito").
+    if (contexto) {
+      await (admin as any).from("pedidos").update({ estado: "carrito", expira_en: null }).eq("id", pedido.id);
+    } else {
+      await (admin as any).from("pedidos").delete().eq("id", pedido.id);
+    }
     return { error: itemsError.message };
   }
 

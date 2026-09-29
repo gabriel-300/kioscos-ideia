@@ -163,10 +163,13 @@ src/
     auth/        require-role.ts, sucursal-access.ts, turno-actual.ts
     supabase/    server.ts (createClient / createAdminClient), client.ts (navegador), middleware.ts, paginar.ts (fetchAll)
     pedidos/     crear-pedido-publico, pricing, stock, rate-limit, horario, transiciones, crear-venta-publica,
-                 bot-whatsapp, interpretar-pedido-ia, sugerir-upsell, validaciones, actions ("use server")
+                 catalogo (fuente única del catálogo pedible), bot/ (estado, carrito, checkout, mensajes, pasos, procesar),
+                 interpretar-pedido-ia, sugerir-upsell, validaciones, actions ("use server")
     whatsapp/    enviar-mensaje (Graph API, gateado por WHATSAPP_ACCESS_TOKEN)
     fecha.ts     helpers de fecha en UTC-3 (fechaHoyAR, fmt*)
-    groq.ts      lectura de remitos/facturas por foto
+    ia/completar-json.ts  cadena de IA única (Groq qwen3.8 y, si falla, 3 modelos gratis de OpenRouter); la usan groq.ts
+                 (remitos por foto), el bot de pedidos y el upsell. Necesita GROQ_API_KEY y, para el respaldo, OPENROUTER_API_KEY
+    groq.ts      lectura de remitos/facturas por foto (prompt, esquema y validaciones; la llamada va por ia/)
     reposicion.ts, utils.ts, openrouter.ts (sin uso)
   components/    admin/ (admin-nav, number-input-wheel-guard), auth/, ui/ (badge, button, combobox, input, skeleton)
   types/database.ts
@@ -480,9 +483,13 @@ delivery, mínimo) es solo admin.
 **Horario**: `sucursales.horario_pedidos` (UTC-3 fijo, sin horario de verano). Sin horario cargado = siempre abierto. Se
 valida en pantalla y también en `crearPedidoPublico`.
 
-**Bot de WhatsApp** (`lib/pedidos/bot-whatsapp.ts`): menú por botones y, para texto libre, Groq como atajo (nunca escribe
-ítems: arma una propuesta que el cliente confirma). Solo actúa en sucursales con `mercadopago_pos_id` cargado y con
-`WHATSAPP_ACCESS_TOKEN`; hoy está inerte (0 eventos).
+**Bot de WhatsApp** (`lib/pedidos/bot/`): menú por botones y, para texto libre, Groq como atajo (nunca escribe ítems: arma
+una propuesta que el cliente confirma). El checkout (nombre → retiro/envío → zona y dirección → efectivo/Mercado Pago link)
+es una máquina de pasos pura (`bot/checkout.ts`) y el pedido lo crea `crearPedidoPublico`, la misma función que usa el
+storefront: horario, mínimo de envío, stock y precios se validan en un solo lugar. El estado de la conversación vive en
+`pedidos.bot_paso` de la fila `carrito`, que al confirmar se completa (no se crea otra). Solo actúa en sucursales con
+`pedidos_online_habilitado` y con `WHATSAPP_ACCESS_TOKEN`; hoy está inerte (0 eventos). El catálogo (qué se puede pedir y a
+qué precio) sale de `lib/pedidos/catalogo.ts`, compartido con `/pedir` y la sugerencia de IA.
 
 **Estado real al 2026-09-19**: `pedidos_online_habilitado = true` en Parque de las Fiestas y UNAM, sin horario, sin
 zonas (`zonas_entrega` vacía) y con `delivery_habilitado = false`: hoy solo se puede retirar. Hay 1 pedido de prueba.

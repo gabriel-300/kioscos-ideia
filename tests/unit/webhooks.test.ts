@@ -146,7 +146,7 @@ describe("webhook de WhatsApp", () => {
 
   function base(opts: { sucursal?: Record<string, unknown> | null; eventoError?: { code: string } } = {}) {
     const f = fakeAdmin((q: Q) => {
-      if (q.table === "sucursales") return { data: opts.sucursal === undefined ? { id: "s1", is_active: true, mercadopago_pos_id: null } : opts.sucursal };
+      if (q.table === "sucursales") return { data: opts.sucursal === undefined ? { id: "s1", is_active: true, pedidos_online_habilitado: false } : opts.sucursal };
       if (q.table === "whatsapp_webhook_events" && q.op === "insert") return opts.eventoError ? { error: opts.eventoError } : { data: { id: "e1" } };
       if (q.table === "contactos_crm" && q.op === "insert") return { data: { id: "c1" } };
     });
@@ -246,8 +246,8 @@ describe("webhook de WhatsApp", () => {
       expect(f.calls.find((c) => c.table === "contactos_crm")!.payload.consulta_mensaje).toBe("[Ver menú]");
     });
 
-    it("sin mercadopago_pos_id la sucursal NO dispara el bot (solo registra el contacto)", async () => {
-      const f = base({ sucursal: { id: "s1", is_active: true, mercadopago_pos_id: null } });
+    it("sin pedidos online habilitados la sucursal NO dispara el bot (solo registra el contacto)", async () => {
+      const f = base({ sucursal: { id: "s1", is_active: true, pedidos_online_habilitado: false } });
       await enviar(mensaje());
       expect(f.calls.some((c) => c.table === "pedidos")).toBe(false);
     });

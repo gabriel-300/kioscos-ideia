@@ -23,7 +23,7 @@ function mundo(m: Mundo = {}) {
       case "product_prices": return { data: [{ product_id: "p1", precio_dist: 1000 }] };
       case "stock_sucursal": return { data: [{ product_id: "p1", product_name: "Alfajor", stock_actual: m.stock ?? 100 }] };
       case "zonas_entrega": return { data: m.zona === undefined ? { id: "z1", nombre: "Centro", costo: 800, eta_min: 30, eta_max: 45 } : m.zona };
-      case "pedidos": return q.op === "insert" ? { data: { id: "ped-1", numero: 12, estado: q.payload.estado } } : { data: null };
+      case "pedidos": return (q.op === "insert" || (q.op === "update" && q.payload?.estado)) ? { data: { id: "ped-1", numero: 12, estado: q.payload.estado } } : { data: null };
       case "pedido_items": return m.itemsError ? { error: { message: "fk" } } : { data: null };
     }
   });
@@ -105,6 +105,39 @@ describe("crearPedidoPublico", () => {
     expect(r.error).toBe("fk");
     const borrado = calls.find((c) => c.table === "pedidos" && c.op === "delete")!;
     expect(eqDe(borrado, "id")).toBe("ped-1");
+  });
+
+  describe("con contexto de servidor (bot de WhatsApp)", () => {
+    const ctx = { origen: "whatsapp" as const, cliente_wa_id: "549376400", pedido_existente_id: "conv-1" };
+
+    it("completa la fila de la conversación (update, no insert) solo si sigue en 'carrito'", async () => {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, datos(), "wa:549376400", ctx);
+      expect(r.error).toBeUndefined();
+      expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+      const upd = calls.find((c) => c.table === "pedidos" && c.op === "update")!;
+      expect(upd.payload).toMatchObject({ origen: "whatsapp", cliente_wa_id: "549376400", estado: "confirmado" });
+      expect(eqDe(upd, "id")).toBe("conv-1");
+      expect(eqDe(upd, "estado")).toBe("carrito");
+      expect(eqDe(upd, "sucursal_id")).toBe(SUC);
+    });
+
+    it("si falla el insert de ítems la conversación vuelve a 'carrito' (no se borra)", async () => {
+      const { admin, calls } = mundo({ itemsError: true });
+      const r = await crearPedidoPublico(admin, datos(), "ip", ctx);
+      expect(r.error).toBe("fk");
+      expect(calls.some((c) => c.table === "pedidos" && c.op === "delete")).toBe(false);
+      const revert = calls.filter((c) => c.table === "pedidos" && c.op === "update").at(-1)!;
+      expect(revert.payload).toMatchObject({ estado: "carrito" });
+    });
+
+    it("sin contexto el pedido sigue siendo del storefront (el browser no puede pedir otro origen)", async () => {
+      const { admin, calls } = mundo();
+      await crearPedidoPublico(admin, { ...datos(), origen: "whatsapp", pedido_existente_id: "conv-1" } as any, "ip");
+      const ins = calls.find((c) => c.table === "pedidos" && c.op === "insert")!;
+      expect(ins.payload.origen).toBe("storefront");
+      expect(ins.payload.cliente_wa_id).toBeNull();
+    });
   });
 
   // Hallazgo de auditoría: la sucursal puede tener horario_pedidos (abierto/cerrado) pero

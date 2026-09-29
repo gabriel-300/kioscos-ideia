@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { normalizarHorario } from "@/lib/pedidos/horario";
+import { cargarCatalogoSucursal } from "@/lib/pedidos/catalogo";
 import { Tienda } from "./_components/tienda";
-import type { CategoriaCatalogo, ConfigTienda, ItemCatalogo } from "./_lib/tipos";
+import type { CategoriaCatalogo, ConfigTienda } from "./_lib/tipos";
 
 // Catálogo público de pedidos online. Nadie necesita sesión para entrar acá
 // (ver la exclusión en src/lib/supabase/middleware.ts).
@@ -39,25 +40,11 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
 
   if (!sucursal || !sucursal.is_active) notFound();
 
-  const categoriasHabilitadas: string[] | null = sucursal.categorias_habilitadas ?? null;
-  const restringe = !!categoriasHabilitadas && categoriasHabilitadas.length > 0;
-  const promosHabilitadas: boolean = sucursal.promos_habilitadas ?? true;
-
-  const [{ data: categoriesRaw }, { data: productsRaw }, { data: preciosRaw }, { data: promosRaw }, { data: preciosPromoRaw }, { data: zonasRaw }] = await Promise.all([
-    admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-    (admin as any)
-      .from("products")
-      .select("id, name, cover_image_url, category_id, unit_label, vendible_pos")
-      .eq("is_active", true)
-      .neq("sku", "MULTA-TERMO")
-      .order("name"),
-    admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
-    (admin as any)
-      .from("promos")
-      .select("id, name, price, tipo, cover_image_url, category_id")
-      .eq("is_active", true)
-      .order("name"),
-    (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
+  const [catalogoSucursal, { data: zonasRaw }] = await Promise.all([
+    cargarCatalogoSucursal(admin, sucursalId, {
+      categoriasHabilitadas: sucursal.categorias_habilitadas ?? null,
+      promosHabilitadas: sucursal.promos_habilitadas ?? true,
+    }),
     (admin as any)
       .from("zonas_entrega")
       .select("id, nombre, costo, eta_min, eta_max")
@@ -67,55 +54,15 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
       .order("costo"),
   ]);
 
-  const precioProducto = new Map((preciosRaw ?? []).map((p: any) => [p.product_id as string, p.precio_dist as number]));
-  // Mismo precio que después cobra resolverItemsPedido(): el de la sucursal si
-  // existe, si no el global de la promo.
-  const precioPromo = new Map((preciosPromoRaw ?? []).map((p: any) => [p.promo_id as string, p.price as number]));
-
-  const categorias = (restringe
-    ? (categoriesRaw ?? []).filter((c) => categoriasHabilitadas!.includes(c.id))
-    : (categoriesRaw ?? [])) as { id: string; name: string }[];
-  const nombreCategoria = new Map(categorias.map((c) => [c.id, c.name]));
-
-  const productos: ItemCatalogo[] = [];
-  for (const p of (productsRaw ?? []) as any[]) {
-    if (p.vendible_pos === false) continue;
-    if (restringe && (!p.category_id || !categoriasHabilitadas!.includes(p.category_id))) continue;
-    const price = precioProducto.get(p.id) ?? 0;
-    if (!(price > 0)) continue; // sin precio en esta sucursal: no se puede pedir
-    const catId: string = p.category_id ?? "";
-    productos.push({
-      id: p.id, esPromo: false, name: p.name, price, image: p.cover_image_url ?? null,
-      unit: p.unit_label === "kg" ? "por kg" : undefined,
-      categoriaId: catId, categoriaNombre: nombreCategoria.get(catId) ?? "",
-    });
-  }
-
-  const promos: ItemCatalogo[] = [];
-  if (promosHabilitadas) {
-    for (const p of (promosRaw ?? []) as any[]) {
-      if (restringe && (!p.category_id || !categoriasHabilitadas!.includes(p.category_id))) continue;
-      const price = precioPromo.get(p.id) ?? p.price ?? 0;
-      if (!(price > 0)) continue;
-      const catId: string = p.category_id ?? "promos";
-      promos.push({
-        id: p.id, esPromo: true, name: p.name, price, image: p.cover_image_url ?? null,
-        badge: p.tipo === "receta" ? "RECETA" : "PROMO",
-        categoriaId: catId, categoriaNombre: p.category_id ? (nombreCategoria.get(catId) ?? "") : "Promos",
-      });
-    }
-  }
-
-  const catalogo: CategoriaCatalogo[] = [];
-  const promosSueltas = promos.filter((p) => p.categoriaId === "promos");
-  if (promosSueltas.length > 0) catalogo.push({ id: "promos", name: "Promos", items: promosSueltas });
-  for (const c of categorias) {
-    const items = [
-      ...promos.filter((p) => p.categoriaId === c.id),
-      ...productos.filter((p) => p.categoriaId === c.id),
-    ];
-    if (items.length > 0) catalogo.push({ id: c.id, name: c.name, items });
-  }
+  const catalogo: CategoriaCatalogo[] = catalogoSucursal.grupos.map((g) => ({
+    id: g.id,
+    name: g.name,
+    items: g.items.map((i) => ({
+      id: i.id, esPromo: i.esPromo, name: i.name, price: i.price, image: i.image,
+      badge: i.etiqueta, unit: i.unidad,
+      categoriaId: g.id, categoriaNombre: g.name,
+    })),
+  }));
 
   const config: ConfigTienda = {
     sucursalId,

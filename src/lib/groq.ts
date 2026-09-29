@@ -1,31 +1,16 @@
-// Lectura de facturas/remitos argentinos por foto usando la API de Groq,
-// con JSON mode nativo (response_format: json_schema) para forzar la forma
-// de salida en vez de parsear texto libre después.
+// Lectura de facturas/remitos argentinos por foto. La llamada a la IA va por
+// la cadena de src/lib/ia/completar-json.ts (Groq y, si falla, modelos gratis
+// de OpenRouter); acá quedan el prompt, el esquema de un comprobante y las
+// validaciones.
 //
-// Groq marca sus modelos de visión como "preview"/experimental -- esto
-// alimenta datos contables reales (montos, CUIT), así que NO se confía
+// Alimenta datos contables reales (montos, CUIT), así que NO se confía
 // ciegamente en el resultado: validarComprobante() devuelve advertencias de
 // consistencia que hay que revisar antes de dar por buena una lectura, y
 // loguearComprobanteInconsistente() deja rastro server-side de los casos con
 // advertencias o parseo fallido, para poder auditar la tasa de error real
 // con una muestra antes de confiar el pipeline sin revisión humana.
-//
-// De los 17 modelos activos en la cuenta de Groq probados el 2026-07-17,
-// SOLO dos aceptaban imágenes -- el resto (llama-3.3-70b, qwen3-32b a secas,
-// los gpt-oss-*, groq/compound*, whisper, allam, orpheus, prompt-guard)
-// rechazan el formato con imagen directamente. El que se usaba como
-// primario (meta-llama/llama-4-scout-17b-16e-instruct) dejó de existir en
-// la cuenta desde entonces (404 "model does not exist or you do not have
-// access to it", confirmado en producción 2026-08-21) -- Groq deprecó/movió
-// el modelo. qwen3.6-27b queda como el único motor real; ya no tiene sentido
-// mantener la estructura de "fallback a un segundo modelo" cuando ese
-// segundo modelo nunca respondía nada más que el mismo 404.
-const MODELO_VISION = "qwen/qwen3.6-27b";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-// Códigos de error transitorios de Groq (sobrecarga temporal, rate limit) --
-// vale la pena reintentar antes de rendirse.
-const HTTP_REINTENTABLE = new Set([429, 500, 502, 503, 504]);
+import { completarJson } from "@/lib/ia/completar-json";
 
 export type ItemComprobante = {
   descripcion:     string;
@@ -42,7 +27,7 @@ export type ComprobanteLeido = {
   subtotal:           number | null;
   iva:                number | null;
   total:              number | null;
-  motor:              "qwen3.6-27b";
+  motor:              string; // eslabón que respondió, ej. "groq:qwen/qwen3.8-27b"
 };
 
 const JSON_SCHEMA = {
@@ -86,115 +71,28 @@ const USER_PROMPT = `Extraé de esta factura o remito:
 
 Si no podés leer con claridad algún dato de cabecera, usá null. Los items siempre van con tu mejor estimación, pero no inventes líneas que no existen en la foto.`;
 
-class ErrorGroq extends Error {
-  status?: number;
-  constructor(message: string, status?: number) {
-    super(message);
-    this.status = status;
-  }
-}
-
-async function pedirLectura(model: string, imageBase64: string, mimeType: string, maxTokens: number): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY no está configurada");
-
-  const res = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type":  "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: USER_PROMPT },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-          ],
-        },
-      ],
-      temperature: 0.1,
-      max_tokens: maxTokens,
-      // Sin esto, qwen3.6-27b antepone un bloque <think>...</think> de
-      // razonamiento libre antes del JSON -- en una cuenta con el límite de
-      // 8000 tokens/minuto del tier gratuito, reservar max_tokens grande
-      // para no cortar ese bloque a mitad hacía que CUALQUIER pedido
-      // rebotara con 413 "Request too large" antes de mandar un solo token
-      // de la imagen (confirmado en producción 2026-08-21). Con el modo
-      // thinking apagado no hay bloque que proteger, así que max_tokens
-      // puede quedar chico y el pedido entra cómodo en el límite.
-      reasoning_effort: "none",
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "comprobante_argentino", schema: JSON_SCHEMA },
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const detalle = await res.text().catch(() => "");
-    throw new ErrorGroq(`Groq (${model}) respondió ${res.status}: ${detalle.slice(0, 300)}`, res.status);
-  }
-
-  const data = await res.json();
-  const raw: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!raw) throw new ErrorGroq(`Groq (${model}) no devolvió ningún texto legible`);
-
-  return raw;
-}
-
-// Reintenta el mismo modelo con backoff simple solo ante errores transitorios
-// (rate limit / sobrecarga) -- confirmado en pruebas reales que un 503 de
-// Groq suele resolverse solo al segundo intento.
-async function pedirLecturaConReintento(
-  model: string, imageBase64: string, mimeType: string, maxTokens: number, intentos = 2
-): Promise<string> {
-  let ultimoError: unknown;
-  for (let i = 0; i < intentos; i++) {
-    try {
-      return await pedirLectura(model, imageBase64, mimeType, maxTokens);
-    } catch (e) {
-      ultimoError = e;
-      const status = e instanceof ErrorGroq ? e.status : undefined;
-      const reintentable = status != null && HTTP_REINTENTABLE.has(status);
-      if (!reintentable || i === intentos - 1) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-  throw ultimoError;
-}
-
-// El modo "thinking" de qwen3.6-27b puede anteponer un bloque de
-// razonamiento antes del JSON -- se descarta si aparece, mismo criterio
-// defensivo que ya usa openrouter.ts con las marcas de código ```json.
-function limpiarRespuesta(raw: string): string {
-  const sinThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  const sinMarkdown = sinThink.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  return sinMarkdown || sinThink || raw;
-}
+// 2048: de sobra para el JSON de un remito real (una línea por producto
+// ronda 20-25 tokens), dejando margen bajo el límite de 8000 tokens/minuto del
+// tier gratuito de Groq para la imagen + el prompt.
+const MAX_TOKENS_LECTURA = 2048;
 
 export async function leerComprobanteConGroq(imageBase64: string, mimeType: string): Promise<ComprobanteLeido> {
   try {
-    // 2048: de sobra para el JSON de un remito real (una línea por producto
-    // ronda 20-25 tokens), dejando margen bajo el límite de 8000
-    // tokens/minuto del tier gratuito para la imagen + el prompt.
-    const raw = await pedirLecturaConReintento(MODELO_VISION, imageBase64, mimeType, 2048);
-    return { ...normalizarComprobante(parsearJson(limpiarRespuesta(raw), "qwen3.6-27b")), motor: "qwen3.6-27b" };
+    const { valor, motor } = await completarJson(
+      {
+        sistema: SYSTEM_PROMPT,
+        usuario: USER_PROMPT,
+        imagen: { base64: imageBase64, mimeType },
+        schema: JSON_SCHEMA,
+        nombreSchema: "comprobante_argentino",
+        maxTokens: MAX_TOKENS_LECTURA,
+      },
+      (texto) => normalizarComprobante(JSON.parse(texto))
+    );
+    return { ...valor, motor };
   } catch (error) {
     loguearComprobanteInconsistente({ etapa: "lectura_fallo", detalle: (error as Error).message });
     throw new Error(`No se pudo leer la foto -- cargá el comprobante a mano. (${(error as Error).message})`);
-  }
-}
-
-function parsearJson(raw: string, motor: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    loguearComprobanteInconsistente({ etapa: `parseo_json_${motor}`, detalle: raw.slice(0, 500) });
-    throw new Error("No se pudo interpretar lo que leyó la foto");
   }
 }
 

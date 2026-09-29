@@ -70,7 +70,7 @@ export type SeccionLista = { title: string; rows: FilaLista[] };
 
 // Máx. 10 filas TOTALES entre todas las secciones, título de fila máx. 24
 // caracteres, descripción máx. 72 -- límites reales de Meta. Quien arma las
-// secciones (bot-whatsapp.ts) ya pagina para no pasarse de 10, pero se
+// secciones (bot/mensajes.ts) ya pagina para no pasarse de 10, pero se
 // recorta también acá como defensa en profundidad.
 export async function enviarLista(
   phoneNumberId: string, to: string, body: string, buttonText: string, sections: SeccionLista[]

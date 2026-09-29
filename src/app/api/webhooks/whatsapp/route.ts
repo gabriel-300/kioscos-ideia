@@ -6,11 +6,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 // webhook, set. 2026: costo por mensaje sin techo + riesgo real de que Meta
 // banee el número si se automatiza mal, ver memoria del proyecto).
 //
-// Fase 3 del storefront (ver plan) reabre esa decisión A PROPÓSITO, pero
-// solo para las sucursales que el usuario habilitó a vender online
-// (mercadopago_pos_id cargado, mismo gate que ya usa el storefront) -- para
-// cualquier otra sucursal el comportamiento sigue siendo el de siempre:
-// solo logea el contacto, no responde nada.
+// El bot de pedidos reabre esa decisión A PROPÓSITO, pero solo para las
+// sucursales habilitadas a vender online (pedidos_online_habilitado, el mismo
+// interruptor que gobierna /pedir) -- para cualquier otra el comportamiento
+// sigue siendo el de siempre: solo logea el contacto, no responde nada.
 //
 // WHATSAPP_VERIFY_TOKEN y WHATSAPP_APP_SECRET se completan cuando Gabriel
 // termine de dar de alta la app de WhatsApp Cloud API en Meta Business
@@ -113,12 +112,12 @@ export async function POST(request: Request) {
       let sucursalHabilitadaParaBot = false;
       if (phoneNumberId) {
         const sucursalRes = await (supabase as any)
-          .from("sucursales").select("id, is_active, mercadopago_pos_id")
+          .from("sucursales").select("id, is_active, pedidos_online_habilitado")
           .eq("whatsapp_phone_number_id", phoneNumberId)
           .maybeSingle();
-        const sucursalRow = sucursalRes.data as { id: string; is_active: boolean; mercadopago_pos_id: string | null } | null;
+        const sucursalRow = sucursalRes.data as { id: string; is_active: boolean; pedidos_online_habilitado: boolean | null } | null;
         sucursalId = sucursalRow?.id ?? null;
-        sucursalHabilitadaParaBot = !!sucursalRow?.is_active && !!sucursalRow?.mercadopago_pos_id;
+        sucursalHabilitadaParaBot = !!sucursalRow?.is_active && !!sucursalRow?.pedidos_online_habilitado;
       }
 
       for (const msg of value.messages) {
@@ -170,13 +169,12 @@ export async function POST(request: Request) {
           .update({ contacto_id: contactoRes.data.id })
           .eq("id", eventoRes.data.id);
 
-        // Fase 3 del storefront: el bot de pedidos, solo para sucursales
-        // que vender online (mercadopago_pos_id cargado). Nunca debe poder
-        // romper la respuesta 200 a Meta -- mismo criterio defensivo que ya
-        // usa el webhook de Mercado Pago con crearVentaPublica.
+        // Bot de pedidos, solo para sucursales que venden online. Nunca debe
+        // poder romper la respuesta 200 a Meta -- mismo criterio defensivo
+        // que el webhook de Mercado Pago con crearVentaPublica.
         if (sucursalHabilitadaParaBot && waId) {
           try {
-            const { procesarMensajeBot } = await import("@/lib/pedidos/bot-whatsapp");
+            const { procesarMensajeBot } = await import("@/lib/pedidos/bot/procesar");
             await procesarMensajeBot(supabase, {
               sucursalId: sucursalId!,
               phoneNumberId: phoneNumberId!,

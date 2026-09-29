@@ -1,20 +1,14 @@
-// Interpreta texto libre de WhatsApp ("quiero 2 medialunas y un café") como
-// una PROPUESTA de items del carrito -- nunca escribe nada directo, ver
-// bot-whatsapp.ts para cómo se confirma. Mismo patrón que src/lib/groq.ts
-// (fetch directo, JSON mode con json_schema, sin SDK), mismo modelo ya
-// verificado funcionando en la cuenta real (qwen/qwen3.6-27b) -- no se
-// introduce un modelo nuevo sin probar, groq.ts ya documenta que otros
-// modelos de esta cuenta devuelven 404.
-//
-// A diferencia de la lectura de comprobantes (que alimenta datos contables
-// y por eso queda con advertencias para revisión humana), acá el resultado
-// NUNCA se usa solo: cada id que devuelve el modelo se valida contra el
-// catálogo real server-side antes de proponerse, y la propuesta todavía
-// necesita que el cliente la confirme tocando un botón -- la IA no puede
-// hacer que se cobre algo que no coincide con el catálogo real.
+import { completarJson } from "@/lib/ia/completar-json";
 
-const MODELO = "qwen/qwen3.6-27b";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Atajo del bot de WhatsApp: interpreta texto libre ("dame 2 alfajores y un
+// café") contra el catálogo real de la sucursal. La IA NUNCA escribe el
+// carrito: solo propone, y el cliente confirma con un botón (ver
+// bot/procesar.ts).
+//
+// Al modelo se le pasa el catálogo con un NÚMERO por línea, no con el id: un
+// uuid pesa ~20 tokens y con ~240 productos el prompt pasaba el tope de 8000
+// tokens/minuto del plan gratuito de Groq; y con números el modelo no puede
+// inventar un id. Todo número fuera de rango se descarta.
 
 export type ItemCatalogoIA = { id: string; name: string; price: number; esPromo: boolean };
 
@@ -28,75 +22,51 @@ const JSON_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          id:       { type: "string" },
+          numero:   { type: "integer" },
           cantidad: { type: "number" },
         },
-        required: ["id", "cantidad"],
+        required: ["numero", "cantidad"],
       },
     },
   },
   required: ["items"],
 } as const;
 
-function limpiarRespuesta(raw: string): string {
-  const sinThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  const sinMarkdown = sinThink.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  return sinMarkdown || sinThink || raw;
-}
+const MAX_CANTIDAD = 50;
+const MAX_TEXTO = 500;
 
-// Devuelve [] si no hay API key, si el modelo no entendió nada, o si hubo
-// cualquier error -- nunca lanza. El llamador (bot-whatsapp.ts) ya sabe
-// tratar "sin propuesta" como "mostrar categorías", no hace falta
-// distinguir la causa acá.
+const SISTEMA =
+  "Sos el asistente de pedidos de un kiosco por WhatsApp. Interpretás lo que pide un cliente y devolvés SOLO productos que existan en el catálogo que te paso, identificados por su NÚMERO tal cual aparece ahí. Si el cliente pide algo que no está en el catálogo, o el mensaje no es un pedido, devolvé items: []. Nunca inventes un número que no esté en la lista.";
+
+// Devuelve [] si no se entendió nada o si la IA no está disponible (ninguna
+// respuesta útil de la cadena): el bot lo trata como "mostrar categorías".
 export async function interpretarPedidoConIA(texto: string, catalogo: ItemCatalogoIA[]): Promise<ItemPropuestoIA[]> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || !texto.trim() || catalogo.length === 0) return [];
+  if (!texto.trim() || catalogo.length === 0) return [];
 
-  const catalogoTexto = catalogo
-    .map((c) => `${c.id} | ${c.name} | $${c.price}${c.esPromo ? " (promo)" : ""}`)
+  const lista = catalogo
+    .map((c, i) => `${i + 1} | ${c.name}${c.esPromo ? " (promo)" : ""}`)
     .join("\n");
-
-  const systemPrompt =
-    "Sos el asistente de pedidos de un kiosco por WhatsApp. Interpretás lo que pide un cliente y devolvés SOLO productos que existan en el catálogo que te paso, usando el id EXACTO tal cual aparece ahí. Si el cliente pide algo que no está en el catálogo, o el mensaje no es un pedido, devolvé items: []. Nunca inventes un id que no esté en la lista.";
-
-  const userPrompt = `Catálogo disponible (id | nombre | precio):\n${catalogoTexto}\n\nMensaje del cliente: "${texto}"\n\nDevolvé los items pedidos con su cantidad (si no dice cantidad, asumí 1).`;
+  const usuario = `Catálogo disponible (número | nombre):\n${lista}\n\nMensaje del cliente: ${JSON.stringify(texto.trim().slice(0, MAX_TEXTO))}\n\nDevolvé los items pedidos con su número y cantidad (si no dice cantidad, asumí 1).`;
 
   try {
-    const res = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: MODELO,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 1024,
-        reasoning_effort: "none", // evita el bloque <think> de qwen3.6-27b, ver groq.ts
-        response_format: { type: "json_schema", json_schema: { name: "items_pedido", schema: JSON_SCHEMA } },
-      }),
-    });
-    if (!res.ok) return [];
+    const { valor } = await completarJson(
+      { sistema: SISTEMA, usuario, schema: JSON_SCHEMA, nombreSchema: "items_pedido", maxTokens: 1024, temperatura: 0.1 },
+      (t) => {
+        const parsed = JSON.parse(t) as { items?: unknown };
+        if (!Array.isArray(parsed.items)) throw new Error("la respuesta no trae items");
+        return parsed.items as { numero?: unknown; cantidad?: unknown }[];
+      }
+    );
 
-    const data = await res.json();
-    const raw: string | undefined = data?.choices?.[0]?.message?.content;
-    if (!raw) return [];
-
-    const parsed = JSON.parse(limpiarRespuesta(raw)) as { items?: { id?: unknown; cantidad?: unknown }[] };
-    if (!Array.isArray(parsed.items)) return [];
-
-    const catalogoMap = new Map(catalogo.map((c) => [c.id, c]));
     const propuesta: ItemPropuestoIA[] = [];
-    for (const item of parsed.items) {
-      if (typeof item.id !== "string" || typeof item.cantidad !== "number") continue;
-      const real = catalogoMap.get(item.id);
-      if (!real) continue; // el modelo devolvió un id que no existe de verdad -- se descarta, no se propone
-      if (!(item.cantidad > 0)) continue;
-      propuesta.push({ id: real.id, esPromo: real.esPromo, cantidad: Math.min(item.cantidad, 50) });
+    for (const it of valor) {
+      if (typeof it.numero !== "number" || typeof it.cantidad !== "number") continue;
+      const real = catalogo[it.numero - 1]; // número inventado o fuera de rango: no existe
+      if (!real || !(it.cantidad > 0)) continue;
+      propuesta.push({ id: real.id, esPromo: real.esPromo, cantidad: Math.min(it.cantidad, MAX_CANTIDAD) });
     }
     return propuesta;
   } catch {
-    return [];
+    return []; // ya quedó logueado el motivo de cada eslabón en completarJson
   }
 }
