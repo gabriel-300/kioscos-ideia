@@ -88,6 +88,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/ventas-por-horario",  label: "Por horario",      roles: ["admin", "concesionario"], icon: "horario" },
       { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin", "concesionario"], icon: "staff" },
       { href: "/admin/pedidos-online",     label: "Pedidos online",   roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ventas" },
+      { href: "/admin/comandera-offline",  label: "Comandera offline", roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ventas" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
       { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
     ],

@@ -142,7 +142,23 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 
 ### Bot de pedidos por WhatsApp
 - **Estado**: **Probado** localmente con mensajes sintéticos; **inerte** en producción (falta el alta en Meta Business
-  Manager y las claves de WhatsApp). No manda nada a sucursales sin `mercadopago_pos_id`.
+  Manager y las claves de WhatsApp). No manda nada a sucursales sin pedidos online habilitados. Ofrece retiro/envío (con zona y dirección) y efectivo o link de
+  Mercado Pago, con las mismas reglas que el storefront.
+
+### Comandera offline — `/admin/comandera-offline` y `/api/comandera-offline`
+- **Qué es**: un archivo HTML autocontenido (sin internet, sin instalar nada) para vender en un **evento sin conectividad**. Se
+  abre en Chrome/Edge; arma el pedido, cobra en efectivo (vuelto opcional) e imprime un **ticket de retiro** de 80 mm con número
+  correlativo. Al descargarlo se elige el **nombre del evento** (va en pantalla y ticket), **de qué sucursal salen los precios** y
+  **qué productos lleva**. No está atada a ninguna sucursal: el evento "Villa Sarita" no tiene relación con la sucursal del mismo nombre.
+- **Reglas**: catálogo con el mismo filtro que el storefront (activo, `vendible_pos`, categorías/promos habilitadas de la sucursal
+  elegida, precio > 0). Deja afuera los productos por kg. Nunca lleva costo ni margen. Descarga: staff con acceso a la sucursal de
+  los precios (`requireSucursalAccess`); el POST valida los ids elegidos contra ese catálogo.
+- **Límites a propósito**: NO toca la base (no descuenta stock, no registra ventas ni caja); las ventas quedan en el `localStorage`
+  del navegador (clave = sucursal + nombre del evento) y se exportan a CSV desde "Ventas / Resumen". Los precios quedan congelados
+  en el archivo. Solo efectivo (el QR de Mercado Pago necesita internet).
+- **Código**: `src/lib/comandera-offline/` (`catalogo.ts` arma el catálogo y el modo evento; `html.ts` es la plantilla del archivo).
+- **Estado**: **Probado** con Playwright (archivo generado y formulario de descarga) y con pruebas unitarias; falta la prueba con la
+  térmica real.
 
 ### Pedido Ya
 - **Estado**: el canal manual en el POS (efectivo y plataforma) está **Funcionando** (227 ventas en 60 días). El webhook está
