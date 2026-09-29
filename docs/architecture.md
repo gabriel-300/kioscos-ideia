@@ -164,7 +164,7 @@ src/
     supabase/    server.ts (createClient / createAdminClient), client.ts (navegador), middleware.ts, paginar.ts (fetchAll)
     pedidos/     crear-pedido-publico, pricing, stock, rate-limit, horario, transiciones, crear-venta-publica,
                  catalogo (fuente única del catálogo pedible), bot/ (estado, carrito, checkout, mensajes, pasos, procesar),
-                 por-atender, seguimiento, notificar-cliente, enlaces, qr,
+                 por-atender, seguimiento, notificar-cliente, enlaces, qr, beneficio-cliente, beneficio-servidor,
                  interpretar-pedido-ia, sugerir-upsell, validaciones, actions ("use server")
     whatsapp/    enviar-mensaje (Graph API, gateado por WHATSAPP_ACCESS_TOKEN)
     fecha.ts     helpers de fecha en UTC-3 (fechaHoyAR, fmt*)
@@ -459,6 +459,15 @@ el cartel imprimible (`lib/pedidos/qr.ts`, JS puro). Para el personal, `lib/pedi
 esperan al local y qué sucursales ve cada rol; el hook `components/admin/use-pedidos-por-atender.ts` (montado en el menú)
 lo consulta cada 20 s con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
 WhatsApp los cambios de estado, solo a pedidos del bot y solo si hay `WHATSAPP_ACCESS_TOKEN`.
+
+**Clientes registrados** (migración 099): login con Google en el catálogo (`components` de `/pedir`, callback
+`/auth/cliente/callback`); la tabla `clientes` (1 fila por usuario de Supabase Auth, RLS "solo la propia", sin poder
+tocarse `telefono_verificado_at`) y `pedidos.cliente_id`. El cliente sale de la **sesión** (`iniciarPedido` →
+`clienteDeLaSesion`), nunca de lo que manda el browser, y llega a `crearPedidoPublico` en el 4º parámetro
+(`ContextoPedido.clienteId`). La cuenta del beneficio vive en `lib/pedidos/beneficio-cliente.ts` (pura; la usan el servidor
+para cobrar y la pantalla para la vista previa) y las consultas en `beneficio-servidor.ts`, que responden "sin beneficios" si la
+migración no está aplicada. Un usuario del personal que entra con Google no se da de alta como cliente. Los usuarios sin
+rol no entran al admin (middleware y layout) y no pueden leer costos (column privileges).
 
 **El servidor recalcula todo** (`src/lib/pedidos/crear-pedido-publico.ts`): el tipo de entrada **no lleva precio**;
 `resolverItemsPedido` toma los precios de `product_prices`/`promo_prices` de la sucursal, revalida categorías, promos y

@@ -41,6 +41,9 @@ function Opcion({ activa, onClick, titulo, detalle, derecha, deshabilitada }: {
   );
 }
 
+import { calcularBeneficio } from "@/lib/pedidos/beneficio-cliente";
+import { BeneficioCliente } from "./beneficio-cliente";
+
 export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
   form:              FormCheckout;
@@ -58,8 +61,16 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
 
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const zona = form.modo === "envio" ? config.zonas.find((z) => z.id === form.zonaId) ?? null : null;
-  const costoEnvio = zona?.costo ?? 0;
-  const total = subtotal + costoEnvio;
+  // Misma cuenta que hace el servidor al cobrar (beneficio-cliente.ts): esto es solo la vista previa.
+  const beneficio = calcularBeneficio({
+    subtotal,
+    esCliente:       !!config.cliente,
+    esPrimeraCompra: config.cliente?.primeraCompra ?? false,
+    esDelivery:      form.modo === "envio",
+    config:          config.beneficio,
+  });
+  const costoEnvio = beneficio.envioBonificado ? 0 : (zona?.costo ?? 0);
+  const total = subtotal - beneficio.descuentoProductos + costoEnvio;
   const faltaMinimo = form.modo === "envio" && config.minimoEnvio > 0 && subtotal < config.minimoEnvio
     ? config.minimoEnvio - subtotal : 0;
 
@@ -115,6 +126,8 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-8 pt-4">
+        <BeneficioCliente config={config} />
+
         {/* 1. Modo de entrega */}
         <div className="grid grid-cols-2 gap-3">
           <Opcion
@@ -222,9 +235,14 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
           <div className="flex justify-between text-[14px] text-pd-ink-600">
             <span>Productos ({cantidadProductos})</span><span className="pd-display font-bold tabular-nums text-pd-ink-900">{fmt(subtotal)}</span>
           </div>
+          {beneficio.descuentoProductos > 0 && (
+            <div className="mt-1.5 flex justify-between text-[14px] text-pd-success">
+              <span>Descuento cliente registrado</span><span className="pd-display font-bold tabular-nums">−{fmt(beneficio.descuentoProductos)}</span>
+            </div>
+          )}
           <div className="mt-1.5 flex justify-between text-[14px] text-pd-ink-600">
             <span>{form.modo === "envio" ? `Envío${zona ? ` · ${zona.nombre}` : ""}` : "Retiro en el local"}</span>
-            <span className="pd-display font-bold tabular-nums text-pd-ink-900">{form.modo === "envio" ? (zona ? fmt(costoEnvio) : "—") : "Gratis"}</span>
+            <span className="pd-display font-bold tabular-nums text-pd-ink-900">{form.modo === "envio" ? (zona ? (beneficio.envioBonificado ? "Gratis" : fmt(costoEnvio)) : "—") : "Gratis"}</span>
           </div>
           <div className="mt-3 flex items-baseline justify-between border-t border-pd-line pt-3">
             <span className="text-[15px] font-bold">Total</span>

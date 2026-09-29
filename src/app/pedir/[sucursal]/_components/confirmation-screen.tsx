@@ -67,6 +67,9 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
             ? `Envío a domicilio${pedido.zonaNombre ? ` · ${pedido.zonaNombre}` : ""}`
             : `Retiro en ${config.nombre}`}
         </p>
+        {pedido.descuento > 0 && (
+          <p className="mt-3 text-[13.5px] text-pd-cream/75">Descuento cliente registrado: −{fmt(pedido.descuento)}</p>
+        )}
         <div className="mt-4 flex items-baseline justify-between border-t border-white/15 pt-4">
           <span className="text-[13.5px] text-pd-cream/75">Total · {pedido.medioPago === "efectivo" ? "Efectivo" : "Mercado Pago"}</span>
           <span className="pd-display text-[24px] font-extrabold tabular-nums">{fmt(pedido.total)}</span>

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { normalizarHorario } from "@/lib/pedidos/horario";
 import { cargarCatalogoSucursal } from "@/lib/pedidos/catalogo";
+import { clienteDeLaSesion, esPrimeraCompra, leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import { Tienda } from "./_components/tienda";
 import type { CategoriaCatalogo, ConfigTienda } from "./_lib/tipos";
 
@@ -40,7 +41,11 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
 
   if (!sucursal || !sucursal.is_active) notFound();
 
-  const [catalogoSucursal, { data: zonasRaw }] = await Promise.all([
+  // Cliente registrado (si ingresó con Google) y beneficios de la sucursal.
+  const user = await getUser();
+  const cliente = await clienteDeLaSesion(admin, user?.id);
+
+  const [catalogoSucursal, { data: zonasRaw }, beneficio, primeraCompra] = await Promise.all([
     cargarCatalogoSucursal(admin, sucursalId, {
       categoriasHabilitadas: sucursal.categorias_habilitadas ?? null,
       promosHabilitadas: sucursal.promos_habilitadas ?? true,
@@ -52,6 +57,8 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
       .eq("is_active", true)
       .order("orden")
       .order("costo"),
+    leerConfigBeneficio(admin, sucursalId),
+    cliente ? esPrimeraCompra(admin, cliente.id) : Promise.resolve(false),
   ]);
 
   const catalogo: CategoriaCatalogo[] = catalogoSucursal.grupos.map((g) => ({
@@ -80,6 +87,8 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
     zonas: ((zonasRaw ?? []) as any[]).map((z) => ({
       id: z.id, nombre: z.nombre, costo: Number(z.costo), etaMin: z.eta_min, etaMax: z.eta_max,
     })),
+    beneficio,
+    cliente: cliente ? { nombre: cliente.nombre, telefono: cliente.telefono, primeraCompra } : null,
   };
 
   return <Tienda config={config} catalogo={catalogo} />;

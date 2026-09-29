@@ -3,7 +3,7 @@
 // un handler decide qué devolver. Permite verificar QUÉ se le pidió a la base
 // (filtros, payloads de insert/update) sin tocar la base real.
 
-export type Filtro = { op: string; col: string; val: unknown };
+export type Filtro = { op: string; col: string; val: unknown; extra?: unknown }; // extra: 3er argumento (ej. .not("estado", "in", "(a,b)"))
 export type Q = {
   table: string;
   op: "select" | "insert" | "update" | "delete" | "upsert";
@@ -30,7 +30,7 @@ export function fakeAdmin(
     const q: Q = { table, op: "select", filters: [], single: false, maybeSingle: false, head: false };
     let opFijada = false;
     const fijar = (op: Q["op"], payload?: any) => { q.op = op; q.payload = payload; opFijada = true; return b; };
-    const filtro = (op: string) => (col: string, val?: unknown) => { q.filters.push({ op, col, val }); return b; };
+    const filtro = (op: string) => (col: string, val?: unknown, extra?: unknown) => { q.filters.push({ op, col, val, extra }); return b; };
     const b: any = {
       select: (_cols?: string, opts?: { head?: boolean }) => { if (!opFijada) q.op = "select"; if (opts?.head) q.head = true; return b; },
       insert: (p: any) => fijar("insert", p),

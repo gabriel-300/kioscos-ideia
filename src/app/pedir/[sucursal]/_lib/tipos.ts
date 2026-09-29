@@ -1,4 +1,5 @@
 import type { TramoHorario } from "@/lib/pedidos/horario";
+import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 
 export type ItemCatalogo = {
   id:              string; // product_id o promo_id
@@ -16,6 +17,9 @@ export type CategoriaCatalogo = { id: string; name: string; items: ItemCatalogo[
 
 export type ZonaPublica = { id: string; nombre: string; costo: number; etaMin: number; etaMax: number };
 
+// Cliente registrado que está mirando la tienda (null = invitado).
+export type ClienteTienda = { nombre: string | null; telefono: string | null; primeraCompra: boolean };
+
 export type ConfigTienda = {
   sucursalId:         string;
   nombre:             string;
@@ -30,6 +34,8 @@ export type ConfigTienda = {
   whatsapp:           string | null;
   horario:            TramoHorario[] | null;
   zonas:              ZonaPublica[];
+  beneficio:          ConfigBeneficio;
+  cliente:            ClienteTienda | null;
 };
 
 export type Pantalla = "catalogo" | "carrito" | "checkout" | "confirmacion";
@@ -40,6 +46,7 @@ export type PedidoConfirmado = {
   total:       number;
   subtotal:    number;
   costoEnvio:  number;
+  descuento:   number;
   tipoEntrega: "retiro_local" | "delivery";
   zonaNombre:  string | null;
   etaMin:      number | null;

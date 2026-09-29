@@ -12,7 +12,7 @@ const datos = (over: Partial<DatosPedidoPublico> = {}): DatosPedidoPublico => ({
   medio_pago: "efectivo", pago_con: null, items: [{ product_id: "p1", cantidad: 2 }], ...over,
 });
 
-type Mundo = { sucursal?: any; zona?: any; rateCount?: number; stock?: number; itemsError?: boolean };
+type Mundo = { sucursal?: any; zona?: any; rateCount?: number; stock?: number; itemsError?: boolean; pedidosPrevios?: number };
 function mundo(m: Mundo = {}) {
   const sucursal = { is_active: true, pedidos_online_habilitado: true, delivery_habilitado: true, retiro_habilitado: true, pedido_minimo_envio: 0, retiro_eta_min: 15, retiro_eta_max: 25, categorias_habilitadas: null, promos_habilitadas: true, ...m.sucursal };
   return fakeAdmin((q: Q) => {
@@ -23,7 +23,8 @@ function mundo(m: Mundo = {}) {
       case "product_prices": return { data: [{ product_id: "p1", precio_dist: 1000 }] };
       case "stock_sucursal": return { data: [{ product_id: "p1", product_name: "Alfajor", stock_actual: m.stock ?? 100 }] };
       case "zonas_entrega": return { data: m.zona === undefined ? { id: "z1", nombre: "Centro", costo: 800, eta_min: 30, eta_max: 45 } : m.zona };
-      case "pedidos": return (q.op === "insert" || (q.op === "update" && q.payload?.estado)) ? { data: { id: "ped-1", numero: 12, estado: q.payload.estado } } : { data: null };
+      case "pedidos": if (q.op === "select") return { count: m.pedidosPrevios ?? 0 };
+        return (q.op === "insert" || (q.op === "update" && q.payload?.estado)) ? { data: { id: "ped-1", numero: 12, estado: q.payload.estado } } : { data: null };
       case "pedido_items": return m.itemsError ? { error: { message: "fk" } } : { data: null };
     }
   });
@@ -107,8 +108,60 @@ describe("crearPedidoPublico", () => {
     expect(eqDe(borrado, "id")).toBe("ped-1");
   });
 
+  describe("beneficios de cliente registrado", () => {
+    const cliente = { clienteId: "cli-1" };
+    const conBeneficio = { descuento_cliente_pct: 10, descuento_cliente_solo_primera: false, envio_gratis_primera_compra: false };
+    const inserto = (calls: Q[]) => calls.find((c) => c.table === "pedidos" && c.op === "insert")!.payload;
+    const items = (calls: Q[]) => calls.find((c) => c.table === "pedido_items")!.payload as { subtotal: number }[];
+
+    it("un invitado no recibe beneficio aunque la sucursal lo tenga configurado", async () => {
+      const { admin, calls } = mundo({ sucursal: conBeneficio });
+      const r = await crearPedidoPublico(admin, datos(), "ip");
+      expect(r).toMatchObject({ descuento: 0, total: 2000 });
+      expect(inserto(calls).cliente_id).toBeUndefined();
+    });
+
+    it("cliente registrado: descuento sobre productos, total menor y la venta refleja lo cobrado", async () => {
+      const { admin, calls } = mundo({ sucursal: conBeneficio });
+      const r = await crearPedidoPublico(admin, datos(), "ip", cliente);
+      expect(r).toMatchObject({ subtotal: 2000, descuento: 200, total: 1800 });
+      expect(inserto(calls)).toMatchObject({ cliente_id: "cli-1", descuento_total: 200, subtotal: 2000, total: 1800 });
+      expect(items(calls).reduce((s, i) => s + i.subtotal, 0)).toBe(1800); // ítems = subtotal - descuento
+    });
+
+    it("el descuento no toca el envío", async () => {
+      const { admin } = mundo({ sucursal: conBeneficio });
+      const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "x" }), "ip", cliente);
+      expect(r).toMatchObject({ descuento: 200, costo_envio: 800, total: 2600 });
+    });
+
+    it("'solo primera compra': con una compra previa ya no hay descuento", async () => {
+      const cfg = { ...conBeneficio, descuento_cliente_solo_primera: true };
+      expect((await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 0 }).admin, datos(), "ip", cliente)).descuento).toBe(200);
+      expect((await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 1 }).admin, datos(), "ip", cliente)).descuento).toBe(0);
+    });
+
+    it("envío gratis en la primera compra: solo en delivery y solo la primera vez", async () => {
+      const cfg = { descuento_cliente_pct: 0, descuento_cliente_solo_primera: false, envio_gratis_primera_compra: true };
+      const delivery = datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "x" });
+      expect(await crearPedidoPublico(mundo({ sucursal: cfg }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 0, envio_bonificado: true, total: 2000 });
+      expect(await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 3 }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 800, envio_bonificado: false, total: 2800 });
+      expect((await crearPedidoPublico(mundo({ sucursal: cfg }).admin, datos(), "ip", cliente)).envio_bonificado).toBe(false); // retiro: no hay envío que bonificar
+    });
+
+    it("con la sucursal sin beneficios (todo en 0) el cliente paga igual que un invitado", async () => {
+      const r = await crearPedidoPublico(mundo().admin, datos(), "ip", cliente);
+      expect(r).toMatchObject({ descuento: 0, total: 2000 });
+    });
+
+    it("el 'pago con' se valida contra el total YA con descuento", async () => {
+      const { admin } = mundo({ sucursal: conBeneficio });
+      expect((await crearPedidoPublico(admin, datos({ pago_con: 1800 }), "ip", cliente)).error).toBeUndefined();
+    });
+  });
+
   describe("con contexto de servidor (bot de WhatsApp)", () => {
-    const ctx = { origen: "whatsapp" as const, cliente_wa_id: "549376400", pedido_existente_id: "conv-1" };
+    const ctx = { bot: { cliente_wa_id: "549376400", pedido_existente_id: "conv-1" } };
 
     it("completa la fila de la conversación (update, no insert) solo si sigue en 'carrito'", async () => {
       const { admin, calls } = mundo();

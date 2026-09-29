@@ -49,7 +49,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   const admin = createAdminClient();
   const { data: pedido } = await (admin as any)
     .from("pedidos")
-    .select("id, numero, estado, tipo_entrega, medio_pago, subtotal, costo_envio, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
+    .select("id, numero, estado, tipo_entrega, medio_pago, subtotal, costo_envio, descuento_total, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
     .eq("id", pedidoId)
     .eq("sucursal_id", sucursalId)
     .maybeSingle();
@@ -133,10 +133,13 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
         </ul>
         <dl className="mt-4 space-y-1 border-t border-pd-line pt-4 text-[14px]">
           <div className="flex justify-between text-pd-ink-600"><dt>Subtotal</dt><dd className="tabular-nums">{fmt(pedido.subtotal)}</dd></div>
+          {Number(pedido.descuento_total) > 0 && (
+            <div className="flex justify-between text-pd-success"><dt>Descuento cliente registrado</dt><dd className="tabular-nums">−{fmt(pedido.descuento_total)}</dd></div>
+          )}
           {delivery && (
             <div className="flex justify-between text-pd-ink-600">
               <dt>Envío{pedido.zona_nombre ? ` · ${pedido.zona_nombre}` : ""}</dt>
-              <dd className="tabular-nums">{fmt(pedido.costo_envio)}</dd>
+              <dd className="tabular-nums">{Number(pedido.costo_envio) === 0 ? "Gratis" : fmt(pedido.costo_envio)}</dd>
             </div>
           )}
           <div className="flex justify-between text-[16px] font-bold">

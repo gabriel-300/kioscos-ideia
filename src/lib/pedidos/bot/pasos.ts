@@ -91,7 +91,7 @@ async function confirmarPedido(ctx: Ctx, checkout: DatosCheckout) {
       items:                aItemsPedido(ctx.estado.carrito),
     },
     `wa:${ctx.chat.waId}`,
-    { origen: "whatsapp", cliente_wa_id: ctx.chat.waId, pedido_existente_id: ctx.pedido.id }
+    { bot: { cliente_wa_id: ctx.chat.waId, pedido_existente_id: ctx.pedido.id } }
   );
 
   if (resultado.error) {

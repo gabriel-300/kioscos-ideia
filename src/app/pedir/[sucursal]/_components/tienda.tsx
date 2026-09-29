@@ -92,6 +92,14 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
         zonaId: zonaValida ? guardado.form.zonaId : formRestaurado.zonaId,
       };
     }
+    // Un cliente registrado tiene sus datos guardados: se usan si el formulario está vacío.
+    if (config.cliente) {
+      formRestaurado = {
+        ...formRestaurado,
+        nombre:   formRestaurado.nombre || (config.cliente.nombre ?? ""),
+        whatsapp: formRestaurado.whatsapp || (config.cliente.telefono ?? ""),
+      };
+    }
     setFormEstado(formRestaurado);
     setHidratado(true);
     if (!estadoHorario(config.horario).abierto && !sessionStorage.getItem(`pedir:cerrado:${config.sucursalId}`)) setAvisoCerrado(true);
@@ -238,6 +246,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       total:       res.total ?? subtotal,
       subtotal:    res.subtotal ?? subtotal,
       costoEnvio:  res.costo_envio ?? 0,
+      descuento:   res.descuento ?? 0,
       tipoEntrega: form.modo === "envio" ? "delivery" : "retiro_local",
       zonaNombre:  res.zona_nombre ?? null,
       etaMin:      res.eta_min ?? null,

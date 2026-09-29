@@ -4,6 +4,8 @@ import { resolverItemsPedido, redondearMoneda, type ItemCarritoInput } from "./p
 import { chequearStockLiviano } from "./stock";
 import { telefonoValido } from "./validaciones";
 import { estadoHorario, normalizarHorario } from "./horario";
+import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
+import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -37,6 +39,8 @@ export type ResultadoPedidoPublico = {
   estado?:      string;
   subtotal?:    number;
   costo_envio?: number;
+  descuento?:   number;  // beneficio de cliente registrado (0 si no hubo)
+  envio_bonificado?: boolean;
   total?:       number;
   zona_nombre?: string | null;
   eta_min?:     number | null;
@@ -44,15 +48,16 @@ export type ResultadoPedidoPublico = {
   error?:       string;
 };
 
-// Solo lo puede pasar código de servidor (el bot de WhatsApp), NUNCA viene del
-// browser: por eso no es parte de DatosPedidoPublico, que la Server Action
-// recibe tal cual del cliente. Con `pedido_existente_id` el pedido no se
-// inserta: se completa la fila "carrito" donde el bot venía armando la
-// conversación (así el número de pedido no salta y no queda una fila vacía).
+// Solo lo puede pasar código de servidor, NUNCA viene del browser: por eso no es
+// parte de DatosPedidoPublico, que la Server Action recibe tal cual del cliente.
 export type ContextoPedido = {
-  origen:            "whatsapp";
-  cliente_wa_id:     string;
-  pedido_existente_id: string;
+  // Conversación del bot de WhatsApp: en vez de insertar, se completa la fila
+  // "carrito" donde el bot venía armando el pedido (así el número de pedido no
+  // salta y no queda una fila vacía).
+  bot?: { cliente_wa_id: string; pedido_existente_id: string };
+  // Cliente registrado: sale de la sesión, nunca de lo que mande el browser.
+  // Es lo que habilita los beneficios (descuento / envío gratis).
+  clienteId?: string;
 };
 
 export async function crearPedidoPublico(
@@ -126,7 +131,20 @@ export async function crearPedidoPublico(
     etaMax = zona.eta_max;
   }
 
-  const total = redondearMoneda(resuelto.subtotal + costoEnvio);
+  // ── Beneficios de cliente registrado (se calculan siempre acá, nunca en el browser) ──
+  const beneficio = contexto?.clienteId
+    ? calcularBeneficio({
+        subtotal:        resuelto.subtotal,
+        esCliente:       true,
+        esPrimeraCompra: await esPrimeraCompra(admin, contexto.clienteId),
+        esDelivery:      data.tipo_entrega === "delivery",
+        config:          await leerConfigBeneficio(admin, data.sucursal_id),
+      })
+    : { descuentoProductos: 0, envioBonificado: false };
+  if (beneficio.envioBonificado) costoEnvio = 0;
+  const itemsAGuardar = repartirDescuento(resuelto.items, beneficio.descuentoProductos);
+
+  const total = redondearMoneda(resuelto.subtotal - beneficio.descuentoProductos + costoEnvio);
 
   if (data.medio_pago === "efectivo" && data.pago_con != null) {
     if (!(data.pago_con >= total)) return { error: "El monto con el que pagás tiene que ser al menos el total del pedido" };
@@ -137,8 +155,8 @@ export async function crearPedidoPublico(
 
   const fila = {
       sucursal_id:          data.sucursal_id,
-      origen:               contexto?.origen ?? "storefront",
-      cliente_wa_id:        contexto?.cliente_wa_id ?? null,
+      origen:               contexto?.bot ? "whatsapp" : "storefront",
+      cliente_wa_id:        contexto?.bot?.cliente_wa_id ?? null,
       estado:               esEfectivo ? "confirmado" : "pendiente_pago",
       tipo_entrega:         data.tipo_entrega,
       direccion_entrega:    data.tipo_entrega === "delivery" ? data.direccion_entrega!.trim() : null,
@@ -151,6 +169,8 @@ export async function crearPedidoPublico(
       subtotal:             resuelto.subtotal,
       costo_envio:          costoEnvio,
       total,
+      // Columnas de la migración 099: solo se escriben si hay cliente registrado.
+      ...(contexto?.clienteId ? { cliente_id: contexto.clienteId, descuento_total: beneficio.descuentoProductos } : {}),
       medio_pago:           data.medio_pago,
       pago_con:             esEfectivo ? (data.pago_con ?? null) : null,
       eta_min:              etaMin,
@@ -158,11 +178,11 @@ export async function crearPedidoPublico(
       expira_en:            esEfectivo ? null : new Date(Date.now() + EXPIRACION_MP_LINK_MS).toISOString(),
   };
 
-  const { data: pedido, error: pedidoError } = contexto
+  const { data: pedido, error: pedidoError } = contexto?.bot
     ? await (admin as any)
         .from("pedidos")
         .update(fila)
-        .eq("id", contexto.pedido_existente_id)
+        .eq("id", contexto.bot.pedido_existente_id)
         .eq("sucursal_id", data.sucursal_id)
         .eq("estado", "carrito") // atómico: dos "confirmar" seguidos no generan dos pedidos
         .select("id, numero, estado")
@@ -172,11 +192,11 @@ export async function crearPedidoPublico(
 
   const { error: itemsError } = await (admin as any)
     .from("pedido_items")
-    .insert(resuelto.items.map((i) => ({ pedido_id: pedido.id, ...i })));
+    .insert(itemsAGuardar.map((i) => ({ pedido_id: pedido.id, ...i })));
   if (itemsError) {
     // Un pedido "confirmado" sin ítems le aparecería al local como pedido
     // vacío: se borra (o, si era la conversación del bot, vuelve a "carrito").
-    if (contexto) {
+    if (contexto?.bot) {
       await (admin as any).from("pedidos").update({ estado: "carrito", expira_en: null }).eq("id", pedido.id);
     } else {
       await (admin as any).from("pedidos").delete().eq("id", pedido.id);
@@ -190,6 +210,8 @@ export async function crearPedidoPublico(
     estado:      pedido.estado,
     subtotal:    resuelto.subtotal,
     costo_envio: costoEnvio,
+    descuento:   beneficio.descuentoProductos,
+    envio_bonificado: beneficio.envioBonificado,
     total,
     zona_nombre: zonaNombre,
     eta_min:     etaMin,

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { normalizarHorario } from "@/lib/pedidos/horario";
+import { BeneficioForm } from "./_components/beneficio-form";
+import { leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import { ConfigSucursalForm } from "./_components/config-sucursal-form";
 import { ZonasManager } from "./_components/zonas-manager";
 
@@ -28,7 +30,7 @@ export default async function ConfiguracionPedidosOnlinePage({
   const sp = await searchParams;
   const seleccionada = lista.find((s) => s.id === sp.sucursal) ?? lista[0];
 
-  const [{ data: cfg }, { data: zonas }] = await Promise.all([
+  const [{ data: cfg }, { data: zonas }, beneficio] = await Promise.all([
     (admin as any)
       .from("sucursales")
       .select("pedidos_online_habilitado, delivery_habilitado, retiro_habilitado, pedido_minimo_envio, retiro_eta_min, retiro_eta_max, whatsapp_pedidos, horario_pedidos")
@@ -40,6 +42,7 @@ export default async function ConfiguracionPedidosOnlinePage({
       .eq("sucursal_id", seleccionada.id)
       .order("orden")
       .order("nombre"),
+    leerConfigBeneficio(admin, seleccionada.id),
   ]);
 
   return (
@@ -78,6 +81,7 @@ export default async function ConfiguracionPedidosOnlinePage({
             horario_pedidos:           normalizarHorario(cfg?.horario_pedidos),
           }}
         />
+        <BeneficioForm sucursalId={seleccionada.id} inicial={beneficio} />
         <ZonasManager
           sucursalId={seleccionada.id}
           zonas={((zonas ?? []) as any[]).map((z) => ({ id: z.id, nombre: z.nombre, costo: Number(z.costo), eta_min: z.eta_min, eta_max: z.eta_max, is_active: z.is_active }))}

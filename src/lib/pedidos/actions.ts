@@ -1,6 +1,7 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, getUser } from "@/lib/supabase/server";
+import { clienteDeLaSesion, recordarContactoCliente } from "./beneficio-servidor";
 import { identificadorCliente } from "./rate-limit";
 import { crearPedidoPublico, type DatosPedidoPublico, type ResultadoPedidoPublico } from "./crear-pedido-publico";
 import { sugerirUpsellParaSucursal, type SugerenciaUpsell } from "./sugerir-upsell";
@@ -11,7 +12,13 @@ import { sugerirUpsellParaSucursal, type SugerenciaUpsell } from "./sugerir-upse
 export async function iniciarPedido(data: DatosPedidoPublico): Promise<ResultadoPedidoPublico> {
   const admin = createAdminClient();
   const identificador = await identificadorCliente(data.cliente_telefono ?? "");
-  return crearPedidoPublico(admin, data, identificador);
+  // El cliente registrado sale de la sesión, nunca de `data` (lo manda el browser):
+  // es lo que habilita los beneficios.
+  const user = await getUser();
+  const cliente = await clienteDeLaSesion(admin, user?.id);
+  const resultado = await crearPedidoPublico(admin, data, identificador, cliente ? { clienteId: cliente.id } : undefined);
+  if (cliente && !resultado.error) await recordarContactoCliente(admin, cliente, data.cliente_nombre ?? "", data.cliente_telefono ?? "");
+  return resultado;
 }
 
 export async function consultarEstadoPedidoPublico(pedidoId: string): Promise<{ estado?: string; total?: number; error?: string }> {

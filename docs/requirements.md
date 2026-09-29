@@ -144,6 +144,15 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Seguimiento para el cliente**: `/pedir/[sucursal]/pedido/[id]`, sin cuenta. El enlace es secreto porque lleva el id del
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
 - **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal.
+- **Clientes registrados y beneficios** (migración 099, **sin aplicar todavía**): el cliente puede ingresar con Google (es
+  opcional: pedir sin cuenta sigue igual). A los registrados la sucursal les puede dar un **% de descuento sobre los
+  productos** (nunca sobre el envío; opcionalmente solo en la primera compra) y/o **envío gratis en la primera compra**.
+  Se configura por sucursal en `/admin/pedidos-online/configuracion` y arranca en 0 (sin beneficios). El descuento se calcula
+  en el servidor, se reparte entre los productos del pedido (la venta y el margen reflejan lo cobrado) y "primera compra"
+  es no tener otro pedido que haya seguido en pie. Decisión de negocio pendiente: si habrá descuento, de cuánto y si solo
+  para la primera compra. El botón de Google recién aparece cuando hay algún beneficio activo.
+- **Límite conocido**: sin confirmar el teléfono (pendiente, va con el bot de WhatsApp) nada impide crear varias cuentas de
+  Google para repetir la "primera compra".
 - **Estado**: **Pendiente de configurar**. Habilitado para retiro en Parque y UNAM, sin horario, sin zonas y con envío
   apagado; solo hay un pedido de prueba. El flujo se probó de punta a punta con Playwright y datos de prueba (borrados).
 

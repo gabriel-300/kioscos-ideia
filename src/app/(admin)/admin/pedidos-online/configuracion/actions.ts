@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { normalizarHorario, type TramoHorario } from "@/lib/pedidos/horario";
+import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 
 // Solo admin: define qué sucursales aceptan pedidos online, qué zonas de
 // envío tienen y a qué precio, y el horario que ve el cliente. Nada de esto
@@ -57,6 +58,34 @@ export async function guardarConfigSucursal(sucursalId: string, data: ConfigSucu
     })
     .eq("id", sucursalId);
   if (error) return { error: error.message };
+
+  refrescar();
+  return {};
+}
+
+// Beneficios para clientes registrados (migración 099). Aparte de
+// guardarConfigSucursal a propósito: así guardar envíos y horarios no depende
+// de que esa migración esté aplicada.
+export async function guardarBeneficioCliente(sucursalId: string, data: ConfigBeneficio): Promise<{ error?: string }> {
+  await requireAdmin();
+
+  if (!Number.isFinite(data.descuentoPct) || data.descuentoPct < 0 || data.descuentoPct > 100) {
+    return { error: "El descuento tiene que ser un porcentaje entre 0 y 100" };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({
+      descuento_cliente_pct:          Math.round(data.descuentoPct * 100) / 100,
+      descuento_cliente_solo_primera: !!data.descuentoSoloPrimera,
+      envio_gratis_primera_compra:    !!data.envioGratisPrimera,
+    })
+    .eq("id", sucursalId);
+  if (error) {
+    // Columna inexistente = la migración 099 todavía no se aplicó en esta base.
+    return { error: /schema cache|does not exist/i.test(error.message) ? "Falta aplicar la migración 099 en la base de datos" : error.message };
+  }
 
   refrescar();
   return {};
