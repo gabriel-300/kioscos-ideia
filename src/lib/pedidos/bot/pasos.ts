@@ -1,4 +1,5 @@
 import { crearPedidoPublico } from "../crear-pedido-publico";
+import { urlSeguimiento } from "../enlaces";
 import { aItemsPedido } from "./carrito";
 import type { DatosCheckout } from "./estado";
 import { siguientePaso, textoConfirmacion, type ConfigCheckout } from "./checkout";
@@ -97,5 +98,6 @@ async function confirmarPedido(ctx: Ctx, checkout: DatosCheckout) {
     await volverAlCarrito(ctx, resultado.error);
     return;
   }
-  await mensaje(ctx.chat, textoConfirmacion(resultado, nombre, checkout.tipo!, checkout.pago!));
+  const enlace = urlSeguimiento(ctx.sucursalId, resultado.pedido_id!);
+  await mensaje(ctx.chat, textoConfirmacion(resultado, nombre, checkout.tipo!, checkout.pago!, enlace));
 }

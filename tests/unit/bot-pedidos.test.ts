@@ -98,12 +98,13 @@ describe("mensajes del bot", () => {
     expect(paginar(items, 18)).toMatchObject({ pagina: [18, 19], siguiente: null });
   });
   it("la confirmación dice número, total, envío y cómo se paga", () => {
-    const t = textoConfirmacion({ numero: 7, subtotal: 1000, costo_envio: 800, total: 1800, zona_nombre: "Centro", eta_min: 30, eta_max: 45 }, "Ana", "delivery", "mercadopago_link");
+    const t = textoConfirmacion({ numero: 7, subtotal: 1000, costo_envio: 800, total: 1800, zona_nombre: "Centro", eta_min: 30, eta_max: 45 }, "Ana", "delivery", "mercadopago_link", "https://x/seg/1");
     expect(t).toContain("#7");
     expect(t).toContain("Envío (Centro)");
     expect(t).toContain("30–45 min");
     expect(t).toContain("link de pago");
-    expect(textoConfirmacion({ numero: 8, subtotal: 1000, total: 1000 }, "Ana", "retiro_local", "efectivo")).toContain("Pagás en efectivo cuando lo retirás");
+    expect(t).toContain("https://x/seg/1");
+    expect(textoConfirmacion({ numero: 8, subtotal: 1000, total: 1000 }, "Ana", "retiro_local", "efectivo", "https://x")).toContain("Pagás en efectivo cuando lo retirás");
   });
 });
 

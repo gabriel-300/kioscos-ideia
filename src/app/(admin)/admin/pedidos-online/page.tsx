@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
+import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PedidoOnlineAcciones } from "./_components/pedido-online-acciones";
+import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atender";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Pedidos online — Kioscos IDEIA" };
@@ -26,8 +27,7 @@ const MEDIO_LABEL: Record<string, string> = {
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 export default async function PedidosOnlinePage() {
-  const supabase = await createClient();
-  const admin    = createAdminClient();
+  const admin = createAdminClient();
 
   const user = await getUser();
   if (!user) redirect("/login");
@@ -35,17 +35,9 @@ export default async function PedidosOnlinePage() {
   const role = user.app_metadata?.role as string | undefined;
   if (!role || !["admin", "encargado", "vendedor", "concesionario"].includes(role)) redirect("/admin/dashboard");
 
-  // Mismo patrón que transferencias/page.tsx: encargado/concesionario/
-  // vendedor solo ven su propia sucursal, admin ve todas.
-  let miSucursalId: string | null = null;
-  if (role === "encargado" || role === "concesionario") {
-    const { data } = await admin.from("sucursales").select("id").eq("encargado_user_id", user.id).single();
-    miSucursalId = (data as { id: string } | null)?.id ?? null;
-  } else if (role === "vendedor") {
-    const res = await (admin as any).from("profiles").select("sucursal_id").eq("id", user.id).single();
-    miSucursalId = (res.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
-  }
-  if (role !== "admin" && !miSucursalId) redirect("/admin/dashboard");
+  // admin ve todas las sucursales; el resto, las suyas (un vendedor puede tener varias).
+  const sucursales = await sucursalesVisibles(admin, user.id, role);
+  if (sucursales && sucursales.length === 0) redirect("/admin/dashboard");
 
   let query = (admin as any)
     .from("pedidos")
@@ -53,16 +45,18 @@ export default async function PedidosOnlinePage() {
     .not("estado", "in", "(carrito,cancelado,expirado)")
     .order("created_at", { ascending: false })
     .limit(200);
-  if (miSucursalId) query = query.eq("sucursal_id", miSucursalId);
+  if (sucursales) query = query.in("sucursal_id", sucursales);
 
   const { data: pedidosRaw } = await query;
+
+  // Cartel con QR para pegar en el local: una sucursal por enlace.
+  let sucursalesQr = (admin as any).from("sucursales").select("id, nombre").eq("is_active", true).eq("pedidos_online_habilitado", true).order("nombre");
+  if (sucursales) sucursalesQr = sucursalesQr.in("id", sucursales);
+  const { data: sucursalesConQr } = await sucursalesQr as { data: { id: string; nombre: string }[] | null };
   // "pendiente_pago" solo interesa si es un pago por link que el local tiene
   // que confirmar a mano -- el resto (QR automático abandonado) es ruido.
   const ahora = Date.now();
-  const pedidos = ((pedidosRaw ?? []) as any[]).filter((p) =>
-    p.estado !== "pendiente_pago" ||
-    (p.medio_pago === "mercadopago_link" && (!p.expira_en || new Date(p.expira_en).getTime() > ahora))
-  );
+  const pedidos = ((pedidosRaw ?? []) as any[]).filter((p) => p.estado !== "pendiente_pago" || pagoPorLinkVigente(p, ahora));
 
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
@@ -79,6 +73,17 @@ export default async function PedidosOnlinePage() {
           <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Pedidos online</h1>
           <p className="text-sm text-neutral-400 mt-0.5">Pedidos del catálogo público o WhatsApp -- aceptá, prepará, asigná repartidor si es delivery, y marcá cuando esté entregado.</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+        {(sucursalesConQr ?? []).map((s) => (
+          <Link
+            key={s.id}
+            href={`/pedir/${s.id}/qr`}
+            target="_blank"
+            className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
+          >
+            Imprimir QR{(sucursalesConQr ?? []).length > 1 ? ` · ${s.nombre}` : ""}
+          </Link>
+        ))}
         {role === "admin" && (
           <Link
             href="/admin/pedidos-online/configuracion"
@@ -87,6 +92,7 @@ export default async function PedidosOnlinePage() {
             Configuración de envíos y horarios
           </Link>
         )}
+        </div>
       </div>
 
       {pedidos.length === 0 ? (

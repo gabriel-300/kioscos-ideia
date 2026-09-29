@@ -233,6 +233,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     }
 
     setConfirmado({
+      pedidoId:    res.pedido_id,
       numero:      res.numero ?? 0,
       total:       res.total ?? subtotal,
       subtotal:    res.subtotal ?? subtotal,

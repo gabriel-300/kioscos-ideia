@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { registrarVentaCobroEnEntrega } from "./crear-venta-publica";
+import { notificarCambioEstado } from "./notificar-cliente";
 
 // Máquina de estados de un pedido ya aceptado, compartida por las acciones de
 // staff (/admin/pedidos-online) y la del repartidor (/admin/repartos).
@@ -69,5 +70,6 @@ export async function aplicarTransicion(
     }
   }
 
+  await notificarCambioEstado(admin, pedido.id);
   return {};
 }

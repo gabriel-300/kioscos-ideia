@@ -137,13 +137,22 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
   confirman pagos; el repartidor solo marca sus entregas; la configuración (zonas, horario, delivery) es solo admin.
+- **Aviso de pedido nuevo**: el menú del admin muestra cuántos pedidos esperan al local (nuevos en efectivo, Mercado Pago
+  ya pagado y links de pago por confirmar), suena, pone el número en el título de la pestaña y recarga la lista si está
+  abierta. Consulta cada 20 s; el sonido se habilita con el primer clic. Solo lo ven admin, encargado, vendedor y
+  concesionario, y cada uno cuenta solo sus sucursales.
+- **Seguimiento para el cliente**: `/pedir/[sucursal]/pedido/[id]`, sin cuenta. El enlace es secreto porque lleva el id del
+  pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
+- **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal.
 - **Estado**: **Pendiente de configurar**. Habilitado para retiro en Parque y UNAM, sin horario, sin zonas y con envío
   apagado; solo hay un pedido de prueba. El flujo se probó de punta a punta con Playwright y datos de prueba (borrados).
 
 ### Bot de pedidos por WhatsApp
 - **Estado**: **Probado** localmente con mensajes sintéticos; **inerte** en producción (falta el alta en Meta Business
   Manager y las claves de WhatsApp). No manda nada a sucursales sin pedidos online habilitados. Ofrece retiro/envío (con zona y dirección) y efectivo o link de
-  Mercado Pago, con las mismas reglas que el storefront.
+  Mercado Pago, con las mismas reglas que el storefront. Cuando el local cambia el estado de un pedido del bot (pago
+  confirmado, en preparación, listo, en camino, cancelado) le avisa al cliente por el mismo chat, con el enlace de seguimiento.
+  A quien pidió por la tienda web no se le escribe (sin plantilla aprobada de Meta no se puede fuera de la ventana de 24 h).
 
 ### Comandera offline — `/admin/comandera-offline` y `/api/comandera-offline`
 - **Qué es**: un archivo HTML autocontenido (sin internet, sin instalar nada) para vender en un **evento sin conectividad**. Se

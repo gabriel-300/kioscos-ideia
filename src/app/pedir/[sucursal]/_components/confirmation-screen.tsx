@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ConfigTienda, PedidoConfirmado } from "../_lib/tipos";
 import { fmt } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
@@ -73,12 +74,18 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
       </div>
 
       <div className="mt-auto space-y-3 pt-8">
+        <Link
+          href={`/pedir/${config.sucursalId}/pedido/${pedido.pedidoId}`}
+          className="pd-display flex h-14 w-full items-center justify-center rounded-2xl bg-pd-paper text-[16px] font-bold text-pd-ink"
+        >
+          Seguir mi pedido
+        </Link>
         {enlace && (
           <a
             href={enlace}
             target="_blank"
             rel="noopener noreferrer"
-            className="pd-display flex h-14 w-full items-center justify-center rounded-2xl bg-pd-ember text-[16px] font-bold text-white"
+            className="pd-display flex h-14 w-full items-center justify-center rounded-2xl border-[1.5px] border-white/25 text-[16px] font-bold text-pd-paper"
           >
             Enviar pedido por WhatsApp
           </a>

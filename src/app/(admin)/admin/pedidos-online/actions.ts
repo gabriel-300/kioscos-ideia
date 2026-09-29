@@ -6,6 +6,8 @@ import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { aplicarTransicion } from "@/lib/pedidos/transiciones";
 import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
+import { contarPedidosPorAtender } from "@/lib/pedidos/por-atender";
+import { notificarCambioEstado } from "@/lib/pedidos/notificar-cliente";
 
 // Fase 5 del storefront (delivery, ver plan): primera pantalla del admin
 // para ver pedidos que vinieron del storefront/bot de WhatsApp más allá de
@@ -15,6 +17,13 @@ import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
 function refrescar() {
   revalidatePath("/admin/pedidos-online");
   revalidatePath("/admin/repartos");
+}
+
+// Lo consulta el menú del admin cada pocos segundos (aviso de pedido nuevo).
+// Solo devuelve una cantidad, acotada a las sucursales del usuario.
+export async function consultarPedidosPorAtender(): Promise<number> {
+  const { userId, role } = await requireStaff();
+  return contarPedidosPorAtender(createAdminClient(), userId, role);
 }
 
 export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string): Promise<{ error?: string }> {
@@ -96,6 +105,7 @@ export async function confirmarPagoRecibido(pedidoId: string): Promise<{ error?:
   const res = await crearVentaPublica(admin, pedidoId);
   if (res.error) return { error: `No se pudo registrar la venta: ${res.error}` };
 
+  await notificarCambioEstado(admin, pedidoId);
   refrescar();
   return {};
 }
@@ -128,6 +138,7 @@ export async function cancelarPedido(pedidoId: string): Promise<{ error?: string
   if (error) return { error: error.message };
   if (!actualizado?.length) return { error: "El pedido ya cambió de estado, refrescá la página" };
 
+  await notificarCambioEstado(admin, pedidoId);
   refrescar();
   return {};
 }

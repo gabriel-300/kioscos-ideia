@@ -35,6 +35,7 @@ export type ConfigTienda = {
 export type Pantalla = "catalogo" | "carrito" | "checkout" | "confirmacion";
 
 export type PedidoConfirmado = {
+  pedidoId:    string;
   numero:      number;
   total:       number;
   subtotal:    number;

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createBrowserClient } from "@supabase/ssr";
+import { usePedidosPorAtender } from "./use-pedidos-por-atender";
 
 /* ─── Tokens ─────────────────────────────────── */
 const NAVY     = "#12312A";                                          // verde profundo (marca)
@@ -169,7 +170,10 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
   // un caso especial en cada filtro -- profiles.es_socio es ortogonal al rol
   // real (un vendedor o encargado puede ser socio igual).
   const effectiveRoles = [role ?? "", ...(esSocio ? ["socio"] : [])];
+  // Aviso de pedido nuevo: solo el personal que atiende pedidos (no el repartidor).
+  const pedidosPorAtender = usePedidosPorAtender(["admin", "encargado", "vendedor", "concesionario"].includes(role ?? ""));
   const badgeCounts: Record<string, number> = {
+    "/admin/pedidos-online": pedidosPorAtender,
     "/admin/auditoria":      auditoriaPendientes,
     "/admin/alertas-precio": alertasPrecioPendientes,
     "/admin/transferencias": transferenciasPendientes,
@@ -177,7 +181,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
     "/admin/conciliacion-mercadopago": conciliacionPendientes,
   };
   const stockGroupPendientes  = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
-  const ventasGroupPendientes = conciliacionPendientes;
+  const ventasGroupPendientes = conciliacionPendientes + pedidosPorAtender;
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);

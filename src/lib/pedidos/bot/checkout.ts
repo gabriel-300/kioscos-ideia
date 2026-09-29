@@ -67,7 +67,7 @@ function rangoEta(min: number | null | undefined, max: number | null | undefined
 
 // Mensaje final al cliente con lo que quedó registrado.
 export function textoConfirmacion(
-  r: ResultadoPedidoPublico, nombre: string, tipo: TipoEntrega, pago: MedioPago
+  r: ResultadoPedidoPublico, nombre: string, tipo: TipoEntrega, pago: MedioPago, enlaceSeguimiento: string
 ): string {
   const lineas = [`¡Gracias, ${nombre}! Tu pedido #${r.numero} quedó registrado.`, ""];
   lineas.push(`Subtotal: ${formatoPesos(r.subtotal ?? 0)}`);
@@ -81,5 +81,6 @@ export function textoConfirmacion(
   lineas.push(pago === "efectivo"
     ? (tipo === "delivery" ? "Pagás en efectivo cuando lo recibís." : "Pagás en efectivo cuando lo retirás.")
     : "Pagás con Mercado Pago: el local te manda el link de pago por este chat en unos minutos.");
+  lineas.push("", `Seguí tu pedido acá: ${enlaceSeguimiento}`);
   return lineas.join("\n");
 }

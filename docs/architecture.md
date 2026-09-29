@@ -164,6 +164,7 @@ src/
     supabase/    server.ts (createClient / createAdminClient), client.ts (navegador), middleware.ts, paginar.ts (fetchAll)
     pedidos/     crear-pedido-publico, pricing, stock, rate-limit, horario, transiciones, crear-venta-publica,
                  catalogo (fuente única del catálogo pedible), bot/ (estado, carrito, checkout, mensajes, pasos, procesar),
+                 por-atender, seguimiento, notificar-cliente, enlaces, qr,
                  interpretar-pedido-ia, sugerir-upsell, validaciones, actions ("use server")
     whatsapp/    enviar-mensaje (Graph API, gateado por WHATSAPP_ACCESS_TOKEN)
     fecha.ts     helpers de fecha en UTC-3 (fechaHoyAR, fmt*)
@@ -451,6 +452,13 @@ venta normal contra el producto de servicio `MULTA-TERMO` (canal `multa_termo`).
 `vendible_pos` y oculta los productos sin precio en la sucursal) → carrito (persistente en el navegador) → checkout
 (retiro o envío por zona, datos, medio de pago) → `iniciarPedido` → confirmación. `consultarEstadoPedidoPublico` refresca
 el estado.
+
+**Después del pedido**: `/pedir/[sucursal]/pedido/[id]` es el seguimiento del cliente (el uuid del pedido hace de enlace
+secreto, sin migración; lógica de estados en `lib/pedidos/seguimiento.ts`, sin datos personales). `/pedir/[sucursal]/qr` es
+el cartel imprimible (`lib/pedidos/qr.ts`, JS puro). Para el personal, `lib/pedidos/por-atender.ts` define qué pedidos
+esperan al local y qué sucursales ve cada rol; el hook `components/admin/use-pedidos-por-atender.ts` (montado en el menú)
+lo consulta cada 20 s con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
+WhatsApp los cambios de estado, solo a pedidos del bot y solo si hay `WHATSAPP_ACCESS_TOKEN`.
 
 **El servidor recalcula todo** (`src/lib/pedidos/crear-pedido-publico.ts`): el tipo de entrada **no lleva precio**;
 `resolverItemsPedido` toma los precios de `product_prices`/`promo_prices` de la sucursal, revalida categorías, promos y
