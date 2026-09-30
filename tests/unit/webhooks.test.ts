@@ -6,7 +6,8 @@ import { fakeAdmin, eqDe, type Q, type Resp } from "../helpers/fake-supabase";
 // Webhooks públicos (sin sesión): lo único que los protege es la firma o la
 // consulta contra la API de Mercado Pago (H-11 corregido: id validado y monto comparado).
 
-const h = vi.hoisted(() => ({ admin: null as any }));
+const h = vi.hoisted(() => ({ admin: null as any, bot: vi.fn(async (..._args: unknown[]) => {}) }));
+vi.mock("@/lib/pedidos/bot/procesar", () => ({ procesarMensajeBot: h.bot }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin, createClient: async () => ({}) }));
 
 import { POST as mpPOST } from "@/app/api/webhooks/mercadopago/route";
@@ -247,9 +248,48 @@ describe("webhook de WhatsApp", () => {
     });
 
     it("sin pedidos online habilitados la sucursal NO dispara el bot (solo registra el contacto)", async () => {
+      h.bot.mockClear();
       const f = base({ sucursal: { id: "s1", is_active: true, pedidos_online_habilitado: false } });
       await enviar(mensaje());
-      expect(f.calls.some((c) => c.table === "pedidos")).toBe(false);
+      expect(h.bot).not.toHaveBeenCalled();
+      expect(f.calls.some((c) => c.table === "contactos_crm" && c.op === "insert")).toBe(true);
+    });
+
+    describe("con el bot activo (sucursal que vende online)", () => {
+      const conBot = { id: "s1", is_active: true, pedidos_online_habilitado: true };
+      beforeEach(() => h.bot.mockClear());
+
+      it("atiende el mensaje con el bot y NO crea un contacto del CRM por cada mensaje", async () => {
+        const f = base({ sucursal: conBot });
+        expect((await enviar(mensaje())).status).toBe(200);
+        expect(h.bot).toHaveBeenCalledTimes(1);
+        expect(h.bot.mock.calls[0][1]).toMatchObject({ sucursalId: "s1", phoneNumberId: "pn1", waId: "5493764000000", nombrePerfil: "Ana", texto: "hola, tienen pan?" });
+        expect(f.calls.some((c) => c.table === "contactos_crm")).toBe(false);
+      });
+
+      it("igual deja el evento de auditoría", async () => {
+        const f = base({ sucursal: conBot });
+        await enviar(mensaje());
+        expect(f.calls.find((c) => c.table === "whatsapp_webhook_events" && c.op === "insert")!.payload).toMatchObject({ wa_message_id: "wamid.1", sucursal_id: "s1", status: "processed" });
+      });
+
+      it("un toque de botón le llega al bot con el id del botón", async () => {
+        base({ sucursal: conBot });
+        await enviar(mensaje({ type: "interactive", text: undefined, interactive: { button_reply: { id: "accion_finalizar", title: "Finalizar pedido" } } }));
+        expect(h.bot.mock.calls[0][1]).toMatchObject({ texto: null, interactive: { button_reply: { id: "accion_finalizar" } } });
+      });
+
+      it("un reintento de Meta (mismo mensaje) no vuelve a llamar al bot", async () => {
+        base({ sucursal: conBot, eventoError: { code: "23505" } });
+        await enviar(mensaje());
+        expect(h.bot).not.toHaveBeenCalled();
+      });
+
+      it("si el bot falla, igual se responde 200 a Meta", async () => {
+        h.bot.mockRejectedValueOnce(new Error("boom"));
+        base({ sucursal: conBot });
+        expect((await enviar(mensaje())).status).toBe(200);
+      });
     });
   });
 });

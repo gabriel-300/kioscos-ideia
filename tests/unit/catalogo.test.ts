@@ -10,9 +10,44 @@ const datos = (over: Partial<DatosCatalogo> = {}): DatosCatalogo => ({
   preciosProducto: [{ product_id: "p1", precio_dist: 500 }, { product_id: "p2", precio_dist: 900 }],
   promos: [{ id: "m1", name: "Combo", price: 1200, tipo: "promo", category_id: null, cover_image_url: null }],
   preciosPromo: [],
+  stock: [],
+  componentes: [],
   ...over,
 });
 const libre = { categoriasHabilitadas: null, promosHabilitadas: true };
+
+describe("armarCatalogo: stock", () => {
+  const conStock = (stock: { product_id: string; stock_actual: number }[]) => datos({ stock });
+  const ids = (d: DatosCatalogo) => armarCatalogo(d, libre).items.map((i) => i.id);
+
+  it("un producto agotado (stock 0 o negativo) no se ofrece", () => {
+    expect(ids(conStock([{ product_id: "p1", stock_actual: 0 }]))).not.toContain("p1");
+    expect(ids(conStock([{ product_id: "p1", stock_actual: -3 }]))).not.toContain("p1");
+  });
+  it("con stock se ofrece", () => {
+    expect(ids(conStock([{ product_id: "p1", stock_actual: 5 }]))).toContain("p1");
+  });
+  it("sin fila de stock (nunca tuvo movimientos) se ofrece: stock desconocido, no cero", () => {
+    expect(ids(conStock([]))).toContain("p1");
+  });
+  it("si queda menos de una unidad tampoco se ofrece (mismo criterio que el chequeo al confirmar)", () => {
+    expect(ids(conStock([{ product_id: "p1", stock_actual: 0.5 }]))).not.toContain("p1");
+  });
+  it("una categoría cuyos productos están todos agotados desaparece", () => {
+    const { grupos } = armarCatalogo(conStock([{ product_id: "p1", stock_actual: 0 }]), libre);
+    expect(grupos.map((g) => g.id)).not.toContain("c1");
+    expect(grupos.map((g) => g.id)).toContain("c2");
+  });
+  it("una promo se ofrece solo si alcanza el stock de TODOS sus componentes", () => {
+    const comp = [{ promo_id: "m1", product_id: "p1", cantidad: 2 }, { promo_id: "m1", product_id: "p2", cantidad: 1 }];
+    expect(ids(datos({ componentes: comp, stock: [{ product_id: "p1", stock_actual: 2 }, { product_id: "p2", stock_actual: 1 }] }))).toContain("m1");
+    expect(ids(datos({ componentes: comp, stock: [{ product_id: "p1", stock_actual: 1 }, { product_id: "p2", stock_actual: 9 }] }))).not.toContain("m1"); // falta 1 del primero
+    expect(ids(datos({ componentes: comp, stock: [{ product_id: "p1", stock_actual: 9 }, { product_id: "p2", stock_actual: 0 }] }))).not.toContain("m1");
+  });
+  it("una promo sin componentes cargados no se oculta por stock", () => {
+    expect(ids(datos({ componentes: [] }))).toContain("m1");
+  });
+});
 
 describe("armarCatalogo", () => {
   it("agrupa: 'Promos' (promos sin categoría) primero y después cada categoría con contenido", () => {

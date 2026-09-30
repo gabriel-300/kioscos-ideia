@@ -113,10 +113,12 @@ describe("mensajes del bot", () => {
 describe("conversación del bot (de punta a punta)", () => {
   const WA = "5493764000000";
   let botPaso: string | null;
+  let stockAgua = 50;
   let nombre: string | null;
   let pedidoFinal: any;
 
   function mundo() {
+    stockAgua = 50;
     botPaso = null; nombre = "Ana"; pedidoFinal = null;
     const sucursal = { is_active: true, pedidos_online_habilitado: true, delivery_habilitado: true, retiro_habilitado: true, pedido_minimo_envio: 0, retiro_eta_min: 15, retiro_eta_max: 25, categorias_habilitadas: null, promos_habilitadas: true };
     return fakeAdmin((q: Q) => {
@@ -127,7 +129,7 @@ describe("conversación del bot (de punta a punta)", () => {
         case "promos": case "promo_prices": return { data: [] };
         case "sucursales":       return { data: sucursal };
         case "zonas_entrega":    return { data: [{ id: "z1", nombre: "Centro", costo: 800, eta_min: 30, eta_max: 45 }] };
-        case "stock_sucursal":   return { data: [{ product_id: "p1", product_name: "Agua", stock_actual: 50 }] };
+        case "stock_sucursal":   return { data: [{ product_id: "p1", product_name: "Agua", stock_actual: stockAgua }] };
         case "pedido_rate_limits": return { count: 0 };
         case "pedido_items":     return { data: null };
         case "pedidos": {
@@ -197,23 +199,27 @@ describe("conversación del bot (de punta a punta)", () => {
     expect(pedidoFinal).toBeNull();
   });
 
-  it("si el pedido es rechazado (ej. sin stock) vuelve al carrito con el motivo y sin perder los productos", async () => {
+  it("si el stock se agota DESPUÉS de agregar al carrito, el pedido se rechaza con el motivo y sin perder los productos", async () => {
     const { admin } = mundo();
-    const previo = admin.from;
-    // stock agotado
-    admin.from = (t: string) => {
-      const b = previo(t);
-      if (t !== "stock_sucursal") return b;
-      const orig = b.then;
-      b.then = (res: any, rej: any) => orig((r: any) => res({ ...r, data: [{ product_id: "p1", product_name: "Agua", stock_actual: 0 }] }), rej);
-      return b;
-    };
     await enviar(admin, { interactive: fila("prod_p1") });
+    expect(leerEstado(botPaso).carrito).toHaveLength(1);
+    stockAgua = 0; // alguien se llevó lo último
     await enviar(admin, { interactive: boton("accion_finalizar") });
     await enviar(admin, { interactive: boton("entrega_retiro") });
     await enviar(admin, { interactive: boton("pago_efectivo") });
     expect(pedidoFinal).toBeNull();
     expect(leerEstado(botPaso)).toMatchObject({ paso: "menu", carrito: [{ id: "p1", cantidad: 1 }] });
     expect(ultimoTexto()).toMatch(/stock/i);
+  });
+
+  it("un producto agotado ya no se ofrece: no aparece en la lista y no se puede agregar", async () => {
+    const { admin } = mundo();
+    stockAgua = 0;
+    await enviar(admin, { interactive: fila("cat_c1") });
+    expect(wa.enviarLista).not.toHaveBeenCalled(); // la categoría quedó vacía: no hay lista que mostrar
+    expect(ultimoTexto()).toContain("no tiene productos disponibles");
+    await enviar(admin, { interactive: fila("prod_p1") }); // un botón de una lista vieja
+    expect(ultimoTexto()).toContain("ya no está disponible");
+    expect(leerEstado(botPaso).carrito).toEqual([]);
   });
 });

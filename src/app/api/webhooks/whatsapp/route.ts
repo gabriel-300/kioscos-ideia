@@ -149,36 +149,44 @@ export async function POST(request: Request) {
         }
         if (!sucursalId) continue; // sin sucursal mapeada, no hay dónde cargar el contacto
 
-        const contactoRes = await (supabase as any).from("contactos_crm").insert({
-          sucursal_id:       sucursalId,
-          canal:             "whatsapp",
-          nombre_contacto:   contactoNombre,
-          consulta_mensaje:  texto,
-          estado:            "nuevo",
-        }).select("id").single();
+        const atiendeElBot = sucursalHabilitadaParaBot && !!waId;
 
-        if (contactoRes.error) {
-          console.error("[whatsapp webhook] error creando contacto:", contactoRes.error.message);
+        // Con el bot activo cada mensaje es parte de una conversación de pedido
+        // (cada toque de botón llega como un mensaje): un contacto del CRM por
+        // cada uno lo llenaría de ruido. Queda el evento (auditoría) y el pedido
+        // mismo. Sin bot, el comportamiento de siempre: un contacto por mensaje.
+        if (!atiendeElBot) {
+          const contactoRes = await (supabase as any).from("contactos_crm").insert({
+            sucursal_id:       sucursalId,
+            canal:             "whatsapp",
+            nombre_contacto:   contactoNombre,
+            consulta_mensaje:  texto,
+            estado:            "nuevo",
+          }).select("id").single();
+
+          if (contactoRes.error) {
+            console.error("[whatsapp webhook] error creando contacto:", contactoRes.error.message);
+            await (supabase as any).from("whatsapp_webhook_events")
+              .update({ status: "error", error_message: contactoRes.error.message })
+              .eq("id", eventoRes.data.id);
+            continue;
+          }
+
           await (supabase as any).from("whatsapp_webhook_events")
-            .update({ status: "error", error_message: contactoRes.error.message })
+            .update({ contacto_id: contactoRes.data.id })
             .eq("id", eventoRes.data.id);
-          continue;
         }
-
-        await (supabase as any).from("whatsapp_webhook_events")
-          .update({ contacto_id: contactoRes.data.id })
-          .eq("id", eventoRes.data.id);
 
         // Bot de pedidos, solo para sucursales que venden online. Nunca debe
         // poder romper la respuesta 200 a Meta -- mismo criterio defensivo
         // que el webhook de Mercado Pago con crearVentaPublica.
-        if (sucursalHabilitadaParaBot && waId) {
+        if (atiendeElBot) {
           try {
             const { procesarMensajeBot } = await import("@/lib/pedidos/bot/procesar");
             await procesarMensajeBot(supabase, {
               sucursalId: sucursalId!,
               phoneNumberId: phoneNumberId!,
-              waId,
+              waId: waId!,
               nombrePerfil: contactoNombre,
               texto: msg.type === "text" ? (msg.text?.body ?? null) : null,
               interactive: msg.interactive ?? null,

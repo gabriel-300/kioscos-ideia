@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/supabase/paginar";
 
 // Catálogo de pedidos online de UNA sucursal: qué se puede pedir y a qué
 // precio. Única fuente para el storefront (/pedir), el bot de WhatsApp y la
@@ -10,6 +11,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 //   - si la sucursal restringe categorías, solo las habilitadas
 //   - promos solo si promos_habilitadas
 //   - con precio > 0 en ESA sucursal (promo: el de la sucursal o el global)
+//   - con stock: lo agotado no se ofrece, así el cliente no arma un carrito que después
+//     se le rechaza. Misma regla que chequearStockLiviano (stock.ts): sin fila de stock
+//     = stock desconocido = se ofrece; con fila, tiene que alcanzar. Una promo se ofrece
+//     si alcanza el stock de TODOS sus componentes.
 // Nunca se lee costo ni margen.
 
 export type ItemCatalogo = {
@@ -45,6 +50,8 @@ export type DatosCatalogo = {
   preciosProducto: Fila[]; // {product_id, precio_dist}
   promos:          Fila[]; // {id, name, price, tipo, cover_image_url, category_id}
   preciosPromo:    Fila[]; // {promo_id, price}
+  stock:           Fila[]; // {product_id, stock_actual} de la sucursal (vista stock_sucursal)
+  componentes:     Fila[]; // {promo_id, product_id, cantidad} (promo_items)
 };
 
 // Puro: aplica las reglas de arriba sobre filas ya leídas.
@@ -56,13 +63,22 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
   const precioProducto = new Map<string, number>(datos.preciosProducto.map((p) => [p.product_id, p.precio_dist]));
   const precioPromo = new Map<string, number>(datos.preciosPromo.map((p) => [p.promo_id, p.price]));
 
+  const stock = new Map<string, number>();
+  for (const r of datos.stock) if (r.stock_actual != null) stock.set(r.product_id, Number(r.stock_actual));
+  const hayStock = (productId: string, necesario = 1) => {
+    const disponible = stock.get(productId);
+    return disponible === undefined || disponible >= necesario;
+  };
+  const componentesDe = new Map<string, Fila[]>();
+  for (const c of datos.componentes) componentesDe.set(c.promo_id, [...(componentesDe.get(c.promo_id) ?? []), c]);
+
   const categorias = datos.categorias.filter((c) => categoriaPermitida(c.id));
 
   const productos: ItemCatalogo[] = [];
   for (const p of datos.productos) {
     if (p.vendible_pos === false || !categoriaPermitida(p.category_id ?? null)) continue;
     const price = precioProducto.get(p.id) ?? 0;
-    if (!(price > 0)) continue;
+    if (!(price > 0) || !hayStock(p.id)) continue;
     productos.push({
       id: p.id, esPromo: false, name: p.name, price,
       image: p.cover_image_url ?? null, categoriaId: p.category_id ?? null,
@@ -76,6 +92,7 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
       if (!categoriaPermitida(p.category_id ?? null)) continue;
       const price = precioPromo.get(p.id) ?? p.price ?? 0;
       if (!(price > 0)) continue;
+      if (!(componentesDe.get(p.id) ?? []).every((c) => hayStock(c.product_id, Number(c.cantidad) || 1))) continue;
       promos.push({
         id: p.id, esPromo: true, name: p.name, price,
         image: p.cover_image_url ?? null, categoriaId: p.category_id ?? null,
@@ -111,12 +128,16 @@ export async function cargarCatalogoSucursal(
   // promos no están en los tipos generados -- mismo patrón que el resto.
   const restr = restricciones ?? await leerRestricciones(admin, sucursalId);
 
-  const [categorias, productos, preciosProducto, promos, preciosPromo] = await Promise.all([
+  const [categorias, productos, preciosProducto, promos, preciosPromo, stock, componentes] = await Promise.all([
     admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
     (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
     admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
     (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).order("name"),
     (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
+    // Si no se puede leer el stock, se muestra todo (mejor que dejar la tienda vacía):
+    // el chequeo al confirmar sigue ahí.
+    fetchAll((d, h) => (admin as any).from("stock_sucursal").select("product_id, stock_actual", { count: "exact" }).eq("sucursal_id", sucursalId).order("product_id").range(d, h)).catch(() => []),
+    (admin as any).from("promo_items").select("promo_id, product_id, cantidad"),
   ]);
 
   return armarCatalogo({
@@ -125,6 +146,8 @@ export async function cargarCatalogoSucursal(
     preciosProducto: preciosProducto.data ?? [],
     promos:          promos.data ?? [],
     preciosPromo:    preciosPromo.data ?? [],
+    stock,
+    componentes:     componentes.data ?? [],
   }, restr);
 }
 

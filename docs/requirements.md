@@ -132,7 +132,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 ### Pedidos online — `/pedir/[sucursal]`, `/admin/pedidos-online`, `/admin/repartos`
 - **Objetivo**: vender sin depender del empleado: catálogo público, pedido por retiro o envío, pago en efectivo o por link
   de Mercado Pago.
-- **Reglas**: el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
+- **Reglas**: el catálogo **no ofrece lo agotado** (producto con stock menor a 1; promo si falta stock de algún componente; sin fila de stock = se ofrece) y el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
   entregar; Mercado Pago por link = el local confirma el pago a mano; pedido mínimo para envío; horario de atención;
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
@@ -162,6 +162,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   Mercado Pago, con las mismas reglas que el storefront. Cuando el local cambia el estado de un pedido del bot (pago
   confirmado, en preparación, listo, en camino, cancelado) le avisa al cliente por el mismo chat, con el enlace de seguimiento.
   A quien pidió por la tienda web no se le escribe (sin plantilla aprobada de Meta no se puede fuera de la ventana de 24 h).
+  Con el bot activo en una sucursal, sus mensajes **no** crean contactos en el CRM (cada toque de botón llega como un mensaje y lo
+  llenaría de ruido); queda el evento de auditoría y el pedido. En las sucursales sin bot, cada mensaje sigue siendo un contacto.
 
 ### Comandera offline — `/admin/comandera-offline` y `/api/comandera-offline`
 - **Qué es**: un archivo HTML autocontenido (sin internet, sin instalar nada) para vender en un **evento sin conectividad**. Se
