@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
-
-type StaffRole = "admin" | "encargado" | "vendedor" | "concesionario" | "repartidor";
+import type { Rol as StaffRole } from "@/lib/auth/acceso";
 
 export async function crearStaff(data: {
   email:      string;

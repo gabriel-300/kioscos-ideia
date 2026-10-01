@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { StaffList } from "./_components/staff-list";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
+import { esPersonal } from "@/lib/auth/acceso";
 
 export const metadata: Metadata = { title: "Staff — Kioscos IDEIA" };
 export const revalidate = 0;
@@ -61,10 +62,7 @@ export default async function StaffPage() {
   }
 
   const staff = (users ?? [])
-    .filter((u) => {
-      const role = u.app_metadata?.role as string | undefined;
-      return role === "admin" || role === "encargado" || role === "vendedor" || role === "concesionario" || role === "repartidor";
-    })
+    .filter((u) => esPersonal(u))
     .sort((a, b) => {
       const order: Record<string, number> = { admin: 0, encargado: 1, concesionario: 2, vendedor: 3, repartidor: 4 };
       const ra = (a.app_metadata?.role as string) ?? "";

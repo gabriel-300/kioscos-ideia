@@ -2,9 +2,10 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
+import { esPersonal } from "@/lib/auth/acceso";
 
 // repartidor entra al layout pero middleware.ts lo contiene a /admin/repartos (ver ahí).
-const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario", "repartidor"];
+// El control por sistema (kiosco/tenteo) lo hace el middleware, que conoce la ruta.
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -12,8 +13,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login");
 
-  const role = (user.app_metadata?.role as string) ?? null;
-  if (!role || !STAFF_ROLES.includes(role)) redirect("/login");
+  if (!esPersonal(user)) redirect("/login");
+  const role = user.app_metadata?.role as string;
 
   const email = user.email ?? null;
   const name  = (user.user_metadata?.full_name as string | null) ?? null;

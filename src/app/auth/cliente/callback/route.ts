@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { destinoSeguro } from "@/lib/auth/destino-seguro";
+import { esPersonal } from "@/lib/auth/acceso";
 
 // Vuelta de "Ingresar con Google" del catálogo público. Cambia el código que
 // manda Google por una sesión y, si es la primera vez, da de alta al cliente.
 // El callback del personal (/auth/callback) es otro: ese valida links de mail.
-
-const STAFF_ROLES = ["admin", "encargado", "vendedor", "concesionario", "repartidor"];
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -21,8 +20,7 @@ export async function GET(request: Request) {
     if (!error && user) {
       // Una cuenta del personal que entra con Google (Supabase une identidades
       // por mail) sigue siendo personal: no se la da de alta como cliente.
-      const role = user.app_metadata?.role as string | undefined;
-      if (!role || !STAFF_ROLES.includes(role)) {
+      if (!esPersonal(user)) {
         const nombre = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? null) as string | null;
         await (createAdminClient() as any)
           .from("clientes")

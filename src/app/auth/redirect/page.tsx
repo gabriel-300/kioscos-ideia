@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export default async function AuthRedirectPage() {
   const supabase = await createClient();
@@ -9,7 +10,13 @@ export default async function AuthRedirectPage() {
 
   const admin = createAdminClient();
   const { data } = await admin.auth.admin.getUserById(user.id);
-  const role = data?.user?.app_metadata?.role as string | undefined;
+  const role = rolDe(data?.user) ?? undefined;
+
+  // Quien no es del kiosco (ej. el repartidor, o personal solo de Tenteo) va
+  // directo a su sistema. Sin rol de personal: al login.
+  if (role && !puedeEntrar(data?.user, "kiosco")) {
+    redirect(destinoPorDefecto(data?.user) ?? "/login");
+  }
 
   if (role === "admin") {
     redirect("/admin/dashboard");
@@ -33,8 +40,6 @@ export default async function AuthRedirectPage() {
     if (lista.length === 0) redirect("/admin/dashboard");
     else if (lista.length === 1) redirect(`/admin/sucursales/${lista[0].sucursal_id}`);
     else redirect("/admin/sucursales");
-  } else if (role === "repartidor") {
-    redirect("/admin/repartos");
   } else {
     redirect("/login");
   }

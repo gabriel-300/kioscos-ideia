@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
+import { ROLES_CON_SUCURSAL } from "@/lib/auth/acceso";
 
 // Consolidado desde 3 formas distintas del mismo chequeo que había
 // repetidas por el código (una copia local en nichos/actions.ts que
@@ -16,7 +17,7 @@ export async function requireSucursalAccess(
 ): Promise<string | null> {
   // Negar por defecto (auditoría 19/09, H-27): un rol que no sea uno de estos cuatro
   // (repartidor, un rol nuevo, undefined) no accede a ninguna sucursal por acá.
-  if (!["admin", "encargado", "concesionario", "vendedor"].includes(role)) {
+  if (!(ROLES_CON_SUCURSAL as readonly string[]).includes(role)) {
     return "No tenés permisos para esta sucursal";
   }
   // "concesionario" (Encargado Concesionario -- dueño económico de UNA sola

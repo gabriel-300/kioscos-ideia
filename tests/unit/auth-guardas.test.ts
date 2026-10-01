@@ -10,11 +10,13 @@ vi.mock("@/lib/supabase/server", () => ({
   createAdminClient: () => ({}),
 }));
 
-import { requireAdmin, requireStaff, requireRepartidor } from "@/lib/auth/require-role";
+import { requireAdmin, requireStaff, requireStaffTenteo, requireRepartidor } from "@/lib/auth/require-role";
 import { requireSucursalAccess, resolverSucursalConcesionario } from "@/lib/auth/sucursal-access";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 
-const conRol = (role: string | undefined, id = "u1") => { h.user = { id, app_metadata: role ? { role } : {} }; };
+const conRol = (role: string | undefined, id = "u1", sistemas?: unknown) => {
+  h.user = { id, app_metadata: { ...(role ? { role } : {}), ...(sistemas !== undefined ? { sistemas } : {}) } };
+};
 beforeEach(() => { h.user = null; });
 
 describe("requireAdmin", () => {
@@ -63,6 +65,47 @@ describe("requireRepartidor", () => {
       conRol(r as string | undefined);
       await expect(requireRepartidor()).rejects.toThrow("Sin permisos");
     }
+  });
+});
+
+// Un usuario solo de un sistema no puede llamar por POST a las acciones del otro:
+// el middleware solo cubre las rutas de páginas.
+describe("guardas por sistema (kiosco / Tenteo)", () => {
+  it("requireStaff (kiosco): sin el dato pasa; solo-Tenteo no; con los dos sí", async () => {
+    conRol("vendedor");
+    await expect(requireStaff()).resolves.toMatchObject({ role: "vendedor" });
+    conRol("vendedor", "u1", ["tenteo"]);
+    await expect(requireStaff()).rejects.toThrow("Sin permisos");
+    conRol("vendedor", "u1", ["kiosco", "tenteo"]);
+    await expect(requireStaff()).resolves.toMatchObject({ role: "vendedor" });
+  });
+  it("requireStaffTenteo: sin el dato NO pasa (es kiosco); con Tenteo sí; el admin siempre", async () => {
+    for (const r of ["encargado", "vendedor", "concesionario"]) {
+      conRol(r);
+      await expect(requireStaffTenteo()).rejects.toThrow("Sin permisos");
+      conRol(r, "u1", ["tenteo"]);
+      await expect(requireStaffTenteo()).resolves.toMatchObject({ role: r });
+    }
+    conRol("admin");
+    await expect(requireStaffTenteo()).resolves.toMatchObject({ role: "admin" });
+  });
+  it("requireStaffTenteo no deja pasar al repartidor ni a quien no tiene rol (cliente de Google)", async () => {
+    conRol("repartidor");
+    await expect(requireStaffTenteo()).rejects.toThrow("Sin permisos");
+    for (const s of [undefined, ["tenteo"], ["kiosco", "tenteo"]]) {
+      conRol(undefined, "u1", s);
+      await expect(requireStaffTenteo()).rejects.toThrow("Sin permisos");
+      await expect(requireStaff()).rejects.toThrow("Sin permisos");
+    }
+  });
+  it("el repartidor no pasa requireStaff aunque el dato diga kiosco", async () => {
+    conRol("repartidor", "u1", ["kiosco"]);
+    await expect(requireStaff()).rejects.toThrow("Sin permisos");
+    await expect(requireRepartidor()).resolves.toMatchObject({ role: "repartidor" });
+  });
+  it("el sistema se lee de app_metadata, no de user_metadata", async () => {
+    h.user = { id: "u1", app_metadata: { role: "vendedor" }, user_metadata: { sistemas: ["tenteo"] } };
+    await expect(requireStaffTenteo()).rejects.toThrow("Sin permisos");
   });
 });
 

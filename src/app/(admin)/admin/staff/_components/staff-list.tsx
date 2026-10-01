@@ -8,6 +8,7 @@ import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
 import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, asignarSucursalesVendedor, generarLinkResetPassword, suspenderStaff } from "../actions";
 import { friendlyError } from "@/lib/utils";
+import { ROLES_PERSONAL, type Rol } from "@/lib/auth/acceso";
 
 type StaffUser = {
   id: string;
@@ -45,7 +46,7 @@ const createSchema = z.object({
   nombre:     z.string().min(2, "Mínimo 2 caracteres"),
   email:      z.string().email("Email inválido"),
   password:   z.string().min(8, "Mínimo 8 caracteres"),
-  role:       z.enum(["admin", "encargado", "vendedor", "concesionario", "repartidor"]),
+  role:       z.enum(ROLES_PERSONAL),
   sucursalId: z.string().optional(),
 });
 
@@ -184,7 +185,7 @@ function EditDrawer({
           password:      values.password || undefined,
           creditoLimite: limiteNum,
           esSocio,
-          role:          role !== user.role ? (role as "admin" | "encargado" | "vendedor" | "concesionario" | "repartidor") : undefined,
+          role:          role !== user.role ? (role as Rol) : undefined,
         });
         if (role === "vendedor") {
           const cambiaron =
