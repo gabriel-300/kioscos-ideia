@@ -90,10 +90,11 @@ lo importa ningún módulo.
 ### Comandos
 ```
 npm run dev                  # desarrollo
-npm run build                # next build (con chequeo de tipos)
+npm run build                # next build (con chequeo de tipos). Si se mueven rutas, borrar `.next/types` antes de
+                             # `tsc --noEmit`: quedan tipos viejos de la compilación anterior que dan errores falsos
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 16 archivos, 229 tests (verificado 2026-09-19)
+npm test                     # vitest run: 31 archivos, 456 tests (verificado 2026-10-01)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -106,7 +107,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 229 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 456 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -116,6 +117,9 @@ en otra máquina).
   sucursal), nichos, `/auth/callback`,
   `cerrarCaja` (recálculo de totales, auditoría obligatoria, quién puede cerrar), guardas de rol y de sucursal,
   contención de `middleware.ts` y los webhooks de Mercado Pago y WhatsApp (firma, idempotencia, deduplicación).
+  Separación kiosco/Tenteo: matriz sistema × rol del módulo `acceso.ts`, guardas por sistema, middleware de `/admin` y `/tenteo`,
+  `/auth/redirect`, `/auth/sistema` y el selector, redirecciones de las URLs viejas (`next.config`), asignación de sistemas en
+  Staff, el puerto hacia el kiosco (consultas, RPC y la prueba que impide a Tenteo saltárselo).
 - **`it.fails` = hallazgo abierto de la auditoría**: el test describe el comportamiento correcto y hoy falla. Cuando se
   corrige el bug, el test pasa a "inesperadamente verde" y hay que **sacarle el `.fails` en el mismo commit**.
   Quedan 2: redondeo half-up de `redondearMoneda` (1.005) y rate limit no atómico.
@@ -138,20 +142,23 @@ con rutas explícitas (nunca `git add -A`) y no pushear sin aprobación.
 
 ```
 src/
-  middleware.ts                    matcher global; delega en lib/supabase/middleware.ts (contención por rol)
+  middleware.ts                    matcher global; delega en lib/supabase/middleware.ts (contención por rol y por sistema)
   app/
     layout.tsx, page.tsx, globals.css
-    (auth)/                        login, forgot-password, pendiente, registro (redirige a /login), registro-mayorista
-    auth/                          callback (verifyOtp), redirect (destino por rol), set-password
+    (auth)/                        login, forgot-password, pendiente, registro (redirige a /login), registro-mayorista, elegir-sistema (selector)
+    auth/                          callback (verifyOtp), redirect (destino por rol y sistema), sistema (cambio de sistema), cliente/callback (Google), set-password
     (admin)/
       layout.tsx                   barra de navegación, badges de pendientes; NO es una barrera de seguridad (§4)
       admin/<módulo>/              page.tsx (Server Component) + actions.ts ("use server") + _components/ (cliente)
-        34 módulos: alertas-precio, auditoria, ayuda, categorias, cierres, conciliacion-mercadopago, cta-corriente,
-        dashboard, gastos, informe-mensual, mermas, movimientos, nichos, pagos-proveedores, pedidos-online
-        (+configuracion), pedidoya, productos, promociones, pronostico, proveedores, repartos, reposicion,
+        32 módulos: alertas-precio, auditoria, ayuda, categorias, cierres, conciliacion-mercadopago, cta-corriente,
+        dashboard, gastos, informe-mensual, mermas, movimientos, nichos, pagos-proveedores, pedidoya, productos, promociones, pronostico, proveedores, reposicion,
         rotacion-productos, socios, staff, stock, sucursales (+[id] con apertura/cierre/traspaso/transferencia/
         auditoría/mercadopago/precios/cta-corriente/pagos-proveedores/socios), termos, tesoreria, transferencias,
         ventas, ventas-diarias, ventas-por-horario, ventas-por-vendedor
+    (tenteo)/
+      layout.tsx                   menú de Tenteo (TenteoNav); misma salvedad: la barrera es el middleware y cada acción
+      tenteo/{pedidos (+configuracion), repartos}/   pedidos online del personal y entregas del repartidor (§7). Las URLs
+                                   viejas /admin/pedidos-online y /admin/repartos redirigen (307) desde next.config
     pedir/[sucursal]/              storefront público (catálogo, carrito, checkout), sin sesión
     api/
       auth/registro                410 (deshabilitado el 2026-09-19)
@@ -160,8 +167,10 @@ src/
       reposicion-hoy               GET con Bearer REPOSICION_API_TOKEN (para n8n)
       webhooks/{mercadopago,pedidoya,whatsapp}
   lib/
-    auth/        require-role.ts, sucursal-access.ts, turno-actual.ts
+    auth/        acceso.ts (quién entra adónde: roles, sistemas, destinos), require-role.ts, sucursal-access.ts,
+                 turno-actual.ts, destino-seguro.ts
     supabase/    server.ts (createClient / createAdminClient), client.ts (navegador), middleware.ts, paginar.ts (fetchAll)
+    tenteo/      puerto-kiosco.ts (lo único que Tenteo toma del kiosco) y puerto-kiosco-db.ts (implementación directa a la base)
     pedidos/     crear-pedido-publico, pricing, stock, rate-limit, horario, transiciones, crear-venta-publica,
                  catalogo (fuente única del catálogo pedible), bot/ (estado, carrito, checkout, mensajes, pasos, procesar),
                  por-atender, seguimiento, notificar-cliente, enlaces, qr, beneficio-cliente, beneficio-servidor,
@@ -172,7 +181,7 @@ src/
                  (remitos por foto), el bot de pedidos y el upsell. Necesita GROQ_API_KEY y, para el respaldo, OPENROUTER_API_KEY
     groq.ts      lectura de remitos/facturas por foto (prompt, esquema y validaciones; la llamada va por ia/)
     reposicion.ts, utils.ts, openrouter.ts (sin uso)
-  components/    admin/ (admin-nav, number-input-wheel-guard), auth/, ui/ (badge, button, combobox, input, skeleton)
+  components/    admin/ (admin-nav, number-input-wheel-guard), tenteo/ (tenteo-nav, use-pedidos-por-atender), auth/, ui/ (badge, button, combobox, input, skeleton)
   types/database.ts
 tests/           unit/ (vitest) y helpers/fake-supabase.ts (doble en memoria del cliente de Supabase)
 e2e/             smoke.spec.ts (Playwright, solo lectura)
@@ -247,39 +256,69 @@ rol sintético "socio").
 - `vendedor`: `profile_sucursales` (puede estar en varias, migración 082); `profiles.sucursal_id` es la sucursal activa.
 - `admin`: todas. `repartidor`: ninguna, solo su cola de entregas.
 
-**Guardas de servidor** (`src/lib/auth/require-role.ts`)
-- `requireAdmin()`: solo `admin`.
-- `requireStaff()`: `admin`, `encargado`, `vendedor`, `concesionario` (**no** incluye `repartidor`, a propósito).
-- `requireRepartidor()`: `repartidor` o `admin` (solo las acciones de `/admin/repartos`).
-- Ojo: el archivo empieza con `"use server"`, así que esas tres funciones quedan expuestas como Server Actions
-  invocables (solo devuelven el id y el rol del que llama; no tiene impacto pero conviene sacar la directiva).
+**Sistemas: kiosco y Tenteo.** El sistema del kiosco (venta, caja, stock, informes) vive en `/admin` y Tenteo (pedidos online:
+catálogo público, bot de WhatsApp, delivery, seguimiento, clientes con Google) en `/tenteo`. Es UNA app, UNA base y UN
+deploy, con una frontera clara (§7); si más adelante Tenteo se separa, se conecta por API. Cada persona pertenece a uno o a
+los dos sistemas:
+- **Dato**: `auth.users.app_metadata.sistemas` = array con `"kiosco"` y/o `"tenteo"`. Va en `app_metadata` (solo lo escribe
+  el servidor), **nunca** en `user_metadata` (el propio usuario puede editarlo). `app_metadata.role` sigue siendo el rol; no hay
+  un mapa sistema→rol (hoy nadie necesita un rol distinto en cada sistema; si hiciera falta, el array migra sin romper nada).
+- **Reglas** (todas en `src/lib/auth/acceso.ts`): admin = los dos, siempre; repartidor = solo Tenteo, siempre; el resto = lo que
+  diga el dato, y **sin dato (o vacío o inválido) = solo kiosco**, para que nadie pierda acceso al publicar. Sin rol (un
+  cliente que entra con Google, un signup) = ningún sistema: no entra a `/admin` ni a `/tenteo`.
+- **Un solo módulo decide el acceso** (`acceso.ts`, puro, sin Supabase): `ROLES_PERSONAL`, `sistemasDe`, `puedeEntrar`,
+  `sistemaDeRuta`, `destinoPorDefecto`, `sistemasAGuardar`. Lo usan el middleware, los dos layouts, `/auth/redirect`,
+  `/auth/cliente/callback`, `require-role.ts`, `sucursal-access.ts` y la pantalla de Staff. `tests/unit/acceso.test.ts` falla si
+  reaparece un `STAFF_ROLES` o una lista de los cinco roles fuera de ese archivo (el repartidor quedó trabado dos veces por
+  una lista duplicada). **No cubre** las comparaciones de rol dentro de cada página ("admin o concesionario ve esto"): son
+  reglas de negocio de cada pantalla y no se reescribieron.
+- **Asignarlo**: `/admin/staff` (casillas Kiosco/Tenteo al crear y editar; admin y repartidor fijos; avisa, sin bloquear, si se
+  da Tenteo a alguien de una sucursal con pedidos online apagado). `actualizarStaff` hace merge de `app_metadata`; pasar a un rol
+  fijo borra el dato viejo. Los usuarios que existían no necesitaron migración: sin dato = kiosco.
 
-**`middleware.ts`** (`src/lib/supabase/middleware.ts`): en cada request llama a `auth.getUser()` (valida contra
-Supabase).
-- `/admin/*` exige un rol de `STAFF_ROLES`; si no, redirige a `/login`.
+**Guardas de servidor** (`src/lib/auth/require-role.ts`, ya **sin** `"use server"`: son guardas internas, no endpoints). Cada una
+verifica el rol **y el sistema** de la acción: sin eso, un usuario solo de Tenteo podría llamar por POST a una acción del
+kiosco (y al revés), porque el middleware solo mira rutas de páginas.
+- `requireAdmin()`: solo `admin`.
+- `requireStaff()`: `admin`, `encargado`, `vendedor`, `concesionario` **del kiosco** (no el repartidor, a propósito).
+- `requireStaffTenteo()`: los mismos roles, **de Tenteo**. Las acciones de `(tenteo)/tenteo/pedidos` la usan.
+- `requireRepartidor()`: `repartidor` o `admin` (acciones de `/tenteo/repartos`).
+
+**`middleware.ts`** (`src/lib/supabase/middleware.ts`): en cada request llama a `auth.getUser()` (valida contra Supabase y
+trae `app_metadata` al día: un cambio de sistema o de rol rige en el próximo request; el retraso de hasta 1 hora del JWT afecta
+solo a la RLS de la base).
+- `/admin/*` y `/tenteo/*` exigen rol de personal; cada zona exige además su sistema. Quien no lo tiene va a donde sí puede
+  estar (nunca hay bucle: el destino es siempre de un sistema permitido). Sin rol → `/login`.
 - `ADMIN_ONLY_PREFIXES` (bloqueados para encargado, vendedor y concesionario): `/admin/categorias`, `/admin/staff`,
-  `/admin/movimientos`, `/admin/productos`, `/admin/pedidos-online/configuracion`.
+  `/admin/movimientos`, `/admin/productos`, `/tenteo/pedidos/configuracion`. Rebotan al inicio de **su propio** sistema.
 - `VENDEDOR_BLOCKED_PREFIXES`: `/admin/pronostico`.
-- **Repartidor**: confinado a `/admin/repartos` (lista de una sola ruta; cualquier otra ruta o el destino por defecto lo
-  manda ahí). El resto del admin nunca se auditó pensando en ese rol.
-- Un usuario de staff logueado que entra a una página pública es redirigido a su panel, salvo `/auth`, `/login`,
-  `/admin`, `/api` y `/pedir` (el admin tiene que poder mirar el storefront).
+- **Repartidor**: confinado a `/tenteo/repartos` (cualquier otra ruta de `/admin` o `/tenteo`, o el destino por defecto, lo manda ahí).
+- Un usuario de personal logueado que entra a una página pública va a su panel (con los dos sistemas, a su última elección
+  guardada en la cookie `sistema_preferido`), salvo `/auth`, `/login`, `/elegir-sistema`, `/admin`, `/tenteo`, `/api` y `/pedir`
+  (el admin tiene que poder mirar el storefront).
 - Si algo falla en el `try`, **deja pasar** ("las páginas hacen su propio chequeo").
 
-**Layout de `(admin)`**: redirige a `/login` si no hay usuario o rol de staff y calcula los badges del menú. **No es una
-barrera de seguridad**: en el App Router un layout no se vuelve a ejecutar en cada navegación del cliente. Tampoco lo es
-el middleware por sí solo: **las Server Actions llegan por POST y cada una se protege a sí misma** (los ids de acción
-están en los bundles públicos de `_next/static`). Por eso `requireStaff()` + `requireSucursalAccess()` van en cada acción,
-y cada `page.tsx` verifica el rol.
+**Layouts de `(admin)` y `(tenteo)`**: redirigen a `/login` si no hay usuario de personal; el de Tenteo además exige el sistema.
+**No son una barrera de seguridad**: en el App Router un layout no se vuelve a ejecutar en cada navegación del cliente.
+Tampoco lo es el middleware por sí solo: **las Server Actions llegan por POST y cada una se protege a sí misma** (los ids de
+acción están en los bundles públicos de `_next/static`). Por eso `requireStaff()`/`requireStaffTenteo()` +
+`requireSucursalAccess()` van en cada acción, y cada `page.tsx` verifica el rol.
 
-**Alta de usuarios**: solo desde `/admin/staff` (`crearStaff`, requiere admin, crea con email confirmado).
-`/api/auth/registro` devuelve 410 y `/registro` redirige a `/login`. El signup de Supabase Auth está abierto
-(`disable_signup = false`): una cuenta sin rol no entra al admin, pero es una cuenta `authenticated` (por eso las
-policies de Storage exigen rol de staff).
+**Alta de usuarios**: solo desde `/admin/staff` (`crearStaff`, requiere admin, crea con email confirmado y con el sistema
+elegido). `/api/auth/registro` devuelve 410 y `/registro` redirige a `/login`. El signup de Supabase Auth está abierto
+(`disable_signup = false`): una cuenta sin rol no entra al admin ni a Tenteo, pero es una cuenta `authenticated` (por eso las
+policies de Storage exigen rol de staff). Los clientes que ingresan con Google son justamente eso: cuentas sin rol.
 
-**Flujos**: `/auth/redirect` decide el destino por rol (agregar un rol nuevo exige tocarlo: el repartidor entró en un
-bucle a `/login` hasta que se corrigió); `/auth/callback` verifica el token y redirige a `next` solo si es una ruta interna (una sola `/` al
-principio; antes era una redirección abierta); `/auth/set-password`.
+**Flujos**:
+- `/auth/redirect` lee el rol y los sistemas **frescos** con la admin API. Un solo sistema: entra directo (el destino fino
+  de cada rol del kiosco no cambió; el de Tenteo es `/tenteo/pedidos`, y `/tenteo/repartos` para el repartidor). Los dos: usa
+  `?sistema=` o la última elección; si no hay ninguna, va a `/elegir-sistema`.
+- `/auth/sistema?ir=kiosco|tenteo`: verifica que la persona tenga ese sistema, guarda la cookie `sistema_preferido` (httpOnly,
+  un año) y sigue por `/auth/redirect`. La cookie **solo mueve el destino, nunca da acceso**: siempre se contrasta con `app_metadata`.
+  Una precarga de Next (`next-router-prefetch`) no la cambia. Los enlaces "Ir a Tenteo" / "Ir al kiosco" de los menús pasan por acá.
+- `/auth/callback` verifica el token y redirige a `next` solo si es una ruta interna (una sola `/` al principio; antes era una
+  redirección abierta); `/auth/set-password`. `/auth/cliente/callback` (Google del catálogo) usa `esPersonal()`: una cuenta de
+  personal que entra con Google no se da de alta como cliente.
 
 ---
 
@@ -448,6 +487,20 @@ venta normal contra el producto de servicio `MULTA-TERMO` (canal `multa_termo`).
 
 ## 7. Pedidos online (storefront público)
 
+**Zona de personal y frontera con el kiosco.** El personal atiende desde `/tenteo/pedidos` (lista, estados, repartidor, pagos,
+cartel con QR), `/tenteo/pedidos/configuracion` (solo admin: zonas, horario, delivery, beneficios) y `/tenteo/repartos`; el
+catálogo público `/pedir/[sucursal]` no se movió. Tenteo trabaja con sus tablas (`pedidos`, `pedido_items`, `zonas_entrega`,
+`clientes`, `pedido_rate_limits` y las columnas de configuración de `sucursales`) y toma del kiosco **cuatro cosas**, todas por el
+**puerto** `src/lib/tenteo/puerto-kiosco.ts` (implementación directa a la base en `puerto-kiosco-db.ts`): (1) el catálogo y los
+precios (`categories`, `products`, `product_prices`, `promos`, `promo_prices`, `promo_items`, y los nombres para mostrar en el
+seguimiento), (2) el stock (`stock_sucursal`), (3) registrar la venta (RPC `crear_movimiento_con_items`) y (4) qué sucursales
+puede ver cada persona. La anulación y la caja no son una operación de Tenteo: una venta online ya cobrada se anula desde el
+historial del kiosco (`cancelarPedido` lo avisa). Una prueba (`tests/unit/puerto-kiosco.test.ts`) falla si un archivo de Tenteo
+consulta esas tablas o llama a ese RPC por fuera del puerto. Si Tenteo se separa, se reemplaza solo `puerto-kiosco-db.ts` por
+una implementación vía API. El puerto es una frontera de lectura de datos y de registro de la venta: la lógica de precios, redondeo
+y reparto de promos sigue en `lib/pedidos/pricing.ts` (copia deliberada del bloque de `crearMovimiento`, no se unifica sin preguntar).
+Un solo sentido de dependencia **debería** haber (Tenteo → kiosco); ver las deudas del §10.
+
 **Flujo público** (`/pedir/[sucursal]`, sin sesión): catálogo (respeta `categorias_habilitadas`, `promos_habilitadas`,
 `vendible_pos` y oculta los productos sin precio en la sucursal) → carrito (persistente en el navegador) → checkout
 (retiro o envío por zona, datos, medio de pago) → `iniciarPedido` → confirmación. `consultarEstadoPedidoPublico` refresca
@@ -456,7 +509,7 @@ el estado.
 **Después del pedido**: `/pedir/[sucursal]/pedido/[id]` es el seguimiento del cliente (el uuid del pedido hace de enlace
 secreto, sin migración; lógica de estados en `lib/pedidos/seguimiento.ts`, sin datos personales). `/pedir/[sucursal]/qr` es
 el cartel imprimible (`lib/pedidos/qr.ts`, JS puro). Para el personal, `lib/pedidos/por-atender.ts` define qué pedidos
-esperan al local y qué sucursales ve cada rol; el hook `components/admin/use-pedidos-por-atender.ts` (montado en el menú)
+esperan al local y qué sucursales ve cada rol; el hook `components/tenteo/use-pedidos-por-atender.ts` (montado en el menú de Tenteo; el kiosco ya no lo tiene)
 lo consulta cada 20 s con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
 WhatsApp los cambios de estado, solo a pedidos del bot y solo si hay `WHATSAPP_ACCESS_TOKEN`.
 
@@ -494,7 +547,7 @@ pendiente_pago ──▶ pagado (confirmarPagoRecibido / webhook)      cualquier
 pendiente_pago vencido ──▶ expirado (se marca al consultar el estado, sin cron)
 ```
 Quién: staff con acceso a la sucursal avanza estados; admin/encargado asignan repartidor y confirman pagos; el
-repartidor solo marca `entregado` sus pedidos en `en_reparto` (`/admin/repartos`); la configuración (zonas, horario,
+repartidor solo marca `entregado` sus pedidos en `en_reparto` (`/tenteo/repartos`); la configuración (zonas, horario,
 delivery, mínimo) es solo admin.
 
 **Horario**: `sucursales.horario_pedidos` (UTC-3 fijo, sin horario de verano). Sin horario cargado = siempre abierto. Se
@@ -609,6 +662,13 @@ https://claude.ai/artifact/PHtFCoqfMmhD4SWFPiifb4). Estado al 2026-09-19 (tarde)
 | H-14 | Media | Anular venta no anula su merma automática; borrado y edición de fecha sin rastro. Requiere vincular la merma a su venta (migración). |
 | H-15 | Media | El repo no reconstruye la base (migraciones sin archivo, policies sin archivo). |
 | Bajos | Baja | Tokens comparados con `!==`; `"use server"` en `require-role.ts`; tickets con HTML sin escapar (`document.write`); HIBP apagado, contraseña mínima de 6, sin CSP; 389 `as any`; lógica de precio copiada 3 veces; redondeo half-up de `redondearMoneda`. |
+
+**Acoples Tenteo ↔ kiosco que quedan (deuda a propósito, 2026-10-01)**: `redondearMoneda` vive en `lib/pedidos/pricing.ts`
+(Tenteo) y la importan `movimientos/actions.ts` y `cierre-actions.ts` (kiosco): es una dependencia en sentido inverso; moverla a
+un módulo neutro exige tocar esos archivos. Los contactos del CRM (`contactos_crm`) los escribe el bot de WhatsApp y los mira el
+kiosco (`/admin/nichos`). La configuración de pedidos online vive en columnas de `sucursales`: si Tenteo se separa, pasa a
+tablas propias. El webhook de Mercado Pago (kiosco) llama a `crearVentaPublica` (Tenteo). El estado de la caja no se consulta al
+registrar una venta online (H-10).
 
 Los bloques de riesgo de fondo: la plata depende de que cada acción recuerde validar rol y sucursal; no hay
 staging; no hay backups; no hay monitoreo (ni Sentry, ni `error.tsx`, ni health check público; `wrangler.toml` no habilita

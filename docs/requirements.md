@@ -22,7 +22,7 @@ online por sucursal. Es una app web (Next.js sobre Supabase, en Cloudflare Worke
 |---|---|
 | **Parque de las Fiestas** | Kiosco propio, el de mayor volumen (~4.000 movimientos por mes). Auditoría de stock **obligatoria** para cerrar. Pedidos online habilitados solo para retiro; multa de termos configurada ($500 por hora de atraso, 6 horas de gracia). |
 | **UNAM** | Kiosco propio. Pedidos online habilitados solo para retiro. Auditoría de stock no obligatoria. |
-| **Villa Sarita** | **Concesionario, a consignación**: lo opera un encargado concesionario que es dueño económico de ese local a cambio de un porcentaje de lo que vende. Solo vende la categoría "Minutas" y solo cobra como "Consumidor Final"; sin promos ni pedidos online. Por ahora no es prioridad (sus datos son poco representativos). |
+| **Villa Sarita** | **Concesionario, a consignación**: lo opera un encargado concesionario que es dueño económico de ese local a cambio de un porcentaje de lo que vende. Solo vende la categoría "Minutas" y solo cobra como "Consumidor Final"; sin promos ni pedidos online, y **su personal no tiene Tenteo** (decisión del 2026-10-01: hoy no quiere Tenteo en ese kiosco). Por ahora no es prioridad (sus datos son poco representativos). |
 | **Costanera Posadas** | **No es una sucursal cargada**: es el local del brief de Javier (`nicho-posible/brief_tecnico_gabriel.md`) para el CRM de 4 nichos (boliche/nocturno, vecinos del parque, aduana/migraciones, placita del puente). Hoy existe solo la tabla de nichos (4 filas) y un tablero de contactos vacío. |
 
 **Quién lo usa** (usuarios reales al 2026-09-19)
@@ -31,7 +31,12 @@ online por sucursal. Es una app web (Next.js sobre Supabase, en Cloudflare Worke
 - **Vendedor** (4, 2 bloqueados): su(s) sucursal(es); ve solo lo de su turno del día.
 - **Concesionario** (2): Villa Sarita, ve el día completo y el costo/margen de su local.
 - **Repartidor** (rol nuevo, sin usuarios reales todavía): solo su cola de entregas.
-- **Cliente final**: entra sin cuenta al catálogo público `/pedir/[sucursal]`.
+- **Cliente final**: entra sin cuenta al catálogo público `/pedir/[sucursal]`. Si ingresa con Google queda como cuenta sin rol:
+  no entra al panel del personal.
+- **Sistemas (desde el 2026-10-01)**: el personal pertenece al **kiosco** (venta, caja, stock, informes; `/admin`), a **Tenteo**
+  (pedidos online y entregas; `/tenteo`) o a los dos, y no ve el menú del otro. Admin: los dos siempre; repartidor: solo
+  Tenteo; el resto, **solo kiosco salvo que el admin le dé Tenteo en Staff**. Hoy el personal que atiende pedidos online (Parque
+  y UNAM) necesita que se le asigne Tenteo (ver pendientes).
 
 ---
 
@@ -129,7 +134,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Estado**: **Funcionando** (3.338 pagos QR). Abierto: 142 pagos sin venta vinculada ($733.980) para revisar en
   `/admin/conciliacion-mercadopago`.
 
-### Pedidos online — `/pedir/[sucursal]`, `/admin/pedidos-online`, `/admin/repartos`
+### Pedidos online (Tenteo) — `/pedir/[sucursal]`, `/tenteo/pedidos`, `/tenteo/repartos`
 - **Objetivo**: vender sin depender del empleado: catálogo público, pedido por retiro o envío, pago en efectivo o por link
   de Mercado Pago.
 - **Reglas**: el catálogo **no ofrece lo agotado** (producto con stock menor a 1; promo si falta stock de algún componente; sin fila de stock = se ofrece) y el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
@@ -137,17 +142,17 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
   confirman pagos; el repartidor solo marca sus entregas; la configuración (zonas, horario, delivery) es solo admin.
-- **Aviso de pedido nuevo**: el menú del admin muestra cuántos pedidos esperan al local (nuevos en efectivo, Mercado Pago
+- **Aviso de pedido nuevo**: el menú de Tenteo muestra cuántos pedidos esperan al local (nuevos en efectivo, Mercado Pago
   ya pagado y links de pago por confirmar), suena, pone el número en el título de la pestaña y recarga la lista si está
   abierta. Consulta cada 20 s; el sonido se habilita con el primer clic. Solo lo ven admin, encargado, vendedor y
-  concesionario, y cada uno cuenta solo sus sucursales.
+  concesionario **con acceso a Tenteo** (el kiosco ya no tiene el aviso), y cada uno cuenta solo sus sucursales.
 - **Seguimiento para el cliente**: `/pedir/[sucursal]/pedido/[id]`, sin cuenta. El enlace es secreto porque lleva el id del
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
 - **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal.
 - **Clientes registrados y beneficios** (migración 099, **sin aplicar todavía**): el cliente puede ingresar con Google (es
   opcional: pedir sin cuenta sigue igual). A los registrados la sucursal les puede dar un **% de descuento sobre los
   productos** (nunca sobre el envío; opcionalmente solo en la primera compra) y/o **envío gratis en la primera compra**.
-  Se configura por sucursal en `/admin/pedidos-online/configuracion` y arranca en 0 (sin beneficios). El descuento se calcula
+  Se configura por sucursal en `/tenteo/pedidos/configuracion` y arranca en 0 (sin beneficios). El descuento se calcula
   en el servidor, se reparte entre los productos del pedido (la venta y el margen reflejan lo cobrado) y "primera compra"
   es no tener otro pedido que haya seguido en pie. Decisión de negocio pendiente: si habrá descuento, de cuánto y si solo
   para la primera compra. El botón de Google recién aparece cuando hay algún beneficio activo.
@@ -188,7 +193,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Estado**: **Pendiente de probar** (0 contactos). "Ronda comunidad" es un canal de venta atribuido a un contacto.
 
 ### Staff — `/admin/staff` (solo admin)
-- Alta de usuarios (con email confirmado), rol, sucursal, "es socio", límite de crédito, suspender y resetear contraseña.
+- Alta de usuarios (con email confirmado), rol, **sistema (Kiosco / Tenteo)**, sucursal, "es socio", límite de crédito, suspender y resetear contraseña.
+  Quien no tiene sistema guardado figura "por defecto" (= kiosco). Admin y repartidor son fijos.
 - **Estado**: **Funcionando**. El alta pública (`/api/auth/registro`) quedó deshabilitada.
 
 ---
@@ -234,7 +240,12 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
     aproximación, **no es un dato certero**).
 20. **Migraciones a mano y MCP de Supabase en solo lectura**: las migraciones las corre el usuario (o Claude con su
     confirmación cada vez); no hay staging.
-21. **Diferidos el 05/07 antes del go-live** (decisión de priorizar solo los críticos): atribución del dinero de promos en
+21. **Tenteo y el kiosco son dos sistemas con una frontera clara** (2026-10-01): un solo proyecto, una base y un deploy; Tenteo
+    atiende hoy a Parque de las Fiestas y UNAM y puede sumar más. El dato de pertenencia va en `app_metadata` (nunca en
+    `user_metadata`) y **sin dato = kiosco**, para que nadie pierda acceso. **Villa Sarita no usa Tenteo por ahora**: su personal
+    no tiene el sistema y su sucursal tiene los pedidos online apagados. La comandera offline, el informe mensual y el CRM de
+    nichos se quedaron del lado del kiosco. No se unifica el bloque de precio/promos de `pricing.ts` con `crearMovimiento` sin preguntar.
+22. **Diferidos el 05/07 antes del go-live** (decisión de priorizar solo los críticos): atribución del dinero de promos en
     reportes, reasignación de sucursal y cuenta corriente histórica, `/admin/cierres` global desincronizado, fondo inicial sin
     arrastre **(sin verificar cuáles se resolvieron después)**.
 
@@ -256,7 +267,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
   navegador de quien no debe verlos; los datos de clientes (nombre, teléfono, dirección de los pedidos) solo los ve el staff.
 - **Disponibilidad y recuperación.** Hoy **no se cumple**: plan gratuito de Supabase sin backups (en curso: backup
   propio cifrado en R2, ver `docs/backups.md`), sin monitoreo de errores y sin entorno de staging. Es el principal riesgo operativo.
-- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (229 unitarias, compuerta de CI desde el
+- **Cada cambio llega a producción al pushear a `master`**: si las pruebas (456 unitarias, compuerta de CI desde el
   2026-09-19) o el build fallan, no se despliega. Además hay 21 E2E de humo de solo lectura, que se corren a mano.
 
 ---
@@ -273,7 +284,8 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | Activar `CRON_SECRET` en Cloudflare | ✅ Hecho (el endpoint responde 401) |
 | Aplicar la migración 095 (Storage) | ✅ Hecho (el listado anónimo de remitos da 0) |
 | **Aplicar la migración 096** (`confirmar_transferencia_stock` con bloqueo de fila) en el SQL Editor | ❌ Escrita, sin aplicar |
-| **Zonas de envío reales** en `/admin/pedidos-online/configuracion` | ❌ 0 zonas |
+| **Asignar Tenteo en Staff** al personal que atiende pedidos online (encargados y vendedores de Parque y UNAM) **antes de publicar la separación**: sin el dato solo ven el kiosco | ❌ Pendiente (se publica con tu OK) |
+| **Zonas de envío reales** en `/tenteo/pedidos/configuracion` | ❌ 0 zonas |
 | **Horario de pedidos** en Parque y UNAM (hoy sin horario = siempre abierto) | ❌ Sin cargar |
 | **WhatsApp real** de cada sucursal (número para el catálogo) | ❌ Sin cargar |
 | **Habilitar delivery** (después de zonas y de decidir quién rinde el efectivo del envío) | ❌ Apagado en las 3 sucursales |
