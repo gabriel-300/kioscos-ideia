@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { StaffList } from "./_components/staff-list";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
-import { esPersonal } from "@/lib/auth/acceso";
+import { esPersonal, sistemasDe, sistemasFijos, tieneSistemasGuardados, rolDe } from "@/lib/auth/acceso";
 
 export const metadata: Metadata = { title: "Staff — Kioscos IDEIA" };
 export const revalidate = 0;
@@ -24,7 +24,11 @@ export default async function StaffPage() {
     profileSucursalesResult,
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 200 }),
-    supabase.from("sucursales").select("id, nombre, encargado_user_id").order("nombre"),
+    // (as any): pedidos_online_habilitado no está en los tipos generados. Es solo para
+    // avisar al asignar Tenteo a alguien de una sucursal con pedidos online apagado.
+    (admin as any).from("sucursales").select("id, nombre, encargado_user_id, pedidos_online_habilitado").order("nombre") as unknown as Promise<{
+      data: { id: string; nombre: string; encargado_user_id: string | null; pedidos_online_habilitado: boolean | null }[] | null;
+    }>,
     (supabase as any)
       .from("profiles")
       .select("id, sucursal_id, credito_limite, es_socio") as unknown as Promise<{
@@ -79,6 +83,8 @@ export default async function StaffPage() {
       sucursalIdsVendedor: sucursalIdsVendedorMap[u.id] ?? [],
       creditoLimite: profileMap[u.id]?.creditoLimite ?? null,
       esSocio: profileMap[u.id]?.esSocio ?? false,
+      sistemas: sistemasDe(u),
+      sistemasPorDefecto: !sistemasFijos(rolDe(u)) && !tieneSistemasGuardados(u),
       isSuspended:   !!(u as any).banned_until && (u as any).banned_until !== "none",
       lastSignIn:    u.last_sign_in_at
         ? new Date(u.last_sign_in_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })

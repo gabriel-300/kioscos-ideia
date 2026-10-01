@@ -3,23 +3,28 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
-import type { Rol as StaffRole } from "@/lib/auth/acceso";
+import { rolDe, sistemasAGuardar, sistemasFijos, type Rol as StaffRole, type Sistema } from "@/lib/auth/acceso";
 
 export async function crearStaff(data: {
   email:      string;
   nombre:     string;
   password:   string;
   role:       StaffRole;
+  sistemas?:  Sistema[];  // admin y repartidor no lo usan (fijos); sin dato, kiosco
   sucursalId?: string;
 }): Promise<{ userId: string }> {
   await requireAdmin();
   const admin = createAdminClient();
 
+  // El sistema va en app_metadata (solo lo escribe el servidor), nunca en user_metadata.
+  const sist = sistemasAGuardar(data.role, data.sistemas ?? ["kiosco"]);
+  if ("error" in sist) throw new Error(sist.error);
+
   const { data: created, error } = await admin.auth.admin.createUser({
     email:         data.email,
     password:      data.password,
     user_metadata: { full_name: data.nombre },
-    app_metadata:  { role: data.role },
+    app_metadata:  { role: data.role, ...(sist.valor ? { sistemas: sist.valor } : {}) },
     email_confirm: true,
   });
 
@@ -46,18 +51,30 @@ export async function eliminarStaff(userId: string) {
   revalidatePath("/admin/sucursales");
 }
 
-export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean; role?: StaffRole }) {
+export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean; role?: StaffRole; sistemas?: Sistema[] }) {
   await requireAdmin();
   const admin = createAdminClient();
   const update: { user_metadata: Record<string, string>; app_metadata?: Record<string, unknown>; password?: string } = {
     user_metadata: { full_name: data.nombre },
   };
   if (data.password) update.password = data.password;
-  if (data.role) {
+  if (data.role || data.sistemas !== undefined) {
     // Merge, no reemplazo -- app_metadata puede tener otras claves además de
-    // role a futuro, no hay que perderlas por cambiar el rol.
+    // role y sistemas, no hay que perderlas por cambiar una.
     const { data: actual } = await admin.auth.admin.getUserById(userId);
-    update.app_metadata = { ...(actual.user?.app_metadata ?? {}), role: data.role };
+    const meta: Record<string, unknown> = { ...(actual.user?.app_metadata ?? {}) };
+    const rolFinal = data.role ?? rolDe(actual.user);
+    if (data.role) meta.role = data.role;
+
+    // Sistemas: se escriben si los mandan, o si el rol nuevo es fijo (admin y
+    // repartidor: se borra el dato, para que no quede uno viejo si vuelve a cambiar).
+    if (rolFinal && (data.sistemas !== undefined || (data.role && sistemasFijos(data.role)))) {
+      const sist = sistemasAGuardar(rolFinal, data.sistemas);
+      if ("error" in sist) throw new Error(sist.error);
+      if (sist.valor) meta.sistemas = sist.valor;
+      else delete meta.sistemas;
+    }
+    update.app_metadata = meta;
   }
   const { error } = await admin.auth.admin.updateUserById(userId, update);
   if (error) throw new Error(error.message);

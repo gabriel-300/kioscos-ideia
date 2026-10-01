@@ -52,6 +52,14 @@ export function esPersonal(user: UsuarioAcceso): boolean {
   return rolDe(user) !== null;
 }
 
+// Roles cuyo sistema no se elige: el admin ve todo y el repartidor solo tiene
+// su pantalla de entregas. Para el resto devuelve null (se elige en Staff).
+export function sistemasFijos(rol: Rol | null): Sistema[] | null {
+  if (rol === "admin") return [...SISTEMAS];
+  if (rol === "repartidor") return ["tenteo"];
+  return null;
+}
+
 // Sistemas a los que pertenece el usuario:
 //  - sin rol: ninguno.
 //  - admin: ambos, tenga o no el dato (es el único rol que ve todo).
@@ -61,14 +69,33 @@ export function esPersonal(user: UsuarioAcceso): boolean {
 export function sistemasDe(user: UsuarioAcceso): Sistema[] {
   const rol = rolDe(user);
   if (!rol) return [];
-  if (rol === "admin") return [...SISTEMAS];
-  if (rol === "repartidor") return ["tenteo"];
+  const fijos = sistemasFijos(rol);
+  if (fijos) return fijos;
   const crudo = user?.app_metadata?.sistemas;
   if (Array.isArray(crudo)) {
     const validos = SISTEMAS.filter((s) => crudo.includes(s));
     if (validos.length > 0) return validos;
   }
   return ["kiosco"];
+}
+
+// ¿Tiene guardado un dato de sistemas válido? Si no, se aplica el defecto (kiosco);
+// Staff lo muestra como "por defecto". Los roles fijos no lo necesitan.
+export function tieneSistemasGuardados(user: UsuarioAcceso): boolean {
+  if (sistemasFijos(rolDe(user))) return false;
+  const crudo = user?.app_metadata?.sistemas;
+  return Array.isArray(crudo) && SISTEMAS.some((s) => crudo.includes(s));
+}
+
+// Qué guardar en app_metadata.sistemas al crear o editar a alguien con ese rol
+// (solo lo llama el servidor, tras requireAdmin). Para los roles fijos no se guarda
+// nada (valor null: se borra la clave, así no queda un dato viejo si cambian de rol).
+// Para el resto exige al menos un sistema y rechaza valores desconocidos.
+export function sistemasAGuardar(rol: Rol, elegidos: unknown): { valor: Sistema[] | null } | { error: string } {
+  if (sistemasFijos(rol)) return { valor: null };
+  if (!Array.isArray(elegidos) || elegidos.length === 0) return { error: "Elegí al menos un sistema (Kiosco o Tenteo)" };
+  if (elegidos.some((e) => sistemaValido(e) === null)) return { error: "Sistema desconocido" };
+  return { valor: SISTEMAS.filter((s) => elegidos.includes(s)) };
 }
 
 export function puedeEntrar(user: UsuarioAcceso, sistema: Sistema): boolean {

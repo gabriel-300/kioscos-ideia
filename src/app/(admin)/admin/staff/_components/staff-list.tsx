@@ -8,7 +8,7 @@ import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
 import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, asignarSucursalesVendedor, generarLinkResetPassword, suspenderStaff } from "../actions";
 import { friendlyError } from "@/lib/utils";
-import { ROLES_PERSONAL, type Rol } from "@/lib/auth/acceso";
+import { ROLES_PERSONAL, SISTEMAS, sistemasFijos, type Rol, type Sistema } from "@/lib/auth/acceso";
 
 type StaffUser = {
   id: string;
@@ -19,11 +19,73 @@ type StaffUser = {
   sucursalIdsVendedor: string[];
   creditoLimite: number | null;
   esSocio: boolean;
+  sistemas: Sistema[];          // los que tiene hoy (resueltos con las reglas de lib/auth/acceso)
+  sistemasPorDefecto: boolean;  // no tiene el dato guardado: se aplica el defecto (kiosco)
   isSuspended: boolean;
   lastSignIn: string | null;
 };
 
-type Sucursal = { id: string; nombre: string; encargado_user_id: string | null };
+type Sucursal = { id: string; nombre: string; encargado_user_id: string | null; pedidos_online_habilitado?: boolean | null };
+
+const SISTEMA_LABEL: Record<Sistema, string> = { kiosco: "Kiosco", tenteo: "Tenteo" };
+const SISTEMA_BADGE: Record<Sistema, string> = {
+  kiosco: "bg-neutral-50 text-neutral-700 border-neutral-200",
+  tenteo: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
+// A qué sistemas entra la persona: el sistema del kiosco (venta, caja, stock...) y/o
+// Tenteo (pedidos online y entregas). Admin y repartidor son fijos. El aviso de
+// sucursal sin pedidos online no bloquea: solo avisa que esa persona no va a ver
+// pedidos ahí hasta que se habilite.
+function SistemasPicker({ role, valor, onChange, sucursalesElegidas }: {
+  role: string;
+  valor: Sistema[];
+  onChange: (v: Sistema[]) => void;
+  sucursalesElegidas: Sucursal[];
+}) {
+  const fijos = sistemasFijos(role as Rol);
+  const efectivo = fijos ?? valor;
+  const sinPedidos = sucursalesElegidas.filter((s) => s.pedidos_online_habilitado === false);
+
+  function alternar(s: Sistema) {
+    onChange(valor.includes(s) ? valor.filter((x) => x !== s) : SISTEMAS.filter((x) => x === s || valor.includes(x)));
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1.5">Sistemas</label>
+      <div className="flex gap-4">
+        {SISTEMAS.map((s) => (
+          <label key={s} className={`flex items-center gap-2 select-none ${fijos ? "opacity-60" : "cursor-pointer"}`}>
+            <input
+              type="checkbox"
+              className="rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700"
+              checked={efectivo.includes(s)}
+              disabled={!!fijos}
+              onChange={() => alternar(s)}
+            />
+            <span className="text-sm text-neutral-700">{SISTEMA_LABEL[s]}</span>
+          </label>
+        ))}
+      </div>
+      <p className="text-[11px] text-neutral-400 mt-1.5">
+        {role === "admin"
+          ? "El administrador entra siempre a los dos."
+          : role === "repartidor"
+          ? "El repartidor solo usa Tenteo (sus entregas)."
+          : "Kiosco: venta, caja, stock e informes. Tenteo: pedidos online y entregas. Podés darle los dos."}
+      </p>
+      {!fijos && valor.length === 0 && (
+        <p className="text-[11px] text-red-600 mt-1">Elegí al menos uno.</p>
+      )}
+      {!fijos && valor.includes("tenteo") && sinPedidos.length > 0 && (
+        <p className="text-[11px] text-amber-600 mt-1">
+          Pedidos online está apagado en {sinPedidos.map((s) => s.nombre).join(", ")}: no va a ver pedidos ahí hasta que se habilite en Configuración de Tenteo.
+        </p>
+      )}
+    </div>
+  );
+}
 
 const ROLE_LABEL: Record<string, string> = {
   admin:         "Administrador",
@@ -60,8 +122,11 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
   });
 
   const roleValue = watch("role");
+  const sucursalValue = watch("sucursalId");
+  const [sistemas, setSistemas] = useState<Sistema[]>(["kiosco"]);
 
   function onSubmit(values: z.infer<typeof createSchema>) {
+    if (!sistemasFijos(values.role) && sistemas.length === 0) { alert("Elegí al menos un sistema (Kiosco o Tenteo)."); return; }
     startTransition(async () => {
       try {
         await crearStaff({
@@ -69,9 +134,11 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
           email:      values.email,
           password:   values.password,
           role:       values.role,
+          sistemas:   sistemasFijos(values.role) ? undefined : sistemas,
           sucursalId: values.sucursalId || undefined,
         });
         reset();
+        setSistemas(["kiosco"]);
         router.refresh();
         onCreated();
       } catch (e) {
@@ -114,6 +181,12 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
             ))}
           </select>
         </div>
+        <SistemasPicker
+          role={roleValue}
+          valor={sistemas}
+          onChange={setSistemas}
+          sucursalesElegidas={sucursales.filter((s) => s.id === sucursalValue)}
+        />
       </div>
       <div className="flex justify-end">
         <Button size="sm" loading={pending} onClick={handleSubmit(onSubmit)}>Crear usuario</Button>
@@ -147,6 +220,7 @@ function EditDrawer({
   );
   const [esSocio, setEsSocio] = useState(user.esSocio);
   const [role, setRole] = useState(user.role ?? "vendedor");
+  const [sistemas, setSistemas] = useState<Sistema[]>(user.sistemas);
   const router = useRouter();
 
   const sucursalActual =
@@ -169,7 +243,16 @@ function EditDrawer({
     setRole(nuevoRol);
     setSucursalId("");
     setSucursalIds([]);
+    // Los sistemas de admin y repartidor son fijos; al pasar a otro rol se arranca en
+    // kiosco (lo que se tenía por rol fijo no se traslada), salvo que ya hubiera una elección propia.
+    const fijos = sistemasFijos(nuevoRol as Rol);
+    if (fijos) setSistemas(fijos);
+    else if (sistemasFijos(role as Rol)) setSistemas(sistemasFijos(user.role as Rol) ? ["kiosco"] : user.sistemas);
   }
+
+  const sucursalesElegidas = role === "vendedor"
+    ? sucursales.filter((s) => sucursalIds.includes(s.id))
+    : sucursales.filter((s) => s.id === sucursalId);
 
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof editSchema>>({
     resolver: zodResolver(editSchema),
@@ -177,6 +260,9 @@ function EditDrawer({
   });
 
   function onSubmit(values: z.infer<typeof editSchema>) {
+    if (!sistemasFijos(role as Rol) && sistemas.length === 0) { alert("Elegí al menos un sistema (Kiosco o Tenteo)."); return; }
+    // Solo se mandan los sistemas si cambiaron o cambió el rol: quien no se toca queda con su dato (o su defecto).
+    const cambioSistemas = sistemas.join(",") !== user.sistemas.join(",") || role !== user.role;
     startTransition(async () => {
       try {
         const limiteNum = creditoLimite.trim() ? parseFloat(creditoLimite) : null;
@@ -186,6 +272,7 @@ function EditDrawer({
           creditoLimite: limiteNum,
           esSocio,
           role:          role !== user.role ? (role as Rol) : undefined,
+          sistemas:      cambioSistemas && !sistemasFijos(role as Rol) ? sistemas : undefined,
         });
         if (role === "vendedor") {
           const cambiaron =
@@ -243,6 +330,7 @@ function EditDrawer({
               </p>
             )}
           </div>
+          <SistemasPicker role={role} valor={sistemas} onChange={setSistemas} sucursalesElegidas={sucursalesElegidas} />
           <Input label="Nombre" error={errors.nombre?.message} {...register("nombre")} />
           <Input
             label="Nueva contraseña"
@@ -473,6 +561,7 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
               <tr className="border-b border-neutral-100 bg-neutral-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Usuario</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Rol</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sistemas</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
                 <th className="px-4 py-3 w-28" />
               </tr>
@@ -499,6 +588,14 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
                         {u.isSuspended && (
                           <Badge className="bg-red-50 text-red-600 border-red-200">Suspendido</Badge>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {u.sistemas.map((s) => (
+                          <Badge key={s} className={SISTEMA_BADGE[s]}>{SISTEMA_LABEL[s]}</Badge>
+                        ))}
+                        {u.sistemasPorDefecto && <span className="text-[10px] text-neutral-300">por defecto</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3">
