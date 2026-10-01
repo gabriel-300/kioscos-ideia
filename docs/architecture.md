@@ -510,7 +510,7 @@ el estado.
 secreto, sin migración; lógica de estados en `lib/pedidos/seguimiento.ts`, sin datos personales). `/pedir/[sucursal]/qr` es
 el cartel imprimible (`lib/pedidos/qr.ts`, JS puro). Para el personal, `lib/pedidos/por-atender.ts` define qué pedidos
 esperan al local y qué sucursales ve cada rol; el hook `components/tenteo/use-pedidos-por-atender.ts` (montado en el menú de Tenteo; el kiosco ya no lo tiene)
-lo consulta cada 20 s con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
+lo consulta cada 30 s (las sucursales del usuario se recuerdan 90 s en el servidor) con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
 WhatsApp los cambios de estado, solo a pedidos del bot y solo si hay `WHATSAPP_ACCESS_TOKEN`.
 
 **Clientes registrados** (migración 099): login con Google en el catálogo (`components` de `/pedir`, callback

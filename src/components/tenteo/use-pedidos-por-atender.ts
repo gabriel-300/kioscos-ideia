@@ -5,12 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { consultarPedidosPorAtender } from "@/app/(tenteo)/tenteo/pedidos/actions";
 import { RUTA_TENTEO_PEDIDOS } from "@/lib/auth/acceso";
 
-// Aviso de pedido nuevo de la zona de Tenteo. Consulta al servidor al cargar y cada 20 s y,
+// Aviso de pedido nuevo de la zona de Tenteo. Consulta al servidor al cargar y cada 30 s y,
 // si sube la cantidad, suena, y si el usuario está en /tenteo/pedidos
 // recarga la lista. La primera respuesta es la línea de base: no suena por lo
 // que ya estaba esperando.
 
-const INTERVALO_MS = 20_000;
+const INTERVALO_MS = 30_000;
 const RUTA_PEDIDOS = RUTA_TENTEO_PEDIDOS;
 
 // Los navegadores solo dejan sonar audio después de un gesto del usuario, así

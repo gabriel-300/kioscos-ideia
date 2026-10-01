@@ -34,8 +34,28 @@ export function sucursalesVisibles(admin: Admin, userId: string, role: string): 
   return puertoKiosco(admin).sucursalesDelUsuario(userId, role);
 }
 
+// El aviso consulta cada pocos segundos desde cada pestaña abierta; las sucursales
+// de una persona casi nunca cambian, así que se recuerdan un rato (por instancia del
+// servidor) para no repetir 2-3 consultas por ciclo. Si le cambian los permisos, el
+// contador se ajusta en a lo sumo este tiempo. La pantalla de pedidos NO usa este
+// caché: sigue leyendo los permisos reales.
+const VIDA_SUCURSALES_MS = 90_000;
+const sucursalesRecordadas = new Map<string, { hasta: number; ids: string[] | null }>();
+
+async function sucursalesParaAviso(admin: Admin, userId: string, role: string): Promise<string[] | null> {
+  const clave = `${userId}:${role}`;
+  const ahora = Date.now();
+  const guardado = sucursalesRecordadas.get(clave);
+  if (guardado && guardado.hasta > ahora) return guardado.ids;
+
+  const ids = await sucursalesVisibles(admin, userId, role);
+  if (sucursalesRecordadas.size > 200) sucursalesRecordadas.clear();
+  sucursalesRecordadas.set(clave, { hasta: ahora + VIDA_SUCURSALES_MS, ids });
+  return ids;
+}
+
 export async function contarPedidosPorAtender(admin: Admin, userId: string, role: string): Promise<number> {
-  const sucursales = await sucursalesVisibles(admin, userId, role);
+  const sucursales = await sucursalesParaAviso(admin, userId, role);
   if (sucursales && sucursales.length === 0) return 0;
 
   let query = (admin as any)
