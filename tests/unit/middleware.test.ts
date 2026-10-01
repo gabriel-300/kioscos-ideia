@@ -230,6 +230,53 @@ describe("páginas públicas: personal solo de Tenteo", () => {
   });
 });
 
+describe("dominio de clientes (angirufood.com.ar)", () => {
+  const en = (host: string, path = "/") => updateSession(new NextRequest(`https://${host}${path}`));
+  const reescribe = (res: Response) => { const r = res.headers.get("x-middleware-rewrite"); return r ? new URL(r).pathname : null; };
+
+  it("la raíz de www muestra la elección de local (/pedir) sin cambiar la dirección", async () => {
+    const res = await en("www.angirufood.com.ar");
+    expect(reescribe(res)).toBe("/pedir");
+    expect(res.headers.get("location")).toBeNull();
+  });
+  it("la versión sin www redirige a www, conservando ruta y parámetros (307: temporal)", async () => {
+    const res = await en("angirufood.com.ar", "/pedir/abc?x=1");
+    expect(res.status).toBe(307);
+    const loc = new URL(res.headers.get("location")!);
+    expect([loc.protocol, loc.host, loc.pathname, loc.search]).toEqual(["https:", "www.angirufood.com.ar", "/pedir/abc", "?x=1"]);
+  });
+  it("la raíz sin www también termina en www (no se queda en una dirección sin sesión compartida)", async () => {
+    expect(new URL((await en("angirufood.com.ar")).headers.get("location")!).host).toBe("www.angirufood.com.ar");
+  });
+  it("mayúsculas o puerto en el host no engañan", async () => {
+    expect(reescribe(await en("WWW.AngiruFood.com.ar:443"))).toBe("/pedir");
+  });
+  it("en www las demás rutas no se tocan (catálogo, login, seguimiento)", async () => {
+    for (const p of ["/pedir/abc", "/pedir", "/login", "/pedir/abc/pedido/xyz"]) {
+      const res = await en("www.angirufood.com.ar", p);
+      expect(reescribe(res), p).toBeNull();
+      expect(res.headers.get("location"), p).toBeNull();
+    }
+  });
+  it("el personal sigue protegido en este dominio: /admin sin sesión va a /login", async () => {
+    expect(new URL((await en("www.angirufood.com.ar", "/admin/dashboard")).headers.get("location")!).pathname).toBe("/login");
+  });
+  it("en workers.dev y en local la raíz NO cambia (ahí entra el personal)", async () => {
+    for (const host of ["kioscos-ideia.lytwyn-ideia.workers.dev", "localhost:3000"]) {
+      const res = await en(host);
+      expect(reescribe(res), host).toBeNull();
+      expect(res.headers.get("location"), host).toBeNull();
+    }
+  });
+  it("un dominio parecido no se confunde con el de clientes", async () => {
+    for (const host of ["www.angirufood.com.ar.evil.com", "xangirufood.com.ar", "www.angirufood.com"]) {
+      const res = await en(host);
+      expect(reescribe(res), host).toBeNull();
+      expect(res.headers.get("location"), host).toBeNull();
+    }
+  });
+});
+
 describe("sin variables de Supabase (/tenteo)", () => {
   it("/tenteo va a /login", async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;

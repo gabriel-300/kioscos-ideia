@@ -148,6 +148,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   concesionario **con acceso a Tenteo** (el kiosco ya no tiene el aviso), y cada uno cuenta solo sus sucursales.
 - **Seguimiento para el cliente**: `/pedir/[sucursal]/pedido/[id]`, sin cuenta. El enlace es secreto porque lleva el id del
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
+- **Dominio de clientes**: `www.angirufood.com.ar` (la versión sin www redirige a esa). Su raíz muestra "¿Dónde querés pedir?" con los locales que
+  tienen pedidos online habilitados; con un solo local habilitado va directo a su catálogo. En workers.dev la raíz sigue siendo el login del personal.
 - **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal.
 - **Clientes registrados y beneficios** (migración 099, **sin aplicar todavía**): el cliente puede ingresar con Google (es
   opcional: pedir sin cuenta sigue igual). A los registrados la sucursal les puede dar un **% de descuento sobre los

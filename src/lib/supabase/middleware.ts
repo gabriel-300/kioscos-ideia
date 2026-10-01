@@ -13,6 +13,7 @@ import {
   sistemaDeRuta,
   sistemaValido,
 } from "@/lib/auth/acceso";
+import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto } from "@/lib/dominios";
 
 // Las listas de roles y sistemas viven en lib/auth/acceso.ts (una sola fuente).
 
@@ -31,6 +32,23 @@ const VENDEDOR_BLOCKED_PREFIXES = [
 ];
 
 export async function updateSession(request: NextRequest) {
+  // ── Dominio de cara a los clientes (Angiru Food) ──────────────────────
+  // Antes que cualquier otra cosa y sin tocar la sesión: son páginas públicas.
+  const host = hostSinPuerto(request.headers.get("host") ?? request.nextUrl.hostname);
+  if (esDominioClientesSinWww(host)) {
+    // Una sola dirección oficial (con www): las sesiones son por dirección. Redirección
+    // temporal (307) a propósito: una permanente queda guardada en los navegadores.
+    const url = new URL(request.url);
+    url.protocol = "https:";
+    url.hostname = DOMINIO_CLIENTES;
+    url.port = "";
+    return NextResponse.redirect(url);
+  }
+  if (esDominioClientes(host) && request.nextUrl.pathname === "/") {
+    // La raíz muestra "¿Dónde querés pedir?" sin cambiar la dirección que ve el cliente.
+    return NextResponse.rewrite(new URL("/pedir", request.url));
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
