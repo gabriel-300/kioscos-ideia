@@ -9,8 +9,12 @@ const nextConfig: NextConfig = {
   // Temporales (307) a propósito: un 308 queda cacheado para siempre en el navegador.
   async redirects() {
     return [
-      { source: "/admin/pedidos-online/:path*", destination: "/tenteo/pedidos/:path*", permanent: false },
-      { source: "/admin/repartos/:path*", destination: "/tenteo/repartos/:path*", permanent: false },
+      // Reglas exactas y con subruta por separado: en producción (OpenNext) el comodín opcional
+      // ":path*" sin subruta quedaba literal en el destino ("/tenteo/pedidos/:path*").
+      { source: "/admin/pedidos-online", destination: "/tenteo/pedidos", permanent: false },
+      { source: "/admin/pedidos-online/:path+", destination: "/tenteo/pedidos/:path+", permanent: false },
+      { source: "/admin/repartos", destination: "/tenteo/repartos", permanent: false },
+      { source: "/admin/repartos/:path+", destination: "/tenteo/repartos/:path+", permanent: false },
     ];
   },
   async headers() {

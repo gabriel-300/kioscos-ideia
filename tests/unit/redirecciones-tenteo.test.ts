@@ -11,11 +11,12 @@ async function reglas() {
 
 async function destinoDe(ruta: string): Promise<string | null> {
   for (const r of await reglas()) {
-    const prefijo = r.source.replace("/:path*", "");
-    if (ruta === prefijo || ruta.startsWith(prefijo + "/")) {
-      const resto = ruta.slice(prefijo.length).replace(/^\//, "");
-      const base = r.destination.replace("/:path*", "");
-      return resto ? base + "/" + resto : base;
+    const conSubruta = r.source.endsWith("/:path+");
+    const prefijo = r.source.replace("/:path+", "");
+    if (conSubruta) {
+      if (ruta.startsWith(prefijo + "/") && ruta.length > prefijo.length + 1) return r.destination.replace("/:path+", ruta.slice(prefijo.length));
+    } else if (ruta === prefijo) {
+      return r.destination;
     }
   }
   return null;
@@ -31,6 +32,13 @@ describe("redirecciones de las URLs viejas de Tenteo", () => {
     for (const p of ["/admin/dashboard", "/admin/pedidoya", "/admin/repartos-x", "/pedir/parque", "/admin/sucursales/abc"]) {
       expect(await destinoDe(p), p).toBeNull();
     }
+  });
+  it("ningún destino conserva un comodín sin resolver (pasó en producción con ':path*')", async () => {
+    for (const r of await reglas()) {
+      if (r.source.endsWith("/:path+")) expect(r.destination.endsWith("/:path+")).toBe(true);
+      else expect(r.destination).not.toMatch(/:/);
+    }
+    expect(await destinoDe("/admin/pedidos-online")).not.toMatch(/:/);
   });
   it("son temporales (307): un 308 queda cacheado para siempre en el navegador", async () => {
     for (const r of await reglas()) expect(r.permanent).toBe(false);
