@@ -552,7 +552,7 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
 
       {showForm && <NuevoStaffForm sucursales={sucursales} onCreated={() => setShowForm(false)} />}
 
-      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
         {staff.length === 0 ? (
           <div className="p-10 text-center text-sm text-neutral-400">No hay usuarios con rol de staff.</div>
         ) : (
@@ -591,7 +591,7 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5 items-center">
+                      <div className="flex flex-nowrap gap-1.5 items-center">
                         {u.sistemas.map((s) => (
                           <Badge key={s} className={SISTEMA_BADGE[s]}>{SISTEMA_LABEL[s]}</Badge>
                         ))}

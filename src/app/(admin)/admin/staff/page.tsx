@@ -92,7 +92,7 @@ export default async function StaffPage() {
     }));
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Staff</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Usuarios con acceso al panel de administración</p>
