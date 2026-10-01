@@ -50,7 +50,7 @@ describe("/admin exige un rol de staff", () => {
 });
 
 describe("rutas solo de admin", () => {
-  const soloAdmin = ["/admin/categorias", "/admin/staff", "/admin/movimientos", "/admin/productos", "/admin/pedidos-online/configuracion"];
+  const soloAdmin = ["/admin/categorias", "/admin/staff", "/admin/movimientos", "/admin/productos"];
 
   it("encargado, vendedor y concesionario rebotan al dashboard", async () => {
     for (const r of ["encargado", "vendedor", "concesionario"]) {
@@ -66,9 +66,9 @@ describe("rutas solo de admin", () => {
     como("admin");
     for (const p of soloAdmin) expect((await ir(p)).redirige).toBeNull();
   });
-  it("/admin/pedidos-online (sin /configuracion) sí lo ve el staff de la sucursal", async () => {
-    como("encargado");
-    expect((await ir("/admin/pedidos-online")).redirige).toBeNull();
+  it("/tenteo/pedidos (sin /configuracion) sí lo ve el staff de la sucursal con Tenteo", async () => {
+    como("encargado", ["tenteo"]);
+    expect((await ir("/tenteo/pedidos")).redirige).toBeNull();
   });
 });
 
@@ -83,20 +83,20 @@ describe("pronóstico: encargado sí, vendedor no", () => {
   });
 });
 
-describe("repartidor: contención total a /admin/repartos", () => {
+describe("repartidor: contención total a /tenteo/repartos", () => {
   it("cualquier otra ruta del admin lo manda a su cola", async () => {
     como("repartidor");
-    for (const p of ["/admin/dashboard", "/admin/staff", "/admin/pedidos-online", "/admin/sucursales/abc", "/admin/tesoreria", "/admin"]) {
-      expect((await ir(p)).redirige, p).toBe("/admin/repartos");
+    for (const p of ["/admin/dashboard", "/admin/staff", "/tenteo/pedidos", "/admin/sucursales/abc", "/admin/tesoreria", "/admin", "/tenteo"]) {
+      expect((await ir(p)).redirige, p).toBe("/tenteo/repartos");
     }
   });
-  it("/admin/repartos pasa", async () => {
+  it("/tenteo/repartos pasa", async () => {
     como("repartidor");
-    expect((await ir("/admin/repartos")).redirige).toBeNull();
+    expect((await ir("/tenteo/repartos")).redirige).toBeNull();
   });
-  it("logueado en una página pública lo lleva a /admin/repartos (no al dashboard)", async () => {
+  it("logueado en una página pública lo lleva a /tenteo/repartos (no al dashboard)", async () => {
     como("repartidor");
-    expect((await ir("/")).redirige).toBe("/admin/repartos");
+    expect((await ir("/")).redirige).toBe("/tenteo/repartos");
   });
 });
 
@@ -126,7 +126,7 @@ describe("sin variables de Supabase", () => {
 
 // ── Separación kiosco / Tenteo ─────────────────────────────────────────
 // Sin el dato app_metadata.sistemas se trata como kiosco (nadie pierde acceso).
-// Las pantallas de Tenteo todavía viven bajo /admin y se controlan solo por rol.
+// Las pantallas de Tenteo viven en /tenteo (las rutas viejas redirigen desde next.config).
 
 describe("/tenteo exige rol de personal Y el sistema Tenteo", () => {
   it("sin sesión -> /login", async () => {
@@ -155,7 +155,7 @@ describe("/tenteo exige rol de personal Y el sistema Tenteo", () => {
   });
   it("la configuración de Tenteo es solo del admin", async () => {
     como("encargado", ["tenteo"]);
-    expect((await ir("/tenteo/pedidos/configuracion")).redirige).toBe("/admin/pedidos-online"); // su destino (transición)
+    expect((await ir("/tenteo/pedidos/configuracion")).redirige).toBe("/tenteo/pedidos"); // sin salir de Tenteo
     como("admin");
     expect((await ir("/tenteo/pedidos/configuracion")).redirige).toBeNull();
   });
@@ -165,7 +165,7 @@ describe("/admin exige el sistema kiosco", () => {
   it("personal solo de Tenteo no entra al kiosco: va a su sistema", async () => {
     como("vendedor", ["tenteo"]);
     for (const p of ["/admin/dashboard", "/admin/sucursales/abc", "/admin/stock"]) {
-      expect((await ir(p)).redirige, p).toBe("/admin/pedidos-online");
+      expect((await ir(p)).redirige, p).toBe("/tenteo/pedidos");
     }
   });
   it("personal con los dos sistemas entra al kiosco", async () => {
@@ -177,9 +177,9 @@ describe("/admin exige el sistema kiosco", () => {
     expect((await ir("/admin/dashboard")).redirige).toBeNull();
     expect((await ir("/tenteo/pedidos")).redirige).toBe("/admin/dashboard");
   });
-  it("(transición) quien atiende pedidos hoy sigue entrando a /admin/pedidos-online sin el dato", async () => {
-    como("vendedor");
-    expect((await ir("/admin/pedidos-online")).redirige).toBeNull();
+  it("las rutas de solo admin del kiosco rebotan al kiosco, no a Tenteo", async () => {
+    como("encargado", ["kiosco", "tenteo"]);
+    expect((await ir("/admin/categorias")).redirige).toBe("/admin/dashboard");
   });
 });
 
@@ -187,9 +187,9 @@ describe("repartidor (solo Tenteo): contenido también en /tenteo", () => {
   it("/tenteo/pedidos y el kiosco lo mandan a sus entregas, con o sin el dato", async () => {
     for (const s of [undefined, ["kiosco"]]) {
       como("repartidor", s);
-      expect((await ir("/tenteo/pedidos")).redirige).toBe("/admin/repartos");
-      expect((await ir("/admin/dashboard")).redirige).toBe("/admin/repartos");
-      expect((await ir("/admin/repartos")).redirige).toBeNull();
+      expect((await ir("/tenteo/pedidos")).redirige).toBe("/tenteo/repartos");
+      expect((await ir("/admin/dashboard")).redirige).toBe("/tenteo/repartos");
+      expect((await ir("/tenteo/repartos")).redirige).toBeNull();
     }
   });
 });
@@ -197,8 +197,31 @@ describe("repartidor (solo Tenteo): contenido también en /tenteo", () => {
 describe("páginas públicas: personal solo de Tenteo", () => {
   it("logueado en la home va a su sistema; en /tenteo y /pedir no lo redirigen", async () => {
     como("encargado", ["tenteo"]);
-    expect((await ir("/")).redirige).toBe("/admin/pedidos-online");
+    expect((await ir("/")).redirige).toBe("/tenteo/pedidos");
     expect((await ir("/pedir/parque")).redirige).toBeNull();
+  });
+  it("quien tiene los dos y eligió Tenteo vuelve a Tenteo desde la home; sin elección, al kiosco", async () => {
+    como("admin");
+    const conCookie = async (valor: string | null) => {
+      const req = new NextRequest("http://localhost/", valor ? { headers: { cookie: "sistema_preferido=" + valor } } : undefined);
+      const loc = (await updateSession(req)).headers.get("location");
+      return loc ? new URL(loc).pathname : null;
+    };
+    expect(await conCookie(null)).toBe("/admin/dashboard");
+    expect(await conCookie("tenteo")).toBe("/tenteo/pedidos");
+    expect(await conCookie("kiosco")).toBe("/admin/dashboard");
+    expect(await conCookie("basura")).toBe("/admin/dashboard");
+  });
+  it("la preferencia NO da acceso: un vendedor de kiosco con cookie 'tenteo' sigue en el kiosco", async () => {
+    como("vendedor");
+    const req = new NextRequest("http://localhost/", { headers: { cookie: "sistema_preferido=tenteo" } });
+    expect(new URL((await updateSession(req)).headers.get("location")!).pathname).toBe("/admin/dashboard");
+    const req2 = new NextRequest("http://localhost/tenteo/pedidos", { headers: { cookie: "sistema_preferido=tenteo" } });
+    expect(new URL((await updateSession(req2)).headers.get("location")!).pathname).toBe("/admin/dashboard");
+  });
+  it("el selector /elegir-sistema no se redirige a ningún panel (si no, nunca se vería)", async () => {
+    como("admin");
+    expect((await ir("/elegir-sistema")).redirige).toBeNull();
   });
   it("cliente de Google en la home o en el storefront: no se lo manda a ningún panel", async () => {
     como(undefined, ["kiosco", "tenteo"]);

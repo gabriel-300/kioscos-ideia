@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
+import { COOKIE_SISTEMA, destinoDeSistema, rolDe, sistemaValido, sistemasDe } from "@/lib/auth/acceso";
 
-export default async function AuthRedirectPage() {
+// Destino tras el login (y tras cambiar de sistema). Lee el rol y los sistemas
+// FRESCOS con la admin API. Un solo sistema: entra directo. Los dos: usa el
+// pedido (?sistema=) o la última elección guardada; si no hay ninguna, pregunta.
+export default async function AuthRedirectPage({ searchParams }: { searchParams: Promise<{ sistema?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -12,11 +16,19 @@ export default async function AuthRedirectPage() {
   const { data } = await admin.auth.admin.getUserById(user.id);
   const role = rolDe(data?.user) ?? undefined;
 
-  // Quien no es del kiosco (ej. el repartidor, o personal solo de Tenteo) va
-  // directo a su sistema. Sin rol de personal: al login.
-  if (role && !puedeEntrar(data?.user, "kiosco")) {
-    redirect(destinoPorDefecto(data?.user) ?? "/login");
-  }
+  const sistemas = sistemasDe(data?.user);
+  if (!role || sistemas.length === 0) redirect("/login");
+
+  const pedido = sistemaValido((await searchParams).sistema);
+  const guardado = sistemaValido((await cookies()).get(COOKIE_SISTEMA)?.value);
+  const elegido =
+    (pedido && sistemas.includes(pedido) ? pedido : null) ??
+    (sistemas.length === 1 ? sistemas[0] : null) ??
+    (guardado && sistemas.includes(guardado) ? guardado : null);
+
+  if (!elegido) redirect("/elegir-sistema");
+  // Personal de Tenteo (incluido el repartidor): directo a su sistema.
+  if (elegido === "tenteo") redirect(destinoDeSistema("tenteo", role));
 
   if (role === "admin") {
     redirect("/admin/dashboard");

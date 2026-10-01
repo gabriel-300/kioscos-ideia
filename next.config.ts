@@ -4,6 +4,15 @@ import type { NextConfig } from "next";
 // el admin y el storefront usan estilos y scripts en línea (tickets con document.write)
 // y una CSP mal puesta rompería la venta; se agrega aparte, con prueba en el navegador.
 const nextConfig: NextConfig = {
+  // Pedidos online y entregas se mudaron de /admin a /tenteo. Los enlaces viejos
+  // (favoritos, mensajes ya enviados, pestañas abiertas) siguen funcionando.
+  // Temporales (307) a propósito: un 308 queda cacheado para siempre en el navegador.
+  async redirects() {
+    return [
+      { source: "/admin/pedidos-online/:path*", destination: "/tenteo/pedidos/:path*", permanent: false },
+      { source: "/admin/repartos/:path*", destination: "/tenteo/repartos/:path*", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

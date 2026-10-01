@@ -2,9 +2,9 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
-import { esPersonal } from "@/lib/auth/acceso";
+import { esPersonal, puedeEntrar } from "@/lib/auth/acceso";
 
-// repartidor entra al layout pero middleware.ts lo contiene a /admin/repartos (ver ahí).
+// repartidor entra al layout pero middleware.ts lo contiene a /tenteo/repartos (ver ahí).
 // El control por sistema (kiosco/tenteo) lo hace el middleware, que conoce la ruta.
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -110,6 +110,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <NumberInputWheelGuard />
       <AdminNav
         role={role} email={email} name={name} sucursalId={sucursalId} esSocio={esSocio}
+        puedeTenteo={puedeEntrar(user, "tenteo")}
         auditoriaPendientes={auditoriaPendientes}
         alertasPrecioPendientes={alertasPrecioPendientes}
         transferenciasPendientes={transferenciasPendientes}

@@ -3,7 +3,7 @@ import { registrarVentaCobroEnEntrega } from "./crear-venta-publica";
 import { notificarCambioEstado } from "./notificar-cliente";
 
 // Máquina de estados de un pedido ya aceptado, compartida por las acciones de
-// staff (/admin/pedidos-online) y la del repartidor (/admin/repartos).
+// staff (/tenteo/pedidos) y la del repartidor (/tenteo/repartos).
 // Sin "use server": no es invocable desde el browser -- cada Server Action
 // que la usa hace antes su propio chequeo de rol y de acceso a la sucursal.
 

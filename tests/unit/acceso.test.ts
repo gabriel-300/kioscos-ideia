@@ -80,10 +80,9 @@ describe("sistemaDeRuta", () => {
   it("lo público no se controla por sistema", () => {
     for (const p of ["/", "/login", "/pedir/parque", "/auth/redirect", "/api/ping"]) expect(sistemaDeRuta(p), p).toBeNull();
   });
-  it("(transición) las pantallas de Tenteo que aún viven bajo /admin se controlan solo por rol", () => {
-    for (const p of ["/admin/pedidos-online", "/admin/pedidos-online/configuracion", "/admin/repartos"]) {
-      expect(sistemaDeRuta(p), p).toBeNull();
-    }
+  it("las pantallas de pedidos y entregas ya no están bajo /admin", () => {
+    expect(sistemaDeRuta("/tenteo/pedidos")).toBe("tenteo");
+    expect(sistemaDeRuta("/tenteo/repartos")).toBe("tenteo");
   });
 });
 
@@ -91,15 +90,15 @@ describe("destinoPorDefecto", () => {
   it("kiosco -> dashboard; repartidor -> sus entregas", () => {
     expect(destinoPorDefecto(u("vendedor"))).toBe("/admin/dashboard");
     expect(destinoPorDefecto(u("admin"))).toBe("/admin/dashboard");
-    expect(destinoPorDefecto(u("repartidor"))).toBe("/admin/repartos");
+    expect(destinoPorDefecto(u("repartidor"))).toBe("/tenteo/repartos");
   });
   it("personal solo de Tenteo -> pedidos", () => {
-    expect(destinoPorDefecto(u("encargado", ["tenteo"]))).toBe("/admin/pedidos-online");
+    expect(destinoPorDefecto(u("encargado", ["tenteo"]))).toBe("/tenteo/pedidos");
   });
   it("la preferencia mueve el destino solo entre sistemas que el usuario SÍ tiene", () => {
-    expect(destinoPorDefecto(u("admin"), "tenteo")).toBe("/admin/pedidos-online");
+    expect(destinoPorDefecto(u("admin"), "tenteo")).toBe("/tenteo/pedidos");
     expect(destinoPorDefecto(u("vendedor"), "tenteo")).toBe("/admin/dashboard"); // no tiene Tenteo: se ignora
-    expect(destinoPorDefecto(u("repartidor"), "kiosco")).toBe("/admin/repartos");
+    expect(destinoPorDefecto(u("repartidor"), "kiosco")).toBe("/tenteo/repartos");
   });
   it("sin rol: null (a /login)", () => {
     expect(destinoPorDefecto(u())).toBeNull();

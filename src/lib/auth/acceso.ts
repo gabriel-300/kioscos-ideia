@@ -23,16 +23,19 @@ export type Sistema = (typeof SISTEMAS)[number];
 // Lo mínimo que se lee de un usuario de Supabase Auth (acepta un User entero).
 export type UsuarioAcceso = { app_metadata?: Record<string, any> | null } | null | undefined;
 
-// Destinos. Mientras las pantallas de Tenteo vivan bajo /admin, estas dos
-// constantes apuntan ahí; cuando se muden, se cambian acá.
+// Destinos de cada sistema.
 export const RUTA_KIOSCO = "/admin/dashboard";
-export const RUTA_TENTEO_PEDIDOS = "/admin/pedidos-online";
-export const RUTA_TENTEO_REPARTOS = "/admin/repartos";
+export const RUTA_TENTEO_PEDIDOS = "/tenteo/pedidos";
+export const RUTA_TENTEO_REPARTOS = "/tenteo/repartos";
 
-// Rutas de Tenteo que todavía viven bajo /admin: se controlan solo por rol,
-// como siempre (el personal que atiende pedidos hoy no pierde acceso). Se
-// eliminan cuando las pantallas se muden a /tenteo.
-const RUTAS_EN_TRANSICION = [RUTA_TENTEO_PEDIDOS, RUTA_TENTEO_REPARTOS];
+// Última elección de quien tiene los dos sistemas. Es una comodidad para no
+// preguntar en cada login: solo mueve el destino, NUNCA da acceso (siempre se
+// contrasta contra sistemasDe).
+export const COOKIE_SISTEMA = "sistema_preferido";
+
+export function sistemaValido(valor: unknown): Sistema | null {
+  return typeof valor === "string" && (SISTEMAS as readonly string[]).includes(valor) ? (valor as Sistema) : null;
+}
 
 export function enRuta(pathname: string, prefijo: string): boolean {
   return pathname === prefijo || pathname.startsWith(prefijo + "/");
@@ -75,13 +78,17 @@ export function puedeEntrar(user: UsuarioAcceso, sistema: Sistema): boolean {
 // A qué sistema pertenece una ruta. null = no se controla por sistema.
 export function sistemaDeRuta(pathname: string): Sistema | null {
   if (enRuta(pathname, "/tenteo")) return "tenteo";
-  if (RUTAS_EN_TRANSICION.some((r) => enRuta(pathname, r))) return null;
   if (pathname.startsWith("/admin")) return "kiosco";
   return null;
 }
 
 export function destinoTenteo(rol: Rol | null): string {
   return rol === "repartidor" ? RUTA_TENTEO_REPARTOS : RUTA_TENTEO_PEDIDOS;
+}
+
+// Página de inicio de un sistema (para rebotar a alguien sin salir de su sistema).
+export function destinoDeSistema(sistema: Sistema, rol: Rol | null): string {
+  return sistema === "kiosco" ? RUTA_KIOSCO : destinoTenteo(rol);
 }
 
 // Adónde mandar al usuario cuando no corresponde donde está o recién entró.
@@ -92,5 +99,5 @@ export function destinoPorDefecto(user: UsuarioAcceso, preferido?: Sistema | nul
   if (sistemas.length === 0) return null;
   const elegido: Sistema =
     preferido && sistemas.includes(preferido) ? preferido : sistemas.includes("kiosco") ? "kiosco" : "tenteo";
-  return elegido === "kiosco" ? RUTA_KIOSCO : destinoTenteo(rolDe(user));
+  return destinoDeSistema(elegido, rolDe(user));
 }

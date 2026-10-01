@@ -4,6 +4,7 @@ import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PedidoOnlineAcciones } from "./_components/pedido-online-acciones";
 import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atender";
+import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Pedidos online — Kioscos IDEIA" };
@@ -32,12 +33,15 @@ export default async function PedidosOnlinePage() {
   const user = await getUser();
   if (!user) redirect("/login");
 
-  const role = user.app_metadata?.role as string | undefined;
-  if (!role || !["admin", "encargado", "vendedor", "concesionario"].includes(role)) redirect("/admin/dashboard");
+  // Personal con acceso a Tenteo (el repartidor tiene su propia pantalla: /tenteo/repartos).
+  const role = rolDe(user);
+  if (!role || !(ROLES_CON_SUCURSAL as readonly string[]).includes(role) || !puedeEntrar(user, "tenteo")) {
+    redirect(destinoPorDefecto(user) ?? "/login");
+  }
 
   // admin ve todas las sucursales; el resto, las suyas (un vendedor puede tener varias).
   const sucursales = await sucursalesVisibles(admin, user.id, role);
-  if (sucursales && sucursales.length === 0) redirect("/admin/dashboard");
+  const sinSucursales = !!sucursales && sucursales.length === 0;
 
   let query = (admin as any)
     .from("pedidos")
@@ -47,12 +51,12 @@ export default async function PedidosOnlinePage() {
     .limit(200);
   if (sucursales) query = query.in("sucursal_id", sucursales);
 
-  const { data: pedidosRaw } = await query;
+  const { data: pedidosRaw } = sinSucursales ? { data: [] } : await query;
 
   // Cartel con QR para pegar en el local: una sucursal por enlace.
   let sucursalesQr = (admin as any).from("sucursales").select("id, nombre").eq("is_active", true).eq("pedidos_online_habilitado", true).order("nombre");
   if (sucursales) sucursalesQr = sucursalesQr.in("id", sucursales);
-  const { data: sucursalesConQr } = await sucursalesQr as { data: { id: string; nombre: string }[] | null };
+  const { data: sucursalesConQr } = sinSucursales ? { data: [] } : await sucursalesQr as { data: { id: string; nombre: string }[] | null };
   // "pendiente_pago" solo interesa si es un pago por link que el local tiene
   // que confirmar a mano -- el resto (QR automático abandonado) es ruido.
   const ahora = Date.now();
@@ -86,7 +90,7 @@ export default async function PedidosOnlinePage() {
         ))}
         {role === "admin" && (
           <Link
-            href="/admin/pedidos-online/configuracion"
+            href="/tenteo/pedidos/configuracion"
             className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
           >
             Configuración de envíos y horarios
@@ -97,7 +101,7 @@ export default async function PedidosOnlinePage() {
 
       {pedidos.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">
-          No hay pedidos online activos en este momento.
+          {sinSucursales ? "No tenés una sucursal asignada: pedile al administrador que te asigne una." : "No hay pedidos online activos en este momento."}
         </div>
       ) : (
         <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden overflow-x-auto">

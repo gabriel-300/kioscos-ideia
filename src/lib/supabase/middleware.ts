@@ -2,13 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 import {
+  COOKIE_SISTEMA,
   RUTA_TENTEO_REPARTOS,
+  destinoDeSistema,
   destinoPorDefecto,
   enRuta,
   esPersonal,
   puedeEntrar,
   rolDe,
   sistemaDeRuta,
+  sistemaValido,
 } from "@/lib/auth/acceso";
 
 // Las listas de roles y sistemas viven en lib/auth/acceso.ts (una sola fuente).
@@ -19,7 +22,6 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/staff",
   "/admin/movimientos",
   "/admin/productos",
-  "/admin/pedidos-online/configuracion",
   "/tenteo/pedidos/configuracion",
 ];
 
@@ -77,13 +79,16 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL("/login", request.url));
       }
       const role = rolDe(user);
-      const destino = destinoPorDefecto(user) ?? "/login";
+      // Para rebotar sin salir del sistema donde está (las rutas de solo admin de
+      // Tenteo vuelven a Tenteo, las del kiosco al kiosco).
+      const sistemaRuta = sistemaDeRuta(pathname) ?? "kiosco";
+      const destinoZona = destinoDeSistema(sistemaRuta, role);
 
       // Cada zona exige pertenecer a su sistema. Quien no, vuelve a donde sí
       // puede estar (el destino siempre es de un sistema permitido: no hay bucle).
       const sistema = sistemaDeRuta(pathname);
       if (sistema && !puedeEntrar(user, sistema)) {
-        return NextResponse.redirect(new URL(destino, request.url));
+        return NextResponse.redirect(new URL(destinoPorDefecto(user) ?? "/login", request.url));
       }
 
       // Encargados, vendedores y concesionarios no pueden acceder a rutas
@@ -91,12 +96,12 @@ export async function updateSession(request: NextRequest) {
       // GLOBAL (todas las sucursales comparten el mismo SKU), así que ni el
       // concesionario ve el de otros locales acá.
       if ((role === "encargado" || role === "vendedor" || role === "concesionario") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
-        return NextResponse.redirect(new URL(destino, request.url));
+        return NextResponse.redirect(new URL(destinoZona, request.url));
       }
 
       // Pronóstico: encargado sí, vendedor no
       if (role === "vendedor" && VENDEDOR_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p))) {
-        return NextResponse.redirect(new URL(destino, request.url));
+        return NextResponse.redirect(new URL(destinoZona, request.url));
       }
 
       // Repartidor: contención total, no una lista de exclusiones como el
@@ -121,8 +126,8 @@ export async function updateSession(request: NextRequest) {
     // /pedir tampoco: es el storefront público (catálogo por sucursal) -- un
     // admin/encargado/vendedor tiene que poder mirarlo igual que un cliente
     // cualquiera, sin que lo manden de vuelta al dashboard.
-    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/tenteo") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
-      const destino = destinoPorDefecto(user);
+    if (user && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/tenteo") && !pathname.startsWith("/elegir-sistema") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
+      const destino = destinoPorDefecto(user, sistemaValido(request.cookies.get(COOKIE_SISTEMA)?.value));
       if (destino) return NextResponse.redirect(new URL(destino, request.url));
     }
   } catch {

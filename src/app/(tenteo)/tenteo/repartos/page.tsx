@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 
 export const revalidate = 0;
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Mis entregas — Kioscos IDEIA" };
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 // Repartidor es un rol aparte, contenido en middleware.ts a solo esta
-// ruta -- acá se repite el mismo chequeo a nivel de página (no se depende
+// ruta (/tenteo/repartos) -- acá se repite el mismo chequeo a nivel de página (no se depende
 // solo del middleware), mismo criterio de "defensa en profundidad" que el
 // resto del proyecto. Admin puede entrar para supervisar.
 export default async function RepartosPage() {
@@ -19,8 +20,8 @@ export default async function RepartosPage() {
   const user = await getUser();
   if (!user) redirect("/login");
 
-  const role = user.app_metadata?.role as string | undefined;
-  if (role !== "repartidor" && role !== "admin") redirect("/admin/dashboard");
+  const role = rolDe(user);
+  if ((role !== "repartidor" && role !== "admin") || !puedeEntrar(user, "tenteo")) redirect(destinoPorDefecto(user) ?? "/login");
 
   let query = (admin as any)
     .from("pedidos")

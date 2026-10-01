@@ -16,7 +16,7 @@ test.describe("contención de rutas y endpoints sin credenciales", () => {
   });
 
   test("/admin/staff y /admin/cierres sin sesión también redirigen", async ({ page }) => {
-    for (const ruta of ["/admin/staff", "/admin/cierres", "/admin/tesoreria", "/admin/repartos"]) {
+    for (const ruta of ["/admin/staff", "/admin/cierres", "/admin/tesoreria", "/admin/repartos", "/tenteo/pedidos", "/tenteo/repartos", "/tenteo/pedidos/configuracion"]) {
       await page.goto(ruta);
       await expect(page).toHaveURL(/\/login/);
     }

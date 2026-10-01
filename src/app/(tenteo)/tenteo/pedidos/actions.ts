@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/require-role";
+import { requireStaffTenteo } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { aplicarTransicion } from "@/lib/pedidos/transiciones";
 import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
@@ -12,22 +12,22 @@ import { notificarCambioEstado } from "@/lib/pedidos/notificar-cliente";
 // Fase 5 del storefront (delivery, ver plan): primera pantalla del admin
 // para ver pedidos que vinieron del storefront/bot de WhatsApp más allá de
 // la venta que terminan generando. La máquina de estados vive en
-// src/lib/pedidos/transiciones.ts (la comparte /admin/repartos).
+// src/lib/pedidos/transiciones.ts (la comparte /tenteo/repartos).
 
 function refrescar() {
-  revalidatePath("/admin/pedidos-online");
-  revalidatePath("/admin/repartos");
+  revalidatePath("/tenteo/pedidos");
+  revalidatePath("/tenteo/repartos");
 }
 
 // Lo consulta el menú del admin cada pocos segundos (aviso de pedido nuevo).
 // Solo devuelve una cantidad, acotada a las sucursales del usuario.
 export async function consultarPedidosPorAtender(): Promise<number> {
-  const { userId, role } = await requireStaff();
+  const { userId, role } = await requireStaffTenteo();
   return contarPedidosPorAtender(createAdminClient(), userId, role);
 }
 
 export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string): Promise<{ error?: string }> {
-  const { userId, role } = await requireStaff();
+  const { userId, role } = await requireStaffTenteo();
   const admin = createAdminClient();
 
   const { data: pedido } = await (admin as any)
@@ -51,7 +51,7 @@ export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string)
 // no una tarea de turno -- mismo criterio que ya usa reposicion.ts para
 // excluir vendedor/concesionario de decisiones de compra.
 export async function asignarRepartidor(pedidoId: string, repartidorUserId: string): Promise<{ error?: string }> {
-  const { userId, role } = await requireStaff();
+  const { userId, role } = await requireStaffTenteo();
   if (role === "vendedor" || role === "concesionario") return { error: "No tenés permisos para asignar repartidor" };
   const admin = createAdminClient();
 
@@ -84,7 +84,7 @@ export async function asignarRepartidor(pedidoId: string, repartidorUserId: stri
 // crearVentaPublica: hace la transición pendiente_pago -> pagado y la venta.
 // Confirmar que entró plata es una decisión de dueño/encargado, no de turno.
 export async function confirmarPagoRecibido(pedidoId: string): Promise<{ error?: string }> {
-  const { userId, role } = await requireStaff();
+  const { userId, role } = await requireStaffTenteo();
   if (role !== "admin" && role !== "encargado") return { error: "No tenés permisos para confirmar pagos" };
   const admin = createAdminClient();
 
@@ -113,7 +113,7 @@ export async function confirmarPagoRecibido(pedidoId: string): Promise<{ error?:
 // Solo pedidos que todavía no generaron una venta: los cobrados por Mercado
 // Pago ya tienen movimiento y se anulan desde la venta, no desde acá.
 export async function cancelarPedido(pedidoId: string): Promise<{ error?: string }> {
-  const { userId, role } = await requireStaff();
+  const { userId, role } = await requireStaffTenteo();
   const admin = createAdminClient();
 
   const { data: pedido } = await (admin as any)

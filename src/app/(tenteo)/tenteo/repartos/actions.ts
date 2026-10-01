@@ -25,7 +25,7 @@ export async function marcarEntregadoRepartidor(pedidoId: string): Promise<{ err
   const res = await aplicarTransicion(admin, pedido, "entregado");
   if (res.error) return res;
 
-  revalidatePath("/admin/repartos");
-  revalidatePath("/admin/pedidos-online");
+  revalidatePath("/tenteo/repartos");
+  revalidatePath("/tenteo/pedidos");
   return {};
 }

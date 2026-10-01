@@ -23,7 +23,7 @@ export type ConfigSucursalInput = {
 };
 
 function refrescar() {
-  revalidatePath("/admin/pedidos-online/configuracion");
+  revalidatePath("/tenteo/pedidos/configuracion");
   revalidatePath("/pedir/[sucursal]", "page");
 }
 

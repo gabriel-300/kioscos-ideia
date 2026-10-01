@@ -21,11 +21,11 @@ export default async function ConfiguracionPedidosOnlinePage({
 
   const user = await getUser();
   if (!user) redirect("/login");
-  if (user.app_metadata?.role !== "admin") redirect("/admin/pedidos-online");
+  if (user.app_metadata?.role !== "admin") redirect("/tenteo/pedidos");
 
   const { data: sucursales } = await admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre");
   const lista = (sucursales ?? []) as { id: string; nombre: string }[];
-  if (lista.length === 0) redirect("/admin/pedidos-online");
+  if (lista.length === 0) redirect("/tenteo/pedidos");
 
   const sp = await searchParams;
   const seleccionada = lista.find((s) => s.id === sp.sucursal) ?? lista[0];
@@ -48,7 +48,7 @@ export default async function ConfiguracionPedidosOnlinePage({
   return (
     <div className="p-4 md:p-8 max-w-[900px]">
       <div className="mb-5">
-        <Link href="/admin/pedidos-online" className="text-xs text-neutral-400 hover:underline">← Pedidos online</Link>
+        <Link href="/tenteo/pedidos" className="text-xs text-neutral-400 hover:underline">← Pedidos online</Link>
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900 mt-1">Configuración de pedidos online</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Cada sucursal tiene sus propios envíos, precios y horarios.</p>
       </div>
@@ -57,7 +57,7 @@ export default async function ConfiguracionPedidosOnlinePage({
         {lista.map((s) => (
           <Link
             key={s.id}
-            href={`/admin/pedidos-online/configuracion?sucursal=${s.id}`}
+            href={`/tenteo/pedidos/configuracion?sucursal=${s.id}`}
             className={`px-3.5 py-2 rounded-full text-sm font-semibold border transition-colors ${
               s.id === seleccionada.id ? "bg-tierra-700 text-white border-tierra-700" : "bg-white text-neutral-600 border-neutral-200 hover:border-tierra-300"
             }`}

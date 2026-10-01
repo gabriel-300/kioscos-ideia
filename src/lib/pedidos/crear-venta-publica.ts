@@ -5,7 +5,7 @@ import { fechaHoyAR } from "@/lib/fecha";
 // desde el browser, solo se llama desde el webhook de Mercado Pago
 // (src/app/api/webhooks/mercadopago/route.ts) después de que el pago ya está
 // confirmado contra la API de MP, y desde las acciones de staff de
-// /admin/pedidos-online (que hacen su propio chequeo de rol antes). Mismo criterio que
+// /tenteo/pedidos (que hacen su propio chequeo de rol antes). Mismo criterio que
 // src/lib/auth/sucursal-access.ts: un módulo server-side interno, no una
 // puerta de entrada pública.
 //

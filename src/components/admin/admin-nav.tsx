@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createBrowserClient } from "@supabase/ssr";
-import { usePedidosPorAtender } from "./use-pedidos-por-atender";
 
 /* ─── Tokens ─────────────────────────────────── */
 const NAVY     = "#12312A";                                          // verde profundo (marca)
@@ -68,10 +67,6 @@ type NavGroup = { label: string; icon: string; children: NavItem[] };
 const NAV_HEAD: NavItem[] = [
   { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                                          icon: "dashboard" },
   { href: "/admin/sucursales", label: "Kioscos",   roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "sucursales" },
-  // Fase 5 del storefront (delivery): repartidor solo ve esta entrada -- el
-  // resto del admin le queda bloqueado en middleware.ts, no hace falta
-  // excluirlo del resto de NAV_GROUPS/NAV_TAIL uno por uno.
-  { href: "/admin/repartos",   label: "Mis entregas", roles: ["admin", "repartidor"],                          icon: "delivery" },
 ];
 
 // Agrupados en dropdown — demasiados módulos sueltos para una barra horizontal
@@ -88,7 +83,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/ventas-diarias",      label: "Por día",          roles: ["admin", "concesionario"], icon: "ventasdiarias" },
       { href: "/admin/ventas-por-horario",  label: "Por horario",      roles: ["admin", "concesionario"], icon: "horario" },
       { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin", "concesionario"], icon: "staff" },
-      { href: "/admin/pedidos-online",     label: "Pedidos online",   roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ventas" },
       { href: "/admin/comandera-offline",  label: "Comandera offline", roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ventas" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
       { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
@@ -153,12 +147,13 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, esSocio = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, esSocio = false, puedeTenteo = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
   sucursalId?: string | null;
   esSocio?:    boolean;
+  puedeTenteo?: boolean; // tiene los dos sistemas: se muestra el enlace para cambiar a Tenteo
   auditoriaPendientes?: number;
   alertasPrecioPendientes?: number;
   transferenciasPendientes?: number;
@@ -170,10 +165,8 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
   // un caso especial en cada filtro -- profiles.es_socio es ortogonal al rol
   // real (un vendedor o encargado puede ser socio igual).
   const effectiveRoles = [role ?? "", ...(esSocio ? ["socio"] : [])];
-  // Aviso de pedido nuevo: solo el personal que atiende pedidos (no el repartidor).
-  const pedidosPorAtender = usePedidosPorAtender(["admin", "encargado", "vendedor", "concesionario"].includes(role ?? ""));
+  // El aviso de pedido nuevo vive en la zona de Tenteo (components/tenteo).
   const badgeCounts: Record<string, number> = {
-    "/admin/pedidos-online": pedidosPorAtender,
     "/admin/auditoria":      auditoriaPendientes,
     "/admin/alertas-precio": alertasPrecioPendientes,
     "/admin/transferencias": transferenciasPendientes,
@@ -181,7 +174,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
     "/admin/conciliacion-mercadopago": conciliacionPendientes,
   };
   const stockGroupPendientes  = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
-  const ventasGroupPendientes = conciliacionPendientes + pedidosPorAtender;
+  const ventasGroupPendientes = conciliacionPendientes;
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
@@ -262,7 +255,11 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, audit
     .map((g) => ({ ...g, children: g.children.filter(hasAccess) }))
     .filter((g) => g.children.length > 0);
 
-  const visibleTail = NAV_TAIL.filter(hasAccess);
+  // Cambiar de sistema pasa por /auth/sistema, que además recuerda la elección.
+  const visibleTail = [
+    ...NAV_TAIL.filter(hasAccess),
+    ...(puedeTenteo ? [{ href: "/auth/sistema?ir=tenteo", label: "Ir a Tenteo", roles: [], icon: "delivery" }] : []),
+  ];
 
   const initials = ((name ?? email ?? "?")[0] ?? "?").toUpperCase();
 
