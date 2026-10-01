@@ -1,8 +1,8 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-09-19) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-01) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **43 tablas y vistas**, **119 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **44 tablas y vistas**, **121 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -385,6 +385,11 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `retiro_eta_max` | entero | Minutos máximos de demora para retiro. |
 | `whatsapp_pedidos` | texto | Número al que el cliente escribe desde el catálogo. |
 | `horario_pedidos` | datos JSON | Horarios de atención de pedidos online (por día). |
+| `descuento_cliente_pct` | número | Porcentaje de descuento para clientes registrados con Google (0 = sin descuento). |
+| `descuento_cliente_solo_primera` | sí / no | Si el descuento vale solo en la primera compra. |
+| `envio_gratis_primera_compra` | sí / no | Si la primera compra del cliente registrado no paga envío. |
+| `latitud` | número | Latitud del local (la carga el admin en Tenteo); sirve para ordenar los locales por cercanía en /pedir. Vacía = sin ubicación. |
+| `longitud` | número | Longitud del local (ver latitud). |
 
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
@@ -959,10 +964,14 @@ erDiagram
   pedidos ||--o{ pedido_items : "pedido_id"
   products |o--o{ pedido_items : "product_id"
   promos |o--o{ pedido_items : "promo_id"
+  clientes |o--o{ pedidos : "cliente_id"
   contactos_crm |o--o{ pedidos : "contacto_id"
   movimientos |o--o{ pedidos : "movimiento_id"
   zonas_entrega |o--o{ pedidos : "zona_entrega_id"
   pedidos {
+    uuid id PK
+  }
+  clientes {
     uuid id PK
   }
   pedido_items {
@@ -1020,12 +1029,28 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `eta_min` | entero | Demora estimada mínima (minutos). |
 | `eta_max` | entero | Demora estimada máxima (minutos). |
 | `numero` | entero · obligatoria | Número correlativo visible para el cliente. |
+| `cliente_id` | id → clientes | Cliente registrado (con Google) que hizo el pedido; vacío = pidió sin cuenta. |
 
 Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 
-**Apunta a:** `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
+**Apunta a:** `cliente_id` → `clientes` · `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
 **Personas (auth.users):** `repartidor_id`  
 **La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id)
+
+### `clientes`
+
+**Clientes registrados con Google.** Quien ingresa con Google al pedir online queda acá (es una cuenta sin rol del personal). Les corresponden los beneficios de cada local; quien pide sin cuenta no figura.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `nombre` | texto | Nombre con el que hizo el último pedido. |
+| `telefono` | texto | Teléfono con el que hizo el último pedido. |
+| `telefono_verificado_at` | fecha y hora | Cuándo se verificó el teléfono (lo marca solo el servidor; cambia si el número cambia). |
+
+Otras columnas: `id`, `created_at`.
+
+**Su `id` es el usuario de** `auth.users`  
+**La usan:** `pedidos` (cliente_id)
 
 ### `pedido_items`
 

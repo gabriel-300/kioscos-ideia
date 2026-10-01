@@ -55,6 +55,8 @@ const DOMINIOS = [
       mercadopago_pos_id: "Caja de Mercado Pago del local (para el cobro con QR).", pedidoya_store_id: "Identificador del local en Pedido Ya.", whatsapp_phone_number_id: "Número de WhatsApp Business del local (para el bot).", whatsapp_pedidos: "Número al que el cliente escribe desde el catálogo.",
       pedidos_online_habilitado: "Si acepta pedidos por el catálogo público.", delivery_habilitado: "Si hace envíos.", retiro_habilitado: "Si permite retirar en el local.", horario_pedidos: "Horarios de atención de pedidos online (por día).", pedido_minimo_envio: "Monto mínimo para pedir con envío.",
       retiro_eta_min: "Minutos mínimos de demora para retiro.", retiro_eta_max: "Minutos máximos de demora para retiro.",
+      latitud: "Latitud del local (la carga el admin en Tenteo); sirve para ordenar los locales por cercanía en /pedir. Vacía = sin ubicación.", longitud: "Longitud del local (ver latitud).",
+      descuento_cliente_pct: "Porcentaje de descuento para clientes registrados con Google (0 = sin descuento).", descuento_cliente_solo_primera: "Si el descuento vale solo en la primera compra.", envio_gratis_primera_compra: "Si la primera compra del cliente registrado no paga envío.",
     }),
     T("movimientos", "Cabecera de cada movimiento de stock o de plata", "Una fila por operación: una venta, una entrega de mercadería, una merma, un ajuste, una devolución o cada punta de una transferencia. Las líneas están en movimiento_items.", {
       tipo: "venta, entrega, devolucion, ajuste, merma, transferencia_salida o transferencia_entrada.", canal: "Cómo se vendió (texto libre): consumidor_final, pedido_ya_efectivo, pedido_ya_plataforma, cuenta_corriente, ambulante, ronda_comunidad, multa_termo, pedido_online.",
@@ -122,9 +124,12 @@ const DOMINIOS = [
 
   D("pedidos", "Pedidos online", "Lo que pide el cliente por el catálogo público o por WhatsApp, hasta que se cobra y se entrega.", [
     T("pedidos", "Un pedido de un cliente", "Es una reserva con su propio ciclo de vida. Cuando se cobra (o se entrega, en efectivo) se crea la venta real en movimientos.", {
-      estado: "pendiente_pago, confirmado, pagado, en_preparacion, listo_retiro, en_reparto, entregado, cancelado o expirado (también carrito).", origen: "storefront (catálogo web) o whatsapp (bot).", tipo_entrega: "retiro_local o delivery.", medio_pago: "efectivo, mercadopago_link o mercadopago_qr.",
+      cliente_id: "Cliente registrado (con Google) que hizo el pedido; vacío = pidió sin cuenta.", estado: "pendiente_pago, confirmado, pagado, en_preparacion, listo_retiro, en_reparto, entregado, cancelado o expirado (también carrito).", origen: "storefront (catálogo web) o whatsapp (bot).", tipo_entrega: "retiro_local o delivery.", medio_pago: "efectivo, mercadopago_link o mercadopago_qr.",
       subtotal: "Suma de los productos (calculada por el servidor).", costo_envio: "Costo del envío según la zona (calculado por el servidor).", total: "Subtotal + envío.", pago_con: "En efectivo: con cuánto va a pagar (para el vuelto).",
       movimiento_id: "La venta que se creó al cobrar (vacío = todavía no hay venta).", repartidor_id: "Repartidor asignado.", expira_en: "Vence el pago pendiente (2 horas en link de pago).", zona_entrega_id: "Zona de envío elegida.", bot_paso: "Estado de la conversación del bot de WhatsApp (guarda el carrito en armado).", numero: "Número correlativo visible para el cliente.",
+    }),
+    T("clientes", "Clientes registrados con Google", "Quien ingresa con Google al pedir online queda acá (es una cuenta sin rol del personal). Les corresponden los beneficios de cada local; quien pide sin cuenta no figura.", {
+      nombre: "Nombre con el que hizo el último pedido.", telefono: "Teléfono con el que hizo el último pedido.", telefono_verificado_at: "Cuándo se verificó el teléfono (lo marca solo el servidor; cambia si el número cambia).",
     }),
     T("pedido_items", "Productos de cada pedido", "Cada línea con el precio que calculó el servidor (el cliente nunca manda precios).", { precio_unitario: "Precio por unidad (vacío en las líneas de un combo).", subtotal: "Importe de la línea." }),
     T("zonas_entrega", "Zonas de envío y su costo", "Cada sucursal define sus zonas, cuánto cuesta el envío y la demora. Hoy no hay ninguna cargada.", { costo: "Costo del envío a esa zona.", eta_min: "Minutos mínimos de demora.", eta_max: "Minutos máximos de demora.", orden: "Orden en que se muestran." }),
