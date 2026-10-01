@@ -43,9 +43,25 @@ describe("armarSeguimiento", () => {
 });
 
 describe("enlaces", () => {
+  const ENV = { ...process.env };
+  afterEach(() => { process.env = { ...ENV }; });
+
   it("el seguimiento cuelga del catálogo de la sucursal", () => {
     expect(urlSeguimiento("s1", "p1")).toBe(`${urlCatalogo("s1")}/pedido/p1`);
-    expect(urlCatalogo("s1")).toMatch(/^https:\/\/.+\/pedir\/s1$/);
+  });
+  it("por defecto apuntan al dominio de clientes (QR, seguimiento, bot)", () => {
+    delete process.env.URL_CLIENTES;
+    expect(urlCatalogo("s1")).toBe("https://www.angirufood.com.ar/pedir/s1");
+    expect(urlSeguimiento("s1", "p1")).toBe("https://www.angirufood.com.ar/pedir/s1/pedido/p1");
+  });
+  it("NO siguen a NEXT_PUBLIC_SITE_URL (esa es la dirección del aviso de pagos de Mercado Pago de los kioscos)", () => {
+    delete process.env.URL_CLIENTES;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://otra-cosa.test";
+    expect(urlCatalogo("s1")).toBe("https://www.angirufood.com.ar/pedir/s1");
+  });
+  it("URL_CLIENTES permite otra base para probar en local, sin barra final", () => {
+    process.env.URL_CLIENTES = "http://localhost:3000/";
+    expect(urlCatalogo("s1")).toBe("http://localhost:3000/pedir/s1");
   });
 });
 

@@ -1,12 +1,16 @@
 // Enlaces absolutos a las páginas públicas de pedidos, para poner en mensajes
-// de WhatsApp o en el QR impreso. Un solo lugar para la URL base: el mismo
-// fallback que ya usa el resto del proyecto (mercadopago-actions.ts) hasta que
-// haya dominio propio -- ahí alcanza con cargar NEXT_PUBLIC_SITE_URL.
+// de WhatsApp o en el QR impreso. Siempre apuntan al dominio de clientes
+// (lib/dominios.ts), sin variable de build.
+//
+// A propósito NO usan NEXT_PUBLIC_SITE_URL: esa variable la usa también el cobro con
+// QR de Mercado Pago de los kioscos (le dice a MP adónde avisar los pagos,
+// mercadopago-actions.ts) y no debe moverse junto con el dominio de clientes.
+// URL_CLIENTES permite otra base, solo para probar en local.
 
-const BASE_POR_DEFECTO = "https://kioscos-ideia.lytwyn-ideia.workers.dev";
+import { DOMINIO_CLIENTES } from "@/lib/dominios";
 
 export function urlBase(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || BASE_POR_DEFECTO).replace(/\/+$/, "");
+  return (process.env.URL_CLIENTES || `https://${DOMINIO_CLIENTES}`).replace(/\/+$/, "");
 }
 
 export function urlCatalogo(sucursalId: string): string {

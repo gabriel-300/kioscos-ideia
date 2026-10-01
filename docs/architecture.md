@@ -528,7 +528,8 @@ cliente de Google no debe aparecer sin sesión según por dónde entre. Su raíz
 locales con pedidos online habilitados, `lib/pedidos/locales.ts`; con un solo local va directo a su catálogo) sin cambiar la dirección
 que ve el cliente. En workers.dev la raíz no cambia: ahí entra el personal. El personal también puede entrar por el dominio nuevo
 (/login, /admin, /tenteo siguen protegidos igual). Para el ingreso con Google, `https://www.angirufood.com.ar/**` tiene que estar en
-las Redirect URLs de Supabase.
+las Redirect URLs de Supabase. Los enlaces absolutos para clientes (QR, seguimiento, mensajes del bot: `lib/pedidos/enlaces.ts`) usan siempre este
+dominio y NO dependen de `NEXT_PUBLIC_SITE_URL`, que solo usa el cobro con QR de Mercado Pago de los kioscos para decirle a MP adónde avisar los pagos.
 
 **El servidor recalcula todo** (`src/lib/pedidos/crear-pedido-publico.ts`): el tipo de entrada **no lleva precio**;
 `resolverItemsPedido` toma los precios de `product_prices`/`promo_prices` de la sucursal, revalida categorías, promos y

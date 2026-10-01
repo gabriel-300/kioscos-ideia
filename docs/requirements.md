@@ -150,7 +150,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
 - **Dominio de clientes**: `www.angirufood.com.ar` (la versión sin www redirige a esa). Su raíz muestra "¿Dónde querés pedir?" con los locales que
   tienen pedidos online habilitados; con un solo local habilitado va directo a su catálogo. En workers.dev la raíz sigue siendo el login del personal.
-- **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal.
+- **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal. El código QR, el enlace de seguimiento
+  y los mensajes del bot usan siempre `https://www.angirufood.com.ar/...`.
 - **Clientes registrados y beneficios** (migración 099, **sin aplicar todavía**): el cliente puede ingresar con Google (es
   opcional: pedir sin cuenta sigue igual). A los registrados la sucursal les puede dar un **% de descuento sobre los
   productos** (nunca sobre el envío; opcionalmente solo en la primera compra) y/o **envío gratis en la primera compra**.
