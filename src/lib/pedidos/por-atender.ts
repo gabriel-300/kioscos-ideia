@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 
 // Qué pedidos online esperan una acción del local y a qué sucursales puede
 // mirar cada usuario. Lo comparten la pantalla de pedidos online y el aviso de
@@ -28,25 +29,9 @@ export function cuentaComoPorAtender(p: PedidoParaContar, ahora = Date.now()): b
 }
 
 // null = todas las sucursales (admin). Lista vacía = el usuario no tiene ninguna
-// asignada. Un vendedor puede estar en varias (profile_sucursales); la columna
-// vieja profiles.sucursal_id se usa solo si todavía no tiene filas ahí.
-export async function sucursalesVisibles(admin: Admin, userId: string, role: string): Promise<string[] | null> {
-  if (role === "admin") return null;
-
-  if (role === "encargado" || role === "concesionario") {
-    const { data } = await admin.from("sucursales").select("id").eq("encargado_user_id", userId);
-    return ((data ?? []) as { id: string }[]).map((s) => s.id);
-  }
-
-  if (role === "vendedor") {
-    const { data: asignadas } = await (admin as any).from("profile_sucursales").select("sucursal_id").eq("profile_id", userId);
-    const ids = ((asignadas ?? []) as { sucursal_id: string }[]).map((r) => r.sucursal_id);
-    if (ids.length > 0) return ids;
-    const { data: perfil } = await (admin as any).from("profiles").select("sucursal_id").eq("id", userId).single();
-    return perfil?.sucursal_id ? [perfil.sucursal_id as string] : [];
-  }
-
-  return [];
+// asignada. Qué sucursales tiene cada persona lo sabe el kiosco: se pregunta por el puerto.
+export function sucursalesVisibles(admin: Admin, userId: string, role: string): Promise<string[] | null> {
+  return puertoKiosco(admin).sucursalesDelUsuario(userId, role);
 }
 
 export async function contarPedidosPorAtender(admin: Admin, userId: string, role: string): Promise<number> {

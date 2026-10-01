@@ -1,4 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import type { createAdminClient } from "@/lib/supabase/server";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 import type { ItemPedidoResuelto } from "./pricing";
 
 // El chequeo de stock negativo está desactivado GLOBALMENTE en
@@ -25,14 +26,10 @@ export async function chequearStockLiviano(
     requeridoPorProducto.set(item.product_id, (requeridoPorProducto.get(item.product_id) ?? 0) + item.cantidad);
   }
 
-  const { data: stockRows, error } = await (admin as any)
-    .from("stock_sucursal")
-    .select("product_id, product_name, stock_actual")
-    .eq("sucursal_id", sucursalId)
-    .in("product_id", productIds);
-  if (error) return null; // best-effort -- si falla la consulta, no bloquea el pedido por esto
+  const stockRows = await puertoKiosco(admin).stock(sucursalId, productIds);
+  if (!stockRows) return null; // best-effort -- si falla la consulta, no bloquea el pedido por esto
 
-  const stockMap = new Map((stockRows ?? []).map((r: any) => [r.product_id, r]));
+  const stockMap = new Map(stockRows.map((r) => [r.product_id, r]));
 
   for (const [productId, cantidadRequerida] of requeridoPorProducto) {
     const row = stockMap.get(productId) as { product_name: string; stock_actual: number } | undefined;

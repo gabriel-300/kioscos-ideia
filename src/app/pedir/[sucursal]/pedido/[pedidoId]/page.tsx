@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { armarSeguimiento } from "@/lib/pedidos/seguimiento";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 import { fmt } from "../../_lib/tema";
 import { AutoRefrescar } from "./auto-refrescar";
 
@@ -64,14 +65,12 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
 
   const productIds = [...new Set(filas.flatMap((f) => (f.product_id ? [f.product_id] : [])))];
   const promoIds = [...new Set(filas.flatMap((f) => (f.promo_id ? [f.promo_id] : [])))];
-  const [{ data: productos }, { data: promos }] = await Promise.all([
-    productIds.length ? (admin as any).from("products").select("id, name").in("id", productIds) : { data: [] },
-    promoIds.length ? (admin as any).from("promos").select("id, name").in("id", promoIds) : { data: [] },
-  ]);
+  // Los nombres de productos y promos son del kiosco: se piden por el puerto.
+  const { productos, promos } = await puertoKiosco(admin).nombres(productIds, promoIds);
   const lineas = armarLineas(
     filas,
-    new Map(((productos ?? []) as { id: string; name: string }[]).map((p) => [p.id, p.name])),
-    new Map(((promos ?? []) as { id: string; name: string }[]).map((p) => [p.id, p.name]))
+    new Map(productos.map((p) => [p.id, p.name])),
+    new Map(promos.map((p) => [p.id, p.name]))
   );
 
   const seg = armarSeguimiento(pedido);

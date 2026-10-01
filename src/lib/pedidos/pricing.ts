@@ -1,4 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import type { createAdminClient } from "@/lib/supabase/server";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 
 // Copia deliberada y acotada del bloque de precio/promos de crearMovimiento
 // (src/app/(admin)/admin/movimientos/actions.ts) -- ese archivo no se toca,
@@ -53,13 +54,9 @@ export async function resolverItemsPedido(
   if (itemsCarrito.some((i) => !Number.isFinite(i.cantidad) || i.cantidad <= 0)) return { error: "Cantidad inválida en el carrito" };
   if (itemsCarrito.some((i) => i.cantidad > MAX_CANTIDAD_LINEA)) return { error: "Cantidad demasiado grande en el carrito" };
 
-  const { data: sucursal } = await (admin as any)
-    .from("sucursales")
-    .select("categorias_habilitadas, promos_habilitadas")
-    .eq("id", sucursalId)
-    .single();
-  const categoriasHabilitadas: string[] | null = sucursal?.categorias_habilitadas ?? null;
-  const promosHabilitadas: boolean = sucursal?.promos_habilitadas ?? true;
+  // Los datos del kiosco (catálogo, precios, costos) se leen por el puerto.
+  const kiosco = puertoKiosco(admin);
+  const { categoriasHabilitadas, promosHabilitadas } = await kiosco.restricciones(sucursalId);
 
   const productInputs = itemsCarrito.filter((i): i is { product_id: string; cantidad: number } => !esPromoItem(i));
   const promoInputs   = itemsCarrito.filter(esPromoItem);
@@ -74,21 +71,11 @@ export async function resolverItemsPedido(
   // ── Productos sueltos ──────────────────────────────────────────────
   if (productInputs.length > 0) {
     const productIds = [...new Set(productInputs.map((i) => i.product_id))];
-    const { data: products, error: prodError } = await (admin as any)
-      .from("products")
-      .select("id, category_id, is_active, vendible_pos")
-      .in("id", productIds);
-    if (prodError) return { error: prodError.message };
+    const datosProductos = await kiosco.datosProductos(sucursalId, productIds);
+    if ("error" in datosProductos) return { error: datosProductos.error };
 
-    const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
-
-    const { data: precios, error: preciosError } = await admin
-      .from("product_prices")
-      .select("product_id, precio_dist")
-      .eq("sucursal_id", sucursalId)
-      .in("product_id", productIds);
-    if (preciosError) return { error: preciosError.message };
-    const precioMap = new Map((precios ?? []).map((p) => [p.product_id, p.precio_dist]));
+    const productMap = new Map(datosProductos.productos.map((p) => [p.id, p]));
+    const precioMap = new Map(datosProductos.precios.map((p) => [p.product_id, p.precio_dist]));
 
     for (const input of productInputs) {
       const producto = productMap.get(input.product_id) as { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null } | undefined;
@@ -113,37 +100,12 @@ export async function resolverItemsPedido(
   // ── Promos/recetas (mismo reparto proporcional al costo que crearMovimiento) ──
   if (promoInputs.length > 0) {
     const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
-    const { data: promos, error: promosError } = await (admin as any)
-      .from("promos")
-      .select("id, price, is_active, category_id, promo_items(product_id, cantidad)")
-      .in("id", promoIds);
-    if (promosError) return { error: promosError.message };
+    const datosPromos = await kiosco.datosPromos(sucursalId, promoIds);
+    if ("error" in datosPromos) return { error: datosPromos.error };
 
-    type PromoItemRow = { product_id: string; cantidad: number };
-    type PromoRow = { id: string; price: number; is_active: boolean; category_id: string | null; promo_items: PromoItemRow[] };
-    const promoMap = new Map<string, PromoRow>((promos ?? []).map((p: PromoRow) => [p.id, p]));
-
-    const { data: preciosPromo, error: preciosPromoError } = await (admin as any)
-      .from("promo_prices")
-      .select("promo_id, price")
-      .eq("sucursal_id", sucursalId)
-      .in("promo_id", promoIds);
-    if (preciosPromoError) return { error: preciosPromoError.message };
-    const precioPromoMap = new Map<string, number>((preciosPromo ?? []).map((p: { promo_id: string; price: number }) => [p.promo_id, p.price]));
-
-    const componentProductIds: string[] = [...new Set(
-      (promos ?? []).flatMap((p: PromoRow) => p.promo_items.map((pi) => pi.product_id))
-    )] as string[];
-    let costoComponenteMap = new Map<string, number>();
-    if (componentProductIds.length > 0) {
-      const { data: preciosComponentes, error: preciosCompError } = await admin
-        .from("product_prices")
-        .select("product_id, costo")
-        .eq("sucursal_id", sucursalId)
-        .in("product_id", componentProductIds);
-      if (preciosCompError) return { error: preciosCompError.message };
-      costoComponenteMap = new Map((preciosComponentes ?? []).map((p) => [p.product_id, p.costo]));
-    }
+    const promoMap = new Map(datosPromos.promos.map((p) => [p.id, p]));
+    const precioPromoMap = new Map<string, number>(datosPromos.preciosPromo.map((p) => [p.promo_id, p.price]));
+    const costoComponenteMap = new Map<string, number>(datosPromos.costosComponentes.map((p) => [p.product_id, p.costo]));
 
     for (const input of promoInputs) {
       const promo = promoMap.get(input.promo_id);

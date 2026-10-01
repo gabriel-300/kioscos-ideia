@@ -1,5 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import type { createAdminClient } from "@/lib/supabase/server";
 import { fechaHoyAR } from "@/lib/fecha";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 
 // Sin "use server" a propósito -- esto NO es una Server Action invocable
 // desde el browser, solo se llama desde el webhook de Mercado Pago
@@ -53,37 +54,23 @@ export async function crearVentaPublica(
 
   const fecha = fechaHoyAR();
 
-  const rpcRes = await (admin as any).rpc("crear_movimiento_con_items", {
-    p_sucursal_id: pedido.sucursal_id,
-    p_fecha: fecha,
-    p_tipo: "venta",
-    p_notas: `Pedido online #${pedidoId.slice(0, 8)}`,
-    p_proveedor: null,
-    p_proveedor_id: null,
-    p_nro_remito: null,
-    p_canal: "pedido_online",
-    p_personal_id: null,
-    p_contacto_id: pedido.contacto_id ?? null,
-    p_pago_efectivo: null,
-    p_pago_billetera: pedido.total, // mismo campo que ya usa el flujo QR de staff (vincularMovimientoQr)
-    p_pago_tarjeta: null,
-    p_pago_transferencia: null,
-    p_created_by: null,
-    p_items: itemsPedido.map((i: any) => ({
-      product_id: i.product_id,
-      cantidad: i.cantidad,
-      precio_unitario: i.precio_unitario,
-      subtotal: i.subtotal,
-      promo_id: i.promo_id,
-    })),
+  const venta = await puertoKiosco(admin).registrarVenta({
+    sucursalId: pedido.sucursal_id,
+    fecha,
+    notas: `Pedido online #${pedidoId.slice(0, 8)}`,
+    canal: "pedido_online",
+    contactoId: pedido.contacto_id ?? null,
+    pagoEfectivo: null,
+    pagoBilletera: pedido.total, // mismo campo que ya usa el flujo QR de staff (vincularMovimientoQr)
+    items: itemsPedido,
   });
 
-  if (rpcRes.error) {
+  if ("error" in venta) {
     await (admin as any).from("pedidos").update({ estado: "pendiente_pago" }).eq("id", pedidoId);
-    return { movimiento_id: null, error: rpcRes.error.message };
+    return { movimiento_id: null, error: venta.error };
   }
 
-  const movimientoId: string | null = typeof rpcRes.data === "string" ? rpcRes.data : null;
+  const movimientoId = venta.movimientoId;
 
   await (admin as any).from("pedidos").update({ movimiento_id: movimientoId }).eq("id", pedidoId);
   if (movimientoId) {
@@ -124,33 +111,19 @@ export async function registrarVentaCobroEnEntrega(
     return { movimiento_id: null, error: itemsError?.message ?? "El pedido no tiene items" };
   }
 
-  const rpcRes = await (admin as any).rpc("crear_movimiento_con_items", {
-    p_sucursal_id: pedido.sucursal_id,
-    p_fecha: fechaHoyAR(),
-    p_tipo: "venta",
-    p_notas: `Pedido online #${pedido.numero ?? pedidoId.slice(0, 8)} (efectivo)`,
-    p_proveedor: null,
-    p_proveedor_id: null,
-    p_nro_remito: null,
-    p_canal: "pedido_online",
-    p_personal_id: null,
-    p_contacto_id: pedido.contacto_id ?? null,
-    p_pago_efectivo: pedido.total,
-    p_pago_billetera: null,
-    p_pago_tarjeta: null,
-    p_pago_transferencia: null,
-    p_created_by: null,
-    p_items: itemsPedido.map((i: any) => ({
-      product_id: i.product_id,
-      cantidad: i.cantidad,
-      precio_unitario: i.precio_unitario,
-      subtotal: i.subtotal,
-      promo_id: i.promo_id,
-    })),
+  const venta = await puertoKiosco(admin).registrarVenta({
+    sucursalId: pedido.sucursal_id,
+    fecha: fechaHoyAR(),
+    notas: `Pedido online #${pedido.numero ?? pedidoId.slice(0, 8)} (efectivo)`,
+    canal: "pedido_online",
+    contactoId: pedido.contacto_id ?? null,
+    pagoEfectivo: pedido.total,
+    pagoBilletera: null,
+    items: itemsPedido,
   });
-  if (rpcRes.error) return { movimiento_id: null, error: rpcRes.error.message };
+  if ("error" in venta) return { movimiento_id: null, error: venta.error };
 
-  const movimientoId: string | null = typeof rpcRes.data === "string" ? rpcRes.data : null;
+  const movimientoId = venta.movimientoId;
   await (admin as any).from("pedidos").update({ movimiento_id: movimientoId }).eq("id", pedidoId);
   return { movimiento_id: movimientoId };
 }

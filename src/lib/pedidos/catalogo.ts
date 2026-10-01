@@ -1,5 +1,7 @@
-import { createAdminClient } from "@/lib/supabase/server";
-import { fetchAll } from "@/lib/supabase/paginar";
+import type { createAdminClient } from "@/lib/supabase/server";
+import { puertoKiosco, type DatosCatalogo, type RestriccionesCatalogo } from "@/lib/tenteo/puerto-kiosco";
+
+export type { DatosCatalogo, RestriccionesCatalogo };
 
 // Catálogo de pedidos online de UNA sucursal: qué se puede pedir y a qué
 // precio. Única fuente para el storefront (/pedir), el bot de WhatsApp y la
@@ -30,11 +32,6 @@ export type ItemCatalogo = {
 
 export type GrupoCatalogo = { id: string; name: string; items: ItemCatalogo[] };
 
-export type RestriccionesCatalogo = {
-  categoriasHabilitadas: string[] | null; // null o vacío = sin restricción
-  promosHabilitadas:     boolean;
-};
-
 export type CatalogoSucursal = {
   items:  ItemCatalogo[];
   grupos: GrupoCatalogo[]; // lo que se muestra: "Promos" primero, después cada categoría con contenido
@@ -43,16 +40,6 @@ export type CatalogoSucursal = {
 export const GRUPO_PROMOS = "promos";
 
 type Fila = Record<string, any>;
-
-export type DatosCatalogo = {
-  categorias:      Fila[]; // {id, name}, ya ordenadas
-  productos:       Fila[]; // {id, name, cover_image_url, category_id, unit_label, vendible_pos}
-  preciosProducto: Fila[]; // {product_id, precio_dist}
-  promos:          Fila[]; // {id, name, price, tipo, cover_image_url, category_id}
-  preciosPromo:    Fila[]; // {promo_id, price}
-  stock:           Fila[]; // {product_id, stock_actual} de la sucursal (vista stock_sucursal)
-  componentes:     Fila[]; // {promo_id, product_id, cantidad} (promo_items)
-};
 
 // Puro: aplica las reglas de arriba sobre filas ya leídas.
 export function armarCatalogo(datos: DatosCatalogo, restricciones: RestriccionesCatalogo): CatalogoSucursal {
@@ -118,44 +105,13 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
 }
 
 // Si el llamador ya leyó la sucursal (como /pedir) pasa las restricciones y se
-// evita una consulta.
+// evita una consulta. Los datos salen del puerto hacia el kiosco.
 export async function cargarCatalogoSucursal(
   admin: ReturnType<typeof createAdminClient>,
   sucursalId: string,
   restricciones?: RestriccionesCatalogo
 ): Promise<CatalogoSucursal> {
-  // (admin as any): categorias_habilitadas/promos_habilitadas y las columnas de
-  // promos no están en los tipos generados -- mismo patrón que el resto.
-  const restr = restricciones ?? await leerRestricciones(admin, sucursalId);
-
-  const [categorias, productos, preciosProducto, promos, preciosPromo, stock, componentes] = await Promise.all([
-    admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-    (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
-    admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
-    (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).order("name"),
-    (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
-    // Si no se puede leer el stock, se muestra todo (mejor que dejar la tienda vacía):
-    // el chequeo al confirmar sigue ahí.
-    fetchAll((d, h) => (admin as any).from("stock_sucursal").select("product_id, stock_actual", { count: "exact" }).eq("sucursal_id", sucursalId).order("product_id").range(d, h)).catch(() => []),
-    (admin as any).from("promo_items").select("promo_id, product_id, cantidad"),
-  ]);
-
-  return armarCatalogo({
-    categorias:      categorias.data ?? [],
-    productos:       productos.data ?? [],
-    preciosProducto: preciosProducto.data ?? [],
-    promos:          promos.data ?? [],
-    preciosPromo:    preciosPromo.data ?? [],
-    stock,
-    componentes:     componentes.data ?? [],
-  }, restr);
-}
-
-async function leerRestricciones(admin: ReturnType<typeof createAdminClient>, sucursalId: string): Promise<RestriccionesCatalogo> {
-  const { data } = await (admin as any)
-    .from("sucursales")
-    .select("categorias_habilitadas, promos_habilitadas")
-    .eq("id", sucursalId)
-    .single();
-  return { categoriasHabilitadas: data?.categorias_habilitadas ?? null, promosHabilitadas: data?.promos_habilitadas ?? true };
+  const kiosco = puertoKiosco(admin);
+  const restr = restricciones ?? await kiosco.restricciones(sucursalId);
+  return armarCatalogo(await kiosco.datosCatalogo(sucursalId), restr);
 }
