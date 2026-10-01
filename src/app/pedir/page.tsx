@@ -18,7 +18,7 @@ export default async function ElegirLocalPage() {
   if (locales.length === 1) redirect(`/pedir/${locales[0].id}`);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-md px-5 pb-10 pt-12">
+    <main className="mx-auto min-h-screen w-full max-w-[520px] px-4 pb-10 pt-10">
       <h1 className="text-[32px] leading-tight">¿Dónde querés pedir?</h1>
       <p className="mt-2 text-[15px] leading-snug text-pd-ink-600">Elegí el local y mirá el menú con lo que hay hoy.</p>
 

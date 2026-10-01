@@ -95,16 +95,16 @@ export function ElegirLocal({ locales }: { locales: LocalParaPedir[] }) {
   return (
     <>
       {recordado && (
-        <div className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-pd-line bg-pd-tint p-4" data-testid="atajo-ultimo-local">
+        <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-pd-tint-line bg-pd-tint p-3.5" data-testid="atajo-ultimo-local">
           <div className="min-w-0">
-            <p className="text-[12px] font-bold uppercase tracking-wide text-pd-ink-400">Tu local</p>
+            <p className="text-[11.5px] font-bold uppercase tracking-wide text-pd-ember">Tu local</p>
             <p className="pd-display truncate text-[17px] font-bold leading-tight">{recordado.nombre}</p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <button type="button" onClick={() => setUltimoId(null)} className="text-[13px] font-semibold text-pd-ink-600 underline">
               cambiar
             </button>
-            <Link href={`/pedir/${recordado.id}`} onClick={() => recordarLocal(recordado.id)} className="rounded-full bg-pd-ink-900 px-4 py-2 text-[13.5px] font-bold text-white">
+            <Link href={`/pedir/${recordado.id}`} onClick={() => recordarLocal(recordado.id)} className="pd-display rounded-full bg-pd-ember px-4 py-2 text-[13.5px] font-bold text-white active:bg-pd-ember-dark">
               Pedir ahí
             </Link>
           </div>
@@ -112,17 +112,26 @@ export function ElegirLocal({ locales }: { locales: LocalParaPedir[] }) {
       )}
 
       {hayCoordenadas && locales.length > 0 && (
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={usarMiUbicacion}
-            disabled={estado.tipo === "buscando"}
-            className="w-full rounded-full border border-pd-line bg-white px-5 py-3 text-[14.5px] font-bold disabled:opacity-60"
-          >
-            {estado.tipo === "buscando" ? "Buscando tu ubicación…" : punto ? "Actualizar mi ubicación" : "Usar mi ubicación"}
-          </button>
-          <p className="mt-2 text-[12px] leading-snug text-pd-ink-400">
-            Solo para mostrarte el local más cercano. Tu ubicación no sale de tu celular: no la enviamos ni la guardamos.
+        <div className="mt-5">
+          <div className="flex items-center gap-3 rounded-2xl border border-pd-line bg-white p-3">
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-pd-tint text-pd-ember">
+              <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+            </span>
+            <p className="min-w-0 flex-1 text-[14px] leading-tight">
+              <span className="block font-bold">{punto ? "Ordenado por cercanía" : "¿Cuál te queda cerca?"}</span>
+              <span className="block text-pd-ink-600">{punto ? "Según tu ubicación actual" : "Mostrá primero el más cercano"}</span>
+            </p>
+            <button
+              type="button"
+              onClick={usarMiUbicacion}
+              disabled={estado.tipo === "buscando"}
+              className="pd-display shrink-0 rounded-full bg-pd-ember px-4 py-2.5 text-[13.5px] font-bold text-white active:bg-pd-ember-dark disabled:opacity-60"
+            >
+              {estado.tipo === "buscando" ? "Buscando…" : punto ? "Actualizar" : "Usar mi ubicación"}
+            </button>
+          </div>
+          <p className="mt-2 px-1 text-[12px] leading-snug text-pd-ink-400">
+            Tu ubicación no sale de tu celular: no la enviamos ni la guardamos.
           </p>
           {estado.tipo === "error" && (
             <p role="status" className="mt-3 rounded-xl bg-pd-warm px-4 py-3 text-[13.5px] leading-snug text-pd-ink-600">{estado.mensaje}</p>
@@ -135,34 +144,40 @@ export function ElegirLocal({ locales }: { locales: LocalParaPedir[] }) {
           Por ahora no hay locales recibiendo pedidos online. Volvé a probar más tarde.
         </p>
       ) : (
-        <ul className="mt-6 space-y-3">
-          {filas.map(({ local: l, km }, i) => (
-            <li key={l.id}>
-              <Link
-                href={`/pedir/${l.id}`}
-                onClick={() => recordarLocal(l.id)}
-                className="block rounded-2xl border border-pd-line bg-white p-5 transition-colors active:bg-pd-tint"
-              >
-                {punto && i === 0 && km !== null && (
-                  <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-pd-success">Más cerca de vos</p>
-                )}
-                <div className="flex items-start justify-between gap-3">
-                  <p className="pd-display text-[19px] font-bold leading-tight">{l.nombre}</p>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${l.abierto ? "bg-pd-success/10 text-pd-success" : "bg-pd-warm text-pd-ink-600"}`}>
-                    {l.abierto ? "Abierto" : "Cerrado"}
+        <ul className="mt-5 space-y-3">
+          {filas.map(({ local: l, km }, i) => {
+            const masCerca = !!punto && i === 0 && km !== null;
+            return (
+              <li key={l.id}>
+                <Link
+                  href={`/pedir/${l.id}`}
+                  onClick={() => recordarLocal(l.id)}
+                  className={`flex items-center gap-4 rounded-2xl border bg-white p-4 transition-colors active:bg-pd-tint ${masCerca ? "border-pd-ember" : "border-pd-line"} ${l.abierto ? "" : "opacity-75"}`}
+                >
+                  <span aria-hidden className="pd-display grid size-16 shrink-0 place-items-center rounded-2xl bg-pd-tint text-[28px] font-extrabold text-pd-ember">
+                    {l.nombre.trim().charAt(0).toUpperCase()}
                   </span>
-                </div>
-                {(l.direccion || l.localidad) && (
-                  <p className="mt-1 text-[13.5px] text-pd-ink-600">{[l.direccion, l.localidad].filter(Boolean).join(", ")}</p>
-                )}
-                {km !== null && <p className="mt-1 text-[13.5px] font-semibold">a {formatearDistancia(km)}</p>}
-                <p className="mt-3 text-[13px] text-pd-ink-400">
-                  {[l.conRetiro && "Retiro en el local", l.conEnvio && "Envío a domicilio"].filter(Boolean).join(" · ")}
-                  {!l.abierto && l.proximaApertura ? ` · Abre ${l.proximaApertura}` : ""}
-                </p>
-              </Link>
-            </li>
-          ))}
+                  <div className="min-w-0 flex-1">
+                    {masCerca && <p className="mb-0.5 text-[11.5px] font-bold uppercase tracking-wide text-pd-ember">Más cerca de vos</p>}
+                    <p className="pd-display truncate text-[19px] font-bold leading-tight">{l.nombre}</p>
+                    {(l.direccion || l.localidad) && (
+                      <p className="mt-0.5 truncate text-[13px] text-pd-ink-600">{[l.direccion, l.localidad].filter(Boolean).join(", ")}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-pd-ink-600">
+                      <span className={`rounded-full px-2 py-0.5 font-bold ${l.abierto ? "bg-pd-success/10 text-pd-success" : "bg-pd-warm text-pd-ink-600"}`}>
+                        {l.abierto ? "Abierto" : l.proximaApertura ? `Cerrado · Abre ${l.proximaApertura}` : "Cerrado"}
+                      </span>
+                      {km !== null && <span className="font-semibold text-pd-ink-900">a {formatearDistancia(km)}</span>}
+                      <span>{[l.conRetiro && "Retiro", l.conEnvio && "Envío"].filter(Boolean).join(" · ")}</span>
+                    </div>
+                  </div>
+                  <span aria-hidden className="shrink-0 text-pd-ink-300">
+                    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
