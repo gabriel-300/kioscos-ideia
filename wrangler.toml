@@ -13,3 +13,16 @@ binding = "ASSETS"
 [placement]
 mode = "targeted"
 region = "aws:sa-east-1"
+
+# Registro de lo que pasa en producción (errores del bot de WhatsApp, de la IA, de
+# los webhooks). Se activó desde el dashboard y se declara acá porque el deploy
+# automático (wrangler deploy desde GitHub) toma esta configuración como la
+# verdadera y puede apagarlo. Traces apagado a propósito: no hace falta y suma costo.
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
