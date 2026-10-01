@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { normalizarHorario, type TramoHorario } from "@/lib/pedidos/horario";
+import { parsearCoordenadas } from "@/lib/geo";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 
 // Solo admin: define qué sucursales aceptan pedidos online, qué zonas de
@@ -89,6 +90,31 @@ export async function guardarBeneficioCliente(sucursalId: string, data: ConfigBe
 
   refrescar();
   return {};
+}
+
+// Ubicación del local (migración 100), para ordenar los locales por cercanía en
+// /pedir. Aparte de guardarConfigSucursal por el mismo motivo que los beneficios.
+// Texto vacío = borrar las coordenadas.
+export async function guardarCoordenadasSucursal(sucursalId: string, texto: string): Promise<{ error?: string; lat?: number | null; lng?: number | null }> {
+  await requireAdmin();
+
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (texto.trim()) {
+    const p = parsearCoordenadas(texto);
+    if (!p.ok) return { error: p.error };
+    ({ lat, lng } = p);
+  }
+
+  const admin = createAdminClient();
+  const { error } = await (admin as any).from("sucursales").update({ latitud: lat, longitud: lng }).eq("id", sucursalId);
+  if (error) {
+    return { error: /schema cache|does not exist/i.test(error.message) ? "Falta aplicar la migración 100 en la base de datos" : error.message };
+  }
+
+  refrescar();
+  revalidatePath("/pedir");
+  return { lat, lng };
 }
 
 export type ZonaInput = {

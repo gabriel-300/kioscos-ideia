@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { armarLocales } from "@/lib/pedidos/locales";
+import { armarLocales, cargarLocalesParaPedir, leerCoordenadasSucursal } from "@/lib/pedidos/locales";
+import { fakeAdmin } from "../helpers/fake-supabase";
 import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto } from "@/lib/dominios";
 
 const fila = (over: Record<string, unknown> = {}) => ({
@@ -28,6 +29,37 @@ describe("armarLocales", () => {
   });
   it("sin filas devuelve una lista vacía", () => {
     expect(armarLocales([])).toEqual([]);
+  });
+});
+
+describe("armarLocales: coordenadas (migración 100)", () => {
+  it("con coordenadas las expone como número (aunque lleguen como texto)", () => {
+    expect(armarLocales([fila({ latitud: "-27.366512", longitud: -55.896423 })])[0]).toMatchObject({ latitud: -27.366512, longitud: -55.896423 });
+  });
+  it("sin las columnas, null o basura = sin coordenadas", () => {
+    for (const over of [{}, { latitud: null, longitud: null }, { latitud: "abc", longitud: "" }]) {
+      expect(armarLocales([fila(over)])[0]).toMatchObject({ latitud: null, longitud: null });
+    }
+  });
+});
+
+describe("cargarLocalesParaPedir: tolerante a la migración 100", () => {
+  it("con las columnas, devuelve las coordenadas", async () => {
+    const { admin } = fakeAdmin(() => ({ data: [fila({ latitud: -27.3, longitud: -55.9 })] }));
+    expect((await cargarLocalesParaPedir(admin))[0]).toMatchObject({ latitud: -27.3, longitud: -55.9 });
+  });
+  it("si la consulta con latitud/longitud falla, reintenta sin ellas y responde sin coordenadas", async () => {
+    let n = 0;
+    const { admin } = fakeAdmin(() => (++n === 1 ? { error: { message: "column sucursales.latitud does not exist" } } : { data: [fila()] }));
+    const r = await cargarLocalesParaPedir(admin);
+    expect(n).toBe(2);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ id: "s1", latitud: null, longitud: null });
+  });
+  it("leerCoordenadasSucursal: par completo, o null si falta una o falla la consulta", async () => {
+    expect(await leerCoordenadasSucursal(fakeAdmin(() => ({ data: { latitud: "-27.3", longitud: "-55.9" } })).admin, "s1")).toEqual({ lat: -27.3, lng: -55.9 });
+    expect(await leerCoordenadasSucursal(fakeAdmin(() => ({ data: { latitud: -27.3, longitud: null } })).admin, "s1")).toBeNull();
+    expect(await leerCoordenadasSucursal(fakeAdmin(() => ({ error: { message: "x" } })).admin, "s1")).toBeNull();
   });
 });
 
