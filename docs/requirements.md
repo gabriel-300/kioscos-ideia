@@ -150,6 +150,11 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
 - **Dominio de clientes**: `www.angirufood.com.ar` (la versión sin www redirige a esa). Su raíz muestra "¿Dónde querés pedir?" con los locales que
   tienen pedidos online habilitados; con un solo local habilitado va directo a su catálogo. En workers.dev la raíz sigue siendo el login del personal.
+- **Elegir local por cercanía**: en "¿Dónde querés pedir?", el botón "Usar mi ubicación" ordena los locales del más cerca al más lejos ("a 1,2 km",
+  "Más cerca de vos"); los locales sin coordenadas van al final sin distancia, y sin ubicación la lista queda igual que siempre. La ubicación
+  **no sale del celular del cliente** (no se envía ni se guarda). Se recuerda el último local elegido con un atajo "Tu local · Pedir ahí" (sin redirección
+  automática). Las coordenadas de cada local las carga el admin en Tenteo → Configuración de pedidos. Pendiente (etapa 2, no hecha): buscador de dirección
+  con Google Places, cobertura y costo de envío por distancia.
 - **Cartel con QR**: `/pedir/[sucursal]/qr` (público, imprimible); en el panel hay un acceso por sucursal. El código QR, el enlace de seguimiento
   y los mensajes del bot usan siempre `https://www.angirufood.com.ar/...`.
 - **Clientes registrados y beneficios** (migración 099, **sin aplicar todavía**): el cliente puede ingresar con Google (es

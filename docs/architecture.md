@@ -531,6 +531,15 @@ que ve el cliente. En workers.dev la raíz no cambia: ahí entra el personal. El
 las Redirect URLs de Supabase. Los enlaces absolutos para clientes (QR, seguimiento, mensajes del bot: `lib/pedidos/enlaces.ts`) usan siempre este
 dominio y NO dependen de `NEXT_PUBLIC_SITE_URL`, que solo usa el cobro con QR de Mercado Pago de los kioscos para decirle a MP adónde avisar los pagos.
 
+**Elegir local por cercanía** (`/pedir`, migración 100): `sucursales.latitud/longitud` (`numeric(9,6)`, nulas, con check de rango) las carga el
+admin en Tenteo → Configuración de pedidos → "Ubicación del local" (formulario aparte, `guardarCoordenadasSucursal`, pega el par
+"lat, lng" de Google Maps; `parsearCoordenadas`). `/pedir` (Server Component) carga los locales y `elegir-local.tsx` (Client Component)
+ordena con `lib/geo.ts` (`haversineKm`, `ordenarPorCercania`, `formatearDistancia`; acepta un punto de cualquier origen: hoy GPS, mañana
+una dirección escrita). **Privacidad**: la ubicación del cliente se calcula solo en su navegador (`getCurrentPosition`, sin alta precisión);
+no se envía al servidor, no se guarda, no va en la URL, no se loguea ni se pone en cookies. Solo se recuerda el id del último local elegido
+(localStorage `pedir:ultimo-local`, 90 días) para mostrar un atajo; nunca redirige solo. La lectura de coordenadas es tolerante: si la
+migración 100 no está aplicada, `cargarLocalesParaPedir` reintenta sin esas columnas y todo sale "sin coordenadas" (la pantalla queda como antes).
+
 **El servidor recalcula todo** (`src/lib/pedidos/crear-pedido-publico.ts`): el tipo de entrada **no lleva precio**;
 `resolverItemsPedido` toma los precios de `product_prices`/`promo_prices` de la sucursal, revalida categorías, promos y
 activo; `chequearStockLiviano` avisa si falta stock (no es atómico); el costo de envío sale de `zonas_entrega`
