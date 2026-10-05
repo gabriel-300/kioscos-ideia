@@ -62,13 +62,9 @@ export default async function AyudaPage() {
     { id: "merma",       label: "Registrar una merma" },
     { id: "cerrar-caja", label: "Cerrar la caja" },
     { id: "sobre",       label: "El sobre de efectivo" },
-    ...(esEncargado || esAdmin ? [
-      { id: "pagos-proveedores", label: "Pagos a proveedores" },
-      { id: "socios",            label: "Socios (retiros y devoluciones)" },
-    ] : []),
+    ...(esAdmin ? [{ id: "tesoreria", label: "Tesorería" }] : []),
     { id: "stock",       label: "Consultar el stock" },
     ...(esEncargado || esAdmin ? [{ id: "pronostico", label: "Pronóstico" }] : []),
-    ...(esAdmin ? [{ id: "sueldos", label: "Sueldos por empleado" }] : []),
     { id: "faq",         label: "Preguntas frecuentes" },
   ];
 
@@ -101,7 +97,7 @@ export default async function AyudaPage() {
         <Nota tipo="info">
           Todo esto se hace desde <Campo>Mi Kiosco</Campo>, el primer módulo del menú. Además tenés acceso a{" "}
           <Campo>Stock</Campo> {esEncargado && (<>y <Campo>Pronóstico</Campo> </>)}para consulta. El resto de los
-          módulos (Productos, Precios, Categorías, Finanzas, Reportes, etc.) son exclusivos de administración.
+          módulos (Productos, Precios, Categorías, Tesorería, Reportes, etc.) son exclusivos de administración.
         </Nota>
       )}
 
@@ -294,66 +290,44 @@ export default async function AyudaPage() {
         </Nota>
       </Section>
 
-      {(esEncargado || esAdmin) && (
-        <Section id="pagos-proveedores" title="10. Pagos a proveedores">
+      {esAdmin && (
+        <Section id="tesoreria" title="10. Tesorería">
           <p className="text-sm text-neutral-600">
-            Para registrar cuánto y cómo le pagaste a un proveedor por la mercadería que te entregó. El sistema
-            calcula solo cuánto le debés a cada uno, sumando sus entregas y restando lo que ya le pagaste.
+            Toda la contabilidad está en un solo lugar: <Campo>Finanzas</Campo> → <Campo>Tesorería</Campo>. La carga el
+            administrativo (hoy Damián), mirando la factura o el remito real; el personal del kiosco no carga nada de esto.
+            Los demás socios pueden verla pero no cargar.
           </p>
           <div className="space-y-3">
             <Paso n={1}>
-              Entrá a <Campo>Pagos a proveedores</Campo> desde la página del kiosco (junto al botón de Cta.
-              Corriente).
+              En <Campo>Para registrar</Campo> aparece lo que ya cargó el kiosco: los <Campo>retiros de caja</Campo> y la{" "}
+              <Campo>mercadería que ingresó</Campo>. Tocá <Boton>Registrar</Boton> (o marcá varias entregas de una misma
+              factura y tocá <Boton>Registrar compra</Boton>).
             </Paso>
-            <Paso n={2}>Buscá al proveedor en la lista — cada uno muestra su saldo pendiente.</Paso>
-            <Paso n={3}>Tocá <Boton>Registrar pago</Boton>.</Paso>
+            <Paso n={2}>
+              Completá con el comprobante real: el monto, <Campo>Con factura</Campo> o <Campo>Sin factura</Campo> (el gasto
+              cuenta igual), y si <Campo>ya se pagó</Campo> o <Campo>todavía se debe</Campo>.
+            </Paso>
+            <Paso n={3}>
+              Si ya se pagó, indicá de dónde salió la plata: efectivo de Tesorería, transferencia o Mercado Pago.
+              Podés adjuntar la foto o el PDF de la factura (hasta 1 MB; las fotos se achican solas).
+            </Paso>
             <Paso n={4}>
-              Cargá cuánto le pagaste en <Campo>Efectivo</Campo> y/o <Campo>Billetera</Campo> (se puede combinar) y la
-              fecha.
+              Lo que quedó <Campo>Todavía se debe</Campo> se marca pagado después desde <Campo>Egresos</Campo>. Si te
+              equivocás, <Boton>Anular</Boton> (no se borra; queda el motivo y vuelve a Para registrar si venía del kiosco).
             </Paso>
             <Paso n={5}>
-              Si el pago corresponde a una entrega puntual, elegila en <Campo>Entrega (opcional)</Campo> — si es un
-              pago general a cuenta, dejalo en blanco.
+              El alquiler, los sueldos y los servicios se registran en <Campo>Gastos fijos</Campo> (la lista se edita en{" "}
+              <Campo>/admin/gastos</Campo>). Un retiro de un socio se carga como categoría <Campo>Retiro de socio</Campo>.
             </Paso>
-            <Paso n={6}>Guardá.</Paso>
           </div>
           <Nota tipo="info">
-            El pago en efectivo de este mismo turno se descuenta solo de lo que el sistema espera encontrar en el
-            cajón al cerrar la caja — no hace falta cargarlo también como retiro aparte.
+            El <Campo>Resumen</Campo> muestra lo que entró, lo que salió, lo que se debe y el efectivo en mano. «Entró menos
+            salió» no es la ganancia: falta el costo de lo vendido y todo lo que todavía no se cargó.
           </Nota>
         </Section>
       )}
 
-      {(esEncargado || esAdmin) && (
-        <Section id="socios" title="11. Socios (retiros y devoluciones)">
-          <p className="text-sm text-neutral-600">
-            Para cuando un socio (Damián, Javier, Gabriel) saca plata del cajón para su cuenta personal, y para
-            cuando la devuelve.
-          </p>
-          <div className="space-y-3">
-            <Paso n={1}>
-              Entrá a <Campo>Socios</Campo> desde la página del kiosco (junto a Pagos a proveedores).
-            </Paso>
-            <Paso n={2}>Buscá al socio en la lista.</Paso>
-            <Paso n={3}>Tocá <Boton>Retiro / devolución</Boton>.</Paso>
-            <Paso n={4}>
-              Para un retiro: elegí el tipo —{" "}
-              <Campo>Temporal (a devolver)</Campo> si es un préstamo que se espera que vuelva, o{" "}
-              <Campo>Reparto de ganancias</Campo> si es plata que no vuelve — y cargá el monto.
-            </Paso>
-            <Paso n={5}>
-              Para una devolución: cargá cuánto devolvió en <Campo>Efectivo</Campo> y/o <Campo>Billetera</Campo>.
-            </Paso>
-            <Paso n={6}>Guardá.</Paso>
-          </div>
-          <Nota tipo="warn">
-            Solo cuenta como "saldo pendiente" un retiro <Campo>Temporal</Campo> — el reparto de ganancias queda
-            registrado en el historial, pero nunca te va a pedir que se devuelva.
-          </Nota>
-        </Section>
-      )}
-
-      <Section id="stock" title="12. Consultar el stock">
+      <Section id="stock" title="11. Consultar el stock">
         <p className="text-sm text-neutral-600">
           Desde el menú <Campo>Stock</Campo> ves cuánto hay de cada producto en tu kiosco, calculado a partir del
           historial de movimientos (recepciones menos ventas y mermas).
@@ -364,31 +338,12 @@ export default async function AyudaPage() {
       </Section>
 
       {(esEncargado || esAdmin) && (
-        <Section id="pronostico" title="13. Pronóstico">
+        <Section id="pronostico" title="12. Pronóstico">
           <p className="text-sm text-neutral-600">
             Te sugiere cuánto vas a vender de cada producto al día siguiente, calculado con el promedio de ventas de
             ese mismo día de la semana en semanas anteriores. Sirve como referencia para saber qué pedirle al
             proveedor.
           </p>
-        </Section>
-      )}
-
-      {esAdmin && (
-        <Section id="sueldos" title="14. Sueldos por empleado">
-          <p className="text-sm text-neutral-600">
-            Para llevar el sueldo de cada persona por separado dentro de Finanzas, en vez de un monto suelto sin
-            saber a quién corresponde.
-          </p>
-          <div className="space-y-3">
-            <Paso n={1}>Entrá a <Campo>Finanzas</Campo> → <Boton>Nuevo gasto</Boton>.</Paso>
-            <Paso n={2}>Elegí la categoría <Campo>Sueldos</Campo>.</Paso>
-            <Paso n={3}>Cargá el monto y la fecha.</Paso>
-            <Paso n={4}>
-              Elegí el <Campo>Empleado</Campo> y si es <Campo>Regular</Campo> (el sueldo normal) o{" "}
-              <Campo>Extra</Campo> (una cobertura de turno, un evento puntual, etc.).
-            </Paso>
-            <Paso n={5}>Guardá.</Paso>
-          </div>
         </Section>
       )}
 

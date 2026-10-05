@@ -58,13 +58,18 @@ lo importa ningún módulo.
   (el hook `secret-scanner` bloquea los comandos con tokens).
 
 ### Base de datos y migraciones
-- Las migraciones (`supabase/migrations/000…095`, 101 archivos con `999_seed_demo.sql`, que **no** se corre en
+- Las migraciones (`supabase/migrations/000…102`, 108 archivos con `999_seed_demo.sql`, que **no** se corre en
   producción) **se aplican a mano en el SQL Editor** de Supabase, no por CLI. **No hay staging**: la base es de
   producción. Hay números repetidos (029, 042, 044, 063 tienen dos archivos).
 - La tabla de registro de migraciones de Supabase tiene 58 entradas y **no es fiable** para saber qué está aplicado;
   además hay ~14 migraciones registradas sin archivo en el repo y policies vivas sin archivo (categories, products,
   profiles), la tabla `cta_corriente_pagos` sin `CREATE` y el bucket `remitos` sin migración. **Repetir las migraciones
   no reconstruye la base viva.** Estado verificado el 2026-09-19: 000–095 aplicadas (la 095 la corrió el usuario).
+  `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
+  por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
+- **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
+  (escrita; **si no figura aplicada en la base, correrla a mano**: sin ella la pantalla muestra un aviso en vez de romperse). Solo agregan
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
@@ -85,7 +90,8 @@ lo importa ningún módulo.
   siguen en el bucket sin referencias y hay que borrarlos desde el panel de Storage. La cuota del ciclo actual no baja: el
   consumo ya hecho cuenta hasta el 23/09 y el panel de uso tarda hasta 1 hora en refrescar.
 - Tipos: `src/types/database.ts` está parchado a mano (`supabase gen types` se cuelga con segfault en esta máquina
-  Windows/Node 24); por eso el código usa mucho `(supabase as any)` (ver §9).
+  Windows/Node 24); por eso el código usa mucho `(supabase as any)` (ver §9). Tesorería es la excepción: `egresos`, `tesoreria_config` y
+  sus columnas están tipadas a mano ahí y su código no usa `any`.
 
 ### Comandos
 ```
@@ -94,7 +100,7 @@ npm run build                # next build (con chequeo de tipos). Si se mueven r
                              # `tsc --noEmit`: quedan tipos viejos de la compilación anterior que dan errores falsos
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 31 archivos, 456 tests (verificado 2026-10-01)
+npm test                     # vitest run: 35 archivos, 542 tests (verificado 2026-10-05)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -107,7 +113,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 456 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 542 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -120,6 +126,8 @@ en otra máquina).
   Separación kiosco/Tenteo: matriz sistema × rol del módulo `acceso.ts`, guardas por sistema, middleware de `/admin` y `/tenteo`,
   `/auth/redirect`, `/auth/sistema` y el selector, redirecciones de las URLs viejas (`next.config`), asignación de sistemas en
   Staff, el puerto hacia el kiosco (consultas, RPC y la prueba que impide a Tenteo saltárselo).
+  Tesorería: validación de egresos, cálculos (resumen, efectivo en mano, deuda) y las acciones (permisos, vínculo con retiros de
+  caja, carrera entre dos administrativos, anulación, redirecciones de las pantallas unificadas).
 - **`it.fails` = hallazgo abierto de la auditoría**: el test describe el comportamiento correcto y hoy falla. Cuando se
   corrige el bug, el test pasa a "inesperadamente verde" y hay que **sacarle el `.fails` en el mismo commit**.
   Quedan 2: redondeo half-up de `redondearMoneda` (1.005) y rate limit no atómico.
@@ -153,7 +161,8 @@ src/
         32 módulos: alertas-precio, auditoria, ayuda, categorias, cierres, conciliacion-mercadopago, cta-corriente,
         dashboard, gastos, informe-mensual, mermas, movimientos, nichos, pagos-proveedores, pedidoya, productos, promociones, pronostico, proveedores, reposicion,
         rotacion-productos, socios, staff, stock, sucursales (+[id] con apertura/cierre/traspaso/transferencia/
-        auditoría/mercadopago/precios/cta-corriente/pagos-proveedores/socios), termos, tesoreria, transferencias,
+        auditoría/mercadopago/precios/cta-corriente; las pantallas por kiosco pagos-proveedores y socios quedaron redirigidas a Tesorería),
+        termos, tesoreria, transferencias,
         ventas, ventas-diarias, ventas-por-horario, ventas-por-vendedor
     (tenteo)/
       layout.tsx                   menú de Tenteo (TenteoNav); misma salvedad: la barrera es el middleware y cada acción
@@ -176,6 +185,8 @@ src/
                  por-atender, seguimiento, notificar-cliente, enlaces, qr, beneficio-cliente, beneficio-servidor,
                  interpretar-pedido-ia, sugerir-upsell, validaciones, actions ("use server")
     whatsapp/    enviar-mensaje (Graph API, gateado por WHATSAPP_ACCESS_TOKEN)
+    tesoreria/   tipos (listas fijas = CHECK de la base), validaciones (validarEgreso/validarPago), calculos (resumen, efectivo en
+                 mano, deuda; puras y con tests), consultas (lecturas tipadas con fetchAll), permisos (ver / cargar)
     fecha.ts     helpers de fecha en UTC-3 (fechaHoyAR, fmt*)
     ia/completar-json.ts  cadena de IA única (Groq qwen3.8 y, si falla, 3 modelos gratis de OpenRouter); la usan groq.ts
                  (remitos por foto), el bot de pedidos y el upsell. Necesita GROQ_API_KEY y, para el respaldo, OPENROUTER_API_KEY
@@ -333,7 +344,7 @@ Para leer la base en castellano (qué es cada tabla y cada columna, diagramas de
 | **Catálogo y precios** | `products`, `categories`, `product_prices` (precio y costo **por sucursal**, más `punto_minimo/pedido/maximo`), `product_price_history`, `promos`, `promo_items`, `promo_prices` (por sucursal), `proveedores`, `alertas_precio` |
 | **Operación y stock** | `sucursales`, `movimientos`, `movimiento_items`, vista `stock_sucursal`, `transferencias_stock`, `transferencia_items`, `auditorias_stock`, `auditoria_stock_items`, `termos`, `prestamos_termo`, `reposicion_marcas_pedido` |
 | **Caja y turnos** | `aperturas_caja`, `cierres_caja`, `retiros_caja`, `traspasos_caja` |
-| **Tesorería** | `gastos`, `gastos_fijos`, `pagos_proveedor`, `movimientos_socio`, `pagos_socio`, `cta_corriente_pagos` |
+| **Tesorería** | `egresos` (registro único, 101/102), `tesoreria_config` (una fila), `gastos_fijos` (la lista de lo que se paga todos los meses), `cta_corriente_pagos`; **históricas, ya sin carga nueva**: `gastos`, `pagos_proveedor`, `movimientos_socio`, `pagos_socio` |
 | **Usuarios y CRM** | `profiles`, `profile_sucursales`, `contactos_crm`, `nichos`, `platform_settings` (restos del proyecto Minutas) |
 | **Pedidos online** | `pedidos`, `pedido_items`, `zonas_entrega`, `pedido_rate_limits` |
 | **Integraciones** | `mercadopago_qr_orders`, `mercadopago_transferencias_recibidas`, `pedidoya_webhook_events`, `whatsapp_webhook_events` |
@@ -445,18 +456,35 @@ en vez de bloqueo).
   retira, con **su** sesión (nadie confirma por otro). `verificarSobre` (admin) carga cuánto contó quien lo recibe.
   Se ve en `/admin/cierres`.
 
-### Tesorería (`/admin/tesoreria`, admin o socio)
-```
-Posición = efectivo en cajones + sobres pendientes − deuda a proveedores − deuda a socios
-```
-- Efectivo en cajones: `fondo_inicial` si el turno está abierto, `fondo_siguiente` si está cerrado.
-- Deuda a proveedores: por proveedor, entregas con `proveedor_id` menos `pagos_proveedor`, **con piso en 0**.
-- Deuda a socios: solo `movimientos_socio.tipo = 'retiro_temporal'` menos `pagos_socio`; `retiro_ganancias` no es deuda.
-- La Cta. Corriente pendiente se muestra aparte (no entra a la fórmula).
-- A la conciliación del cierre entran solo los montos en **efectivo** de pagos a proveedor, Cta. Cte. y socios; la
-  billetera es informativa.
-- Gastos (`/admin/gastos`, admin): `gastos` reales y `gastos_fijos` presupuestados; "marcar pagado" inserta el gasto real
-  vinculado. Sueldos con `empleado_id` y `tipo_sueldo` (`regular`/`extra`).
+### Tesorería (`/admin/tesoreria`; ver: admin o socio, cargar: admin con `profiles.es_administrativo`)
+**Dos mundos separados (decisión del usuario, 2026-10-05).** El *kiosco* (personal y encargados) vende, maneja la caja y carga la
+mercadería que ingresa **para el stock**; el *retiro de caja* es plata de emergencia para una compra puntual. La *contabilidad* la carga
+**un administrativo** (hoy Damián) con la factura o el remito real en la mano, porque el personal carga mal los importes. Los demás
+socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_en_tesoreria` (Villa Sarita queda afuera).
+
+- **Un solo registro, `egresos`** (migraciones 101/102): fecha, monto, categoría (mercadería, sueldos, alquiler, servicios, retiro de
+  socio, otro), proveedor opcional, descripción, **con o sin factura** (el gasto cuenta igual), `pagado` (sí / "todavía se debe"),
+  origen de la plata (retiro de caja, efectivo de Tesorería, transferencia, Mercado Pago), archivo adjunto y quién lo cargó.
+  Un egreso **no se borra**: se anula con motivo (`anulado_en`), y eso libera lo que tenía vinculado.
+- **Para registrar**: `retiros_caja.egreso_id` y `movimientos.egreso_id` (solo entregas) vacíos = el kiosco lo cargó y la contabilidad
+  todavía no. Desde `tesoreria_config.fecha_inicio` (2026-10-01); lo anterior no se pide. El monto que cargó el kiosco es solo una
+  sugerencia. Un retiro de caja **no es un gasto**: es plata que salió del cajón; el gasto es el egreso al que se lo asigna.
+- **Resumen** (mes elegido): *Entró* = `cierres_caja.total_ventas` de los turnos cerrados; *Salió* = egresos del mes por fecha de compra,
+  pagados o no, **sin** retiros de socios (se muestran aparte); *Se debe* = egresos no pagados, agrupados por proveedor.
+  «Entró menos salió» **no es la ganancia** (falta el costo de lo vendido).
+- **Efectivo en mano** = `efectivo_inicial` + sobres retirados desde el arranque (lo verificado, o declarado − fondo) − egresos pagados
+  con origen «efectivo de Tesorería» (por `fecha_pago`). Un egreso con origen «retiro de caja», transferencia o Mercado Pago no resta.
+- **Escritura**: solo Server Actions con `service_role` (`authenticated` solo lee, y solo admin). Cada acción valida el permiso
+  (`lib/tesoreria/permisos.ts`) y el contenido (`validarEgreso`) y devuelve `{ error }`. Al registrar un egreso con vínculos se toman
+  las filas con `egreso_id is null`; si otro administrativo las tomó en el medio se deshace lo hecho.
+- **Comprobantes**: bucket privado `tesoreria` (tope 1 MB en la base; JPG/PNG/WebP/PDF). El navegador reduce las fotos a 1600 px
+  (`reducirImagen`) y sube con una URL firmada de un solo uso que da el servidor; se leen con una URL firmada de 2 minutos.
+- **Informe mensual** suma los egresos de Tesorería y cuenta un retiro de caja solo si todavía no fue registrado (si no, se contaría dos veces).
+- **Gastos fijos**: la lista (qué se paga todos los meses) se edita en `/admin/gastos`; el pago de cada mes se registra en Tesorería.
+- **Legado**: `pagos_proveedor`, `movimientos_socio`, `pagos_socio` y `gastos` quedan como histórico (casi vacías) y sus pantallas
+  redirigen a Tesorería. La conciliación del cierre de caja **no cambió**: `cerrar_caja` sigue sumando `pagos_proveedor_turno`,
+  `retiros_socio_turno`, etc., que desde ahora quedan en cero porque nada nuevo los escribe.
+- La Cta. Corriente se sigue cobrando en el kiosco (no es contabilidad del administrativo).
 
 ### Cuenta corriente
 Personal interno (`profiles.credito_limite`) y contactos externos (`contactos_crm.habilitado_cta_corriente` +

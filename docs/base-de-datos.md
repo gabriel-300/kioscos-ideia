@@ -1,8 +1,8 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-01) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-05) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **44 tablas y vistas**, **121 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **46 tablas y vistas**, **130 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -12,7 +12,8 @@ Son **44 tablas y vistas**, **121 relaciones** (claves foráneas) y 7 dominios. 
 - **El precio y el costo son por sucursal.** Viven en product_prices (y promo_prices para los combos). Las columnas de precio y costo que todavía tiene products son un resto del proyecto anterior: no se usan para vender.
 - **El rol de una persona NO está en la tabla profiles.** Está en el sistema de usuarios de Supabase (auth.users, campo app_metadata.role), que no aparece en este esquema. profiles guarda datos como la sucursal, el límite de crédito y si es socio. profiles.role es un resto de otra aplicación.
 - **La caja funciona por turnos.** aperturas_caja abre el turno con un fondo; traspasos_caja registra los cambios de persona sin cerrar; cierres_caja lo cierra. Solo puede haber una caja abierta por sucursal. La diferencia del cierre es una columna calculada.
-- **Lo que sale de la caja tiene su propia tabla.** Retiros (retiros_caja), pagos a proveedores, retiros y devoluciones de socios y cobros de cuenta corriente restan o suman al efectivo del turno. El cierre los suma solos.
+- **Lo que sale de la caja tiene su propia tabla.** Retiros (retiros_caja) y cobros de cuenta corriente restan o suman al efectivo del turno; el cierre los suma solos. (Pagos a proveedores y movimientos de socios también lo hacían, pero ya no se cargan: ver Tesorería.)
+- **La contabilidad vive en egresos, y la carga un administrativo.** El kiosco carga ventas, caja y la mercadería que ingresa (para el stock). Lo contable (con factura o sin factura, pagado o por pagar) lo registra una persona administrativa en egresos, mirando el comprobante real. Un retiro de caja o una entrega del kiosco quedan "para registrar" hasta que un egreso los toma (egreso_id). Nada se borra: se anula.
 - **Un pedido online es una reserva hasta que se cobra.** pedidos y pedido_items guardan lo que pidió el cliente. Recién cuando se cobra (o se entrega, si es efectivo) se crea la venta en movimientos y se enlaza en pedidos.movimiento_id.
 - **Hay tablas y columnas heredadas.** platform_settings, los campos b2b/gastro de products, profiles.role/canal/zona_id/b2b_status y cuatro tipos (enums) vienen de otro proyecto que comparte la base. Están marcadas como heredadas: no usarlas.
 - **Quién puede leer y escribir.** Todas las tablas tienen seguridad por filas (RLS), pero casi toda escritura la hace el servidor de la app con una llave especial que la saltea: el control de quién puede hacer qué está en el código (ver architecture.md, secciones 3 y 4).
@@ -255,7 +256,7 @@ Otras columnas: `id`, `promo_id`, `sucursal_id`, `updated_at`, `updated_by`.
 Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 
 **Personas (auth.users):** `created_by`, `updated_by`  
-**La usan:** `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id)
+**La usan:** `egresos` (proveedor_id) · `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id)
 
 ### `alertas_precio`
 
@@ -289,6 +290,7 @@ erDiagram
   products ||--o{ movimiento_items : "product_id"
   promos |o--o{ movimiento_items : "promo_id"
   contactos_crm |o--o{ movimientos : "contacto_id"
+  egresos |o--o{ movimientos : "egreso_id"
   profiles |o--o{ movimientos : "personal_id"
   proveedores |o--o{ movimientos : "proveedor_id"
   movimientos |o--o{ prestamos_termo : "movimiento_id"
@@ -343,6 +345,9 @@ erDiagram
   contactos_crm {
     uuid id PK
   }
+  egresos {
+    uuid id PK
+  }
   profiles {
     uuid id PK
   }
@@ -390,11 +395,12 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `envio_gratis_primera_compra` | sí / no | Si la primera compra del cliente registrado no paga envío. |
 | `latitud` | número | Latitud del local (la carga el admin en Tenteo); sirve para ordenar los locales por cercanía en /pedir. Vacía = sin ubicación. |
 | `longitud` | número | Longitud del local (ver latitud). |
+| `entra_en_tesoreria` | sí / no | Si el local entra en Tesorería. Falso en Villa Sarita (consignación: el concesionario es el dueño económico). |
 
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
 **Personas (auth.users):** `encargado_user_id`  
-**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
+**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
 
 ### `movimientos`
 
@@ -419,10 +425,11 @@ Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 | `motivo_anulacion` | texto | Por qué se anuló. |
 | `proveedor_id` | id → proveedores | En una entrega: a quién se le compró. |
 | `contacto_id` | id → contactos_crm | Contacto externo (ronda de comunidad o cuenta corriente de un cliente). |
+| `egreso_id` | id → egresos | Solo entregas: egreso (compra) de Tesorería al que pertenece. Vacío = todavía sin registrar. |
 
 Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`.
 
-**Apunta a:** `contacto_id` → `contactos_crm` · `personal_id` → `profiles` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
+**Apunta a:** `contacto_id` → `contactos_crm` · `egreso_id` → `egresos` · `personal_id` → `profiles` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`  
 **La usan:** `alertas_precio` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
 
@@ -589,6 +596,7 @@ Cómo se cuadra la plata de cada turno. Un turno empieza con una apertura y term
 
 ```mermaid
 erDiagram
+  egresos |o--o{ retiros_caja : "egreso_id"
   aperturas_caja ||--o{ traspasos_caja : "apertura_id"
   aperturas_caja {
     uuid id PK
@@ -600,6 +608,9 @@ erDiagram
     uuid id PK
   }
   retiros_caja {
+    uuid id PK
+  }
+  egresos {
     uuid id PK
   }
 ```
@@ -676,7 +687,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 
 ### `retiros_caja`
 
-**Retiro de efectivo durante el turno.** Plata que sale de la caja (por ejemplo para un gasto chico), con motivo y comprobante.
+**Retiro de efectivo durante el turno.** Plata que el empleado saca de la caja para una compra puntual de emergencia, con motivo y foto. No es un gasto: lo registra después el administrativo como egreso.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -684,25 +695,34 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 | `monto` | número · obligatoria | Siempre positivo. |
 | `motivo` | texto · obligatoria | Para qué se retiró. |
 | `comprobante_image_url` | texto | Foto del comprobante. |
+| `egreso_id` | id → egresos | Egreso de Tesorería al que se imputó. Vacío = todavía sin registrar. |
 
 Otras columnas: `id`, `sucursal_id`, `created_by`, `created_at`.
 
-**Apunta a:** `sucursal_id` → `sucursales`  
+**Apunta a:** `egreso_id` → `egresos` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `created_by`
 
 ## Tesorería
 
-La plata de fondo del negocio: lo que se debe a proveedores, lo que retiran los socios y los gastos.
+La contabilidad del negocio, en un solo registro (egresos) que carga un administrativo. Las tablas gastos, pagos_proveedor, movimientos_socio y pagos_socio son el histórico anterior: ya no se cargan.
 
 ```mermaid
 erDiagram
   contactos_crm |o--o{ cta_corriente_pagos : "contacto_id"
+  gastos_fijos |o--o{ egresos : "gasto_fijo_id"
+  proveedores |o--o{ egresos : "proveedor_id"
   profiles |o--o{ gastos : "empleado_id"
   gastos_fijos |o--o{ gastos : "gasto_fijo_id"
   profiles ||--o{ movimientos_socio : "socio_id"
   movimientos |o--o{ pagos_proveedor : "movimiento_id"
   proveedores ||--o{ pagos_proveedor : "proveedor_id"
   profiles ||--o{ pagos_socio : "socio_id"
+  egresos {
+    uuid id PK
+  }
+  tesoreria_config {
+    uuid id PK
+  }
   gastos {
     uuid id PK
   }
@@ -724,22 +744,67 @@ erDiagram
   contactos_crm {
     uuid id PK
   }
+  proveedores {
+    uuid id PK
+  }
   profiles {
     uuid id PK
   }
   movimientos {
     uuid id PK
   }
-  proveedores {
-    uuid id PK
-  }
 ```
 
 Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (uno) y la de la derecha la que la referencia (muchos); el nombre es la columna que las une. Un círculo en la madre significa que la columna puede estar vacía. No se dibujan las columnas que apuntan a usuarios (quién cargó o modificó algo) ni `sucursal_id` (casi todas las tablas la tienen).
 
+### `egresos`
+
+**Cada plata que sale del negocio (con o sin factura).** Registro único de egresos. Lo carga el administrativo con el comprobante real. Se puede cargar pagado o "todavía se debe", y se anula en vez de borrarse. Escribe solo el servidor.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `fecha` | fecha · obligatoria | Fecha de la compra o del comprobante: el gasto del mes cuenta por esta fecha, esté pagado o no. |
+| `monto` | número · obligatoria | Siempre positivo. |
+| `sucursal_id` | id → sucursales | Local al que corresponde; vacío = gasto general. |
+| `categoria` | texto · obligatoria | mercaderia, sueldos, alquiler, servicios, retiro_socio u otro. retiro_socio no es un gasto operativo: los informes lo separan. |
+| `proveedor_id` | id → proveedores | Proveedor de la lista (opcional). |
+| `descripcion` | texto · obligatoria | A quién o qué se pagó, en palabras. |
+| `comprobante` | texto · obligatoria | con = tiene factura; sin = compra sin factura. El gasto cuenta igual. |
+| `comprobante_numero` | texto | Número de factura (solo si es con factura). |
+| `comprobante_path` | texto | Archivo adjunto en el bucket privado tesoreria (foto o PDF, hasta 1 MB). |
+| `origen` | texto | De dónde salió la plata: retiro_caja, efectivo_tesoreria, transferencia o mercadopago. Vacío si no está pagado. |
+| `gasto_fijo_id` | id → gastos_fijos | Si es el pago del mes de un gasto fijo, cuál. |
+| `nota` | texto | Observación. |
+| `created_by` | id | Quién lo cargó. |
+| `pagado` | sí / no | Falso = se compró pero todavía se debe (sin origen ni fecha de pago). Se marca pagado después. |
+| `fecha_pago` | fecha | Cuándo salió la plata; el efectivo en mano de Tesorería cuenta por esta fecha. |
+| `anulado_en` | fecha y hora | Si tiene fecha, el egreso está anulado: no cuenta en ningún total y libera sus retiros y entregas. |
+| `anulado_por` | id | Quién lo anuló. |
+| `anulado_motivo` | texto | Por qué se anuló. |
+
+Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
+
+**Apunta a:** `gasto_fijo_id` → `gastos_fijos` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `anulado_por`, `created_by`, `updated_by`  
+**La usan:** `movimientos` (egreso_id) · `retiros_caja` (egreso_id)
+
+### `tesoreria_config`
+
+**Configuración de Tesorería (una sola fila).** Desde cuándo rige Tesorería y con cuánto efectivo arrancó.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `id` | sí / no | Siempre verdadero: la restricción impide una segunda fila. |
+| `fecha_inicio` | fecha · obligatoria | Lo anterior a esta fecha no se pide registrar en "Para registrar". |
+| `efectivo_inicial` | número | Efectivo de Tesorería al arrancar. |
+
+Otras columnas: `updated_by`, `updated_at`.
+
+**Personas (auth.users):** `updated_by`
+
 ### `gastos`
 
-**Gastos reales.** Lo que se pagó, por categoría. Incluye los sueldos.
+**Gastos reales (HISTÓRICO).** Antes de la Tesorería unificada: lo que se pagó, por categoría. Ya no se carga: lo nuevo va a egresos.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -758,7 +823,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`, `updat
 
 ### `gastos_fijos`
 
-**Gastos que se repiten todos los meses.** El presupuesto mensual: alquiler, servicios, sueldos previstos. Se "marca pagado" y eso crea el gasto real.
+**Gastos que se repiten todos los meses.** La lista de lo que se paga todos los meses: alquiler, servicios, sueldos previstos. El pago de cada mes se registra en Tesorería (crea un egreso con gasto_fijo_id).
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -772,11 +837,11 @@ Otras columnas: `id`, `sucursal_id`, `created_by`, `updated_by`, `created_at`, `
 
 **Apunta a:** `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `created_by`, `updated_by`  
-**La usan:** `gastos` (gasto_fijo_id)
+**La usan:** `egresos` (gasto_fijo_id) · `gastos` (gasto_fijo_id)
 
 ### `pagos_proveedor`
 
-**Pagos hechos a proveedores.** La deuda con un proveedor es lo entregado menos lo pagado acá.
+**Pagos hechos a proveedores (HISTÓRICO).** Antes de la Tesorería unificada. Ya no se carga: los pagos a proveedores son egresos.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -794,7 +859,7 @@ Otras columnas: `id`, `sucursal_id`, `created_by`, `created_at`.
 
 ### `movimientos_socio`
 
-**Retiros de plata de los socios.** Cuando un socio se lleva plata del negocio.
+**Retiros de plata de los socios (HISTÓRICO).** Antes de la Tesorería unificada. Ya no se carga: un retiro de socio es un egreso de categoría retiro_socio.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -810,7 +875,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 
 ### `pagos_socio`
 
-**Devoluciones de los socios.** Plata que un socio devuelve por un retiro temporal.
+**Devoluciones de los socios (HISTÓRICO).** Antes de la Tesorería unificada. Ya no se carga.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -884,7 +949,8 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `b2b_status` | texto | HEREDADO. |
 | `sucursal_id` | id → sucursales | Sucursal activa (los vendedores pueden estar en varias: ver profile_sucursales). |
 | `credito_limite` | número | Tope de fiado (Cta. Corriente); vacío = sin tope. |
-| `es_socio` | sí / no | Marca de socio del negocio (accede a Tesorería). |
+| `es_socio` | sí / no | Marca de socio del negocio (puede ver Tesorería). |
+| `es_administrativo` | sí / no | Carga los egresos de Tesorería (hoy Damián). Solo tiene efecto si el rol es administrador. |
 
 Otras columnas: `id`, `created_at`, `updated_at`.
 

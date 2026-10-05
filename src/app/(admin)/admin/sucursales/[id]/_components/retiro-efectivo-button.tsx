@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { registrarRetiro } from "../retiro-actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/utils";
+import { reducirImagen } from "@/lib/imagen";
 
 interface Props {
   sucursalId: string;
@@ -46,8 +47,11 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
     setPreviewUrl(null);
   }
 
-  async function uploadImage(file: File): Promise<string> {
+  async function uploadImage(original: File): Promise<string> {
     const supabase = createBrowserClient();
+    // La foto del ticket se reduce antes de subir (una de celular pesa varios MB y cada vez que alguien la abre cuenta como
+    // tráfico de Storage; ver src/lib/imagen.ts). Un PDF se sube tal cual. 1600 px alcanza para leer un ticket.
+    const file = original.type.startsWith("image/") ? await reducirImagen(original, 1600, 0.75) : original;
     const ext  = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { error } = await supabase.storage.from("remitos").upload(path, file);

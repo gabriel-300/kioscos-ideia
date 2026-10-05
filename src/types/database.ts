@@ -409,6 +409,127 @@ export type Database = {
           },
         ]
       }
+      egresos: {
+        Row: {
+          anulado_en: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          categoria: string
+          comprobante: string
+          comprobante_numero: string | null
+          comprobante_path: string | null
+          created_at: string
+          created_by: string | null
+          descripcion: string
+          fecha: string
+          fecha_pago: string | null
+          gasto_fijo_id: string | null
+          id: string
+          monto: number
+          nota: string | null
+          origen: string | null
+          pagado: boolean
+          proveedor_id: string | null
+          sucursal_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          anulado_en?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          categoria: string
+          comprobante: string
+          comprobante_numero?: string | null
+          comprobante_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          descripcion: string
+          fecha: string
+          fecha_pago?: string | null
+          gasto_fijo_id?: string | null
+          id?: string
+          monto: number
+          nota?: string | null
+          origen?: string | null
+          pagado?: boolean
+          proveedor_id?: string | null
+          sucursal_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          anulado_en?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          categoria?: string
+          comprobante?: string
+          comprobante_numero?: string | null
+          comprobante_path?: string | null
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string
+          fecha?: string
+          fecha_pago?: string | null
+          gasto_fijo_id?: string | null
+          id?: string
+          monto?: number
+          nota?: string | null
+          origen?: string | null
+          pagado?: boolean
+          proveedor_id?: string | null
+          sucursal_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "egresos_gasto_fijo_id_fkey"
+            columns: ["gasto_fijo_id"]
+            isOneToOne: false
+            referencedRelation: "gastos_fijos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "egresos_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "egresos_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tesoreria_config: {
+        Row: {
+          efectivo_inicial: number
+          fecha_inicio: string
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          efectivo_inicial?: number
+          fecha_inicio: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          efectivo_inicial?: number
+          fecha_inicio?: string
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       gastos: {
         Row: {
           categoria: string
@@ -586,6 +707,7 @@ export type Database = {
       }
       movimientos: {
         Row: {
+          egreso_id: string | null
           anulado_en: string | null
           anulado_por: string | null
           motivo_anulacion: string | null
@@ -608,6 +730,7 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          egreso_id?: string | null
           anulado_en?: string | null
           anulado_por?: string | null
           motivo_anulacion?: string | null
@@ -630,6 +753,7 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          egreso_id?: string | null
           anulado_en?: string | null
           anulado_por?: string | null
           motivo_anulacion?: string | null
@@ -1045,6 +1169,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          es_administrativo: boolean
           b2b_status: string | null
           canal: string | null
           created_at: string
@@ -1061,6 +1186,7 @@ export type Database = {
           zona_id: string | null
         }
         Insert: {
+          es_administrativo?: boolean
           b2b_status?: string | null
           canal?: string | null
           created_at?: string
@@ -1077,6 +1203,7 @@ export type Database = {
           zona_id?: string | null
         }
         Update: {
+          es_administrativo?: boolean
           b2b_status?: string | null
           canal?: string | null
           created_at?: string
@@ -1332,6 +1459,7 @@ export type Database = {
       }
       retiros_caja: {
         Row: {
+          egreso_id: string | null
           comprobante_image_url: string | null
           created_at: string
           created_by: string | null
@@ -1342,6 +1470,7 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
+          egreso_id?: string | null
           comprobante_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -1352,6 +1481,7 @@ export type Database = {
           sucursal_id: string
         }
         Update: {
+          egreso_id?: string | null
           comprobante_image_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -1373,6 +1503,7 @@ export type Database = {
       }
       sucursales: {
         Row: {
+          entra_en_tesoreria: boolean
           auditoria_obligatoria: boolean
           created_at: string
           direccion: string | null
@@ -1391,6 +1522,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          entra_en_tesoreria?: boolean
           auditoria_obligatoria?: boolean
           created_at?: string
           direccion?: string | null
@@ -1409,6 +1541,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          entra_en_tesoreria?: boolean
           auditoria_obligatoria?: boolean
           created_at?: string
           direccion?: string | null

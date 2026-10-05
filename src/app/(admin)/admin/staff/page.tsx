@@ -31,8 +31,8 @@ export default async function StaffPage() {
     }>,
     (supabase as any)
       .from("profiles")
-      .select("id, sucursal_id, credito_limite, es_socio") as unknown as Promise<{
-        data: { id: string; sucursal_id: string | null; credito_limite: number | null; es_socio: boolean | null }[] | null;
+      .select("id, sucursal_id, credito_limite, es_socio, es_administrativo") as unknown as Promise<{
+        data: { id: string; sucursal_id: string | null; credito_limite: number | null; es_socio: boolean | null; es_administrativo: boolean | null }[] | null;
       }>,
     (admin as any)
       .from("profile_sucursales")
@@ -51,10 +51,10 @@ export default async function StaffPage() {
     );
   }
 
-  type ProfileEntry = { sucursalId: string | null; creditoLimite: number | null; esSocio: boolean };
+  type ProfileEntry = { sucursalId: string | null; creditoLimite: number | null; esSocio: boolean; esAdministrativo: boolean };
   const profileMap: Record<string, ProfileEntry> = {};
   for (const p of profilesResult.data ?? []) {
-    profileMap[p.id] = { sucursalId: p.sucursal_id, creditoLimite: p.credito_limite ?? null, esSocio: !!p.es_socio };
+    profileMap[p.id] = { sucursalId: p.sucursal_id, creditoLimite: p.credito_limite ?? null, esSocio: !!p.es_socio, esAdministrativo: !!p.es_administrativo };
   }
 
   // Conjunto de sucursales donde cada vendedor está habilitado (distinto de
@@ -83,6 +83,7 @@ export default async function StaffPage() {
       sucursalIdsVendedor: sucursalIdsVendedorMap[u.id] ?? [],
       creditoLimite: profileMap[u.id]?.creditoLimite ?? null,
       esSocio: profileMap[u.id]?.esSocio ?? false,
+      esAdministrativo: profileMap[u.id]?.esAdministrativo ?? false,
       sistemas: sistemasDe(u),
       sistemasPorDefecto: !sistemasFijos(rolDe(u)) && !tieneSistemasGuardados(u),
       isSuspended:   !!(u as any).banned_until && (u as any).banned_until !== "none",

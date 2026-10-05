@@ -90,7 +90,8 @@ export default async function InformeMensualPage({
     { data: movSocioRaw },
     { data: pagosSocioRaw },
     { data: gastosRaw },
-  ] = sucursalIds.length === 0 ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }] : await Promise.all([
+    { data: egresosRaw },
+  ] = sucursalIds.length === 0 ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }] : await Promise.all([
     // Paginado: un mes de ventas de un solo kiosco ya pasa las 1.000 filas de
     // PostgREST (auditoría 19/09/2026, A-03) -- sin esto el informe mostraba
     // solo una fracción del total, sin avisar.
@@ -114,6 +115,8 @@ export default async function InformeMensualPage({
       .from("retiros_caja")
       .select("sucursal_id, monto")
       .in("sucursal_id", sucursalIds)
+      // Un retiro ya registrado en Tesorería está representado por su egreso (migración 101): se cuenta ahí, no acá.
+      .is("egreso_id", null)
       .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
     (admin as any)
       .from("pagos_proveedor")
@@ -138,6 +141,13 @@ export default async function InformeMensualPage({
       .select("sucursal_id, categoria, monto")
       .or(`sucursal_id.in.(${sucursalIds.join(",")}),sucursal_id.is.null`)
       .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string | null; categoria: string; monto: number }[] | null }>,
+    // Egresos de Tesorería (migración 101): vivos, por fecha de compra, de estas sucursales o generales.
+    (admin as any)
+      .from("egresos")
+      .select("sucursal_id, categoria, monto")
+      .or(`sucursal_id.in.(${sucursalIds.join(",")}),sucursal_id.is.null`)
+      .is("anulado_en", null)
+      .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string | null; categoria: string; monto: number }[] | null }>,
   ]);
 
   const ventas          = ventasRaw          ?? [];
@@ -147,6 +157,7 @@ export default async function InformeMensualPage({
   const movimientosSocio = movSocioRaw        ?? [];
   const pagosSocio       = pagosSocioRaw      ?? [];
   const gastos           = gastosRaw          ?? [];
+  const egresosTesoreria = egresosRaw         ?? [];
 
   const GENERALES = "generales";
   const columnas = [...sucursales.map((s) => s.id), GENERALES] as string[];
@@ -202,8 +213,9 @@ export default async function InformeMensualPage({
   const retirosSocioPorSucursal   = totalesPorSucursal(movimientosSocio, (m) => m.sucursal_id, (m) => m.monto);
   const pagosSocioPorSucursal     = totalesPorSucursal(pagosSocio, (p) => p.sucursal_id, (p) => p.monto_efectivo + p.monto_billetera);
   const gastosPorSucursal         = totalesPorSucursal(gastos, (g) => g.sucursal_id, (g) => g.monto);
+  const egresosTesoreriaPorSucursal = totalesPorSucursal(egresosTesoreria, (e) => e.sucursal_id, (e) => e.monto);
   const gastosPorCategoria = new Map<string, number>();
-  for (const g of gastos) gastosPorCategoria.set(g.categoria, (gastosPorCategoria.get(g.categoria) ?? 0) + g.monto);
+  for (const g of [...gastos, ...egresosTesoreria]) gastosPorCategoria.set(g.categoria, (gastosPorCategoria.get(g.categoria) ?? 0) + g.monto);
 
   function sumaColumnas(map: Map<string, number>) {
     return columnas.reduce((s, c) => s + (map.get(c) ?? 0), 0);
@@ -213,9 +225,10 @@ export default async function InformeMensualPage({
   const totalRetirosSocio   = sumaColumnas(retirosSocioPorSucursal);
   const totalPagosSocio     = sumaColumnas(pagosSocioPorSucursal);
   const totalGastos         = sumaColumnas(gastosPorSucursal);
+  const totalEgresosTesoreria = sumaColumnas(egresosTesoreriaPorSucursal);
   // Las devoluciones a socios RESTAN -- es efectivo que vuelve a la caja, no
   // que sale (mismo signo que usa la tabla de abajo).
-  const totalEgresos = totalRetirosCaja + totalPagosProveedor + totalRetirosSocio - totalPagosSocio + totalGastos;
+  const totalEgresos = totalRetirosCaja + totalPagosProveedor + totalRetirosSocio - totalPagosSocio + totalGastos + totalEgresosTesoreria;
   const resultadoNeto = totalFacturadoGeneral - totalEgresos;
 
   function Tabla({ titulo, filas, mostrarTotalGeneral = true }: {
@@ -384,11 +397,12 @@ export default async function InformeMensualPage({
           <Tabla
             titulo="Egresos"
             filas={[
-              { label: "Retiros de caja", porColumna: retirosCajaPorSucursal },
+              { label: "Retiros de caja (sin registrar en Tesorería)", porColumna: retirosCajaPorSucursal },
               { label: "Pagos a proveedores", porColumna: pagosProveedorPorSucursal },
               { label: "Retiros de socios", porColumna: retirosSocioPorSucursal },
               { label: "Devoluciones a socios (resta)", porColumna: new Map(columnas.map((c) => [c, -(pagosSocioPorSucursal.get(c) ?? 0)])) },
-              { label: "Gastos", porColumna: gastosPorSucursal },
+              { label: "Gastos (anteriores a Tesorería)", porColumna: gastosPorSucursal },
+              { label: "Egresos de Tesorería", porColumna: egresosTesoreriaPorSucursal },
             ]}
           />
 

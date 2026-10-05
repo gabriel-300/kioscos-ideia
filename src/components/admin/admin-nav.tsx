@@ -89,18 +89,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Antes repartido: Cierres vivía en "Ventas", Pagos a proveedores/Socios/
-    // Cta. Corriente no tenían entrada de menú (solo se llegaba entrando
-    // primero a un kiosco puntual), y Finanzas/Tesorería eran ítems sueltos
-    // -- todo lo que es plata/liquidez del negocio va acá ahora.
+    // La contabilidad (egresos, compras, lo que se debe, efectivo de Tesorería) vive toda en /admin/tesoreria: un
+    // solo módulo que carga el administrativo. Gastos, Pagos a proveedores y Socios dejaron de tener entrada propia
+    // (sus URLs viejas redirigen a Tesorería, ver next.config.ts). Cierres, Informe mensual y Cta. Corriente siguen
+    // siendo del día a día del kiosco / informes.
     label: "Finanzas", icon: "gastos",
     children: [
-      { href: "/admin/gastos",            label: "Gastos",              roles: ["admin"],                                          icon: "gastos" },
+      { href: "/admin/tesoreria",         label: "Tesorería",           roles: ["admin", "socio"],                                 icon: "tesoreria" },
       { href: "/admin/cierres",           label: "Cierres",             roles: ["admin", "concesionario"],                         icon: "cierres" },
-      { href: "/admin/tesoreria",         label: "Posición de Caja",    roles: ["admin", "socio"],                                 icon: "tesoreria" },
       { href: "/admin/informe-mensual",   label: "Informe mensual",     roles: ["admin", "socio"],                                 icon: "ventasdiarias" },
-      { href: "/admin/pagos-proveedores", label: "Pagos a proveedores", roles: ["admin", "encargado", "concesionario"],             icon: "proveedores" },
-      { href: "/admin/socios",            label: "Socios",              roles: ["admin", "encargado"],                             icon: "nichos" },
       { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "staff" },
     ],
   },

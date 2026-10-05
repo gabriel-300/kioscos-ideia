@@ -99,14 +99,25 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Estado**: personal interno **Funcionando** (362 ventas fiadas, 8 pagos). Contactos externos (rondas de comunidad): **pendiente
   de probar** (0 contactos).
 
-### Tesorería — `/admin/tesoreria`, pagos a proveedores, socios, gastos
-- **Quién**: Posición de caja y Socios: admin o socio (`es_socio`). Pagos a proveedores: admin y el encargado de esa
-  sucursal (y concesionario). Socios: **no** el concesionario. Gastos: solo admin.
-- **Reglas**: `Posición = efectivo en cajones + sobres pendientes − deuda a proveedores − deuda a socios`; deuda a
-  proveedores por proveedor con piso en cero; solo el retiro **temporal** de un socio es deuda (el retiro de ganancias no);
-  solo el efectivo de esos pagos entra a la conciliación del cierre, la billetera es informativa.
-- **Estado**: Posición de caja **Funcionando**; Pagos a proveedores **Probado** (2 pagos); Socios **Pendiente de probar** (0
-  retiros ni devoluciones) y Gastos sin uso real (0 gastos, 1 gasto fijo).
+### Tesorería — `/admin/tesoreria` (un solo módulo para todo lo contable)
+- **Objetivo**: llevar en un solo lugar lo que sale, lo que entra y lo que se debe de los dos kioscos propios (Parque de las
+  Fiestas y UNAM), y dejar preparada la conexión con ARCA (segunda etapa).
+- **Quién**: ver, admin o socio; **cargar, solo un administrativo** (admin con `es_administrativo`, hoy Damián; se cambia desde
+  Staff). Los demás socios ven pero no cargan. El personal del kiosco **no carga nada contable**.
+- **Reglas de negocio (no se corrigen sin preguntar)**:
+  - Hay dos mundos: el kiosco carga ventas, caja y la mercadería que ingresa **para el stock**; la contabilidad la carga el
+    administrativo con la factura o el remito real, porque el personal se equivoca con los importes.
+  - El **retiro de caja** existe para que el empleado saque plata para una compra puntual de emergencia; no se le pide
+    contabilidad (texto libre + foto opcional). No es un gasto: el gasto es el egreso al que el administrativo lo asigna.
+  - Hay compras **con factura y sin factura**; el gasto se registra igual en los dos casos.
+  - Un egreso puede estar **pagado o "todavía se debe"**; lo que se debe se marca pagado después.
+  - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».
+  - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
+  - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
+- **Estado**: **Construido, pendiente de probar con uso real** (0 egresos). La conciliación del cierre de caja no cambió: lo que
+  antes entraba por Pagos a proveedores y Socios queda en cero. `pagos_proveedor`, `movimientos_socio`, `pagos_socio` y `gastos`
+  quedan como histórico. Pendiente a propósito: el concepto de retiro **temporal** de un socio con devolución (se simplificó a
+  la categoría «Retiro de socio»; confirmar con el usuario).
 
 ### Informes — ventas, cierres, informe mensual, rotación, pronóstico, horario, vendedor
 - **Quién**: admin y concesionario (su sucursal). Informe mensual y Tesorería: admin o socio.

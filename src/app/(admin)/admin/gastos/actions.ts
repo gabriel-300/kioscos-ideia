@@ -6,63 +6,6 @@ import { requireAdmin } from "@/lib/auth/require-role";
 
 export type Categoria = "mercaderia" | "sueldos" | "alquiler" | "servicios" | "otro";
 
-export interface GastoInput {
-  categoria:   Categoria;
-  monto:       number;
-  fecha:       string;
-  proveedor:   string | null;
-  sucursal_id: string | null;
-  notas:       string | null;
-  empleado_id?: string | null;
-  tipo_sueldo?: "regular" | "extra" | null;
-}
-
-export async function crearGasto(data: GastoInput) {
-  const { userId } = await requireAdmin();
-  const supabase = createAdminClient();
-
-  const { error } = await (supabase as any).from("gastos").insert({
-    categoria:   data.categoria,
-    monto:       data.monto,
-    fecha:       data.fecha,
-    proveedor:   data.proveedor   || null,
-    sucursal_id: data.sucursal_id || null,
-    notas:       data.notas       || null,
-    empleado_id: data.categoria === "sueldos" ? (data.empleado_id ?? null) : null,
-    tipo_sueldo: data.categoria === "sueldos" ? (data.tipo_sueldo ?? null) : null,
-    created_by:  userId,
-  });
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/gastos");
-}
-
-export async function actualizarGasto(id: string, data: GastoInput) {
-  const { userId } = await requireAdmin();
-  const supabase = createAdminClient();
-
-  const { error } = await (supabase as any).from("gastos").update({
-    categoria:   data.categoria,
-    monto:       data.monto,
-    fecha:       data.fecha,
-    proveedor:   data.proveedor   || null,
-    sucursal_id: data.sucursal_id || null,
-    notas:       data.notas       || null,
-    empleado_id: data.categoria === "sueldos" ? (data.empleado_id ?? null) : null,
-    tipo_sueldo: data.categoria === "sueldos" ? (data.tipo_sueldo ?? null) : null,
-    updated_by:  userId,
-  }).eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/gastos");
-}
-
-export async function eliminarGasto(id: string) {
-  await requireAdmin();
-  const supabase = createAdminClient();
-  const { error } = await (supabase as any).from("gastos").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/gastos");
-}
-
 export interface GastoFijoInput {
   categoria:       Categoria;
   descripcion:     string;
@@ -116,31 +59,6 @@ export async function eliminarGastoFijo(id: string) {
   await requireAdmin();
   const supabase = createAdminClient();
   const { error } = await (supabase as any).from("gastos_fijos").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/gastos");
-}
-
-// Convierte un gasto fijo "comprometido" en "ejecutado": crea el gasto real
-// vinculado (gasto_fijo_id) para que deje de contar como pendiente ese mes.
-export async function marcarGastoFijoPagado(data: {
-  gasto_fijo_id: string;
-  categoria:     Categoria;
-  monto:         number;
-  fecha:         string;
-  proveedor:     string | null;
-  sucursal_id:   string | null;
-}) {
-  const { userId } = await requireAdmin();
-  const supabase = createAdminClient();
-  const { error } = await (supabase as any).from("gastos").insert({
-    categoria:     data.categoria,
-    monto:         data.monto,
-    fecha:         data.fecha,
-    proveedor:     data.proveedor   || null,
-    sucursal_id:   data.sucursal_id || null,
-    gasto_fijo_id: data.gasto_fijo_id,
-    created_by:    userId,
-  });
   if (error) throw new Error(error.message);
   revalidatePath("/admin/gastos");
 }

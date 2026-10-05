@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
       { source: "/admin/pedidos-online/:path+", destination: "/tenteo/pedidos/:path+", permanent: false },
       { source: "/admin/repartos", destination: "/tenteo/repartos", permanent: false },
       { source: "/admin/repartos/:path+", destination: "/tenteo/repartos/:path+", permanent: false },
+      // Pagos a proveedores y Socios se unificaron en Tesorería (un solo módulo, lo carga el administrativo).
+      // Las pantallas por kiosco ya no se usan; los enlaces viejos llegan a Tesorería.
+      { source: "/admin/pagos-proveedores", destination: "/admin/tesoreria?vista=egresos", permanent: false },
+      { source: "/admin/socios", destination: "/admin/tesoreria?vista=egresos", permanent: false },
+      { source: "/admin/sucursales/:id/pagos-proveedores", destination: "/admin/tesoreria?vista=egresos", permanent: false },
+      { source: "/admin/sucursales/:id/socios", destination: "/admin/tesoreria?vista=egresos", permanent: false },
     ];
   },
   async headers() {

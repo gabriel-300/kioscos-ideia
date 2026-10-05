@@ -1,249 +1,164 @@
 import type { Metadata } from "next";
-import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/server";
 import { fechaHoyAR } from "@/lib/fecha";
-import { PosicionCajaView, type PosicionData } from "./_components/posicion-caja-view";
+import { permisosTesoreria } from "@/lib/tesoreria/permisos";
+import {
+  cargarConfig, cargarSucursales, cargarProveedores, cargarGastosFijos, cargarRetirosPendientes, cargarEntregasPendientes,
+  cargarEgresosDelPeriodo, cargarEgresosPendientes, cargarSalidasEfectivo, cargarVentasDelPeriodo, cargarSobresRetirados, cargarSobresSinRetirar,
+} from "@/lib/tesoreria/consultas";
+import { agruparDeuda, efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
+import { ResumenView, type ResumenData } from "./_components/resumen-view";
+import { ParaRegistrar } from "./_components/para-registrar";
+import { EgresosLista } from "./_components/egresos-lista";
+import { FijosLista } from "./_components/fijos-lista";
 
 export const revalidate = 0;
-export const metadata: Metadata = { title: "Posición de Caja — Kioscos IDEIA" };
+export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
+
+const VISTAS = [
+  { id: "resumen",        etiqueta: "Resumen" },
+  { id: "para-registrar", etiqueta: "Para registrar" },
+  { id: "egresos",        etiqueta: "Egresos" },
+  { id: "fijos",          etiqueta: "Gastos fijos" },
+] as const;
+type Vista = (typeof VISTAS)[number]["id"];
 
 export default async function TesoreriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sucursal?: string; fecha?: string }>;
+  searchParams: Promise<{ vista?: string; mes?: string }>;
 }) {
-  const supabase = await createClient();
-  const admin    = createAdminClient();
+  const permisos = await permisosTesoreria();
+  if (!permisos) redirect("/login");
+  // Ver Tesorería: admin o socio. Cargar: solo el administrativo (lib/tesoreria/permisos.ts).
+  if (!permisos.puedeVer) redirect("/admin/dashboard");
 
-  const user = await getUser();
-  if (!user) redirect("/login");
+  const sp    = await searchParams;
+  const vista = (VISTAS.find((v) => v.id === sp.vista)?.id ?? "resumen") as Vista;
+  const mesActual = fechaHoyAR().slice(0, 7);
+  const mes   = sp.mes && rangoDelMes(sp.mes) ? sp.mes : mesActual;
+  const rango = rangoDelMes(mes)!;
+  const { anterior, siguiente } = mesAnteriorYSiguiente(mes);
+  const mesLabel = new Date(`${mes}-01T12:00:00`).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
 
-  const role = (user.app_metadata?.role as string) ?? "";
-  const { data: perfil } = await (admin as any).from("profiles").select("es_socio").eq("id", user.id).single();
-  const esSocio = (perfil as { es_socio: boolean | null } | null)?.es_socio ?? false;
+  const admin = createAdminClient();
 
-  // Solo Admin/socio -- información financiera consolidada del negocio, no
-  // de un turno puntual, no es para vendedores/encargados aunque sean de
-  // confianza para el día a día de su kiosco.
-  if (role !== "admin" && !esSocio) redirect("/admin/dashboard");
+  let datos;
+  try {
+    const config = await cargarConfig(admin);
+    if (!config) throw new Error("falta la migración 101");
 
-  const sp        = await searchParams;
-  const hoy       = fechaHoyAR();
-  const fecha     = sp.fecha ?? hoy;
-  const esHoy     = fecha === hoy;
-  // "Ahora" para hoy (recalcula en vivo), o el cierre del día para una fecha
-  // pasada -- así se puede reconstruir la posición de un día anterior para
-  // auditar, sin necesitar una tabla de snapshots aparte.
-  const cutoffISO = esHoy ? new Date().toISOString() : `${fecha}T23:59:59-03:00`;
+    const [sucursales, proveedores] = await Promise.all([cargarSucursales(admin), cargarProveedores(admin)]);
+    const sucursalIds = sucursales.map((s) => s.id);
 
-  const { data: sucursalesRaw } = await admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre");
-  const todasSucursales = sucursalesRaw ?? [];
-  const sucursalFiltro  = sp.sucursal && todasSucursales.some((s) => s.id === sp.sucursal) ? sp.sucursal : "all";
-  const sucursales      = sucursalFiltro === "all" ? todasSucursales : todasSucursales.filter((s) => s.id === sucursalFiltro);
-  const sucursalIds     = sucursales.map((s) => s.id);
+    const [retiros, entregas] = await Promise.all([
+      cargarRetirosPendientes(admin, sucursalIds, config.fecha_inicio),
+      cargarEntregasPendientes(admin, sucursalIds, config.fecha_inicio),
+    ]);
 
-  if (sucursalIds.length === 0) {
-    redirect("/admin/tesoreria");
-  }
+    let resumen: ResumenData | null = null;
+    let egresosMes: Awaited<ReturnType<typeof cargarEgresosDelPeriodo>> = [];
+    let fijos: Awaited<ReturnType<typeof cargarGastosFijos>> = [];
+    let pendientesTodos: Awaited<ReturnType<typeof cargarEgresosPendientes>> = [];
 
-  const [
-    { data: aperturasRaw },
-    { data: cierresRaw },
-    { data: entregasRaw },
-    { data: pagosProvRaw },
-    { data: sociosRaw },
-    { data: movSocioRaw },
-    { data: pagosSocioRaw },
-    { data: ventasCtcRaw },
-    { data: pagosCtcRaw },
-  ] = await Promise.all([
-    (admin as any)
-      .from("aperturas_caja")
-      .select("sucursal_id, fondo_inicial, created_at")
-      .in("sucursal_id", sucursalIds)
-      .lte("created_at", cutoffISO)
-      .order("created_at", { ascending: false }),
-    (admin as any)
-      .from("cierres_caja")
-      .select("sucursal_id, efectivo_declarado, fondo_siguiente, sobre_retirado_en, created_at")
-      .in("sucursal_id", sucursalIds)
-      .lte("created_at", cutoffISO)
-      .order("created_at", { ascending: false }),
-    (admin as any)
-      .from("movimientos")
-      .select("sucursal_id, proveedor_id, movimiento_items(subtotal)")
-      .in("sucursal_id", sucursalIds)
-      .eq("tipo", "entrega")
-      .not("proveedor_id", "is", null)
-      .lte("fecha", fecha),
-    (admin as any)
-      .from("pagos_proveedor")
-      .select("sucursal_id, proveedor_id, monto_efectivo, monto_billetera")
-      .in("sucursal_id", sucursalIds)
-      .lte("fecha_pago", fecha),
-    (admin as any).from("profiles").select("id, full_name").eq("es_socio", true),
-    (admin as any)
-      .from("movimientos_socio")
-      .select("sucursal_id, socio_id, tipo, monto")
-      .in("sucursal_id", sucursalIds)
-      .lte("fecha", fecha),
-    (admin as any)
-      .from("pagos_socio")
-      .select("sucursal_id, socio_id, monto_efectivo, monto_billetera")
-      .in("sucursal_id", sucursalIds)
-      .lte("fecha", fecha),
-    // Cta. Corriente: plata que TE deben (empleados que compraron fiado), no
-    // plata que vos debés -- no entra a la fórmula de la Posición (no es
-    // efectivo disponible hoy), se muestra aparte como referencia.
-    (admin as any)
-      .from("movimientos")
-      .select("sucursal_id, personal_id, movimiento_items(subtotal)")
-      .in("sucursal_id", sucursalIds)
-      .eq("canal", "cuenta_corriente")
-      .eq("tipo", "venta")
-      .lte("fecha", fecha),
-    (admin as any)
-      .from("cta_corriente_pagos")
-      .select("sucursal_id, personal_id, monto")
-      .in("sucursal_id", sucursalIds)
-      .lte("fecha", fecha),
-  ]);
-
-  // ── 1. Efectivo físico por ubicación ──────────────────────────────────
-  // Con la caja abierta se usa el fondo inicial declarado (no se espera al
-  // cierre para que el número exista); con la caja cerrada, lo que quedó en
-  // el cajón para el turno siguiente (fondo_siguiente) -- eso es literalmente
-  // la plata física que hay ahora, el resto ya se separó como sobre.
-  type Apertura = { sucursal_id: string; fondo_inicial: number; created_at: string };
-  type Cierre = { sucursal_id: string; efectivo_declarado: number; fondo_siguiente: number | null; sobre_retirado_en: string | null; created_at: string };
-  const aperturas: Apertura[] = aperturasRaw ?? [];
-  const cierres: Cierre[]     = cierresRaw   ?? [];
-
-  const ultimaAperturaPorSucursal = new Map<string, Apertura>();
-  for (const a of aperturas) if (!ultimaAperturaPorSucursal.has(a.sucursal_id)) ultimaAperturaPorSucursal.set(a.sucursal_id, a);
-  const ultimoCierrePorSucursal = new Map<string, Cierre>();
-  for (const c of cierres) if (!ultimoCierrePorSucursal.has(c.sucursal_id)) ultimoCierrePorSucursal.set(c.sucursal_id, c);
-
-  const efectivoPorSucursal = sucursales.map((s) => {
-    const apertura = ultimaAperturaPorSucursal.get(s.id) ?? null;
-    const cierre   = ultimoCierrePorSucursal.get(s.id) ?? null;
-    if (apertura && (!cierre || apertura.created_at > cierre.created_at)) {
-      return { sucursalId: s.id, nombre: s.nombre, monto: apertura.fondo_inicial, estado: "abierta" as const };
+    if (vista === "resumen" || vista === "egresos" || vista === "fijos") {
+      egresosMes = await cargarEgresosDelPeriodo(admin, rango.desde, rango.hasta);
     }
-    if (cierre) {
-      return { sucursalId: s.id, nombre: s.nombre, monto: cierre.fondo_siguiente ?? 0, estado: "cerrada" as const };
+    // Las compras que todavía se deben se muestran en Egresos sin importar el mes: si no, una de agosto no se podría
+    // marcar pagada desde ningún lado.
+    if (vista === "egresos") pendientesTodos = await cargarEgresosPendientes(admin);
+    if (vista === "fijos") fijos = await cargarGastosFijos(admin);
+
+    if (vista === "resumen") {
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar] = await Promise.all([
+        cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
+        cargarEgresosPendientes(admin),
+        cargarSalidasEfectivo(admin, config.fecha_inicio),
+        cargarSobresRetirados(admin, sucursalIds, config.fecha_inicio),
+        cargarSobresSinRetirar(admin, sucursalIds, config.fecha_inicio),
+      ]);
+      const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
+      const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
+      resumen = {
+        entro: entro,
+        gasto: resumirEgresos(egresosMes),
+        deuda: agruparDeuda(pendientes, nombreProveedor),
+        efectivo: { ...efectivo, inicial: config.efectivo_inicial },
+        sobresSinRetirar: sobresSinRetirar.reduce((s, c) => s + montoSobre(c), 0),
+      };
     }
-    return { sucursalId: s.id, nombre: s.nombre, monto: 0, estado: "sin_datos" as const };
-  });
-  const efectivoTotal = efectivoPorSucursal.reduce((s, r) => s + r.monto, 0);
 
-  // ── 2. Sobres pendientes de retiro ────────────────────────────────────
-  // Mismo cálculo que "Historial de cierres" (max(0, declarado - fondo que
-  // quedó)) -- un cierre cuenta como pendiente si a la fecha de corte
-  // todavía no se había marcado retirado (si se retiró DESPUÉS del corte,
-  // para esa fecha pasada seguía pendiente).
-  const sobresPorSucursal = sucursales.map((s) => {
-    const monto = cierres
-      .filter((c) => c.sucursal_id === s.id && (!c.sobre_retirado_en || c.sobre_retirado_en > cutoffISO))
-      .reduce((sum, c) => sum + (c.fondo_siguiente != null ? Math.max(0, c.efectivo_declarado - c.fondo_siguiente) : 0), 0);
-    return { sucursalId: s.id, nombre: s.nombre, monto };
-  });
-  const sobresTotal = sobresPorSucursal.reduce((s, r) => s + r.monto, 0);
+    datos = { config, sucursales, proveedores, retiros, entregas, resumen, egresosMes, fijos, pendientesTodos };
+  } catch (e) {
+    const detalle = e instanceof Error ? e.message : String(e);
+    return (
+      <div className="p-4 md:p-8 max-w-3xl">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Tesorería todavía no está lista en la base de datos.</p>
+          <p className="mt-1">Falta aplicar las migraciones 101 y 102 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {detalle}</p>
+        </div>
+      </div>
+    );
+  }
 
-  // ── 3. Deuda a proveedores ─────────────────────────────────────────────
-  // Mismo criterio que /admin/sucursales/[id]/pagos-proveedores: entregas
-  // con proveedor asignado menos pagos registrados, sin límite de mes acá
-  // (es la deuda TOTAL a la fecha, no de un período).
-  type EntregaRow = { sucursal_id: string; proveedor_id: string; movimiento_items: { subtotal: number | null }[] };
-  const entregas: EntregaRow[] = entregasRaw ?? [];
-  const deudaProvMap = new Map<string, number>();
-  for (const m of entregas) {
-    const sub = m.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
-    deudaProvMap.set(m.proveedor_id, (deudaProvMap.get(m.proveedor_id) ?? 0) + sub);
-  }
-  const pagosProv: { proveedor_id: string; monto_efectivo: number; monto_billetera: number }[] = pagosProvRaw ?? [];
-  for (const p of pagosProv) {
-    deudaProvMap.set(p.proveedor_id, (deudaProvMap.get(p.proveedor_id) ?? 0) - p.monto_efectivo - p.monto_billetera);
-  }
-  const proveedorIds = [...deudaProvMap.keys()];
-  const { data: proveedoresNombres } = proveedorIds.length > 0
-    ? await admin.from("proveedores").select("id, nombre").in("id", proveedorIds)
-    : { data: [] as { id: string; nombre: string }[] };
-  const proveedorNombreMap = new Map((proveedoresNombres ?? []).map((p) => [p.id, p.nombre]));
-  const deudaProveedores = [...deudaProvMap.entries()]
-    // Un saldo a favor con un proveedor no compensa la deuda con otro -- se
-    // clampea en 0 antes de sumar el total, mismo criterio que la pantalla
-    // de Pagos a proveedores (ahí lo hace por sucursal, acá agregado).
-    .map(([id, saldo]) => ({ id, nombre: proveedorNombreMap.get(id) ?? "Proveedor eliminado", monto: Math.max(0, saldo) }))
-    .filter((p) => p.monto > 0)
-    .sort((a, b) => b.monto - a.monto);
-  const deudaProveedoresTotal = deudaProveedores.reduce((s, p) => s + p.monto, 0);
+  const { sucursales, proveedores, retiros, entregas, resumen, egresosMes, fijos, pendientesTodos } = datos;
+  const pendientesDeRegistrar = retiros.length + entregas.length;
+  const enlace = (v: string, m: string = mes) => `/admin/tesoreria?vista=${v}&mes=${m}`;
 
-  // ── 4. Deuda de socios ─────────────────────────────────────────────────
-  // Solo retiro_temporal cuenta como deuda (retiro_ganancias es reparto real,
-  // no vuelve) -- mismo criterio que /admin/sucursales/[id]/socios.
-  const socios: { id: string; full_name: string | null }[] = sociosRaw ?? [];
-  const deudaSocioMap = new Map<string, number>();
-  for (const r of (movSocioRaw ?? []) as { socio_id: string; tipo: string; monto: number }[]) {
-    if (r.tipo === "retiro_temporal") deudaSocioMap.set(r.socio_id, (deudaSocioMap.get(r.socio_id) ?? 0) + r.monto);
-  }
-  for (const p of (pagosSocioRaw ?? []) as { socio_id: string; monto_efectivo: number; monto_billetera: number }[]) {
-    deudaSocioMap.set(p.socio_id, (deudaSocioMap.get(p.socio_id) ?? 0) - p.monto_efectivo - p.monto_billetera);
-  }
-  const deudaSocios = socios
-    .map((s) => ({ id: s.id, nombre: s.full_name ?? "Sin nombre", monto: Math.max(0, deudaSocioMap.get(s.id) ?? 0) }))
-    .filter((s) => s.monto > 0)
-    .sort((a, b) => b.monto - a.monto);
-  const deudaSociosTotal = deudaSocios.reduce((s, r) => s + r.monto, 0);
-
-  // ── 5. Cta. Corriente pendiente (informativo, no entra a la fórmula) ──
-  // Mismo criterio que /admin/sucursales/[id]/cta-corriente, agregado entre
-  // sucursales. Es lo opuesto a proveedores/socios: no es deuda del negocio,
-  // es plata que el negocio todavía no cobró.
-  type VentaCtcRow = { personal_id: string | null; movimiento_items: { subtotal: number | null }[] };
-  const pendienteCtcMap = new Map<string, number>();
-  for (const v of (ventasCtcRaw ?? []) as VentaCtcRow[]) {
-    if (!v.personal_id) continue;
-    const sub = v.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
-    pendienteCtcMap.set(v.personal_id, (pendienteCtcMap.get(v.personal_id) ?? 0) + sub);
-  }
-  for (const p of (pagosCtcRaw ?? []) as { personal_id: string; monto: number }[]) {
-    pendienteCtcMap.set(p.personal_id, (pendienteCtcMap.get(p.personal_id) ?? 0) - p.monto);
-  }
-  const personalIdsCtc = [...pendienteCtcMap.keys()];
-  const { data: personalNombresCtc } = personalIdsCtc.length > 0
-    ? await admin.from("profiles").select("id, full_name").in("id", personalIdsCtc)
-    : { data: [] as { id: string; full_name: string | null }[] };
-  const personalNombreMap = new Map((personalNombresCtc ?? []).map((p) => [p.id, p.full_name ?? "Sin nombre"]));
-  const ctaCorrientePendiente = [...pendienteCtcMap.entries()]
-    .map(([id, saldo]) => ({ id, nombre: personalNombreMap.get(id) ?? "Sin nombre", monto: Math.max(0, saldo) }))
-    .filter((p) => p.monto > 0)
-    .sort((a, b) => b.monto - a.monto);
-  const ctaCorrientePendienteTotal = ctaCorrientePendiente.reduce((s, p) => s + p.monto, 0);
-
-  const posicionConsolidada = efectivoTotal + sobresTotal - deudaProveedoresTotal - deudaSociosTotal;
-
-  const data: PosicionData = {
-    posicionConsolidada,
-    efectivoTotal, sobresTotal, deudaProveedoresTotal, deudaSociosTotal, ctaCorrientePendienteTotal,
-    efectivoPorSucursal, sobresPorSucursal, deudaProveedores, deudaSocios, ctaCorrientePendiente,
-    hayAlgunSocioCargado: socios.length > 0,
-  };
+  const pagadosPorFijo: Record<string, { monto: number; fecha: string }> = {};
+  for (const e of egresosMes) if (e.gasto_fijo_id) pagadosPorFijo[e.gasto_fijo_id] = { monto: e.monto, fecha: e.fecha };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Posición de Caja</h1>
-        <p className="text-sm text-neutral-400 mt-0.5">Tesorería consolidada — efectivo, sobres y deudas de todos los kioscos en un solo número</p>
+        <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Tesorería</h1>
+        <p className="text-sm text-neutral-400 mt-0.5">
+          Lo que entra, lo que sale y lo que se debe de {sucursales.map((s) => s.nombre).join(" y ")}
+          {!permisos.puedeCargar && " — solo lectura"}
+        </p>
       </div>
 
-      <PosicionCajaView
-        data={data}
-        sucursales={todasSucursales}
-        sucursalFiltro={sucursalFiltro}
-        fecha={fecha}
-        esHoy={esHoy}
-      />
+      <nav className="flex gap-1 border-b border-neutral-200 mb-6 overflow-x-auto">
+        {VISTAS.map((v) => (
+          <Link key={v.id} href={enlace(v.id)}
+            className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${
+              vista === v.id ? "border-tierra-700 font-semibold text-tierra-900" : "border-transparent text-neutral-500 hover:text-neutral-800"
+            }`}>
+            {v.etiqueta}
+            {v.id === "para-registrar" && pendientesDeRegistrar > 0 && (
+              <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-bold text-amber-800">{pendientesDeRegistrar}</span>
+            )}
+          </Link>
+        ))}
+      </nav>
+
+      {vista !== "para-registrar" && (
+        <div className="flex items-center gap-3 mb-6">
+          <Link href={enlace(vista, anterior)} aria-label="Mes anterior" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
+            <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+          </Link>
+          <span className="font-semibold text-neutral-900 capitalize min-w-36 text-center">{mesLabel}</span>
+          {mes < mesActual ? (
+            <Link href={enlace(vista, siguiente)} aria-label="Mes siguiente" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
+              <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </Link>
+          ) : <div className="size-9" />}
+        </div>
+      )}
+
+      {vista === "resumen" && resumen && <ResumenView data={resumen} mesLabel={mesLabel} puedeCargar={permisos.puedeCargar} />}
+      {vista === "para-registrar" && (
+        <ParaRegistrar retiros={retiros} entregas={entregas} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "egresos" && (
+        <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "fijos" && (
+        <FijosLista fijos={fijos} pagadosPorFijo={pagadosPorFijo} mes={mes} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
     </div>
   );
 }

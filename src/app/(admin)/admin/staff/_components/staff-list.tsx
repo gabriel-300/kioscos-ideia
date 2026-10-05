@@ -19,6 +19,7 @@ type StaffUser = {
   sucursalIdsVendedor: string[];
   creditoLimite: number | null;
   esSocio: boolean;
+  esAdministrativo: boolean;
   sistemas: Sistema[];          // los que tiene hoy (resueltos con las reglas de lib/auth/acceso)
   sistemasPorDefecto: boolean;  // no tiene el dato guardado: se aplica el defecto (kiosco)
   isSuspended: boolean;
@@ -219,6 +220,7 @@ function EditDrawer({
     user.creditoLimite != null ? String(user.creditoLimite) : ""
   );
   const [esSocio, setEsSocio] = useState(user.esSocio);
+  const [esAdministrativo, setEsAdministrativo] = useState(user.esAdministrativo);
   const [role, setRole] = useState(user.role ?? "vendedor");
   const [sistemas, setSistemas] = useState<Sistema[]>(user.sistemas);
   const router = useRouter();
@@ -271,6 +273,7 @@ function EditDrawer({
           password:      values.password || undefined,
           creditoLimite: limiteNum,
           esSocio,
+          esAdministrativo,
           role:          role !== user.role ? (role as Rol) : undefined,
           sistemas:      cambioSistemas && !sistemasFijos(role as Rol) ? sistemas : undefined,
         });
@@ -415,6 +418,22 @@ function EditDrawer({
                 type="checkbox"
                 checked={esSocio}
                 onChange={(e) => setEsSocio(e.target.checked)}
+                className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+              />
+            </label>
+          </div>
+
+          {/* Administrativo (carga los egresos de Tesorería). Solo tiene efecto si el rol es Administrador. */}
+          <div className="border-t border-neutral-100 pt-4">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Es administrativo</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Carga los egresos en Tesorería. Los demás socios ven todo pero no cargan</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={esAdministrativo}
+                onChange={(e) => setEsAdministrativo(e.target.checked)}
                 className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
               />
             </label>
