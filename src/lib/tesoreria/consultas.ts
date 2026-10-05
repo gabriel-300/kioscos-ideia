@@ -14,13 +14,27 @@ export interface ProveedorLista    { id: string; nombre: string }
 
 export interface RetiroPendiente {
   id: string; sucursal_id: string; fecha: string; monto: number; motivo: string | null; comprobante_image_url: string | null;
+  created_at: string; creado_por: string | null;   // quién lo cargó en el kiosco (nombre)
 }
+export interface LineaEntrega { producto: string; unidad: string | null; cantidad: number; precio_unitario: number | null; subtotal: number | null }
 export interface EntregaPendiente {
   id: string; sucursal_id: string; fecha: string; proveedor: string | null; proveedor_id: string | null;
-  remito_image_url: string | null; total: number;
+  remito_image_url: string | null; nro_remito: string | null; notas: string | null;
+  created_at: string; creado_por: string | null;
+  total: number;            // suma de lo que cargó el kiosco (0 si no cargó importes)
+  lineas: LineaEntrega[];   // qué productos y cuántos ingresaron
 }
 export interface GastoFijoLista {
   id: string; categoria: string; descripcion: string; monto_estimado: number; dia_vencimiento: number; sucursal_id: string | null;
+}
+
+// Nombre de quien cargó cada fila en el kiosco (profiles.full_name).
+async function nombresDe(admin: Admin, ids: (string | null)[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids.filter((i): i is string => !!i))];
+  if (unicos.length === 0) return new Map();
+  const { data, error } = await admin.from("profiles").select("id, full_name").in("id", unicos);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((p) => [p.id, p.full_name?.trim() || "Sin nombre"]));
 }
 
 const masNuevoPrimero = (a: { fecha: string }, b: { fecha: string }) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0);
@@ -57,21 +71,36 @@ export async function cargarRetirosPendientes(admin: Admin, sucursalIds: string[
   if (sucursalIds.length === 0) return [];
   const filas = await fetchAll((d, h) =>
     admin.from("retiros_caja")
-      .select("id, sucursal_id, fecha, monto, motivo, comprobante_image_url", { count: "exact" })
+      .select("id, sucursal_id, fecha, monto, motivo, comprobante_image_url, created_at, created_by", { count: "exact" })
       .in("sucursal_id", sucursalIds).is("egreso_id", null).gte("fecha", desde)
       .order("id").range(d, h));
-  return filas.map((r) => ({ ...r, monto: Number(r.monto) })).sort(masNuevoPrimero);
+  const nombres = await nombresDe(admin, filas.map((r) => r.created_by));
+  return filas
+    .map(({ created_by, ...r }) => ({ ...r, monto: Number(r.monto), creado_por: created_by ? (nombres.get(created_by) ?? null) : null }))
+    .sort(masNuevoPrimero);
 }
 
 export async function cargarEntregasPendientes(admin: Admin, sucursalIds: string[], desde: string): Promise<EntregaPendiente[]> {
   if (sucursalIds.length === 0) return [];
   const filas = await fetchAll((d, h) =>
     admin.from("movimientos")
-      .select("id, sucursal_id, fecha, proveedor, proveedor_id, remito_image_url, movimiento_items(subtotal)", { count: "exact" })
+      .select("id, sucursal_id, fecha, proveedor, proveedor_id, remito_image_url, nro_remito, notas, created_at, created_by, movimiento_items(cantidad, precio_unitario, subtotal, product:products(name, unit_label))", { count: "exact" })
       .in("sucursal_id", sucursalIds).eq("tipo", "entrega").is("egreso_id", null).is("anulado_en", null).gte("fecha", desde)
       .order("id").range(d, h));
+  const nombres = await nombresDe(admin, filas.map((e) => e.created_by));
   return filas
-    .map(({ movimiento_items, ...e }) => ({ ...e, total: movimiento_items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0) }))
+    .map(({ movimiento_items, created_by, ...e }) => ({
+      ...e,
+      creado_por: created_by ? (nombres.get(created_by) ?? null) : null,
+      total: movimiento_items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0),
+      lineas: movimiento_items.map((i) => ({
+        producto: i.product?.name ?? "Producto sin nombre",
+        unidad: i.product?.unit_label ?? null,
+        cantidad: Number(i.cantidad),
+        precio_unitario: i.precio_unitario == null ? null : Number(i.precio_unitario),
+        subtotal: i.subtotal == null ? null : Number(i.subtotal),
+      })),
+    }))
     .sort(masNuevoPrimero);
 }
 
