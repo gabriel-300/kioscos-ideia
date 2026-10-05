@@ -207,6 +207,11 @@
       "cols": "id:boolean:NN:DEF | fecha_inicio:date:NN | efectivo_inicial:numeric:NN:DEF | updated_by:uuid | updated_at:timestamp with time zone:NN:DEF"
     },
     {
+      "t": "tesoreria_historial",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | creado_en:timestamp with time zone:NN:DEF | usuario_id:uuid | accion:text:NN | entidad_id:uuid | detalle:jsonb:NN:DEF | motivo:text"
+    },
+    {
       "t": "transferencia_items",
       "k": "r",
       "cols": "id:uuid:NN:DEF | transferencia_id:uuid:NN | product_id:uuid:NN | cantidad_enviada:numeric:NN | cantidad_recibida:numeric | created_at:timestamp with time zone:NN:DEF"
@@ -816,6 +821,11 @@
     [
       "tesoreria_config",
       "updated_by",
+      "auth.users"
+    ],
+    [
+      "tesoreria_historial",
+      "usuario_id",
       "auth.users"
     ],
     [

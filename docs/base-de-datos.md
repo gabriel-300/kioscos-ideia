@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-05) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **46 tablas y vistas**, **133 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **47 tablas y vistas**, **134 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -729,6 +729,9 @@ erDiagram
   egresos {
     uuid id PK
   }
+  tesoreria_historial {
+    uuid id PK
+  }
   tesoreria_config {
     uuid id PK
   }
@@ -796,6 +799,22 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 **Apunta a:** `gasto_fijo_id` → `gastos_fijos` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`, `updated_by`  
 **La usan:** `movimientos` (egreso_id) · `retiros_caja` (egreso_id)
+
+### `tesoreria_historial`
+
+**Historial de todo lo que se hace en Tesorería.** Registro de solo agregar: cada egreso cargado, pagado o anulado, cada ingreso del kiosco descartado o devuelto, cada cambio del efectivo inicial y cada permiso dado o sacado deja una fila con quién, cuándo, el detalle y el motivo. Un trigger impide editarlo o borrarlo; escribe solo el servidor.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `usuario_id` | id | Quién lo hizo. |
+| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado o permiso_cambiado. |
+| `entidad_id` | id | El egreso, la entrega (movimiento) o la persona afectada, según la acción. |
+| `detalle` | datos JSON | Valores antes y después, importes y descripción: lo necesario para entender el cambio sin buscar la fila original. |
+| `motivo` | texto | Por qué (obligatorio al anular, descartar o cambiar el efectivo inicial desde la segunda vez). |
+
+Otras columnas: `id`, `creado_en`.
+
+**Personas (auth.users):** `usuario_id`
 
 ### `tesoreria_config`
 
