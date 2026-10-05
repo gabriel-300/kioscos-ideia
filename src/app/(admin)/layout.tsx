@@ -43,8 +43,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   let transferenciasPendientes = 0;
   let reposicionPendientes = 0;
   let conciliacionPendientes = 0;
+  let tesoreriaPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }, { count: countRetirosSinRegistrar }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -79,11 +80,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         .from("mercadopago_transferencias_recibidas")
         .select("id", { count: "exact", head: true })
         .is("movimiento_id", null),
+      // Retiros de caja que el administrativo todavía no registró en Tesorería (desde la fecha de arranque, solo los
+      // locales que entran). Si las migraciones de Tesorería no están aplicadas, da 0 y el menú no muestra nada.
+      (async () => {
+        const { data: cfg } = await (supabase as any).from("tesoreria_config").select("fecha_inicio").single();
+        if (!cfg) return { count: 0 };
+        return (supabase as any)
+          .from("retiros_caja")
+          .select("id, sucursal:sucursales!inner(entra_en_tesoreria)", { count: "exact", head: true })
+          .eq("sucursal.entra_en_tesoreria", true)
+          .is("egreso_id", null)
+          .gte("fecha", cfg.fecha_inicio);
+      })(),
     ]);
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
     conciliacionPendientes  = (countQrSinVenta ?? 0) + (countTransfSinAsignar ?? 0);
+    tesoreriaPendientes     = countRetirosSinRegistrar ?? 0;
 
     if (puntosConPedido && puntosConPedido.length > 0) {
       const productIds = [...new Set(puntosConPedido.map((p) => p.product_id))];
@@ -116,6 +130,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         transferenciasPendientes={transferenciasPendientes}
         reposicionPendientes={reposicionPendientes}
         conciliacionPendientes={conciliacionPendientes}
+        tesoreriaPendientes={tesoreriaPendientes}
       />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>

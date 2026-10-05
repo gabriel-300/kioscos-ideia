@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tesoreria/permisos", () => ({ permisosTesoreria: async () => h.permisos }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
-import { anularEgreso, marcarEgresoPagado, registrarEgreso } from "@/app/(admin)/admin/tesoreria/actions";
+import { anularEgreso, descartarEntrega, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const CARGA = { userId: "damian", puedeVer: true, puedeCargar: true };
@@ -23,7 +23,7 @@ const entrada: EgresoEntrada = {
   pagado: true, origen: "retiro_caja", gasto_fijo_id: null, nota: null, retiros_caja_ids: ["r1"], entregas_ids: [],
 };
 
-type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?: string; anulacionFilas?: number; pagoFilas?: number };
+type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?: string; anulacionFilas?: number; pagoFilas?: number; descarteFilas?: number };
 
 function montar(permisos: unknown, e: Esc = {}) {
   h.permisos = permisos;
@@ -31,6 +31,9 @@ function montar(permisos: unknown, e: Esc = {}) {
     switch (q.table) {
       case "tesoreria_config": return { data: { fecha_inicio: "2026-10-01", efectivo_inicial: 0 } };
       case "sucursales":       return { data: [{ id: "s1" }, { id: "s2" }] };
+      case "movimientos":
+        if (q.op === "update" && "tesoreria_descartado_en" in (q.payload ?? {})) return { data: Array.from({ length: e.descarteFilas ?? 1 }, () => ({ id: "m1" })) };
+        return { data: null };
       case "retiros_caja":
         if (q.op === "select") return { data: (e.retirosDisponibles ?? ["r1"]).map((id) => ({ id, sucursal_id: "s1" })) };
         if (q.op === "update" && q.payload?.egreso_id) return { data: (e.tomaRetiros ?? ["r1"]).map((id) => ({ id })) };
@@ -123,6 +126,33 @@ describe("anularEgreso", () => {
     expect(await anularEgreso("e1", "  ")).toEqual({ error: expect.stringContaining("motivo") });
     montar(CARGA, { anulacionFilas: 0 });
     expect(await anularEgreso("e1", "otro motivo")).toEqual({ error: expect.stringContaining("ya estaba anulado") });
+  });
+});
+
+describe("no corresponde (ingresos del kiosco sin compra)", () => {
+  it("marca la entrega con quién, cuándo y por qué, sin tocar el stock (solo columnas de Tesorería)", async () => {
+    const { calls } = montar(CARGA);
+    expect(await descartarEntrega("m1", " se cargó dos veces ")).toEqual({});
+    const up = calls.find((q) => q.table === "movimientos" && q.op === "update")!;
+    expect(up.payload).toMatchObject({ tesoreria_descartado_por: "damian", tesoreria_descartado_motivo: "se cargó dos veces" });
+    expect(Object.keys(up.payload).every((k) => k.startsWith("tesoreria_"))).toBe(true);
+    expect(up.filters.some((f) => f.op === "is" && f.col === "egreso_id" && f.val === null)).toBe(true);   // no pisa una ya registrada
+  });
+
+  it("exige motivo, no descarta dos veces y no se puede deshacer sin permiso", async () => {
+    montar(CARGA);
+    expect(await descartarEntrega("m1", "  ")).toEqual({ error: expect.stringContaining("por qué") });
+    montar(CARGA, { descarteFilas: 0 });
+    expect(await descartarEntrega("m1", "otro motivo")).toEqual({ error: expect.stringContaining("ya fue") });
+    montar(SOLO_VE);
+    expect(await descartarEntrega("m1", "motivo")).toEqual({ error: expect.stringContaining("administrativo") });
+    expect(await restaurarEntrega("m1")).toEqual({ error: expect.stringContaining("administrativo") });
+  });
+
+  it("se puede volver a la lista", async () => {
+    const { calls } = montar(CARGA);
+    expect(await restaurarEntrega("m1")).toEqual({});
+    expect(calls.find((q) => q.table === "movimientos" && q.op === "update")!.payload).toEqual({ tesoreria_descartado_en: null, tesoreria_descartado_por: null, tesoreria_descartado_motivo: null });
   });
 });
 

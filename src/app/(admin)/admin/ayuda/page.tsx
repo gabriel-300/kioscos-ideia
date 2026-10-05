@@ -204,13 +204,20 @@ export default async function AyudaPage() {
 
       <Section id="retiro" title="6. Retiro de efectivo">
         <p className="text-sm text-neutral-600">
-          Para cuando sacás plata del cajón durante el turno (pagar un flete, dar cambio a otra caja, etc.).
+          Para cuando sacás plata del cajón durante el turno: una compra puntual de emergencia (un flete, algo que faltó) o,
+          esporádicamente, un pago a un proveedor <b>autorizado por un administrador</b>.
         </p>
         <div className="space-y-3">
-          <Paso n={1}>Tocá <Boton>Retiro</Boton>.</Paso>
-          <Paso n={2}>Cargá el <Campo>monto</Campo> y el <Campo>motivo</Campo>. Opcionalmente podés sacarle una foto al comprobante.</Paso>
-          <Paso n={3}>Guardá. Ese monto se descuenta automáticamente de lo que el sistema espera encontrar en el cajón al cerrar.</Paso>
+          <Paso n={1}>Tocá <Boton>Retiro</Boton> y elegí <Campo>Compra de emergencia</Campo> o <Campo>Pago a proveedor</Campo>.</Paso>
+          <Paso n={2}>Cargá el <Campo>monto</Campo> y el <Campo>motivo</Campo>. Si es un pago a proveedor, elegí el proveedor de la lista y quién lo autorizó.</Paso>
+          <Paso n={3}>
+            Sacale una foto al <Campo>ticket o comprobante</Campo>: es <b>obligatoria desde $20.000</b>.
+          </Paso>
+          <Paso n={4}>Guardá. Ese monto se descuenta automáticamente de lo que el sistema espera encontrar en el cajón al cerrar.</Paso>
         </div>
+        <Nota tipo="info">
+          Vos no cargás nada contable (categoría, factura): eso lo registra después el administrativo en Tesorería.
+        </Nota>
       </Section>
 
       <Section id="merma" title="7. Registrar una merma">
@@ -299,15 +306,21 @@ export default async function AyudaPage() {
           </p>
           <div className="space-y-3">
             <Paso n={1}>
-              En <Campo>Para registrar</Campo> aparece lo que ya cargó el kiosco: los <Campo>retiros de caja</Campo> y la{" "}
-              <Campo>mercadería que ingresó</Campo>. Tocá <Boton>Registrar</Boton> (o marcá varias entregas de una misma
-              factura y tocá <Boton>Registrar compra</Boton>).
+              En <Campo>Para registrar</Campo> aparecen los <Campo>retiros de caja</Campo> que sacaron los kioscos (el
+              contador del menú te avisa cuántos hay). Tocá <Boton>Registrar</Boton> en cada uno.
             </Paso>
             <Paso n={2}>
+              La <Campo>mercadería</Campo> se carga con <Boton>Nueva compra de mercadería</Boton>, con la factura o el remito
+              en la mano: proveedor, importe real y si tiene factura. Si querés, vinculá los ingresos que cargó el kiosco
+              para ver la diferencia. Abajo, el <Campo>Control</Campo> lista los ingresos del kiosco que todavía no tienen
+              compra; los que no corresponden (una carga duplicada, una transferencia entre kioscos) se marcan{" "}
+              <Boton>No corresponde</Boton> y no afectan el stock.
+            </Paso>
+            <Paso n={3}>
               Completá con el comprobante real: el monto, <Campo>Con factura</Campo> o <Campo>Sin factura</Campo> (el gasto
               cuenta igual), y si <Campo>ya se pagó</Campo> o <Campo>todavía se debe</Campo>.
             </Paso>
-            <Paso n={3}>
+            <Paso n={4}>
               Si ya se pagó, indicá de dónde salió la plata: efectivo de Tesorería, transferencia o Mercado Pago.
               Podés adjuntar la foto o el PDF de la factura (hasta 1 MB; las fotos se achican solas).
             </Paso>

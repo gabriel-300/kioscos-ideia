@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { registrarRetiro } from "../retiro-actions";
+import { registrarRetiro, listarOpcionesRetiro } from "../retiro-actions";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/utils";
 import { reducirImagen } from "@/lib/imagen";
+import { RETIRO_FOTO_DESDE, retiroRequiereFoto } from "@/lib/retiros";
 
 interface Props {
   sucursalId: string;
@@ -18,6 +19,12 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
   const [comprobante, setComprobante] = useState<File | null>(null);
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null);
   const [uploading,   setUploading]   = useState(false);
+  // Dos usos del retiro: compra de emergencia (lo normal) o, esporádicamente, pago a un proveedor autorizado por un administrador.
+  const [esProveedor, setEsProveedor] = useState(false);
+  const [proveedorId, setProveedorId] = useState("");
+  const [autorizaId,  setAutorizaId]  = useState("");
+  const [opciones, setOpciones] = useState<{ proveedores: { id: string; nombre: string }[]; autorizadores: { id: string; nombre: string }[] } | null>(null);
+  const [cargandoOpciones, setCargandoOpciones] = useState(false);
   const [pending, startTransition] = useTransition();
   const montoRef = useRef<HTMLInputElement>(null);
 
@@ -27,9 +34,21 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
 
   function handleClose() {
     setMonto(""); setMotivo(""); setError(null);
+    setEsProveedor(false); setProveedorId(""); setAutorizaId("");
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setComprobante(null); setPreviewUrl(null);
     setOpen(false);
+  }
+
+  async function elegirModo(proveedor: boolean) {
+    setEsProveedor(proveedor);
+    setError(null);
+    if (!proveedor || opciones || cargandoOpciones) return;
+    setCargandoOpciones(true);
+    try {
+      const r = await listarOpcionesRetiro();
+      if ("error" in r) setError(r.error); else setOpciones(r);
+    } finally { setCargandoOpciones(false); }
   }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -64,6 +83,12 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
     const montoNum = parseFloat(monto);
     if (!montoNum || montoNum <= 0) { setError("El monto es obligatorio"); return; }
     if (!motivo.trim())             { setError("El motivo es obligatorio"); return; }
+    if (esProveedor && !proveedorId) { setError("Elegí el proveedor"); return; }
+    if (esProveedor && !autorizaId)  { setError("Elegí quién lo autorizó: un pago a proveedor lo autoriza un administrador"); return; }
+    if (retiroRequiereFoto(montoNum) && !comprobante) {
+      setError(`Para retiros de ${RETIRO_FOTO_DESDE.toLocaleString("es-AR")} o más hace falta la foto del ticket o comprobante`);
+      return;
+    }
     setError(null);
 
     startTransition(async () => {
@@ -74,12 +99,14 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
           try { comprobanteUrl = await uploadImage(comprobante); }
           finally { setUploading(false); }
         }
-        await registrarRetiro({
+        const r = await registrarRetiro({
           sucursal_id: sucursalId,
           monto: montoNum,
           motivo: motivo.trim(),
           comprobante_image_url: comprobanteUrl,
+          ...(esProveedor ? { proveedor_id: proveedorId, autorizado_por: autorizaId } : {}),
         });
+        if (r.error) { setError(r.error); return; }
         handleClose();
       } catch (e) {
         setError(friendlyError(e));
@@ -127,6 +154,18 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
                 Ingresá el monto y el motivo del retiro de efectivo.
               </p>
 
+              {/* Tipo de retiro */}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => elegirModo(false)}
+                  className={`rounded-xl border-2 px-2 py-2 text-xs font-semibold transition-colors ${!esProveedor ? "border-tierra-700 bg-tierra-50 text-tierra-900" : "border-neutral-200 text-neutral-600 hover:border-neutral-300"}`}>
+                  Compra de emergencia
+                </button>
+                <button type="button" onClick={() => elegirModo(true)}
+                  className={`rounded-xl border-2 px-2 py-2 text-xs font-semibold transition-colors ${esProveedor ? "border-tierra-700 bg-tierra-50 text-tierra-900" : "border-neutral-200 text-neutral-600 hover:border-neutral-300"}`}>
+                  Pago a proveedor
+                </button>
+              </div>
+
               {/* Monto */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2 block">
@@ -146,6 +185,30 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
                 </div>
               </div>
 
+              {esProveedor && (
+                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs text-amber-800">Un pago a proveedor en efectivo lo tiene que autorizar un administrador.</p>
+                  {cargandoOpciones && <p className="text-xs text-neutral-500">Cargando…</p>}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1.5 block">Proveedor</label>
+                    <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700">
+                      <option value="">— Elegí —</option>
+                      {(opciones?.proveedores ?? []).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                    <p className="text-[11px] text-neutral-500 mt-1">Si no está en la lista, pedile al administrador que lo agregue.</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1.5 block">Lo autorizó</label>
+                    <select value={autorizaId} onChange={(e) => setAutorizaId(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700">
+                      <option value="">— Elegí —</option>
+                      {(opciones?.autorizadores ?? []).map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Motivo */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2 block">
@@ -163,7 +226,7 @@ export function RetiroEfectivoButton({ sucursalId }: Props) {
               {/* Comprobante (opcional) */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2 block">
-                  Foto de comprobante (opcional)
+                  Foto de comprobante {monto && retiroRequiereFoto(parseFloat(monto)) ? <span className="text-danger">(obligatoria)</span> : <span className="normal-case tracking-normal">(obligatoria desde ${RETIRO_FOTO_DESDE.toLocaleString("es-AR")})</span>}
                 </label>
                 {previewUrl ? (
                   <div className="flex items-start gap-3">

@@ -50,6 +50,14 @@ export function resumirEgresos(egresos: Pick<Egreso, "categoria" | "monto" | "co
   };
 }
 
+// ── Diferencia contra lo que cargó el kiosco ─────────────────────────────────
+// El importe real es el de la factura que carga el administrativo; lo del kiosco es solo una referencia (el personal
+// a veces carga mal los importes, o ni los carga). Devuelve null si el kiosco no cargó importes (no hay con qué comparar).
+export function diferenciaConKiosco(montoReal: number, totalKiosco: number): number | null {
+  if (!(totalKiosco > 0) || !Number.isFinite(montoReal)) return null;
+  return redondearMoneda(montoReal - totalKiosco);
+}
+
 // ── Se debe ──────────────────────────────────────────────────────────────────
 // Compras cargadas como pendientes de pago, agrupadas por proveedor (o, si no tiene proveedor de la lista, por lo
 // que se escribió en la descripción: «lo de Mario»).

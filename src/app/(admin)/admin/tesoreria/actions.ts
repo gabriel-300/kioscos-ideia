@@ -56,7 +56,7 @@ export async function registrarEgreso(entrada: EgresoEntrada): Promise<Resultado
   }
   if (e.entregas_ids.length > 0) {
     const { data } = await admin.from("movimientos").select("id, sucursal_id")
-      .in("id", e.entregas_ids).eq("tipo", "entrega").is("anulado_en", null).is("egreso_id", null);
+      .in("id", e.entregas_ids).eq("tipo", "entrega").is("anulado_en", null).is("egreso_id", null).is("tesoreria_descartado_en", null);
     const ok = (data ?? []).filter((r: { sucursal_id: string }) => idsValidos.has(r.sucursal_id));
     if (ok.length !== e.entregas_ids.length) return { error: "Alguna entrega ya fue registrada o no corresponde. Recargá la pantalla." };
   }
@@ -124,6 +124,42 @@ export async function anularEgreso(id: string, motivo: string): Promise<Resultad
 
   await admin.from("retiros_caja").update({ egreso_id: null }).eq("egreso_id", id);
   await admin.from("movimientos").update({ egreso_id: null }).eq("egreso_id", id);
+
+  refrescar();
+  return {};
+}
+
+// ── "No corresponde": una entrega del kiosco que no tiene compra que registrar ──
+// (una carga duplicada, una prueba, una transferencia entre kioscos). Es solo una marca de Tesorería: no toca el stock.
+export async function descartarEntrega(id: string, motivo: string): Promise<Resultado> {
+  const permisos = await exigirCargar();
+  if (!permisos) return { error: SIN_PERMISO };
+
+  const texto = (motivo ?? "").trim();
+  if (texto.length < 3)   return { error: "Escribí por qué no corresponde" };
+  if (texto.length > 200) return { error: "El motivo es demasiado largo (máximo 200 caracteres)" };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("movimientos")
+    .update({ tesoreria_descartado_en: new Date().toISOString(), tesoreria_descartado_por: permisos.userId, tesoreria_descartado_motivo: texto })
+    .eq("id", id).eq("tipo", "entrega").is("egreso_id", null).is("tesoreria_descartado_en", null).select("id");
+  if (error) return { error: error.message };
+  if ((data ?? []).length === 0) return { error: "Esa entrega ya fue registrada o descartada. Recargá la pantalla." };
+
+  refrescar();
+  return {};
+}
+
+export async function restaurarEntrega(id: string): Promise<Resultado> {
+  const permisos = await exigirCargar();
+  if (!permisos) return { error: SIN_PERMISO };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("movimientos")
+    .update({ tesoreria_descartado_en: null, tesoreria_descartado_por: null, tesoreria_descartado_motivo: null })
+    .eq("id", id).eq("tipo", "entrega").not("tesoreria_descartado_en", "is", null).select("id");
+  if (error) return { error: error.message };
+  if ((data ?? []).length === 0) return { error: "Esa entrega no estaba descartada. Recargá la pantalla." };
 
   refrescar();
   return {};

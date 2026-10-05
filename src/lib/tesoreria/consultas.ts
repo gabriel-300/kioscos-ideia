@@ -15,6 +15,12 @@ export interface ProveedorLista    { id: string; nombre: string }
 export interface RetiroPendiente {
   id: string; sucursal_id: string; fecha: string; monto: number; motivo: string | null; comprobante_image_url: string | null;
   created_at: string; creado_por: string | null;   // quién lo cargó en el kiosco (nombre)
+  proveedor_id: string | null;                      // pago a proveedor en efectivo (esporádico)
+  autorizado_por: string | null;                    // administrador que lo autorizó (nombre)
+}
+export interface EntregaDescartada {
+  id: string; sucursal_id: string; fecha: string; proveedor: string | null; lineas: number;
+  descartado_en: string; descartado_por: string | null; motivo: string | null;
 }
 export interface LineaEntrega { producto: string; unidad: string | null; cantidad: number; precio_unitario: number | null; subtotal: number | null }
 export interface EntregaPendiente {
@@ -71,12 +77,17 @@ export async function cargarRetirosPendientes(admin: Admin, sucursalIds: string[
   if (sucursalIds.length === 0) return [];
   const filas = await fetchAll((d, h) =>
     admin.from("retiros_caja")
-      .select("id, sucursal_id, fecha, monto, motivo, comprobante_image_url, created_at, created_by", { count: "exact" })
+      .select("id, sucursal_id, fecha, monto, motivo, comprobante_image_url, created_at, created_by, proveedor_id, autorizado_por", { count: "exact" })
       .in("sucursal_id", sucursalIds).is("egreso_id", null).gte("fecha", desde)
       .order("id").range(d, h));
-  const nombres = await nombresDe(admin, filas.map((r) => r.created_by));
+  const nombres = await nombresDe(admin, filas.flatMap((r) => [r.created_by, r.autorizado_por]));
   return filas
-    .map(({ created_by, ...r }) => ({ ...r, monto: Number(r.monto), creado_por: created_by ? (nombres.get(created_by) ?? null) : null }))
+    .map(({ created_by, autorizado_por, ...r }) => ({
+      ...r,
+      monto: Number(r.monto),
+      creado_por: created_by ? (nombres.get(created_by) ?? null) : null,
+      autorizado_por: autorizado_por ? (nombres.get(autorizado_por) ?? null) : null,
+    }))
     .sort(masNuevoPrimero);
 }
 
@@ -85,7 +96,7 @@ export async function cargarEntregasPendientes(admin: Admin, sucursalIds: string
   const filas = await fetchAll((d, h) =>
     admin.from("movimientos")
       .select("id, sucursal_id, fecha, proveedor, proveedor_id, remito_image_url, nro_remito, notas, created_at, created_by, movimiento_items(cantidad, precio_unitario, subtotal, product:products(name, unit_label))", { count: "exact" })
-      .in("sucursal_id", sucursalIds).eq("tipo", "entrega").is("egreso_id", null).is("anulado_en", null).gte("fecha", desde)
+      .in("sucursal_id", sucursalIds).eq("tipo", "entrega").is("egreso_id", null).is("tesoreria_descartado_en", null).is("anulado_en", null).gte("fecha", desde)
       .order("id").range(d, h));
   const nombres = await nombresDe(admin, filas.map((e) => e.created_by));
   return filas
@@ -102,6 +113,42 @@ export async function cargarEntregasPendientes(admin: Admin, sucursalIds: string
       })),
     }))
     .sort(masNuevoPrimero);
+}
+
+// Entregas que el administrativo marcó "no corresponde" (no tienen compra que registrar). Se pueden volver a la lista.
+export async function cargarEntregasDescartadas(admin: Admin, sucursalIds: string[], desde: string): Promise<EntregaDescartada[]> {
+  if (sucursalIds.length === 0) return [];
+  const filas = await fetchAll((d, h) =>
+    admin.from("movimientos")
+      .select("id, sucursal_id, fecha, proveedor, tesoreria_descartado_en, tesoreria_descartado_por, tesoreria_descartado_motivo, movimiento_items(id)", { count: "exact" })
+      .in("sucursal_id", sucursalIds).eq("tipo", "entrega").not("tesoreria_descartado_en", "is", null).gte("fecha", desde)
+      .order("id").range(d, h));
+  const nombres = await nombresDe(admin, filas.map((f) => f.tesoreria_descartado_por));
+  return filas
+    .map((f) => ({
+      id: f.id, sucursal_id: f.sucursal_id, fecha: f.fecha, proveedor: f.proveedor, lineas: f.movimiento_items.length,
+      descartado_en: f.tesoreria_descartado_en as string,
+      descartado_por: f.tesoreria_descartado_por ? (nombres.get(f.tesoreria_descartado_por) ?? null) : null,
+      motivo: f.tesoreria_descartado_motivo,
+    }))
+    .sort((a, b) => (a.descartado_en < b.descartado_en ? 1 : -1));
+}
+
+// Lo que cargó el kiosco en las entregas vinculadas a cada compra (egreso): para mostrar la diferencia con la factura real.
+// Se pide de a 40 egresos para no pasar el largo máximo de la dirección de la consulta.
+export async function cargarTotalesKiosco(admin: Admin, egresoIds: string[]): Promise<Map<string, number>> {
+  const totales = new Map<string, number>();
+  for (let i = 0; i < egresoIds.length; i += 40) {
+    const lote = egresoIds.slice(i, i + 40);
+    const { data, error } = await admin.from("movimientos").select("egreso_id, movimiento_items(subtotal)").in("egreso_id", lote);
+    if (error) throw new Error(error.message);
+    for (const m of data ?? []) {
+      if (!m.egreso_id) continue;
+      const suma = m.movimiento_items.reduce((s, it) => s + Number(it.subtotal ?? 0), 0);
+      totales.set(m.egreso_id, (totales.get(m.egreso_id) ?? 0) + suma);
+    }
+  }
+  return totales;
 }
 
 // ── Egresos ──

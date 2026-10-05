@@ -144,7 +144,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, esSocio = false, puedeTenteo = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, esSocio = false, puedeTenteo = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0, tesoreriaPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
@@ -156,6 +156,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
   transferenciasPendientes?: number;
   reposicionPendientes?: number;
   conciliacionPendientes?: number;
+  tesoreriaPendientes?: number;   // retiros de caja sin registrar en Tesorería
 }) {
   // "socio" es un rol sintético (no viene de app_metadata.role) para que los
   // ítems de nav puedan pedir roles:["admin","socio"] sin tener que inventar
@@ -169,6 +170,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
     "/admin/transferencias": transferenciasPendientes,
     "/admin/reposicion":     reposicionPendientes,
     "/admin/conciliacion-mercadopago": conciliacionPendientes,
+    "/admin/tesoreria":      tesoreriaPendientes,
   };
   const stockGroupPendientes  = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
   const ventasGroupPendientes = conciliacionPendientes;
@@ -347,7 +349,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
                     <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
                       <NavIcon name={group.icon} size={15} />
                     </span>
-                    {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Ventas" && ventasGroupPendientes > 0)) && (
+                    {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Ventas" && ventasGroupPendientes > 0) || (group.label === "Finanzas" && tesoreriaPendientes > 0)) && (
                       <span style={{
                         position: "absolute", top: -3, right: -3, width: 7, height: 7,
                         borderRadius: "50%", background: "#FFD9B8", border: "1.5px solid " + NAVY,

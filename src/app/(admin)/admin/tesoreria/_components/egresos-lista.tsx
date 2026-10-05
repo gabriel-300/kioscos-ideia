@@ -7,6 +7,8 @@ import { EgresoForm } from "./egreso-form";
 import { anularEgreso, marcarEgresoPagado, urlComprobante } from "../actions";
 import { ORIGENES, etiquetaCategoria, etiquetaOrigen, type Egreso } from "@/lib/tesoreria/tipos";
 import { fechaHoyAR } from "@/lib/fecha";
+import { diferenciaConKiosco } from "@/lib/tesoreria/calculos";
+import type { EntregaPendiente } from "@/lib/tesoreria/consultas";
 import { friendlyError } from "@/lib/utils";
 
 type Opcion = { id: string; nombre: string };
@@ -16,8 +18,9 @@ const fechaCorta = (f: string) => new Date(f + "T12:00:00").toLocaleDateString("
 
 type Accion = { tipo: "pagar" | "anular"; egreso: Egreso } | null;
 
-export function EgresosLista({ egresos, pendientes, sucursales, proveedores, puedeCargar }: {
-  egresos: Egreso[]; pendientes: Egreso[]; sucursales: Opcion[]; proveedores: Opcion[]; puedeCargar: boolean;
+export function EgresosLista({ egresos, pendientes, entregasDisponibles, totalesKiosco, sucursales, proveedores, puedeCargar }: {
+  egresos: Egreso[]; pendientes: Egreso[]; entregasDisponibles: EntregaPendiente[]; totalesKiosco: Record<string, number>;
+  sucursales: Opcion[]; proveedores: Opcion[]; puedeCargar: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -81,6 +84,16 @@ export function EgresosLista({ egresos, pendientes, sucursales, proveedores, pue
             {e.pagado && e.origen && ` · ${etiquetaOrigen(e.origen)}`}
             {e.nota && ` · ${e.nota}`}
           </p>
+          {(() => {
+            // Compras de mercadería vinculadas a ingresos del kiosco: lo que cargó el kiosco vs la factura real.
+            const kiosco = totalesKiosco[e.id];
+            if (kiosco === undefined) return null;
+            const dif = diferenciaConKiosco(e.monto, kiosco);
+            if (dif === null) return <p className="text-xs text-neutral-400 mt-0.5">Vinculada a ingresos del kiosco sin importes cargados.</p>;
+            return dif === 0
+              ? <p className="text-xs text-selva-700 mt-0.5">Coincide con lo que cargó el kiosco ({AR.format(kiosco)}).</p>
+              : <p className="text-xs text-amber-700 mt-0.5">El kiosco cargó {AR.format(kiosco)}: difiere en {dif > 0 ? "+" : ""}{AR.format(dif)}.</p>;
+          })()}
         </div>
         <div className="flex items-center gap-4 shrink-0">
           <span className="text-sm font-semibold tabular-nums text-neutral-900">{AR.format(e.monto)}</span>
@@ -128,7 +141,7 @@ export function EgresosLista({ egresos, pendientes, sucursales, proveedores, pue
         </div>
       </section>
 
-      <EgresoForm open={nuevo} titulo="Nuevo egreso" borrador={null} sucursales={sucursales} proveedores={proveedores} onClose={() => setNuevo(false)} />
+      <EgresoForm open={nuevo} titulo="Nuevo egreso" borrador={null} sucursales={sucursales} proveedores={proveedores} entregasDisponibles={entregasDisponibles} onClose={() => setNuevo(false)} />
 
       {accion && (
         <>

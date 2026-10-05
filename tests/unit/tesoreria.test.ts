@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
-import { agruparDeuda, efectivoDeTesoreria, montoSobre, rangoDelMes, mesAnteriorYSiguiente, resumirEgresos } from "@/lib/tesoreria/calculos";
+import { agruparDeuda, diferenciaConKiosco, efectivoDeTesoreria, montoSobre, rangoDelMes, mesAnteriorYSiguiente, resumirEgresos } from "@/lib/tesoreria/calculos";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const HOY = "2026-10-05";
@@ -101,6 +101,18 @@ describe("validarPago", () => {
     expect("error" in validarPago({ origen: "retiro_caja", fecha_pago: HOY }, HOY)).toBe(true);
     expect("error" in validarPago({ origen: "transferencia", fecha_pago: "2026-10-06" }, HOY)).toBe(true);
     expect("error" in validarPago({ origen: "transferencia", fecha_pago: "ayer" }, HOY)).toBe(true);
+  });
+});
+
+describe("diferenciaConKiosco", () => {
+  it("compara la factura real con lo que cargó el kiosco", () => {
+    expect(diferenciaConKiosco(140000, 123679)).toBe(16321);
+    expect(diferenciaConKiosco(100000, 123679)).toBe(-23679);
+    expect(diferenciaConKiosco(123679, 123679)).toBe(0);
+  });
+  it("si el kiosco no cargó importes no hay con qué comparar", () => {
+    expect(diferenciaConKiosco(140000, 0)).toBeNull();
+    expect(diferenciaConKiosco(NaN, 1000)).toBeNull();
   });
 });
 

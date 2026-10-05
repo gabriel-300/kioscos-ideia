@@ -7,6 +7,7 @@ import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import {
   cargarConfig, cargarSucursales, cargarProveedores, cargarGastosFijos, cargarRetirosPendientes, cargarEntregasPendientes,
   cargarEgresosDelPeriodo, cargarEgresosPendientes, cargarSalidasEfectivo, cargarVentasDelPeriodo, cargarSobresRetirados, cargarSobresSinRetirar,
+  cargarEntregasDescartadas, cargarTotalesKiosco,
 } from "@/lib/tesoreria/consultas";
 import { agruparDeuda, efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
 import { ResumenView, type ResumenData } from "./_components/resumen-view";
@@ -62,13 +63,21 @@ export default async function TesoreriaPage({
     let egresosMes: Awaited<ReturnType<typeof cargarEgresosDelPeriodo>> = [];
     let fijos: Awaited<ReturnType<typeof cargarGastosFijos>> = [];
     let pendientesTodos: Awaited<ReturnType<typeof cargarEgresosPendientes>> = [];
+    let descartadas: Awaited<ReturnType<typeof cargarEntregasDescartadas>> = [];
+    const totalesKiosco: Record<string, number> = {};
 
     if (vista === "resumen" || vista === "egresos" || vista === "fijos") {
       egresosMes = await cargarEgresosDelPeriodo(admin, rango.desde, rango.hasta);
     }
     // Las compras que todavía se deben se muestran en Egresos sin importar el mes: si no, una de agosto no se podría
     // marcar pagada desde ningún lado.
-    if (vista === "egresos") pendientesTodos = await cargarEgresosPendientes(admin);
+    if (vista === "egresos") {
+      pendientesTodos = await cargarEgresosPendientes(admin);
+      // Lo que cargó el kiosco en las entregas vinculadas a cada compra de mercadería: para mostrar la diferencia con la factura.
+      const idsMercaderia = [...egresosMes, ...pendientesTodos].filter((e) => e.categoria === "mercaderia").map((e) => e.id);
+      for (const [id, total] of await cargarTotalesKiosco(admin, [...new Set(idsMercaderia)])) totalesKiosco[id] = total;
+    }
+    if (vista === "para-registrar") descartadas = await cargarEntregasDescartadas(admin, sucursalIds, config.fecha_inicio);
     if (vista === "fijos") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
@@ -90,22 +99,23 @@ export default async function TesoreriaPage({
       };
     }
 
-    datos = { config, sucursales, proveedores, retiros, entregas, resumen, egresosMes, fijos, pendientesTodos };
+    datos = { config, sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos };
   } catch (e) {
     const detalle = e instanceof Error ? e.message : String(e);
     return (
       <div className="p-4 md:p-8 max-w-3xl">
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-semibold">Tesorería todavía no está lista en la base de datos.</p>
-          <p className="mt-1">Falta aplicar las migraciones 101 y 102 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-1">Falta aplicar las migraciones 101, 102 y 103 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
           <p className="mt-2 text-xs text-amber-700">Detalle técnico: {detalle}</p>
         </div>
       </div>
     );
   }
 
-  const { sucursales, proveedores, retiros, entregas, resumen, egresosMes, fijos, pendientesTodos } = datos;
-  const pendientesDeRegistrar = retiros.length + entregas.length;
+  const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos } = datos;
+  // El contador cuenta solo los retiros de caja (son la tarea). Los ingresos del kiosco son un control, no una deuda.
+  const pendientesDeRegistrar = retiros.length;
   const enlace = (v: string, m: string = mes) => `/admin/tesoreria?vista=${v}&mes=${m}`;
 
   const pagadosPorFijo: Record<string, { monto: number; fecha: string }> = {};
@@ -151,10 +161,10 @@ export default async function TesoreriaPage({
 
       {vista === "resumen" && resumen && <ResumenView data={resumen} mesLabel={mesLabel} puedeCargar={permisos.puedeCargar} />}
       {vista === "para-registrar" && (
-        <ParaRegistrar retiros={retiros} entregas={entregas} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+        <ParaRegistrar retiros={retiros} entregas={entregas} descartadas={descartadas} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
       {vista === "egresos" && (
-        <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+        <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
       {vista === "fijos" && (
         <FijosLista fijos={fijos} pagadosPorFijo={pagadosPorFijo} mes={mes} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />

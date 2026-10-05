@@ -107,8 +107,12 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Reglas de negocio (no se corrigen sin preguntar)**:
   - Hay dos mundos: el kiosco carga ventas, caja y la mercadería que ingresa **para el stock**; la contabilidad la carga el
     administrativo con la factura o el remito real, porque el personal se equivoca con los importes.
-  - El **retiro de caja** existe para que el empleado saque plata para una compra puntual de emergencia; no se le pide
-    contabilidad (texto libre + foto opcional). No es un gasto: el gasto es el egreso al que el administrativo lo asigna.
+  - El **retiro de caja** existe para que el empleado saque plata para una compra puntual de emergencia; esporádicamente también
+    para pagar a un proveedor en efectivo, **autorizado por un administrador** (queda quién autorizó). No se le pide contabilidad.
+    La **foto del ticket es obligatoria desde $20.000**. No es un gasto: el gasto es el egreso al que el administrativo lo asigna.
+  - **La compra de mercadería se carga desde la factura o el remito**, no desde lo que cargó el kiosco (suele venir sin proveedor ni
+    importes). Los ingresos del kiosco son un control de conciliación: se pueden vincular a la compra (se ve la diferencia) o marcar
+    «no corresponde». Todavía no existe «corregir una entrega» desde Tesorería (tocaría el stock).
   - Hay compras **con factura y sin factura**; el gasto se registra igual en los dos casos.
   - Un egreso puede estar **pagado o "todavía se debe"**; lo que se debe se marca pagado después.
   - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».

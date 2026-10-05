@@ -707,6 +707,9 @@ export type Database = {
       }
       movimientos: {
         Row: {
+          tesoreria_descartado_motivo: string | null
+          tesoreria_descartado_por: string | null
+          tesoreria_descartado_en: string | null
           egreso_id: string | null
           anulado_en: string | null
           anulado_por: string | null
@@ -730,6 +733,9 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          tesoreria_descartado_motivo?: string | null
+          tesoreria_descartado_por?: string | null
+          tesoreria_descartado_en?: string | null
           egreso_id?: string | null
           anulado_en?: string | null
           anulado_por?: string | null
@@ -753,6 +759,9 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          tesoreria_descartado_motivo?: string | null
+          tesoreria_descartado_por?: string | null
+          tesoreria_descartado_en?: string | null
           egreso_id?: string | null
           anulado_en?: string | null
           anulado_por?: string | null
@@ -1459,6 +1468,8 @@ export type Database = {
       }
       retiros_caja: {
         Row: {
+          autorizado_por: string | null
+          proveedor_id: string | null
           egreso_id: string | null
           comprobante_image_url: string | null
           created_at: string
@@ -1470,6 +1481,8 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
+          autorizado_por?: string | null
+          proveedor_id?: string | null
           egreso_id?: string | null
           comprobante_image_url?: string | null
           created_at?: string
@@ -1481,6 +1494,8 @@ export type Database = {
           sucursal_id: string
         }
         Update: {
+          autorizado_por?: string | null
+          proveedor_id?: string | null
           egreso_id?: string | null
           comprobante_image_url?: string | null
           created_at?: string

@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
   por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (escrita; **si no figura aplicada en la base, correrla a mano**: sin ella la pantalla muestra un aviso en vez de romperse). Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella la pantalla de Tesorería muestra un aviso en vez de romperse). Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -100,7 +100,7 @@ npm run build                # next build (con chequeo de tipos). Si se mueven r
                              # `tsc --noEmit`: quedan tipos viejos de la compilación anterior que dan errores falsos
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 35 archivos, 542 tests (verificado 2026-10-05)
+npm test                     # vitest run: 36 archivos, 561 tests (verificado 2026-10-05)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -113,7 +113,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 542 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 561 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -466,9 +466,19 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   socio, otro), proveedor opcional, descripción, **con o sin factura** (el gasto cuenta igual), `pagado` (sí / "todavía se debe"),
   origen de la plata (retiro de caja, efectivo de Tesorería, transferencia, Mercado Pago), archivo adjunto y quién lo cargó.
   Un egreso **no se borra**: se anula con motivo (`anulado_en`), y eso libera lo que tenía vinculado.
-- **Para registrar**: `retiros_caja.egreso_id` y `movimientos.egreso_id` (solo entregas) vacíos = el kiosco lo cargó y la contabilidad
-  todavía no. Desde `tesoreria_config.fecha_inicio` (2026-10-01); lo anterior no se pide. El monto que cargó el kiosco es solo una
-  sugerencia. Un retiro de caja **no es un gasto**: es plata que salió del cajón; el gasto es el egreso al que se lo asigna.
+- **Para registrar**: `retiros_caja.egreso_id` vacío = el kiosco sacó la plata y la contabilidad todavía no (es la **tarea**; el contador
+  del menú Finanzas → Tesorería cuenta estos retiros, para avisar al administrativo). Desde `tesoreria_config.fecha_inicio` (2026-10-01); lo
+  anterior no se pide. Un retiro de caja **no es un gasto**: es plata que salió del cajón; el gasto es el egreso al que se lo asigna.
+- **Mercadería: la contabilidad nace de la factura, no del kiosco.** El kiosco carga los ingresos (`movimientos` tipo `entrega`) para el
+  stock, y suelen venir sin proveedor y sin importes (a 2026-10-05: 29 de 38 sin proveedor, 31 sin importe). Por eso se arranca con
+  **«Nueva compra de mercadería»** (proveedor, importe real, con o sin factura) y se **vinculan opcionalmente** los ingresos del kiosco
+  (`movimientos.egreso_id`); la pantalla muestra la **diferencia** entre la factura y lo que cargó el kiosco (también en Egresos). Los
+  ingresos sin compra son un **control** plegado, que no cuenta en el aviso; los que no corresponden se marcan «no corresponde»
+  (`movimientos.tesoreria_descartado_*`, migración 103: solo una marca de Tesorería, no toca el stock; se puede deshacer).
+- **Retiro de caja (kiosco)**: dos usos — compra puntual de emergencia (lo normal) y pago **esporádico a un proveedor autorizado por un
+  administrador** (`retiros_caja.proveedor_id` + `autorizado_por`, con un CHECK: si hay proveedor, hay quien autoriza; el servidor
+  verifica que el autorizante sea admin). La **foto del ticket es obligatoria desde $20.000** (`RETIRO_FOTO_DESDE` en `lib/retiros.ts`,
+  validada también en el servidor). El empleado no carga nada contable.
 - **Resumen** (mes elegido): *Entró* = `cierres_caja.total_ventas` de los turnos cerrados; *Salió* = egresos del mes por fecha de compra,
   pagados o no, **sin** retiros de socios (se muestran aparte); *Se debe* = egresos no pagados, agrupados por proveedor.
   «Entró menos salió» **no es la ganancia** (falta el costo de lo vendido).

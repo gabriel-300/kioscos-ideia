@@ -9,6 +9,8 @@ import { reducirImagen, formatearPeso } from "@/lib/imagen";
 import { friendlyError } from "@/lib/utils";
 import { fechaHoyAR } from "@/lib/fecha";
 import { CATEGORIAS, ORIGENES, type EgresoEntrada } from "@/lib/tesoreria/tipos";
+import { diferenciaConKiosco } from "@/lib/tesoreria/calculos";
+import type { EntregaPendiente } from "@/lib/tesoreria/consultas";
 
 // Un solo formulario para todo egreso (con o sin factura, pagado o por pagar). Lo usan "Para registrar", "Egresos"
 // y "Gastos fijos": cada uno lo abre con distintos datos ya cargados (el borrador), el administrativo corrige lo que
@@ -33,8 +35,13 @@ type Props = {
   borrador:    Borrador | null;
   sucursales:  Opcion[];
   proveedores: Opcion[];
+  // Ingresos de mercadería del kiosco todavía sin compra: se pueden vincular a una compra de mercadería (opcional).
+  entregasDisponibles?: EntregaPendiente[];
   onClose:     () => void;
 };
+
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const fechaCorta = (f: string) => new Date(f + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
 
 // Cerrado no renderiza nada, y abierto monta el formulario de cero: así arranca siempre con los datos del borrador
 // (o en blanco) sin sincronizar el estado a mano con un efecto.
@@ -43,7 +50,7 @@ export function EgresoForm({ open, ...resto }: Props) {
   return <Formulario {...resto} />;
 }
 
-function Formulario({ titulo, borrador, sucursales, proveedores, onClose }: Omit<Props, "open">) {
+function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponibles = [], onClose }: Omit<Props, "open">) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +70,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, onClose }: Omit
   const [sucursalId, setSucursalId]   = useState(b.sucursal_id ?? "");
   const [origen, setOrigen]           = useState(esRetiro ? "retiro_caja" : (b.origen ?? ""));
   const [nota, setNota]               = useState(b.nota ?? "");
+  const [entregasElegidas, setEntregasElegidas] = useState<Set<string>>(new Set(b.entregas_ids ?? []));
   const [archivo, setArchivo]         = useState<File | null>(null);
   const [subido, setSubido]           = useState<{ nombre: string; path: string } | null>(null);
 
@@ -102,7 +110,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, onClose }: Omit
           comprobante_numero: comprobante === "con" ? (numero.trim() || null) : null,
           comprobante_path: path, pagado, origen: pagado ? origen : null,
           gasto_fijo_id: b.gasto_fijo_id ?? null, nota: nota.trim() || null,
-          retiros_caja_ids: retiros, entregas_ids: b.entregas_ids ?? [],
+          retiros_caja_ids: retiros, entregas_ids: esRetiro || categoria !== "mercaderia" ? [] : [...entregasElegidas],
         });
         if (r.error) { setError(r.error); return; }
         onClose();
@@ -112,6 +120,17 @@ function Formulario({ titulo, borrador, sucursales, proveedores, onClose }: Omit
   }
 
   const origenes = ORIGENES.filter((o) => o.valor !== "retiro_caja");
+
+  // Ingresos del kiosco que se pueden vincular a esta compra: los del kiosco elegido (o todos si es general).
+  const vinculables = esRetiro || categoria !== "mercaderia"
+    ? []
+    : entregasDisponibles.filter((e) => !sucursalId || e.sucursal_id === sucursalId);
+  const elegidas = entregasDisponibles.filter((e) => entregasElegidas.has(e.id));
+  const totalKiosco = elegidas.reduce((sum, e) => sum + e.total, 0);
+  const diferencia = diferenciaConKiosco(parseFloat(monto), totalKiosco);
+  function alternarEntrega(id: string) {
+    setEntregasElegidas((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
 
   return (
     <>
@@ -200,6 +219,33 @@ function Formulario({ titulo, borrador, sucursales, proveedores, onClose }: Omit
               {sucursales.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
+
+          {vinculables.length > 0 && (
+            <div>
+              <label className={etiqueta}>Ingresos del kiosco de esta compra (opcional)</label>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-neutral-200 divide-y divide-neutral-100">
+                {vinculables.map((e) => (
+                  <label key={e.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-neutral-50">
+                    <input type="checkbox" checked={entregasElegidas.has(e.id)} onChange={() => alternarEntrega(e.id)}
+                      className="size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20" />
+                    <span className="min-w-0 flex-1 truncate text-neutral-700">
+                      {e.proveedor || "Sin proveedor"} <span className="text-xs text-neutral-400">· {fechaCorta(e.fecha)} · {e.lineas.length} {e.lineas.length === 1 ? "producto" : "productos"}</span>
+                    </span>
+                    <span className="text-xs tabular-nums text-neutral-500 shrink-0">{e.total > 0 ? AR.format(e.total) : "sin importe"}</span>
+                  </label>
+                ))}
+              </div>
+              {elegidas.length > 0 && (
+                <p className="text-xs mt-1.5 text-neutral-500">
+                  El kiosco cargó {totalKiosco > 0 ? AR.format(totalKiosco) : "los productos sin importe"} en {elegidas.length} {elegidas.length === 1 ? "ingreso" : "ingresos"}.
+                  {diferencia !== null && diferencia !== 0 && (
+                    <span className="font-semibold text-amber-700"> Tu importe difiere en {diferencia > 0 ? "+" : ""}{AR.format(diferencia)}: revisá que estén bien los dos.</span>
+                  )}
+                  {diferencia === 0 && <span className="font-semibold text-selva-700"> Coincide con tu importe.</span>}
+                </p>
+              )}
+            </div>
+          )}
 
           {pagado === true && !esRetiro && (
             <div>
