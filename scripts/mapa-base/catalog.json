@@ -79,7 +79,7 @@
     {
       "t": "movimientos",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | tipo:text:NN:DEF | notas:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF | proveedor:text | nro_remito:text | canal:text:DEF | personal_id:uuid | pago_efectivo:numeric | pago_billetera:numeric | pago_tarjeta:numeric | pago_transferencia:numeric | remito_image_url:text | anulado_en:timestamp with time zone | anulado_por:uuid | motivo_anulacion:text | proveedor_id:uuid | contacto_id:uuid | egreso_id:uuid"
+      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | tipo:text:NN:DEF | notas:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF | proveedor:text | nro_remito:text | canal:text:DEF | personal_id:uuid | pago_efectivo:numeric | pago_billetera:numeric | pago_tarjeta:numeric | pago_transferencia:numeric | remito_image_url:text | anulado_en:timestamp with time zone | anulado_por:uuid | motivo_anulacion:text | proveedor_id:uuid | contacto_id:uuid | egreso_id:uuid | tesoreria_descartado_en:timestamp with time zone | tesoreria_descartado_por:uuid | tesoreria_descartado_motivo:text"
     },
     {
       "t": "movimientos_socio",
@@ -184,7 +184,7 @@
     {
       "t": "retiros_caja",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | monto:numeric(12,2):NN | motivo:text:NN | created_by:uuid | created_at:timestamp with time zone:NN:DEF | comprobante_image_url:text | egreso_id:uuid"
+      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | monto:numeric(12,2):NN | motivo:text:NN | created_by:uuid | created_at:timestamp with time zone:NN:DEF | comprobante_image_url:text | egreso_id:uuid | proveedor_id:uuid | autorizado_por:uuid"
     },
     {
       "t": "stock_sucursal",
@@ -509,6 +509,11 @@
       "sucursales"
     ],
     [
+      "movimientos",
+      "tesoreria_descartado_por",
+      "auth.users"
+    ],
+    [
       "movimientos_socio",
       "created_by",
       "auth.users"
@@ -775,6 +780,11 @@
     ],
     [
       "retiros_caja",
+      "autorizado_por",
+      "auth.users"
+    ],
+    [
+      "retiros_caja",
       "created_by",
       "auth.users"
     ],
@@ -782,6 +792,11 @@
       "retiros_caja",
       "egreso_id",
       "egresos"
+    ],
+    [
+      "retiros_caja",
+      "proveedor_id",
+      "proveedores"
     ],
     [
       "retiros_caja",

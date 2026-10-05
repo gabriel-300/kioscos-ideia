@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
   por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella la pantalla de Tesorería muestra un aviso en vez de romperse). Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05; sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse). Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub

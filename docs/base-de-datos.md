@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-05) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **46 tablas y vistas**, **130 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **46 tablas y vistas**, **133 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -256,7 +256,7 @@ Otras columnas: `id`, `promo_id`, `sucursal_id`, `updated_at`, `updated_by`.
 Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 
 **Personas (auth.users):** `created_by`, `updated_by`  
-**La usan:** `egresos` (proveedor_id) · `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id)
+**La usan:** `egresos` (proveedor_id) · `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id) · `retiros_caja` (proveedor_id)
 
 ### `alertas_precio`
 
@@ -425,12 +425,15 @@ Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 | `motivo_anulacion` | texto | Por qué se anuló. |
 | `proveedor_id` | id → proveedores | En una entrega: a quién se le compró. |
 | `contacto_id` | id → contactos_crm | Contacto externo (ronda de comunidad o cuenta corriente de un cliente). |
-| `egreso_id` | id → egresos | Solo entregas: egreso (compra) de Tesorería al que pertenece. Vacío = todavía sin registrar. |
+| `egreso_id` | id → egresos | Solo entregas: egreso (compra) de Tesorería al que está vinculada. Vacío = todavía sin compra asociada. |
+| `tesoreria_descartado_en` | fecha y hora | Solo entregas: el administrativo la marcó "no corresponde" en Tesorería (carga duplicada, transferencia entre kioscos…). No afecta el stock. |
+| `tesoreria_descartado_por` | id | Quién la marcó. |
+| `tesoreria_descartado_motivo` | texto | Por qué no corresponde. |
 
 Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`.
 
 **Apunta a:** `contacto_id` → `contactos_crm` · `egreso_id` → `egresos` · `personal_id` → `profiles` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
-**Personas (auth.users):** `anulado_por`, `created_by`  
+**Personas (auth.users):** `anulado_por`, `created_by`, `tesoreria_descartado_por`  
 **La usan:** `alertas_precio` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
 
 ### `movimiento_items`
@@ -597,6 +600,7 @@ Cómo se cuadra la plata de cada turno. Un turno empieza con una apertura y term
 ```mermaid
 erDiagram
   egresos |o--o{ retiros_caja : "egreso_id"
+  proveedores |o--o{ retiros_caja : "proveedor_id"
   aperturas_caja ||--o{ traspasos_caja : "apertura_id"
   aperturas_caja {
     uuid id PK
@@ -611,6 +615,9 @@ erDiagram
     uuid id PK
   }
   egresos {
+    uuid id PK
+  }
+  proveedores {
     uuid id PK
   }
 ```
@@ -687,7 +694,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 
 ### `retiros_caja`
 
-**Retiro de efectivo durante el turno.** Plata que el empleado saca de la caja para una compra puntual de emergencia, con motivo y foto. No es un gasto: lo registra después el administrativo como egreso.
+**Retiro de efectivo durante el turno.** Plata que el empleado saca de la caja para una compra puntual de emergencia (o, esporádicamente, para pagar a un proveedor, autorizado por un administrador), con motivo y foto (obligatoria desde $20.000). No es un gasto: lo registra después el administrativo como egreso.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -696,11 +703,13 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 | `motivo` | texto · obligatoria | Para qué se retiró. |
 | `comprobante_image_url` | texto | Foto del comprobante. |
 | `egreso_id` | id → egresos | Egreso de Tesorería al que se imputó. Vacío = todavía sin registrar. |
+| `proveedor_id` | id → proveedores | Pago esporádico a un proveedor en efectivo desde la caja. Vacío = compra puntual de emergencia. |
+| `autorizado_por` | id | Administrador que autorizó el pago a proveedor (obligatorio si hay proveedor). |
 
 Otras columnas: `id`, `sucursal_id`, `created_by`, `created_at`.
 
-**Apunta a:** `egreso_id` → `egresos` · `sucursal_id` → `sucursales`  
-**Personas (auth.users):** `created_by`
+**Apunta a:** `egreso_id` → `egresos` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `autorizado_por`, `created_by`
 
 ## Tesorería
 
