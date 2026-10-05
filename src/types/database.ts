@@ -506,6 +506,36 @@ export type Database = {
           },
         ]
       }
+      tesoreria_historial: {
+        Row: {
+          accion: string
+          creado_en: string
+          detalle: Json
+          entidad_id: string | null
+          id: string
+          motivo: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          accion: string
+          creado_en?: string
+          detalle?: Json
+          entidad_id?: string | null
+          id?: string
+          motivo?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          accion?: string
+          creado_en?: string
+          detalle?: Json
+          entidad_id?: string | null
+          id?: string
+          motivo?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       tesoreria_config: {
         Row: {
           efectivo_inicial: number

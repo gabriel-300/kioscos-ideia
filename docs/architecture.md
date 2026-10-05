@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
   por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05; sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse). Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05) y `104_tesoreria_historial.sql` (escrita; **si no figura aplicada, correrla a mano**); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -100,7 +100,7 @@ npm run build                # next build (con chequeo de tipos). Si se mueven r
                              # `tsc --noEmit`: quedan tipos viejos de la compilación anterior que dan errores falsos
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 36 archivos, 561 tests (verificado 2026-10-05)
+npm test                     # vitest run: 37 archivos, 580 tests (verificado 2026-10-05)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -113,7 +113,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 561 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 580 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -475,6 +475,13 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   (`movimientos.egreso_id`); la pantalla muestra la **diferencia** entre la factura y lo que cargó el kiosco (también en Egresos). Los
   ingresos sin compra son un **control** plegado, que no cuenta en el aviso; los que no corresponden se marcan «no corresponde»
   (`movimientos.tesoreria_descartado_*`, migración 103: solo una marca de Tesorería, no toca el stock; se puede deshacer).
+- **Historial de Tesorería** (`tesoreria_historial`, migración 104; solapa «Historial»): registro de **solo agregar** de todo lo que se hace —
+  egreso cargado / pagado / anulado, ingreso del kiosco descartado o devuelto a la lista, efectivo inicial cambiado y permisos de
+  socio o administrativo dados o sacados en Staff—: quién, cuándo, valores antes y después, y el motivo. Un trigger impide editarlo o
+  borrarlo (también `truncate`) y a `service_role` se le quitó `update/delete/truncate`. Lo escribe `registrarHistorial`
+  (`lib/tesoreria/historial.ts`) **después** de guardar el cambio; si no se pudo anotar, la acción devuelve un error claro (el cambio ya
+  quedó hecho). El **efectivo inicial**: la primera carga es libre y desde la segunda el motivo es obligatorio; el Resumen muestra cuántas
+  veces se cambió y el último cambio. Un test verifica que las acciones del código coincidan con el CHECK de la base.
 - **Retiro de caja (kiosco)**: dos usos — compra puntual de emergencia (lo normal) y pago **esporádico a un proveedor autorizado por un
   administrador** (`retiros_caja.proveedor_id` + `autorizado_por`, con un CHECK: si hay proveedor, hay quien autoriza; el servidor
   verifica que el autorizante sea admin). La **foto del ticket es obligatoria desde $20.000** (`RETIRO_FOTO_DESDE` en `lib/retiros.ts`,

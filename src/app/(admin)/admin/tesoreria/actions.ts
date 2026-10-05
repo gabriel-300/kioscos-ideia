@@ -6,6 +6,7 @@ import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import { cargarConfig } from "@/lib/tesoreria/consultas";
 import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
+import { registrarHistorial, type EntradaHistorial } from "@/lib/tesoreria/historial";
 import { fechaHoyAR } from "@/lib/fecha";
 import { redondearMoneda } from "@/lib/pedidos/pricing";
 
@@ -26,6 +27,17 @@ async function exigirCargar() {
 
 function refrescar() {
   revalidatePath("/admin/tesoreria");
+}
+
+// Anota en el historial (migración 104) lo que se acaba de hacer. Cada acción lo llama DESPUÉS de guardar el cambio: si no se
+// pudo anotar, el cambio ya está hecho, así que se avisa con claridad para que no pase desapercibido.
+async function anotar(admin: ReturnType<typeof createAdminClient>, e: EntradaHistorial): Promise<Resultado> {
+  const r = await registrarHistorial(admin, e);
+  if (r.error) {
+    console.error("[tesoreria] no se pudo anotar en el historial:", r.error);
+    return { error: "El cambio se guardó, pero no quedó anotado en el historial. Avisale al administrador del sistema." };
+  }
+  return {};
 }
 
 // ── Registrar un egreso ──────────────────────────────────────────────────────
@@ -82,8 +94,16 @@ export async function registrarEgreso(entrada: EgresoEntrada): Promise<Resultado
     return { error: "Alguien más registró alguno de esos movimientos mientras tanto. Recargá la pantalla." };
   }
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "egreso_creado", entidad_id: creado.id,
+    detalle: {
+      monto: e.monto, categoria: e.categoria, descripcion: e.descripcion, comprobante: e.comprobante, pagado: e.pagado,
+      origen: e.origen, sucursal_id: e.sucursal_id, proveedor_id: e.proveedor_id,
+      retiros_de_caja: retiros_caja_ids.length, ingresos_del_kiosco: entregas_ids.length,
+    },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 // ── Marcar como pagada una compra que estaba pendiente ───────────────────────
@@ -97,12 +117,16 @@ export async function marcarEgresoPagado(id: string, pago: { origen: string; fec
   const admin = createAdminClient();
   const { data, error } = await admin.from("egresos")
     .update({ pagado: true, origen: validado.valor.origen, fecha_pago: validado.valor.fecha_pago, updated_by: permisos.userId, updated_at: new Date().toISOString() })
-    .eq("id", id).eq("pagado", false).is("anulado_en", null).select("id");
+    .eq("id", id).eq("pagado", false).is("anulado_en", null).select("id, monto, descripcion");
   if (error) return { error: error.message };
   if ((data ?? []).length === 0) return { error: "Esa compra ya estaba pagada o fue anulada. Recargá la pantalla." };
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "egreso_pagado", entidad_id: id,
+    detalle: { monto: Number(data![0].monto), descripcion: data![0].descripcion, origen: validado.valor.origen, fecha_pago: validado.valor.fecha_pago },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 // ── Anular (nunca se borra una fila de plata) ────────────────────────────────
@@ -118,15 +142,19 @@ export async function anularEgreso(id: string, motivo: string): Promise<Resultad
   const admin = createAdminClient();
   const { data, error } = await admin.from("egresos")
     .update({ anulado_en: new Date().toISOString(), anulado_por: permisos.userId, anulado_motivo: texto })
-    .eq("id", id).is("anulado_en", null).select("id");
+    .eq("id", id).is("anulado_en", null).select("id, monto, descripcion");
   if (error) return { error: error.message };
   if ((data ?? []).length === 0) return { error: "Ese egreso ya estaba anulado. Recargá la pantalla." };
 
   await admin.from("retiros_caja").update({ egreso_id: null }).eq("egreso_id", id);
   await admin.from("movimientos").update({ egreso_id: null }).eq("egreso_id", id);
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "egreso_anulado", entidad_id: id, motivo: texto,
+    detalle: { monto: Number(data![0].monto), descripcion: data![0].descripcion },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 // ── "No corresponde": una entrega del kiosco que no tiene compra que registrar ──
@@ -142,12 +170,16 @@ export async function descartarEntrega(id: string, motivo: string): Promise<Resu
   const admin = createAdminClient();
   const { data, error } = await admin.from("movimientos")
     .update({ tesoreria_descartado_en: new Date().toISOString(), tesoreria_descartado_por: permisos.userId, tesoreria_descartado_motivo: texto })
-    .eq("id", id).eq("tipo", "entrega").is("egreso_id", null).is("tesoreria_descartado_en", null).select("id");
+    .eq("id", id).eq("tipo", "entrega").is("egreso_id", null).is("tesoreria_descartado_en", null).select("id, proveedor");
   if (error) return { error: error.message };
   if ((data ?? []).length === 0) return { error: "Esa entrega ya fue registrada o descartada. Recargá la pantalla." };
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "entrega_descartada", entidad_id: id, motivo: texto,
+    detalle: { proveedor: data![0].proveedor },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 export async function restaurarEntrega(id: string): Promise<Resultado> {
@@ -157,30 +189,55 @@ export async function restaurarEntrega(id: string): Promise<Resultado> {
   const admin = createAdminClient();
   const { data, error } = await admin.from("movimientos")
     .update({ tesoreria_descartado_en: null, tesoreria_descartado_por: null, tesoreria_descartado_motivo: null })
-    .eq("id", id).eq("tipo", "entrega").not("tesoreria_descartado_en", "is", null).select("id");
+    .eq("id", id).eq("tipo", "entrega").not("tesoreria_descartado_en", "is", null).select("id, proveedor");
   if (error) return { error: error.message };
   if ((data ?? []).length === 0) return { error: "Esa entrega no estaba descartada. Recargá la pantalla." };
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "entrega_restaurada", entidad_id: id,
+    detalle: { proveedor: data![0].proveedor },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 // ── Efectivo con el que arranca Tesorería ────────────────────────────────────
-export async function guardarEfectivoInicial(monto: number): Promise<Resultado> {
+// Es un número que mueve «efectivo en mano», así que cada cambio queda en el historial con el valor anterior y el nuevo.
+// La primera carga es libre; desde la segunda el motivo es obligatorio.
+export async function guardarEfectivoInicial(monto: number, motivo: string = ""): Promise<Resultado> {
   const permisos = await exigirCargar();
   if (!permisos) return { error: SIN_PERMISO };
   if (typeof monto !== "number" || !Number.isFinite(monto) || monto < 0 || monto > 1_000_000_000) {
     return { error: "Ingresá un monto válido (cero o más)" };
   }
+  const nuevo = redondearMoneda(monto);
 
   const admin = createAdminClient();
+  const config = await cargarConfig(admin);
+  if (!config) return { error: SIN_MIGRACION };
+  if (nuevo === config.efectivo_inicial) return { error: "El efectivo inicial ya tiene ese valor" };
+
+  // ¿Ya se cargó antes? Sin historial de cambios esta es la primera carga y el motivo es opcional.
+  const { count, error: errCount } = await admin.from("tesoreria_historial")
+    .select("id", { count: "exact", head: true }).eq("accion", "efectivo_inicial_cambiado");
+  if (errCount) return { error: "Falta aplicar la migración 104 de la base de datos" };
+  const esPrimera = (count ?? 0) === 0;
+
+  const texto = (motivo ?? "").trim();
+  if (!esPrimera && texto.length < 3) return { error: "Escribí por qué cambia el efectivo inicial (por ejemplo: «conté el efectivo y eran $X»)" };
+  if (texto.length > 200)             return { error: "El motivo es demasiado largo (máximo 200 caracteres)" };
+
   const { error } = await admin.from("tesoreria_config")
-    .update({ efectivo_inicial: redondearMoneda(monto), updated_by: permisos.userId, updated_at: new Date().toISOString() })
+    .update({ efectivo_inicial: nuevo, updated_by: permisos.userId, updated_at: new Date().toISOString() })
     .eq("id", true);
   if (error) return { error: error.message };
 
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "efectivo_inicial_cambiado", motivo: texto || null,
+    detalle: { anterior: esPrimera ? null : config.efectivo_inicial, nuevo },
+  });
   refrescar();
-  return {};
+  return historial;
 }
 
 // ── Comprobantes (bucket privado `tesoreria`) ────────────────────────────────

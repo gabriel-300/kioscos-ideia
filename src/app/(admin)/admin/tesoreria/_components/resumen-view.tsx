@@ -1,6 +1,8 @@
 import { etiquetaCategoria } from "@/lib/tesoreria/tipos";
 import type { Deuda, ResumenEgresos } from "@/lib/tesoreria/calculos";
 import { EfectivoInicialForm } from "./efectivo-inicial-form";
+import { describirHistorial } from "@/lib/tesoreria/historial";
+import type { CambiosEfectivoInicial } from "@/lib/tesoreria/consultas";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -10,6 +12,7 @@ export interface ResumenData {
   deuda:            { items: Deuda[]; total: number };
   efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
   sobresSinRetirar: number;
+  cambiosEfectivoInicial: CambiosEfectivoInicial;   // cuántas veces se tocó y el último cambio (del historial)
 }
 
 function Tarjeta({ titulo, valor, pie, tono = "neutro" }: { titulo: string; valor: string; pie?: string; tono?: "neutro" | "rojo" | "verde" | "ambar" }) {
@@ -99,7 +102,17 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
           <li className="flex justify-between pt-1.5 border-t border-neutral-100 font-semibold"><span>= Efectivo en mano</span><span className="tabular-nums">{AR.format(data.efectivo.efectivo)}</span></li>
         </ul>
         <p className="text-xs text-neutral-400 mt-3">Lo que se pagó con plata del cajón de un kiosco (retiro de caja), con transferencia o con Mercado Pago no resta acá.</p>
-        {puedeCargar && <div className="mt-3"><EfectivoInicialForm valorActual={data.efectivo.inicial} /></div>}
+        {data.cambiosEfectivoInicial.ultimo ? (
+          <p className="text-xs text-neutral-500 mt-3">
+            El efectivo inicial se cambió {data.cambiosEfectivoInicial.total} {data.cambiosEfectivoInicial.total === 1 ? "vez" : "veces"}. Último cambio:{" "}
+            {new Date(data.cambiosEfectivoInicial.ultimo.creado_en).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            {" "}por {data.cambiosEfectivoInicial.ultimo.usuario ?? "un usuario desconocido"} — {describirHistorial(data.cambiosEfectivoInicial.ultimo).toLowerCase()}
+            {data.cambiosEfectivoInicial.ultimo.motivo && <> («{data.cambiosEfectivoInicial.ultimo.motivo}»)</>}. Todo el detalle está en la solapa Historial.
+          </p>
+        ) : (
+          <p className="text-xs text-amber-700 mt-3">Todavía no se cargó el efectivo inicial.</p>
+        )}
+        {puedeCargar && <div className="mt-3"><EfectivoInicialForm valorActual={data.efectivo.inicial} requiereMotivo={data.cambiosEfectivoInicial.total > 0} /></div>}
       </section>
     </div>
   );

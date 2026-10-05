@@ -334,6 +334,10 @@ export default async function AyudaPage() {
             </Paso>
           </div>
           <Nota tipo="info">
+            Todo queda registrado en <Campo>Historial</Campo>: quién cargó, pagó, anuló o cambió algo, cuándo y por qué. No se puede
+            editar ni borrar. El <Campo>efectivo inicial</Campo> se carga una vez; si hay que corregirlo, hace falta escribir el motivo.
+          </Nota>
+          <Nota tipo="info">
             El <Campo>Resumen</Campo> muestra lo que entró, lo que salió, lo que se debe y el efectivo en mano. «Entró menos
             salió» no es la ganancia: falta el costo de lo vendido y todo lo que todavía no se cargó.
           </Nota>

@@ -6,6 +6,7 @@ import type { createAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/paginar";
 import type { Egreso, TesoreriaConfig } from "./tipos";
 import type { SobreRecibido } from "./calculos";
+import type { FilaHistorial, AccionHistorial } from "./historial";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -149,6 +150,46 @@ export async function cargarTotalesKiosco(admin: Admin, egresoIds: string[]): Pr
     }
   }
   return totales;
+}
+
+// ── Historial (migración 104) ──
+// Lo que se hizo en Tesorería en el período, lo más nuevo primero, con el nombre de quien lo hizo. El período es por día
+// argentino (UTC-3), no UTC. Tope de 500 filas por consulta: es una pantalla de lectura, no un informe.
+export async function cargarHistorial(admin: Admin, desde: string, hasta: string): Promise<FilaHistorial[]> {
+  const { data, error } = await admin.from("tesoreria_historial")
+    .select("id, creado_en, usuario_id, accion, entidad_id, detalle, motivo")
+    .gte("creado_en", `${desde}T00:00:00-03:00`).lte("creado_en", `${hasta}T23:59:59.999-03:00`)
+    .order("creado_en", { ascending: false }).limit(500);
+  if (error) throw new Error(error.message);
+  const nombres = await nombresDe(admin, (data ?? []).map((f) => f.usuario_id));
+  return (data ?? []).map((f) => ({
+    id: f.id, creado_en: f.creado_en, usuario_id: f.usuario_id,
+    usuario: f.usuario_id ? (nombres.get(f.usuario_id) ?? null) : null,
+    accion: f.accion as AccionHistorial, entidad_id: f.entidad_id,
+    detalle: (f.detalle && typeof f.detalle === "object" && !Array.isArray(f.detalle) ? f.detalle : {}) as FilaHistorial["detalle"],
+    motivo: f.motivo,
+  }));
+}
+
+// Para mostrar en el Resumen cuántas veces se cambió el efectivo inicial y el último cambio.
+export interface CambiosEfectivoInicial { total: number; ultimo: FilaHistorial | null }
+export async function cargarCambiosEfectivoInicial(admin: Admin): Promise<CambiosEfectivoInicial> {
+  const { data, error, count } = await admin.from("tesoreria_historial")
+    .select("id, creado_en, usuario_id, accion, entidad_id, detalle, motivo", { count: "exact" })
+    .eq("accion", "efectivo_inicial_cambiado").order("creado_en", { ascending: false }).limit(1);
+  if (error) throw new Error(error.message);
+  const f = data?.[0];
+  if (!f) return { total: 0, ultimo: null };
+  const nombres = await nombresDe(admin, [f.usuario_id]);
+  return {
+    total: count ?? 1,
+    ultimo: {
+      id: f.id, creado_en: f.creado_en, usuario_id: f.usuario_id, usuario: f.usuario_id ? (nombres.get(f.usuario_id) ?? null) : null,
+      accion: f.accion as AccionHistorial, entidad_id: f.entidad_id,
+      detalle: (f.detalle && typeof f.detalle === "object" && !Array.isArray(f.detalle) ? f.detalle : {}) as FilaHistorial["detalle"],
+      motivo: f.motivo,
+    },
+  };
 }
 
 // ── Egresos ──

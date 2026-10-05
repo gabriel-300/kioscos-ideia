@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { rolDe, sistemasAGuardar, sistemasFijos, type Rol as StaffRole, type Sistema } from "@/lib/auth/acceso";
+import { registrarHistorial } from "@/lib/tesoreria/historial";
 
 export async function crearStaff(data: {
   email:      string;
@@ -52,8 +53,14 @@ export async function eliminarStaff(userId: string) {
 }
 
 export async function actualizarStaff(userId: string, data: { nombre: string; password?: string; creditoLimite?: number | null; esSocio?: boolean; esAdministrativo?: boolean; role?: StaffRole; sistemas?: Sistema[] }) {
-  await requireAdmin();
+  const { userId: quienCambia } = await requireAdmin();
   const admin = createAdminClient();
+  // Valores de los permisos de Tesorería ANTES del cambio, para dejar en el historial quién se los dio o se los sacó a quién.
+  // Solo se lee si se están tocando esos permisos (el resto de las ediciones de Staff no necesita la consulta).
+  const tocaPermisos = data.esSocio !== undefined || data.esAdministrativo !== undefined;
+  const antes = tocaPermisos
+    ? (await admin.from("profiles").select("es_socio, es_administrativo").eq("id", userId).single()).data
+    : null;
   const update: { user_metadata: Record<string, string>; app_metadata?: Record<string, unknown>; password?: string } = {
     user_metadata: { full_name: data.nombre },
   };
@@ -86,6 +93,17 @@ export async function actualizarStaff(userId: string, data: { nombre: string; pa
   }
   if (data.esAdministrativo !== undefined) {
     await (admin as any).from("profiles").update({ es_administrativo: data.esAdministrativo }).eq("id", userId);
+  }
+  // Historial de Tesorería: solo si el permiso realmente cambió. Si la migración 104 no está aplicada, no se rompe Staff.
+  const cambios: { permiso: "es_socio" | "es_administrativo"; nuevo: boolean }[] = [];
+  if (data.esSocio !== undefined && data.esSocio !== !!antes?.es_socio) cambios.push({ permiso: "es_socio", nuevo: data.esSocio });
+  if (data.esAdministrativo !== undefined && data.esAdministrativo !== !!antes?.es_administrativo) cambios.push({ permiso: "es_administrativo", nuevo: data.esAdministrativo });
+  for (const c of cambios) {
+    const r = await registrarHistorial(admin, {
+      usuario_id: quienCambia, accion: "permiso_cambiado", entidad_id: userId,
+      detalle: { persona: data.nombre, permiso: c.permiso, nuevo: c.nuevo },
+    });
+    if (r.error) console.error("[staff] no se pudo anotar el cambio de permiso en el historial:", r.error);
   }
   revalidatePath("/admin/staff");
 }

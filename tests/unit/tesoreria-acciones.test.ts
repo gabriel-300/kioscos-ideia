@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tesoreria/permisos", () => ({ permisosTesoreria: async () => h.permisos }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
-import { anularEgreso, descartarEntrega, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
+import { anularEgreso, descartarEntrega, guardarEfectivoInicial, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const CARGA = { userId: "damian", puedeVer: true, puedeCargar: true };
@@ -23,16 +23,20 @@ const entrada: EgresoEntrada = {
   pagado: true, origen: "retiro_caja", gasto_fijo_id: null, nota: null, retiros_caja_ids: ["r1"], entregas_ids: [],
 };
 
-type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?: string; anulacionFilas?: number; pagoFilas?: number; descarteFilas?: number };
+type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?: string; anulacionFilas?: number; pagoFilas?: number; descarteFilas?: number;
+  efectivoActual?: number; cambiosPrevios?: number; historialError?: string; historialSinMigracion?: boolean };
 
 function montar(permisos: unknown, e: Esc = {}) {
   h.permisos = permisos;
   const f = fakeAdmin((q: Q) => {
     switch (q.table) {
-      case "tesoreria_config": return { data: { fecha_inicio: "2026-10-01", efectivo_inicial: 0 } };
+      case "tesoreria_config": return { data: { fecha_inicio: "2026-10-01", efectivo_inicial: e.efectivoActual ?? 0 } };
+      case "tesoreria_historial":
+        if (q.op === "select") return e.historialSinMigracion ? { error: { message: "relation does not exist" } } : { data: null, count: e.cambiosPrevios ?? 0 };
+        return e.historialError ? { error: { message: e.historialError } } : { data: null };
       case "sucursales":       return { data: [{ id: "s1" }, { id: "s2" }] };
       case "movimientos":
-        if (q.op === "update" && "tesoreria_descartado_en" in (q.payload ?? {})) return { data: Array.from({ length: e.descarteFilas ?? 1 }, () => ({ id: "m1" })) };
+        if (q.op === "update" && "tesoreria_descartado_en" in (q.payload ?? {})) return { data: Array.from({ length: e.descarteFilas ?? 1 }, () => ({ id: "m1", proveedor: "Petri" })) };
         return { data: null };
       case "retiros_caja":
         if (q.op === "select") return { data: (e.retirosDisponibles ?? ["r1"]).map((id) => ({ id, sucursal_id: "s1" })) };
@@ -40,8 +44,8 @@ function montar(permisos: unknown, e: Esc = {}) {
         return { data: null };
       case "egresos":
         if (q.op === "insert") return e.insertError ? { error: { message: e.insertError } } : { data: { id: "e1" } };
-        if (q.op === "update" && q.payload?.anulado_en) return { data: Array.from({ length: e.anulacionFilas ?? 1 }, () => ({ id: "e1" })) };
-        if (q.op === "update" && q.payload?.pagado) return { data: Array.from({ length: e.pagoFilas ?? 1 }, () => ({ id: "e1" })) };
+        if (q.op === "update" && q.payload?.anulado_en) return { data: Array.from({ length: e.anulacionFilas ?? 1 }, () => ({ id: "e1", monto: 1500, descripcion: "Lo de Mario" })) };
+        if (q.op === "update" && q.payload?.pagado) return { data: Array.from({ length: e.pagoFilas ?? 1 }, () => ({ id: "e1", monto: 1500, descripcion: "Lo de Mario" })) };
         return { data: null };
       default: return { data: null };
     }
@@ -53,6 +57,86 @@ function montar(permisos: unknown, e: Esc = {}) {
 const escrituras = (calls: Q[]) => calls.filter((q) => q.op !== "select");
 
 beforeEach(() => { h.permisos = null; });
+
+const historialDe = (calls: Q[]) => calls.filter((q) => q.table === "tesoreria_historial" && q.op === "insert").map((q) => q.payload);
+
+describe("historial: cada acción deja su registro (quién, qué y por qué)", () => {
+  it("cargar un egreso anota quién, el importe y con qué se pagó", async () => {
+    const { calls } = montar(CARGA);
+    await registrarEgreso(entrada);
+    expect(historialDe(calls)).toEqual([expect.objectContaining({
+      usuario_id: "damian", accion: "egreso_creado", entidad_id: "e1",
+      detalle: expect.objectContaining({ monto: 29600, descripcion: "Lo de Mario - fiambre", comprobante: "sin", pagado: true, origen: "retiro_caja", retiros_de_caja: 1 }),
+    })]);
+  });
+
+  it("marcar pagado, anular, descartar y restaurar anotan con el motivo cuando lo hay", async () => {
+    let f = montar(CARGA);
+    await marcarEgresoPagado("e1", { origen: "transferencia", fecha_pago: "2026-10-04" });
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "egreso_pagado", entidad_id: "e1", detalle: expect.objectContaining({ monto: 1500, origen: "transferencia" }) })]);
+
+    f = montar(CARGA);
+    await anularEgreso("e1", " lo cargué dos veces ");
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "egreso_anulado", motivo: "lo cargué dos veces", detalle: { monto: 1500, descripcion: "Lo de Mario" } })]);
+
+    f = montar(CARGA);
+    await descartarEntrega("m1", "se cargó dos veces");
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "entrega_descartada", entidad_id: "m1", motivo: "se cargó dos veces", detalle: { proveedor: "Petri" } })]);
+
+    f = montar(CARGA);
+    await restaurarEntrega("m1");
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "entrega_restaurada", entidad_id: "m1" })]);
+  });
+
+  it("lo que falla o no corresponde NO deja registro", async () => {
+    let f = montar(CARGA, { anulacionFilas: 0 });
+    await anularEgreso("e1", "otro motivo");
+    expect(historialDe(f.calls)).toHaveLength(0);
+    f = montar(SOLO_VE);
+    await registrarEgreso(entrada);
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it("si el cambio se guardó pero no se pudo anotar, se avisa (no pasa desapercibido)", async () => {
+    montar(CARGA, { historialError: "boom" });
+    expect(await anularEgreso("e1", "motivo valido")).toEqual({ error: expect.stringContaining("no quedó anotado en el historial") });
+  });
+});
+
+describe("efectivo inicial: la primera carga es libre, los cambios piden motivo y quedan con antes y después", () => {
+  it("la primera vez no pide motivo y anota el valor nuevo", async () => {
+    const { calls } = montar(CARGA, { cambiosPrevios: 0, efectivoActual: 0 });
+    expect(await guardarEfectivoInicial(50000)).toEqual({});
+    expect(calls.find((q) => q.table === "tesoreria_config" && q.op === "update")!.payload).toMatchObject({ efectivo_inicial: 50000, updated_by: "damian" });
+    expect(historialDe(calls)).toEqual([expect.objectContaining({ accion: "efectivo_inicial_cambiado", usuario_id: "damian", detalle: { anterior: null, nuevo: 50000 } })]);
+  });
+
+  it("desde la segunda exige motivo, y deja el valor anterior y el nuevo", async () => {
+    let f = montar(CARGA, { cambiosPrevios: 1, efectivoActual: 50000 });
+    expect(await guardarEfectivoInicial(60000, "  ")).toEqual({ error: expect.stringContaining("por qué") });
+    expect(f.calls.some((q) => q.table === "tesoreria_config" && q.op === "update")).toBe(false);
+
+    f = montar(CARGA, { cambiosPrevios: 1, efectivoActual: 50000 });
+    expect(await guardarEfectivoInicial(60000, "conté el efectivo y eran $60.000")).toEqual({});
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ motivo: "conté el efectivo y eran $60.000", detalle: { anterior: 50000, nuevo: 60000 } })]);
+  });
+
+  it("no acepta el mismo valor, montos inválidos, ni a quien no es administrativo", async () => {
+    montar(CARGA, { efectivoActual: 50000 });
+    expect(await guardarEfectivoInicial(50000, "igual")).toEqual({ error: expect.stringContaining("ya tiene ese valor") });
+    expect(await guardarEfectivoInicial(-1, "motivo")).toEqual({ error: expect.any(String) });
+    expect(await guardarEfectivoInicial(NaN, "motivo")).toEqual({ error: expect.any(String) });
+    const f = montar(SOLO_VE);
+    expect(await guardarEfectivoInicial(10, "motivo")).toEqual({ error: expect.stringContaining("administrativo") });
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it("sin la migración 104 avisa en vez de cambiar el valor sin dejar rastro", async () => {
+    const f = montar(CARGA, { historialSinMigracion: true });
+    expect(await guardarEfectivoInicial(70000)).toEqual({ error: expect.stringContaining("104") });
+    expect(f.calls.some((q) => q.table === "tesoreria_config" && q.op === "update")).toBe(false);
+  });
+});
 
 describe("permisos", () => {
   it("sin sesión, o solo con permiso de ver, no se escribe nada", async () => {

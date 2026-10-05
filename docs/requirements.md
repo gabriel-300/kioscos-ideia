@@ -110,6 +110,9 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - El **retiro de caja** existe para que el empleado saque plata para una compra puntual de emergencia; esporádicamente también
     para pagar a un proveedor en efectivo, **autorizado por un administrador** (queda quién autorizó). No se le pide contabilidad.
     La **foto del ticket es obligatoria desde $20.000**. No es un gasto: el gasto es el egreso al que el administrativo lo asigna.
+  - **Todo cambio en Tesorería deja rastro**: cada egreso cargado, pagado o anulado, cada ingreso del kiosco que «no corresponde», cada
+    cambio del efectivo inicial (desde el segundo, con motivo obligatorio) y cada permiso de socio o administrativo dado o sacado queda en
+    el Historial —quién, cuándo, antes y después, por qué—, que no se puede editar ni borrar.
   - **La compra de mercadería se carga desde la factura o el remito**, no desde lo que cargó el kiosco (suele venir sin proveedor ni
     importes). Los ingresos del kiosco son un control de conciliación: se pueden vincular a la compra (se ve la diferencia) o marcar
     «no corresponde». Todavía no existe «corregir una entrega» desde Tesorería (tocaría el stock).

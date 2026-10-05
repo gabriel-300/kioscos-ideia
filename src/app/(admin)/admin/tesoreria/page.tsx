@@ -7,8 +7,9 @@ import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import {
   cargarConfig, cargarSucursales, cargarProveedores, cargarGastosFijos, cargarRetirosPendientes, cargarEntregasPendientes,
   cargarEgresosDelPeriodo, cargarEgresosPendientes, cargarSalidasEfectivo, cargarVentasDelPeriodo, cargarSobresRetirados, cargarSobresSinRetirar,
-  cargarEntregasDescartadas, cargarTotalesKiosco,
+  cargarEntregasDescartadas, cargarTotalesKiosco, cargarHistorial, cargarCambiosEfectivoInicial,
 } from "@/lib/tesoreria/consultas";
+import { HistorialView } from "./_components/historial-view";
 import { agruparDeuda, efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
 import { ResumenView, type ResumenData } from "./_components/resumen-view";
 import { ParaRegistrar } from "./_components/para-registrar";
@@ -23,6 +24,7 @@ const VISTAS = [
   { id: "para-registrar", etiqueta: "Para registrar" },
   { id: "egresos",        etiqueta: "Egresos" },
   { id: "fijos",          etiqueta: "Gastos fijos" },
+  { id: "historial",      etiqueta: "Historial" },
 ] as const;
 type Vista = (typeof VISTAS)[number]["id"];
 
@@ -64,6 +66,7 @@ export default async function TesoreriaPage({
     let fijos: Awaited<ReturnType<typeof cargarGastosFijos>> = [];
     let pendientesTodos: Awaited<ReturnType<typeof cargarEgresosPendientes>> = [];
     let descartadas: Awaited<ReturnType<typeof cargarEntregasDescartadas>> = [];
+    let historial: Awaited<ReturnType<typeof cargarHistorial>> = [];
     const totalesKiosco: Record<string, number> = {};
 
     if (vista === "resumen" || vista === "egresos" || vista === "fijos") {
@@ -77,16 +80,18 @@ export default async function TesoreriaPage({
       const idsMercaderia = [...egresosMes, ...pendientesTodos].filter((e) => e.categoria === "mercaderia").map((e) => e.id);
       for (const [id, total] of await cargarTotalesKiosco(admin, [...new Set(idsMercaderia)])) totalesKiosco[id] = total;
     }
+    if (vista === "historial") historial = await cargarHistorial(admin, rango.desde, rango.hasta);
     if (vista === "para-registrar") descartadas = await cargarEntregasDescartadas(admin, sucursalIds, config.fecha_inicio);
     if (vista === "fijos") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
         cargarSobresRetirados(admin, sucursalIds, config.fecha_inicio),
         cargarSobresSinRetirar(admin, sucursalIds, config.fecha_inicio),
+        cargarCambiosEfectivoInicial(admin),
       ]);
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
@@ -96,24 +101,25 @@ export default async function TesoreriaPage({
         deuda: agruparDeuda(pendientes, nombreProveedor),
         efectivo: { ...efectivo, inicial: config.efectivo_inicial },
         sobresSinRetirar: sobresSinRetirar.reduce((s, c) => s + montoSobre(c), 0),
+        cambiosEfectivoInicial,
       };
     }
 
-    datos = { config, sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos };
+    datos = { config, sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial };
   } catch (e) {
     const detalle = e instanceof Error ? e.message : String(e);
     return (
       <div className="p-4 md:p-8 max-w-3xl">
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-semibold">Tesorería todavía no está lista en la base de datos.</p>
-          <p className="mt-1">Falta aplicar las migraciones 101, 102 y 103 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-1">Falta aplicar las migraciones 101 a 104 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
           <p className="mt-2 text-xs text-amber-700">Detalle técnico: {detalle}</p>
         </div>
       </div>
     );
   }
 
-  const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos } = datos;
+  const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial } = datos;
   // El contador cuenta solo los retiros de caja (son la tarea). Los ingresos del kiosco son un control, no una deuda.
   const pendientesDeRegistrar = retiros.length;
   const enlace = (v: string, m: string = mes) => `/admin/tesoreria?vista=${v}&mes=${m}`;
@@ -166,6 +172,7 @@ export default async function TesoreriaPage({
       {vista === "egresos" && (
         <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
+      {vista === "historial" && <HistorialView filas={historial} />}
       {vista === "fijos" && (
         <FijosLista fijos={fijos} pagadosPorFijo={pagadosPorFijo} mes={mes} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
