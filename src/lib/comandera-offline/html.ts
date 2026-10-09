@@ -42,12 +42,12 @@ button{font:inherit;cursor:pointer}
 .chip{border:1px solid #c7d1c4;background:#fff;border-radius:999px;padding:6px 12px;font-size:14px}
 .chip.on{background:#2f6b3f;color:#fff;border-color:#2f6b3f}
 .grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;align-content:start;padding-bottom:12px}
-.prod{position:relative;text-align:left;background:#fff;border:1px solid #d5ddd2;border-radius:12px;padding:10px;min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
+.prod{position:relative;text-align:left;background:#fff;border:1px solid #d5ddd2;border-radius:12px;padding:10px;min-height:150px;display:flex;flex-direction:column;justify-content:flex-start}
 .prod:active{background:#e7f1e5}
 .prod .n{font-weight:600;line-height:1.2}
 .prod .p{color:#2f6b3f;font-weight:700}
-.prod .fila{display:flex;align-items:flex-end;justify-content:space-between;margin-top:6px}
-.prod .lg{width:30px;height:28px;flex:none;background:url(__LOGO__) center/contain no-repeat}
+.prod .lg{display:block;width:100%;height:52px;margin-bottom:8px;background:url(__LOGO__) center/contain no-repeat}
+.prod .p{margin-top:6px}
 .prod .st{font-size:13px;color:#4a5a4e;margin-top:2px}
 .prod .st.bajo{color:#b3261e;font-weight:700}
 .prod:disabled{opacity:.55;cursor:not-allowed}
@@ -273,8 +273,9 @@ function pintarGrid(){
       var attrs = {class:"prod", onclick:function(){ agregar(it.id, 1); }};
       if (sinMas) attrs.disabled = "disabled";
       g.appendChild(h("button", attrs, [
+        h("span", {class:"lg"}),
         h("span", {class:"n", text:it.nombre}),
-        h("div", {class:"fila"}, [h("span", {class:"p", text:money.format(it.precio)}), h("span", {class:"lg"})]),
+        h("span", {class:"p", text:money.format(it.precio)}),
         r === null ? null : h("span", {class:"st" + (r <= 5 ? " bajo" : ""), text:(r <= 0 ? "AGOTADO" : "Stock: " + r)}),
         qn ? h("span", {class:"q", text:String(qn)}) : null
       ]));
