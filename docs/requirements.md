@@ -204,6 +204,11 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Reglas**: catálogo con el mismo filtro que el storefront (activo, `vendible_pos`, categorías/promos habilitadas de la sucursal
   elegida, precio > 0). Deja afuera los productos por kg. Nunca lleva costo ni margen. Descarga: staff con acceso a la sucursal de
   los precios (`requireSucursalAccess`); el POST valida los ids elegidos contra ese catálogo.
+- **Stock del evento** (opcional, por producto): al descargar se carga cuántas unidades se llevan; la comandera lo muestra debajo del
+  producto, lo descuenta con cada venta (anular un ticket lo devuelve), bloquea la venta en 0 y tiene un botón "Stock" para reponer.
+  Vive solo en el archivo y en el `localStorage`: NO toca el stock de ninguna sucursal ni la base. Sin stock cargado = sin límite.
+  Los combos/promos tienen su propio stock; no descuentan el de sus componentes. Cada producto lleva el logo "en minutas"
+  (PNG de ~1,6 KB en `logo.ts`, incrustado en el archivo; no se guarda en Supabase).
 - **Límites a propósito**: NO toca la base (no descuenta stock, no registra ventas ni caja); las ventas quedan en el `localStorage`
   del navegador (clave = sucursal + nombre del evento) y se exportan a CSV desde "Ventas / Resumen". Los precios quedan congelados
   en el archivo. Solo efectivo (el QR de Mercado Pago necesita internet).

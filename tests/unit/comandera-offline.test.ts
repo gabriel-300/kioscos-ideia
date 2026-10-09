@@ -125,3 +125,23 @@ describe("paraEvento", () => {
     expect(paraEvento(cat, "x".repeat(80), ["p3"]).titulo).toHaveLength(40);
   });
 });
+
+describe("stock del evento", () => {
+  const cat = armarCatalogoComandera({ ...base, sucursal: { ...base.sucursal, categorias_habilitadas: null } });
+
+  it("solo lleva stock el producto cargado; el resto queda sin límite (0 = agotado)", () => {
+    const e = paraEvento(cat, "Fiesta", ["p1", "p3"], { p1: 40, p3: 0 });
+    const items = e.categorias.flatMap((c) => c.items);
+    expect(items.find((i) => i.id === "p1")?.stock).toBe(40);
+    expect(items.find((i) => i.id === "p3")?.stock).toBe(0);
+    expect(paraEvento(cat, "Fiesta", ["p1"]).categorias[0].items[0]).not.toHaveProperty("stock");
+  });
+
+  it("el archivo lleva el stock y el logo incrustado, y sigue siendo liviano", () => {
+    const html = generarComanderaHtml(paraEvento(cat, "Fiesta", ["p1"], { p1: 12 }));
+    expect(html).toContain('"stock":12');
+    expect(html).toContain("data:image/png;base64,");
+    expect(html).not.toContain("__LOGO__");
+    expect(html.length).toBeLessThan(60_000);
+  });
+});

@@ -1,4 +1,5 @@
 import { slugComandera, type CatalogoComandera } from "./catalogo";
+import { LOGO_DATA_URI } from "./logo";
 
 // Genera el archivo HTML autocontenido de la comandera offline: un solo archivo,
 // sin dependencias externas (ni fuentes, ni scripts, ni imágenes), que se abre con
@@ -44,7 +45,16 @@ button{font:inherit;cursor:pointer}
 .prod{position:relative;text-align:left;background:#fff;border:1px solid #d5ddd2;border-radius:12px;padding:10px;min-height:88px;display:flex;flex-direction:column;justify-content:space-between}
 .prod:active{background:#e7f1e5}
 .prod .n{font-weight:600;line-height:1.2}
-.prod .p{color:#2f6b3f;font-weight:700;margin-top:6px}
+.prod .p{color:#2f6b3f;font-weight:700}
+.prod .fila{display:flex;align-items:flex-end;justify-content:space-between;margin-top:6px}
+.prod .lg{width:30px;height:28px;flex:none;background:url(__LOGO__) center/contain no-repeat}
+.prod .st{font-size:13px;color:#4a5a4e;margin-top:2px}
+.prod .st.bajo{color:#b3261e;font-weight:700}
+.prod:disabled{opacity:.55;cursor:not-allowed}
+.prod:disabled:active{background:#fff}
+.qty button:disabled{opacity:.35;cursor:not-allowed}
+.rep{display:grid;grid-template-columns:1fr auto auto auto;gap:6px 8px;align-items:center}
+.rep input{width:80px;font-size:16px;padding:6px 8px}
 .prod .q{position:absolute;top:-6px;right:-6px;background:#c0392b;color:#fff;border-radius:999px;min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;padding:0 6px}
 .vacio{color:#5b6b5f;padding:20px;text-align:center}
 .der{background:#fff;border-left:1px solid #d5ddd2;display:flex;flex-direction:column;min-height:0}
@@ -108,6 +118,7 @@ tr.anul td{color:#8b8b8b;text-decoration:line-through}
 <div class="top">
   <h1 id="titulo">Comandera<small id="sub"></small></h1>
   <span class="next" id="next"></span>
+  <button class="btn" id="btnStock" style="display:none">Stock</button>
   <button class="btn" id="btnResumen">Ventas / Resumen</button>
 </div>
 <div class="aviso" id="aviso"></div>
@@ -150,6 +161,13 @@ tr.anul td{color:#8b8b8b;text-decoration:line-through}
   </div>
 </div></div>
 
+<div class="modal" id="mStock"><div class="caja ancha">
+  <h3>Stock del evento</h3>
+  <div class="vacio" style="padding:0 0 10px;text-align:left">Sumá unidades si llevás más mercadería (o restá con un número negativo para corregir). Solo cuenta dentro de este archivo.</div>
+  <div class="rep" id="repCuerpo"></div>
+  <div class="acc"><button class="btn" id="btnCerrarStock">Cerrar</button></div>
+</div></div>
+
 <div id="ticket"></div>
 
 <script>
@@ -180,7 +198,7 @@ function hora(t){ var d = new Date(t); return p2(d.getHours()) + ":" + p2(d.getM
 function redondear(n){ return Math.round(n * 100) / 100; }
 
 /* ---- estado persistente ---- */
-var state = { next: 1, ventas: [] };
+var state = { next: 1, ventas: [], repo: {} }; // repo: unidades de stock sumadas/restadas a mano por producto
 try {
   var raw = localStorage.getItem(KEY);
   if (raw) {
@@ -188,6 +206,7 @@ try {
     if (st && Array.isArray(st.ventas) && typeof st.next === "number") state = st;
   }
 } catch (e) { storageOk = false; }
+if (!state.repo || typeof state.repo !== "object") state.repo = {};
 function guardar(){
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
   catch (e) { storageOk = false; avisar(); }
@@ -207,8 +226,24 @@ var catActiva = "todos";
 var carrito = []; // {id, nombre, precio, qty}
 
 function cant(id){ for (var i=0;i<carrito.length;i++) if (carrito[i].id === id) return carrito[i].qty; return 0; }
+
+/* ---- stock del evento (solo dentro de este archivo) ---- */
+function vendidos(){
+  var m = {};
+  state.ventas.forEach(function(v){ if (!v.anulada) v.items.forEach(function(l){ m[l.id] = (m[l.id] || 0) + l.qty; }); });
+  return m;
+}
+// unidades que quedan; null si el producto no tiene stock cargado (sin límite)
+function restante(id, vend){
+  var it = items[id];
+  if (!it || typeof it.stock !== "number") return null;
+  return it.stock + (state.repo[id] || 0) - ((vend || vendidos())[id] || 0);
+}
+function hayStock(){ return Object.keys(items).some(function(id){ return typeof items[id].stock === "number"; }); }
+
 function agregar(id, d){
   var it = items[id], i;
+  if (d > 0) { var r = restante(id); if (r !== null && cant(id) + d > r) return; }
   for (i=0;i<carrito.length;i++) if (carrito[i].id === id) break;
   if (i === carrito.length) { if (d < 0) return; carrito.push({id:id, nombre:it.nombre, precio:it.precio, qty:0}); }
   carrito[i].qty += d;
@@ -227,16 +262,20 @@ function pintarChips(){
 }
 function pintarGrid(){
   var g = $("grid"); g.textContent = "";
-  var q = norm($("buscar").value.trim()), n = 0;
+  var q = norm($("buscar").value.trim()), n = 0, vend = vendidos();
   DATA.categorias.forEach(function(c){
     if (catActiva !== "todos" && catActiva !== c.id) return;
     c.items.forEach(function(it){
       if (q && norm(it.nombre).indexOf(q) < 0) return;
       n++;
-      var qn = cant(it.id);
-      g.appendChild(h("button", {class:"prod", onclick:function(){ agregar(it.id, 1); }}, [
+      var qn = cant(it.id), r = restante(it.id, vend);
+      var sinMas = r !== null && r - qn <= 0;
+      var attrs = {class:"prod", onclick:function(){ agregar(it.id, 1); }};
+      if (sinMas) attrs.disabled = "disabled";
+      g.appendChild(h("button", attrs, [
         h("span", {class:"n", text:it.nombre}),
-        h("span", {class:"p", text:money.format(it.precio)}),
+        h("div", {class:"fila"}, [h("span", {class:"p", text:money.format(it.precio)}), h("span", {class:"lg"})]),
+        r === null ? null : h("span", {class:"st" + (r <= 5 ? " bajo" : ""), text:(r <= 0 ? "AGOTADO" : "Stock: " + r)}),
         qn ? h("span", {class:"q", text:String(qn)}) : null
       ]));
     });
@@ -246,14 +285,17 @@ function pintarGrid(){
 function pintarCarrito(){
   var box = $("items"); box.textContent = "";
   if (!carrito.length) box.appendChild(h("div", {class:"vacio", text:"Tocá un producto para agregarlo."}));
+  var vend = vendidos();
   carrito.forEach(function(l){
+    var r = restante(l.id, vend), mas = {text:"+", onclick:function(){ agregar(l.id, 1); }};
+    if (r !== null && l.qty >= r) mas.disabled = "disabled";
     box.appendChild(h("div", {class:"it"}, [
       h("span", {class:"nm", text:l.nombre}),
       h("span", {class:"sb", text:money.format(redondear(l.precio * l.qty))}),
       h("div", {class:"qty"}, [
         h("button", {text:"−", onclick:function(){ agregar(l.id, -1); }}),
         h("span", {text:String(l.qty)}),
-        h("button", {text:"+", onclick:function(){ agregar(l.id, 1); }}),
+        h("button", mas),
         h("button", {class:"rm", text:"Quitar", onclick:function(){ agregar(l.id, -l.qty); }})
       ])
     ]));
@@ -285,6 +327,11 @@ function confirmarCobro(){
   if (v !== null) {
     if (isNaN(v) || v < 0) { $("cErr").textContent = "El monto recibido es menor al total."; return; }
     recibido = Number($("cRecibido").value);
+  }
+  var vend = vendidos();
+  for (var k = 0; k < carrito.length; k++) {
+    var rr = restante(carrito[k].id, vend);
+    if (rr !== null && carrito[k].qty > rr) { $("cErr").textContent = "No alcanza el stock de " + carrito[k].nombre + " (quedan " + Math.max(rr, 0) + ")."; return; }
   }
   var venta = {
     n: state.next, t: Date.now(), total: totalCarrito(), recibido: recibido, anulada: false,
@@ -364,9 +411,11 @@ function pintarResumen(){
       por[l.id].qty += l.qty; por[l.id].monto += l.precio * l.qty;
     }); });
     orden.sort(function(a,b){ return por[b].qty - por[a].qty; });
-    tb.appendChild(h("tr", {}, [h("th", {text:"Producto"}), h("th", {class:"r", text:"Unidades"}), h("th", {class:"r", text:"Monto"})]));
+    var conStock = hayStock(), vend = vendidos();
+    tb.appendChild(h("tr", {}, [h("th", {text:"Producto"}), h("th", {class:"r", text:"Unidades"}), h("th", {class:"r", text:"Monto"}), conStock ? h("th", {class:"r", text:"Stock restante"}) : null]));
     orden.forEach(function(id){
-      tb.appendChild(h("tr", {}, [h("td", {text:por[id].nombre}), h("td", {class:"r", text:String(por[id].qty)}), h("td", {class:"r", text:money.format(redondear(por[id].monto))})]));
+      var r = restante(id, vend);
+      tb.appendChild(h("tr", {}, [h("td", {text:por[id].nombre}), h("td", {class:"r", text:String(por[id].qty)}), h("td", {class:"r", text:money.format(redondear(por[id].monto))}), conStock ? h("td", {class:"r", text:r === null ? "-" : String(r)}) : null]));
     });
   }
   cuerpo.appendChild(tb);
@@ -387,7 +436,29 @@ function csv(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+/* ---- reposición de stock ---- */
+function pintarStock(){
+  var box = $("repCuerpo"); box.textContent = "";
+  var vend = vendidos();
+  DATA.categorias.forEach(function(c){ c.items.forEach(function(it){
+    var r = restante(it.id, vend);
+    if (r === null) return;
+    var inp = h("input", {type:"number", step:"1", inputmode:"numeric", placeholder:"+0"});
+    box.appendChild(h("span", {text:it.nombre}));
+    box.appendChild(h("b", {text:String(r)}));
+    box.appendChild(inp);
+    box.appendChild(h("button", {class:"btn pri", text:"Sumar", onclick:function(){
+      var n = Math.round(Number(inp.value));
+      if (!inp.value || isNaN(n) || n === 0) return;
+      state.repo[it.id] = (state.repo[it.id] || 0) + n;
+      guardar(); pintarStock(); pintar();
+    }}));
+  }); });
+}
+
 /* ---- eventos ---- */
+$("btnStock").addEventListener("click", function(){ pintarStock(); $("mStock").classList.add("on"); });
+$("btnCerrarStock").addEventListener("click", function(){ $("mStock").classList.remove("on"); });
 $("buscar").addEventListener("input", pintarGrid);
 $("btnCobrar").addEventListener("click", abrirCobro);
 $("btnVaciar").addEventListener("click", function(){ if (carrito.length && confirm("Vaciar el pedido?")) { carrito = []; pintar(); } });
@@ -407,16 +478,17 @@ $("btnCsv").addEventListener("click", csv);
 $("btnBorrar").addEventListener("click", function(){
   if (!state.ventas.length && state.next === 1) return;
   var r = prompt("Esto borra TODAS las ventas y reinicia el numero de ticket en 1.\nExporta el CSV antes.\nPara confirmar escribi BORRAR:");
-  if (r !== null && r.trim().toUpperCase() === "BORRAR") { state = {next:1, ventas:[]}; guardar(); pintar(); pintarResumen(); }
+  if (r !== null && r.trim().toUpperCase() === "BORRAR") { state = {next:1, ventas:[], repo:{}}; guardar(); pintar(); pintarResumen(); }
 });
 document.addEventListener("keydown", function(e){
-  if (e.key === "Escape") { $("mCobro").classList.remove("on"); $("mRes").classList.remove("on"); }
+  if (e.key === "Escape") { $("mCobro").classList.remove("on"); $("mRes").classList.remove("on"); $("mStock").classList.remove("on"); }
 });
 
 document.title = "Comandera - " + DATA.titulo;
 $("titulo").firstChild.nodeValue = DATA.titulo;
 $("sub").textContent = "Precios al " + fecha(Date.parse(DATA.generado)) + " " + hora(Date.parse(DATA.generado)) + " - sin conexion";
 avisar();
+if (hayStock()) $("btnStock").style.display = "";
 pintar();
 })();
 </script>
@@ -435,7 +507,7 @@ function jsonParaScript(data: unknown): string {
 
 export function generarComanderaHtml(catalogo: CatalogoComandera): string {
   const { omitidosPorKg: _omitidos, sucursalNombre: _sucursal, ...datos } = catalogo; // el aviso de kg es para quien descarga, no para el archivo
-  return PLANTILLA.replace("__DATA__", () => jsonParaScript(datos));
+  return PLANTILLA.replace("__LOGO__", () => LOGO_DATA_URI).replace("__DATA__", () => jsonParaScript(datos));
 }
 
 export function nombreArchivoComandera(catalogo: CatalogoComandera): string {

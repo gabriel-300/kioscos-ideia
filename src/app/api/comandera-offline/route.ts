@@ -8,10 +8,12 @@ import { generarComanderaHtml, nombreArchivoComandera } from "@/lib/comandera-of
 // Solo staff con acceso a la sucursal de la que salen los precios.
 //
 // GET  ?sucursal_id=<uuid>                  todo el catálogo de la sucursal, con su nombre
-// POST sucursal_id, evento, ids (JSON)      modo evento: nombre propio y solo los productos elegidos
+// POST sucursal_id, evento, ids (JSON), stock (JSON {id: unidades}, opcional)
+//                                           modo evento: nombre propio, solo los productos elegidos y su stock del evento
 //      (POST porque son ~200 ids: no entran cómodos en una URL)
 
 const MAX_IDS = 2000;
+const MAX_STOCK = 99999;
 
 async function entregar(sucursalId: string | null, armar: (c: CatalogoComandera) => CatalogoComandera | NextResponse) {
   const supabase = await createClient();
@@ -63,8 +65,23 @@ export async function POST(req: NextRequest) {
     return new NextResponse("ids inválidos", { status: 400 });
   }
 
+  // Stock del evento: solo viaja dentro del archivo descargado, no se guarda en ningún lado.
+  const stock: Record<string, number> = {};
+  try {
+    const parsed = JSON.parse(String(form.get("stock") || "{}"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    const idsSet = new Set(ids);
+    for (const [id, n] of Object.entries(parsed)) {
+      if (!idsSet.has(id)) continue; // stock de algo que no se lleva: se ignora
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > MAX_STOCK) throw new Error();
+      stock[id] = n;
+    }
+  } catch {
+    return new NextResponse("stock inválido", { status: 400 });
+  }
+
   return entregar(sucursalId, (base) => {
     if (!evento) return new NextResponse("Falta el nombre del evento", { status: 400 });
-    return paraEvento(base, evento, ids);
+    return paraEvento(base, evento, ids, stock);
   });
 }

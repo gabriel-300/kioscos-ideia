@@ -9,7 +9,8 @@ import type { createAdminClient } from "@/lib/supabase/server";
 // sucursal. Nunca lleva costo ni margen. Además deja afuera los productos que se
 // venden por kg: la comandera cobra unidades a precio fijo y no pesa.
 
-export type ItemComandera = { id: string; nombre: string; precio: number; promo?: boolean };
+// stock: unidades que se llevan al evento (vive solo dentro del archivo, no toca la base). Sin stock = sin límite.
+export type ItemComandera = { id: string; nombre: string; precio: number; promo?: boolean; stock?: number };
 export type CategoriaComandera = { id: string; nombre: string; items: ItemComandera[] };
 export type CatalogoComandera = {
   sucursalId: string;
@@ -122,7 +123,7 @@ export function slugComandera(s: string): string {
 // ticket, y se queda solo con los productos elegidos. La clave incluye el nombre del evento: volver a
 // descargar el archivo del mismo evento (por un precio nuevo) sigue la numeración de tickets; uno con
 // otro nombre arranca en 1 y no se mezcla con las ventas de otro evento.
-export function paraEvento(catalogo: CatalogoComandera, evento: string, ids: string[]): CatalogoComandera {
+export function paraEvento(catalogo: CatalogoComandera, evento: string, ids: string[], stock: Record<string, number> = {}): CatalogoComandera {
   const titulo = evento.replace(/\s+/g, " ").trim().slice(0, 40);
   const elegidos = new Set(ids);
   return {
@@ -130,7 +131,12 @@ export function paraEvento(catalogo: CatalogoComandera, evento: string, ids: str
     titulo,
     clave: `${catalogo.sucursalId}:${slugComandera(titulo)}`,
     categorias: catalogo.categorias
-      .map((c) => ({ ...c, items: c.items.filter((i) => elegidos.has(i.id)) }))
+      .map((c) => ({
+        ...c,
+        items: c.items
+          .filter((i) => elegidos.has(i.id))
+          .map((i) => (Object.prototype.hasOwnProperty.call(stock, i.id) ? { ...i, stock: stock[i.id] } : i)),
+      }))
       .filter((c) => c.items.length > 0),
   };
 }
