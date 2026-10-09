@@ -25,6 +25,7 @@ export function EventoForm({ opciones }: { opciones: OpcionSucursal[] }) {
 
   // Stock del evento (opcional) por producto, como texto del input: vacío = sin límite, 0 = agotado.
   const [stocks, setStocks] = useState<Record<string, string>>({});
+  const [masivo, setMasivo] = useState("");
   const stockElegido: Record<string, number> = {};
   for (const id of elegidos) {
     const t = (stocks[id] ?? "").trim();
@@ -32,6 +33,13 @@ export function EventoForm({ opciones }: { opciones: OpcionSucursal[] }) {
   }
   const conStock = Object.keys(stockElegido).length;
   const stockInvalido = elegidos.some((id) => (stocks[id] ?? "").trim() !== "" && !(id in stockElegido));
+
+  // Pone el mismo stock a un grupo de productos (los tildados de una categoría o todos los visibles).
+  function ponerStock(ids: string[], valor: string) {
+    const nuevo = { ...stocks };
+    ids.forEach((id) => { nuevo[id] = valor; });
+    setStocks(nuevo);
+  }
 
   function cambiar(ids: string[], marcar: boolean) {
     const s = new Set(fuera);
@@ -84,6 +92,24 @@ export function EventoForm({ opciones }: { opciones: OpcionSucursal[] }) {
           <button type="button" onClick={() => cambiar(todos, false)} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm">Ninguno</button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+          <span className="font-medium text-neutral-800">Cargar stock en bloque:</span>
+          <input
+            type="text" inputMode="numeric" value={masivo} onChange={(e) => setMasivo(e.target.value)} placeholder="Ej: 30"
+            aria-label="Stock a aplicar" className="w-20 rounded-md border border-neutral-300 px-2 py-1 text-right tabular-nums"
+          />
+          <button
+            type="button" disabled={!/^d{1,5}$/.test(masivo.trim())}
+            onClick={() => ponerStock(elegidos.filter((id) => !q || opcion.categorias.some((c) => c.items.some((i) => i.id === id && sinAcentos(i.nombre).includes(q)))), masivo.trim())}
+            className="rounded-lg border border-neutral-300 bg-white px-3 py-1 disabled:opacity-40"
+          >
+            Aplicar a los tildados{q ? " (según la búsqueda)" : ""}
+          </button>
+          <button type="button" onClick={() => ponerStock(todos, "")} className="rounded-lg border border-neutral-300 bg-white px-3 py-1">
+            Borrar todos los stocks
+          </button>
+        </div>
+
         {opcion.categorias.map((c) => {
           const visibles = c.items.filter((i) => !q || sinAcentos(i.nombre).includes(q));
           if (visibles.length === 0) return null;
@@ -100,6 +126,13 @@ export function EventoForm({ opciones }: { opciones: OpcionSucursal[] }) {
                 />
                 <span className="text-sm font-semibold text-neutral-900">{c.nombre}</span>
                 <span className="text-xs text-neutral-500">{marcados}/{idsCat.length}</span>
+                <button
+                  type="button" disabled={!/^d{1,5}$/.test(masivo.trim())}
+                  onClick={() => ponerStock(idsCat.filter((id) => !fuera.has(id)), masivo.trim())}
+                  className="ml-auto rounded-md border border-neutral-300 px-2 py-0.5 text-xs disabled:opacity-40"
+                >
+                  Stock {masivo.trim() || "…"} a esta categoría
+                </button>
               </div>
               <ul className="divide-y divide-neutral-100">
                 {visibles.map((i) => (

@@ -72,6 +72,15 @@ describe("POST /api/comandera-offline (modo evento)", () => {
     expect(html).toContain("Fiesta Villa Sarita");
     expect(html).toContain("Empanada Carne");
   });
+  it("el stock cargado viaja dentro del archivo; uno inválido da 400 y el de un producto no elegido se ignora", async () => {
+    const ok = await enviar({ sucursal_id: "s1", evento: "X", ids: JSON.stringify(["p1"]), stock: JSON.stringify({ p1: 50, otro: 7 }) });
+    expect(ok.status).toBe(200);
+    const html = await ok.text();
+    expect(html).toContain('"stock":50');
+    expect(html).not.toContain('"stock":7');
+    expect((await enviar({ sucursal_id: "s1", evento: "X", ids: "[\"p1\"]", stock: "{\"p1\":-1}" })).status).toBe(400);
+    expect((await enviar({ sucursal_id: "s1", evento: "X", ids: "[\"p1\"]", stock: "{\"p1\":\"5\"}" })).status).toBe(400);
+  });
   it("sin sesión: 401; sin acceso: 403", async () => {
     h.user = null;
     expect((await enviar({ sucursal_id: "s1", evento: "X", ids: "[\"p1\"]" })).status).toBe(401);
