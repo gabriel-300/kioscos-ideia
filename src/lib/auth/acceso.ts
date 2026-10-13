@@ -20,6 +20,12 @@ export const ROLES_CON_SUCURSAL = ["admin", "encargado", "concesionario", "vende
 export const SISTEMAS = ["kiosco", "tenteo"] as const;
 export type Sistema = (typeof SISTEMAS)[number];
 
+// Con qué sistemas arranca el formulario de alta de personal en Staff. Quien vende en el
+// kiosco tiene que tener también Tenteo para recibir el aviso de pedido nuevo (el cuadro
+// aparece en la pantalla de caja, pero solo le llega a quien tiene Tenteo asignado). Es solo
+// el valor inicial del formulario: la persona que da el alta lo puede cambiar.
+export const SISTEMAS_ALTA_PERSONAL: readonly Sistema[] = ["kiosco", "tenteo"];
+
 // Lo mínimo que se lee de un usuario de Supabase Auth (acepta un User entero).
 export type UsuarioAcceso = { app_metadata?: Record<string, any> | null } | null | undefined;
 

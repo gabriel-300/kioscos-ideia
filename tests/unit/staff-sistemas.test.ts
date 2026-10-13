@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { sistemasAGuardar, sistemasFijos, sistemasDe, tieneSistemasGuardados } from "@/lib/auth/acceso";
+import { SISTEMAS_ALTA_PERSONAL, sistemasAGuardar, sistemasFijos, sistemasDe, tieneSistemasGuardados } from "@/lib/auth/acceso";
 
 // Asignar el sistema (kiosco / Tenteo) a cada persona desde Staff. Solo el admin
 // escribe, y siempre en app_metadata (user_metadata lo edita el propio usuario).
@@ -129,5 +129,20 @@ describe("actualizarStaff", () => {
     h.existente = { id: "u1", app_metadata: { role: "vendedor" } };
     await actualizarStaff("u1", { nombre: "Ana", sistemas: ["tenteo"] });
     expect(sistemasDe({ app_metadata: meta() })).toEqual(["tenteo"]);
+  });
+});
+
+describe("alta de personal: sistemas por defecto del formulario", () => {
+  it("arranca con Kiosco y Tenteo: quien vende tiene que recibir el aviso de pedido nuevo", () => {
+    expect([...SISTEMAS_ALTA_PERSONAL]).toEqual(["kiosco", "tenteo"]);
+  });
+  it("es un valor válido para guardar en app_metadata de un vendedor", () => {
+    expect(sistemasAGuardar("vendedor", [...SISTEMAS_ALTA_PERSONAL])).toEqual({ valor: ["kiosco", "tenteo"] });
+  });
+  it("quien tiene los dos sistemas, con ese dato, resuelve a los dos", () => {
+    expect(sistemasDe({ app_metadata: { role: "vendedor", sistemas: [...SISTEMAS_ALTA_PERSONAL] } })).toEqual(["kiosco", "tenteo"]);
+  });
+  it("el defecto de quien YA existe sin el dato no cambia: sigue siendo solo kiosco (nadie recibe Tenteo sin que se lo asignen)", () => {
+    expect(sistemasDe({ app_metadata: { role: "vendedor" } })).toEqual(["kiosco"]);
   });
 });

@@ -8,7 +8,7 @@ import { z } from "zod/v4";
 import { Button, Badge, Input } from "@/components/ui";
 import { crearStaff, eliminarStaff, actualizarStaff, asignarSucursal, asignarSucursalesVendedor, generarLinkResetPassword, suspenderStaff } from "../actions";
 import { friendlyError } from "@/lib/utils";
-import { ROLES_PERSONAL, SISTEMAS, sistemasFijos, type Rol, type Sistema } from "@/lib/auth/acceso";
+import { ROLES_PERSONAL, SISTEMAS, SISTEMAS_ALTA_PERSONAL, sistemasFijos, type Rol, type Sistema } from "@/lib/auth/acceso";
 
 type StaffUser = {
   id: string;
@@ -124,7 +124,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
 
   const roleValue = watch("role");
   const sucursalValue = watch("sucursalId");
-  const [sistemas, setSistemas] = useState<Sistema[]>(["kiosco"]);
+  const [sistemas, setSistemas] = useState<Sistema[]>([...SISTEMAS_ALTA_PERSONAL]);
 
   function onSubmit(values: z.infer<typeof createSchema>) {
     if (!sistemasFijos(values.role) && sistemas.length === 0) { alert("Elegí al menos un sistema (Kiosco o Tenteo)."); return; }
@@ -139,7 +139,7 @@ function NuevoStaffForm({ sucursales, onCreated }: { sucursales: Sucursal[]; onC
           sucursalId: values.sucursalId || undefined,
         });
         reset();
-        setSistemas(["kiosco"]);
+        setSistemas([...SISTEMAS_ALTA_PERSONAL]);
         router.refresh();
         onCreated();
       } catch (e) {
