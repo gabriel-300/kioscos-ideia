@@ -79,7 +79,10 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
       <div className="mt-auto space-y-3 pt-8">
         <Link
           href={`/pedir/${config.sucursalId}/pedido/${pedido.pedidoId}`}
-          className="pd-display flex h-14 w-full items-center justify-center rounded-2xl bg-pd-paper text-[16px] font-bold text-pd-ink"
+          // El color va en línea: en un enlace, la regla global `a { color: inherit }` le gana a la
+          // clase text-pd-ink y el texto quedaba crema sobre crema (botón en blanco).
+          style={{ color: "var(--color-pd-ink)" }}
+          className="pd-display flex h-14 w-full items-center justify-center rounded-2xl bg-pd-paper text-[16px] font-bold"
         >
           Seguir mi pedido
         </Link>
