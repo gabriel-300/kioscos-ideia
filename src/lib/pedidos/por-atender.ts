@@ -1,5 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
+import type { PedidoAviso } from "./aviso";
+import { cargarLineasDePedidos } from "./lineas-servidor";
 
 // Qué pedidos online esperan una acción del local y a qué sucursales puede
 // mirar cada usuario. Lo comparten la pantalla de pedidos online y el aviso de
@@ -54,18 +56,76 @@ async function sucursalesParaAviso(admin: Admin, userId: string, role: string): 
   return ids;
 }
 
-export async function contarPedidosPorAtender(admin: Admin, userId: string, role: string): Promise<number> {
+async function pedidosPorAtender(admin: Admin, userId: string, role: string): Promise<(PedidoParaContar & { id: string })[]> {
   const sucursales = await sucursalesParaAviso(admin, userId, role);
-  if (sucursales && sucursales.length === 0) return 0;
+  if (sucursales && sucursales.length === 0) return [];
 
   let query = (admin as any)
     .from("pedidos")
-    .select("estado, medio_pago, expira_en")
+    .select("id, estado, medio_pago, expira_en")
     .in("estado", [...ESTADOS_NUEVOS, "pendiente_pago"])
+    .order("created_at", { ascending: true })
     .limit(500);
   if (sucursales) query = query.in("sucursal_id", sucursales);
 
   const { data } = await query;
   const ahora = Date.now();
-  return ((data ?? []) as PedidoParaContar[]).filter((p) => cuentaComoPorAtender(p, ahora)).length;
+  return ((data ?? []) as (PedidoParaContar & { id: string })[]).filter((p) => cuentaComoPorAtender(p, ahora));
+}
+
+export async function contarPedidosPorAtender(admin: Admin, userId: string, role: string): Promise<number> {
+  return (await pedidosPorAtender(admin, userId, role)).length;
+}
+
+// Ids de los pedidos por atender (el aviso decide cuáles todavía no mostró).
+export async function idsPedidosPorAtender(admin: Admin, userId: string, role: string): Promise<string[]> {
+  return (await pedidosPorAtender(admin, userId, role)).map((p) => p.id);
+}
+
+// Tope de pedidos que muestra un solo cuadro de aviso.
+const MAX_AVISO = 20;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Detalle (qué pidió, cómo paga, dónde se entrega) de los pedidos que el aviso quiere
+// mostrar. Los ids vienen del navegador: se revalida todo contra la base, o sea que
+// solo devuelve pedidos de las sucursales del usuario que SIGUEN por atender.
+export async function detalleDePedidosPorAtender(admin: Admin, userId: string, role: string, ids: string[]): Promise<PedidoAviso[]> {
+  const pedidos = [...new Set(ids.filter((i) => typeof i === "string" && UUID.test(i)))].slice(0, MAX_AVISO);
+  if (pedidos.length === 0) return [];
+
+  const sucursales = await sucursalesParaAviso(admin, userId, role);
+  if (sucursales && sucursales.length === 0) return [];
+
+  let query = (admin as any)
+    .from("pedidos")
+    .select("id, numero, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, zona_nombre, medio_pago, pago_con, notas, total, costo_envio, descuento_total, expira_en, created_at, sucursales(nombre)")
+    .in("id", pedidos)
+    .order("created_at", { ascending: true });
+  if (sucursales) query = query.in("sucursal_id", sucursales);
+
+  const { data } = await query;
+  const ahora = Date.now();
+  const filas = ((data ?? []) as any[]).filter((p) => cuentaComoPorAtender(p, ahora));
+  if (filas.length === 0) return [];
+
+  const lineas = await cargarLineasDePedidos(admin, filas.map((p) => p.id));
+  return filas.map((p): PedidoAviso => ({
+    id:         p.id,
+    numero:     p.numero == null ? null : Number(p.numero),
+    sucursal:   p.sucursales?.nombre ?? null,
+    estado:     p.estado,
+    cliente:    p.cliente_nombre ?? null,
+    telefono:   p.cliente_telefono ?? null,
+    delivery:   p.tipo_entrega === "delivery",
+    direccion:  p.direccion_entrega ?? null,
+    referencia: p.direccion_referencia ?? null,
+    zona:       p.zona_nombre ?? null,
+    medioPago:  p.medio_pago ?? null,
+    pagoCon:    p.pago_con == null ? null : Number(p.pago_con),
+    notas:      p.notas ?? null,
+    total:      Number(p.total ?? 0),
+    costoEnvio: Number(p.costo_envio ?? 0),
+    descuento:  Number(p.descuento_total ?? 0),
+    lineas:     lineas.get(p.id) ?? [],
+  }));
 }

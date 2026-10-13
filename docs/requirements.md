@@ -160,10 +160,17 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
   confirman pagos; el repartidor solo marca sus entregas; la configuración (zonas, horario, delivery) es solo admin.
-- **Aviso de pedido nuevo**: el menú de Tenteo muestra cuántos pedidos esperan al local (nuevos en efectivo, Mercado Pago
-  ya pagado y links de pago por confirmar), suena, pone el número en el título de la pestaña y recarga la lista si está
-  abierta. Consulta cada 20 s; el sonido se habilita con el primer clic. Solo lo ven admin, encargado, vendedor y
-  concesionario **con acceso a Tenteo** (el kiosco ya no tiene el aviso), y cada uno cuenta solo sus sucursales.
+- **Aviso de pedido nuevo**: cuando entra un pedido (nuevo en efectivo, Mercado Pago ya pagado o link de pago por
+  confirmar) se abre un **cuadro que interrumpe**, con lo que pidió el cliente, las aclaraciones destacadas, cómo
+  paga (y el vuelto) y cómo lo recibe. Aparece en cualquier pantalla del personal, también en la venta rápida del
+  kiosco, y no se cierra tocando afuera ni con Escape: hay que apretar "Entendido" (o "Ver pedidos"). Suena y repite el sonido
+  cada 20 s mientras esté abierto; el sonido se habilita con el primer clic. Si recarga sin apretar "Entendido", vuelve a
+  aparecer; una vez visto, no vuelve por el mismo pedido. Además deja el número en el título de la pestaña y en el
+  menú de Tenteo, y recarga la lista si está abierta. Consulta cada 30 s. Lo ven admin, encargado, vendedor y
+  concesionario **con acceso a Tenteo** (el repartidor no), y cada uno solo de sus sucursales.
+- **Qué pidió el cliente**: la lista de pedidos, la pantalla del repartidor y el seguimiento del cliente muestran las líneas del
+  pedido (una promo agrupa sus componentes) y las aclaraciones. Límite conocido: de una promo no queda guardada la
+  cantidad pedida, solo la de cada componente ya multiplicada (puede verse "0,22× bolsa de ..." en una receta).
 - **Seguimiento para el cliente**: `/pedir/[sucursal]/pedido/[id]`, sin cuenta. El enlace es secreto porque lleva el id del
   pedido; no muestra teléfono ni dirección. Se actualiza solo. Se llega desde la confirmación de la tienda y desde el bot.
 - **Dominio de clientes**: `www.angirufood.com.ar` (la versión sin www redirige a esa). Su raíz muestra "¿Dónde querés pedir?" con los locales que

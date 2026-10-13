@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PedidoOnlineAcciones } from "./_components/pedido-online-acciones";
+import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atender";
 import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
@@ -61,6 +62,8 @@ export default async function PedidosOnlinePage() {
   // que confirmar a mano -- el resto (QR automático abandonado) es ruido.
   const ahora = Date.now();
   const pedidos = ((pedidosRaw ?? []) as any[]).filter((p) => p.estado !== "pendiente_pago" || pagoPorLinkVigente(p, ahora));
+  // Qué pidió cada cliente (varios pedidos con pocas consultas; si falla, la lista sale igual sin el detalle).
+  const lineasPorPedido = await cargarLineasDePedidos(admin, pedidos.map((p) => p.id));
 
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
@@ -127,7 +130,21 @@ export default async function PedidosOnlinePage() {
                     </p>
                     <p className="text-[11px] text-neutral-400">{p.cliente_telefono}</p>
                     <p className="text-[10px] text-neutral-300 mt-0.5">{p.origen === "whatsapp" ? "WhatsApp" : "Catálogo online"}</p>
-                    {p.notas && <p className="text-[11px] text-neutral-500 mt-1 max-w-[220px]">“{p.notas}”</p>}
+                    {(lineasPorPedido.get(p.id) ?? []).length > 0 && (
+                      <ul className="mt-2 space-y-0.5 max-w-[260px]">
+                        {(lineasPorPedido.get(p.id) ?? []).map((l, i) => (
+                          <li key={i} className="text-xs font-medium text-neutral-800">
+                            {l.titulo}
+                            {l.componentes.length > 0 && <span className="block text-[11px] font-normal text-neutral-500">{l.componentes.join(" · ")}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {p.notas && (
+                      <p className="mt-1.5 max-w-[260px] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900">
+                        Aclaración: “{p.notas}”
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">{p.sucursales?.nombre ?? "—"}</td>
                   <td className="px-4 py-3">

@@ -192,7 +192,7 @@ src/
                  (remitos por foto), el bot de pedidos y el upsell. Necesita GROQ_API_KEY y, para el respaldo, OPENROUTER_API_KEY
     groq.ts      lectura de remitos/facturas por foto (prompt, esquema y validaciones; la llamada va por ia/)
     reposicion.ts, utils.ts, openrouter.ts (sin uso)
-  components/    admin/ (admin-nav, number-input-wheel-guard), tenteo/ (tenteo-nav, use-pedidos-por-atender), auth/, ui/ (badge, button, combobox, input, skeleton)
+  components/    admin/ (admin-nav, number-input-wheel-guard), tenteo/ (tenteo-nav, aviso-pedidos, dialogo-pedidos-nuevos), auth/, ui/ (badge, button, combobox, input, skeleton)
   types/database.ts
 tests/           unit/ (vitest) y helpers/fake-supabase.ts (doble en memoria del cliente de Supabase)
 e2e/             smoke.spec.ts (Playwright, solo lectura)
@@ -554,8 +554,13 @@ el estado.
 **Después del pedido**: `/pedir/[sucursal]/pedido/[id]` es el seguimiento del cliente (el uuid del pedido hace de enlace
 secreto, sin migración; lógica de estados en `lib/pedidos/seguimiento.ts`, sin datos personales). `/pedir/[sucursal]/qr` es
 el cartel imprimible (`lib/pedidos/qr.ts`, JS puro). Para el personal, `lib/pedidos/por-atender.ts` define qué pedidos
-esperan al local y qué sucursales ve cada rol; el hook `components/tenteo/use-pedidos-por-atender.ts` (montado en el menú de Tenteo; el kiosco ya no lo tiene)
-lo consulta cada 30 s (las sucursales del usuario se recuerdan 90 s en el servidor) con la Server Action `consultarPedidosPorAtender`. `lib/pedidos/notificar-cliente.ts` avisa por
+esperan al local y qué sucursales ve cada rol; `components/tenteo/aviso-pedidos.tsx` (montado en los layouts de las DOS zonas, kiosco y Tenteo, para quien atiende pedidos y
+tiene acceso a Tenteo) pregunta cada 30 s con la Server Action `consultarPedidosPorAtender` (una consulta, solo ids; las sucursales del
+usuario se recuerdan 90 s en el servidor); si hay un pedido que todavía no mostró pide el detalle con `detallePedidosParaAviso`, que
+**revalida en el servidor** los ids que manda el navegador (solo pedidos de las sucursales del usuario que siguen por atender, hasta 20) y abre
+`dialogo-pedidos-nuevos.tsx`. Qué pedidos ya se vieron vive en localStorage (`lib/pedidos/aviso.ts`; se marca solo al apretar "Entendido").
+Las líneas de cada pedido salen de `lib/pedidos/lineas.ts` (puro) y `lineas-servidor.ts` (en tandas de 50 ids, tolerante a fallas, nombres por el
+puerto) y las comparten la lista, el aviso, la pantalla del repartidor y el seguimiento. `lib/pedidos/notificar-cliente.ts` avisa por
 WhatsApp los cambios de estado, solo a pedidos del bot y solo si hay `WHATSAPP_ACCESS_TOKEN`.
 
 **Clientes registrados** (migración 099): login con Google en el catálogo (`components` de `/pedir`, callback

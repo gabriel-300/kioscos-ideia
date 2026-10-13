@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
-import { usePedidosPorAtender } from "./use-pedidos-por-atender";
+import { usePedidosPorAtender } from "./aviso-pedidos";
 import { RUTA_TENTEO_PEDIDOS, RUTA_TENTEO_REPARTOS } from "@/lib/auth/acceso";
 
 // Menú de la zona de Tenteo (pedidos online). Es corto a propósito: tres
@@ -35,9 +35,9 @@ export function TenteoNav({ role, email, name, puedeKiosco = false }: {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Aviso de pedido nuevo: solo el personal que atiende pedidos (no el repartidor).
-  const atiendePedidos = ["admin", "encargado", "vendedor", "concesionario"].includes(role ?? "");
-  const pedidosPorAtender = usePedidosPorAtender(atiendePedidos);
+  // Cantidad de pedidos por atender (0 para el repartidor). El cuadro de aviso y el sonido
+  // los maneja AvisoPedidos, montado en los layouts de las dos zonas.
+  const pedidosPorAtender = usePedidosPorAtender();
 
   const visibles = ITEMS.filter((i) => i.roles.includes(role ?? ""));
   const activo = (href: string) =>

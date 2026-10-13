@@ -3,6 +3,7 @@ import { createClient, createAdminClient, getUser } from "@/lib/supabase/server"
 import { redirect } from "next/navigation";
 import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
+import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Mis entregas — Kioscos IDEIA" };
@@ -32,6 +33,7 @@ export default async function RepartosPage() {
 
   const { data: pedidosRaw } = await query;
   const pedidos = (pedidosRaw ?? []) as any[];
+  const lineasPorPedido = await cargarLineasDePedidos(admin, pedidos.map((p) => p.id));
 
   return (
     <div className="p-4 md:p-8 max-w-[900px]">
@@ -53,6 +55,16 @@ export default async function RepartosPage() {
                 <p className="text-sm text-neutral-600 mt-0.5">{p.direccion_entrega}</p>
                 {p.direccion_referencia && <p className="text-xs text-neutral-500">{p.direccion_referencia}</p>}
                 <p className="text-xs text-neutral-400 mt-1">{p.cliente_telefono} · {p.sucursales?.nombre}</p>
+                {(lineasPorPedido.get(p.id) ?? []).length > 0 && (
+                  <ul className="mt-2 space-y-0.5">
+                    {(lineasPorPedido.get(p.id) ?? []).map((l, i) => (
+                      <li key={i} className="text-xs font-medium text-neutral-800">
+                        {l.titulo}
+                        {l.componentes.length > 0 && <span className="block text-[11px] font-normal text-neutral-500">{l.componentes.join(" · ")}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="text-sm font-semibold text-tierra-700 mt-1.5">{AR.format(p.total)}</p>
                 {p.medio_pago === "efectivo" ? (
                   <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-2 inline-block">

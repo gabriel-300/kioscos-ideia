@@ -2,7 +2,8 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
-import { esPersonal, puedeEntrar } from "@/lib/auth/acceso";
+import { AvisoPedidos } from "@/components/tenteo/aviso-pedidos";
+import { ROLES_CON_SUCURSAL, esPersonal, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 // repartidor entra al layout pero middleware.ts lo contiene a /tenteo/repartos (ver ahí).
 // El control por sistema (kiosco/tenteo) lo hace el middleware, que conoce la ruta.
@@ -119,7 +120,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     transferenciasPendientes = count ?? 0;
   }
 
+  // Aviso de pedido nuevo con cuadro: el cajero suele estar acá (venta rápida) y no en
+  // Tenteo. Solo para quien tiene acceso a Tenteo y atiende pedidos.
+  const rolPersonal = rolDe(user);
+  const avisarPedidos = puedeEntrar(user, "tenteo") && !!rolPersonal && (ROLES_CON_SUCURSAL as readonly string[]).includes(rolPersonal);
+
   return (
+    <AvisoPedidos activo={avisarPedidos}>
     <div className="h-screen flex flex-col bg-neutral-50">
       <NumberInputWheelGuard />
       <AdminNav
@@ -134,5 +141,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       />
       <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>
+    </AvisoPedidos>
   );
 }

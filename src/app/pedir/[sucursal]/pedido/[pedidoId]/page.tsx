@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { armarSeguimiento } from "@/lib/pedidos/seguimiento";
-import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
+import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { fmt } from "../../_lib/tema";
 import { AutoRefrescar } from "./auto-refrescar";
 
@@ -17,31 +17,6 @@ export const metadata: Metadata = { title: "Seguí tu pedido", robots: { index: 
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MEDIO: Record<string, string> = { efectivo: "Efectivo", mercadopago_link: "Mercado Pago", mercadopago_qr: "Mercado Pago" };
-
-type Fila = { product_id: string | null; promo_id: string | null; cantidad: number };
-type Linea = { titulo: string; componentes: string[] };
-
-// Una promo se guarda como una fila por producto que la compone: se agrupa
-// bajo el nombre de la promo para que el cliente reconozca lo que pidió.
-function armarLineas(filas: Fila[], productos: Map<string, string>, promos: Map<string, string>): Linea[] {
-  const lineas: Linea[] = [];
-  const porPromo = new Map<string, Linea>();
-  for (const f of filas) {
-    const producto = f.product_id ? (productos.get(f.product_id) ?? "Producto") : "Producto";
-    if (!f.promo_id) {
-      lineas.push({ titulo: `${f.cantidad}× ${producto}`, componentes: [] });
-      continue;
-    }
-    let linea = porPromo.get(f.promo_id);
-    if (!linea) {
-      linea = { titulo: promos.get(f.promo_id) ?? "Promo", componentes: [] };
-      porPromo.set(f.promo_id, linea);
-      lineas.push(linea);
-    }
-    linea.componentes.push(`${f.cantidad}× ${producto}`);
-  }
-  return lineas;
-}
 
 export default async function SeguimientoPage({ params }: { params: Promise<{ sucursal: string; pedidoId: string }> }) {
   const { sucursal: sucursalId, pedidoId } = await params;
@@ -57,21 +32,8 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   // Un pedido que todavía es un "carrito" del bot no es un pedido para el cliente.
   if (!pedido || pedido.estado === "carrito") notFound();
 
-  const { data: filasRaw } = await (admin as any)
-    .from("pedido_items")
-    .select("product_id, promo_id, cantidad")
-    .eq("pedido_id", pedidoId);
-  const filas = (filasRaw ?? []) as Fila[];
-
-  const productIds = [...new Set(filas.flatMap((f) => (f.product_id ? [f.product_id] : [])))];
-  const promoIds = [...new Set(filas.flatMap((f) => (f.promo_id ? [f.promo_id] : [])))];
-  // Los nombres de productos y promos son del kiosco: se piden por el puerto.
-  const { productos, promos } = await puertoKiosco(admin).nombres(productIds, promoIds);
-  const lineas = armarLineas(
-    filas,
-    new Map(productos.map((p) => [p.id, p.name])),
-    new Map(promos.map((p) => [p.id, p.name]))
-  );
+  // Lo que pidió, igual que lo ve el personal (lib/pedidos/lineas).
+  const lineas = (await cargarLineasDePedidos(admin, [pedidoId])).get(pedidoId) ?? [];
 
   const seg = armarSeguimiento(pedido);
   const delivery = pedido.tipo_entrega === "delivery";

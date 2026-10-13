@@ -6,7 +6,8 @@ import { requireStaffTenteo } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { aplicarTransicion } from "@/lib/pedidos/transiciones";
 import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
-import { contarPedidosPorAtender } from "@/lib/pedidos/por-atender";
+import { detalleDePedidosPorAtender, idsPedidosPorAtender } from "@/lib/pedidos/por-atender";
+import type { PedidoAviso } from "@/lib/pedidos/aviso";
 import { notificarCambioEstado } from "@/lib/pedidos/notificar-cliente";
 
 // Fase 5 del storefront (delivery, ver plan): primera pantalla del admin
@@ -19,11 +20,19 @@ function refrescar() {
   revalidatePath("/tenteo/repartos");
 }
 
-// Lo consulta el menú del admin cada pocos segundos (aviso de pedido nuevo).
-// Solo devuelve una cantidad, acotada a las sucursales del usuario.
-export async function consultarPedidosPorAtender(): Promise<number> {
+// Lo consulta el aviso de pedido nuevo cada 30 s, desde el kiosco y desde Tenteo.
+// Es liviano a propósito (una consulta, solo ids), acotado a las sucursales del usuario.
+export async function consultarPedidosPorAtender(): Promise<{ cantidad: number; ids: string[] }> {
   const { userId, role } = await requireStaffTenteo();
-  return contarPedidosPorAtender(createAdminClient(), userId, role);
+  const ids = await idsPedidosPorAtender(createAdminClient(), userId, role);
+  return { cantidad: ids.length, ids: ids.slice(0, 50) };
+}
+
+// El detalle (qué pidió el cliente) solo se pide cuando hay un pedido que todavía no se
+// mostró. Los ids que manda el navegador se revalidan en el servidor.
+export async function detallePedidosParaAviso(ids: string[]): Promise<PedidoAviso[]> {
+  const { userId, role } = await requireStaffTenteo();
+  return detalleDePedidosPorAtender(createAdminClient(), userId, role, Array.isArray(ids) ? ids : []);
 }
 
 export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string): Promise<{ error?: string }> {
