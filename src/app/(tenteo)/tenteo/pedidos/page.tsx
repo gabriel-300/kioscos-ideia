@@ -2,31 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { PedidoOnlineAcciones } from "./_components/pedido-online-acciones";
+import { TarjetaPedido, type PedidoTarjeta } from "./_components/tarjeta-pedido";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atender";
+import { GRUPOS, agruparPedidos } from "@/lib/pedidos/presentacion";
 import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Pedidos online — Kioscos IDEIA" };
-
-const ESTADO_LABEL: Record<string, string> = {
-  pendiente_pago: "Esperando pago",
-  confirmado:     "Nuevo (cobra en la puerta)",
-  pagado:         "Pagado",
-  en_preparacion: "En preparación",
-  listo_retiro:   "Listo para retirar",
-  en_reparto:     "En reparto",
-  entregado:      "Entregado",
-};
-
-const MEDIO_LABEL: Record<string, string> = {
-  efectivo:         "Efectivo",
-  mercadopago_link: "Mercado Pago (link)",
-  mercadopago_qr:   "Mercado Pago (QR)",
-};
-
-const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
 export default async function PedidosOnlinePage() {
   const admin = createAdminClient();
@@ -58,20 +41,46 @@ export default async function PedidosOnlinePage() {
   let sucursalesQr = (admin as any).from("sucursales").select("id, nombre").eq("is_active", true).eq("pedidos_online_habilitado", true).order("nombre");
   if (sucursales) sucursalesQr = sucursalesQr.in("id", sucursales);
   const { data: sucursalesConQr } = sinSucursales ? { data: [] } : await sucursalesQr as { data: { id: string; nombre: string }[] | null };
-  // "pendiente_pago" solo interesa si es un pago por link que el local tiene
-  // que confirmar a mano -- el resto (QR automático abandonado) es ruido.
+
+  // Por urgencia: lo que espera al local arriba (el que más espera, primero) y lo ya
+  // entregado al final. "pendiente_pago" solo interesa si es un pago por link vigente
+  // que el local tiene que confirmar a mano -- el resto (QR abandonado) es ruido.
   const ahora = Date.now();
-  const pedidos = ((pedidosRaw ?? []) as any[]).filter((p) => p.estado !== "pendiente_pago" || pagoPorLinkVigente(p, ahora));
+  const grupos = agruparPedidos((pedidosRaw ?? []) as PedidoTarjeta[], (p) => pagoPorLinkVigente(p, ahora));
+  const todos = GRUPOS.flatMap((g) => grupos[g.clave]);
+
   // Qué pidió cada cliente (varios pedidos con pocas consultas; si falla, la lista sale igual sin el detalle).
-  const lineasPorPedido = await cargarLineasDePedidos(admin, pedidos.map((p) => p.id));
+  const lineasPorPedido = await cargarLineasDePedidos(admin, todos.map((p) => p.id));
 
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
-  // resto de este proyecto para roles de staff).
-  const { data: usuarios } = await admin.auth.admin.listUsers({ perPage: 200 });
-  const repartidores = (usuarios?.users ?? [])
-    .filter((u) => u.app_metadata?.role === "repartidor")
-    .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) || u.email || "Repartidor" }));
+  // resto de este proyecto para roles de staff). Solo hace falta si hay un envío.
+  let repartidores: { id: string; nombre: string }[] = [];
+  if (todos.some((p) => p.tipo_entrega === "delivery")) {
+    const { data: usuarios } = await admin.auth.admin.listUsers({ perPage: 200 });
+    repartidores = (usuarios?.users ?? [])
+      .filter((u) => u.app_metadata?.role === "repartidor")
+      .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) || u.email || "Repartidor" }));
+  }
+
+  const puedeConfirmarPago = role === "admin" || role === "encargado";
+  const activos = GRUPOS.filter((g) => g.clave !== "entregados" && grupos[g.clave].length > 0);
+  const entregados = grupos.entregados;
+
+  const tarjetas = (clave: (typeof GRUPOS)[number]["clave"]) => (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {grupos[clave].map((p) => (
+        <TarjetaPedido
+          key={p.id}
+          pedido={p}
+          grupo={clave}
+          lineas={lineasPorPedido.get(p.id) ?? []}
+          repartidores={repartidores}
+          puedeConfirmarPago={puedeConfirmarPago}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="p-4 md:p-8 max-w-[1300px]">
@@ -81,115 +90,60 @@ export default async function PedidosOnlinePage() {
           <p className="text-sm text-neutral-400 mt-0.5">Pedidos del catálogo público o WhatsApp -- aceptá, prepará, asigná repartidor si es delivery, y marcá cuando esté entregado.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-        {(sucursalesConQr ?? []).map((s) => (
-          <Link
-            key={s.id}
-            href={`/pedir/${s.id}/qr`}
-            target="_blank"
-            className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
-          >
-            Imprimir QR{(sucursalesConQr ?? []).length > 1 ? ` · ${s.nombre}` : ""}
-          </Link>
-        ))}
-        {role === "admin" && (
-          <Link
-            href="/tenteo/pedidos/configuracion"
-            className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
-          >
-            Configuración de envíos y horarios
-          </Link>
-        )}
+          {(sucursalesConQr ?? []).map((s) => (
+            <Link
+              key={s.id}
+              href={`/pedir/${s.id}/qr`}
+              target="_blank"
+              className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
+            >
+              Imprimir QR{(sucursalesConQr ?? []).length > 1 ? ` · ${s.nombre}` : ""}
+            </Link>
+          ))}
+          {role === "admin" && (
+            <Link
+              href="/tenteo/pedidos/configuracion"
+              className="h-9 px-4 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
+            >
+              Configuración de envíos y horarios
+            </Link>
+          )}
         </div>
       </div>
 
-      {pedidos.length === 0 ? (
+      {todos.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">
           {sinSucursales ? "No tenés una sucursal asignada: pedile al administrador que te asigne una." : "No hay pedidos online activos en este momento."}
         </div>
       ) : (
-        <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-neutral-50 border-b border-neutral-200">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Pedido</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Sucursal</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Entrega</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Pago</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-neutral-500">Estado</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500">Total</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-500"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {pedidos.map((p) => (
-                <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors align-top">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-neutral-800 leading-tight">
-                      {p.numero ? <span className="text-neutral-400 font-normal">#{p.numero} </span> : null}
-                      {p.cliente_nombre ?? "Sin nombre"}
-                    </p>
-                    <p className="text-[11px] text-neutral-400">{p.cliente_telefono}</p>
-                    <p className="text-[10px] text-neutral-300 mt-0.5">{p.origen === "whatsapp" ? "WhatsApp" : "Catálogo online"}</p>
-                    {(lineasPorPedido.get(p.id) ?? []).length > 0 && (
-                      <ul className="mt-2 space-y-0.5 max-w-[260px]">
-                        {(lineasPorPedido.get(p.id) ?? []).map((l, i) => (
-                          <li key={i} className="text-xs font-medium text-neutral-800">
-                            {l.titulo}
-                            {l.componentes.length > 0 && <span className="block text-[11px] font-normal text-neutral-500">{l.componentes.join(" · ")}</span>}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {p.notas && (
-                      <p className="mt-1.5 max-w-[260px] rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900">
-                        Aclaración: “{p.notas}”
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-600">{p.sucursales?.nombre ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    {p.tipo_entrega === "delivery" ? (
-                      <>
-                        <span className="text-xs font-medium text-neutral-700">
-                          Delivery{p.zona_nombre ? ` · ${p.zona_nombre}` : ""}
-                        </span>
-                        <p className="text-[11px] text-neutral-500 max-w-[220px]">{p.direccion_entrega}</p>
-                        {p.direccion_referencia && <p className="text-[11px] text-neutral-400 max-w-[220px]">{p.direccion_referencia}</p>}
-                        {p.costo_envio > 0 && <p className="text-[11px] text-neutral-400">Envío {AR.format(p.costo_envio)}</p>}
-                      </>
-                    ) : (
-                      <span className="text-xs font-medium text-neutral-700">Retiro en local</span>
-                    )}
-                    {p.eta_min != null && (
-                      <p className="text-[10px] text-neutral-300">{p.eta_min}–{p.eta_max} min</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-neutral-700">{MEDIO_LABEL[p.medio_pago] ?? "—"}</span>
-                    {p.medio_pago === "efectivo" && p.pago_con && (
-                      <p className="text-[11px] text-neutral-400">Paga con {AR.format(p.pago_con)}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-neutral-700">{ESTADO_LABEL[p.estado] ?? p.estado}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-tierra-700 tabular-nums">{AR.format(p.total)}</td>
-                  <td className="px-4 py-3">
-                    <PedidoOnlineAcciones
-                      pedidoId={p.id}
-                      estado={p.estado}
-                      tipoEntrega={p.tipo_entrega}
-                      tieneRepartidor={!!p.repartidor_id}
-                      repartidores={repartidores}
-                      medioPago={p.medio_pago}
-                      puedeConfirmarPago={role === "admin" || role === "encargado"}
-                      tieneVenta={!!p.movimiento_id}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-8">
+          {activos.length === 0 && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-sm font-medium text-emerald-800">
+              No hay pedidos para atender. Todo al día.
+            </div>
+          )}
+
+          {activos.map((g) => (
+            <section key={g.clave}>
+              <div className="mb-3 flex flex-wrap items-baseline gap-2">
+                <h2 className="text-base font-bold text-neutral-900">{g.titulo}</h2>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${g.clave === "atender" ? "bg-amber-500 text-white" : "bg-neutral-200 text-neutral-700"}`}>
+                  {grupos[g.clave].length}
+                </span>
+                <span className="text-xs text-neutral-400">{g.ayuda}</span>
+              </div>
+              {tarjetas(g.clave)}
+            </section>
+          ))}
+
+          {entregados.length > 0 && (
+            <details className="rounded-xl border border-neutral-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-neutral-700">
+                Entregados ({entregados.length})
+              </summary>
+              <div className="mt-4">{tarjetas("entregados")}</div>
+            </details>
+          )}
         </div>
       )}
     </div>

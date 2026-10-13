@@ -51,51 +51,55 @@ export function PedidoOnlineAcciones({
     });
   }
 
+  // La acción principal es un botón grande y de color (antes era un texto chico): es lo que
+  // el cajero tiene que tocar. Lo secundario (reasignar, cancelar) queda chico.
   return (
     <div className="flex flex-col items-end gap-1.5">
-      {tipoEntrega === "delivery" && ["confirmado", "pagado", "en_preparacion"].includes(estado) && (
-        <select
-          defaultValue=""
-          disabled={pending}
-          onChange={(e) => e.target.value && ejecutar(() => asignarRepartidor(pedidoId, e.target.value))}
-          className="h-8 rounded-lg border border-neutral-300 bg-white px-2 text-xs disabled:opacity-40"
-        >
-          <option value="">{tieneRepartidor ? "Reasignar repartidor…" : "Asignar repartidor…"}</option>
-          {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-        </select>
-      )}
-      {esperandoPagoMP && puedeConfirmarPago && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => ejecutar(() => confirmarPagoRecibido(pedidoId))}
-          className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-40 whitespace-nowrap"
-        >
-          {pending ? "Guardando…" : "Confirmar pago recibido"}
-        </button>
-      )}
-      {siguienteLabel && (
-        <button
-          type="button"
-          disabled={pending || bloqueadoSinRepartidor}
-          onClick={() => ejecutar(() => avanzarEstadoPedido(pedidoId, siguienteEstado))}
-          title={bloqueadoSinRepartidor ? "Asigná un repartidor primero" : undefined}
-          className="text-xs font-medium text-tierra-700 hover:underline disabled:opacity-40 whitespace-nowrap"
-        >
-          {pending ? "Guardando…" : siguienteLabel}
-        </button>
-      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {tipoEntrega === "delivery" && ["confirmado", "pagado", "en_preparacion"].includes(estado) && (
+          <select
+            defaultValue=""
+            disabled={pending}
+            onChange={(e) => e.target.value && ejecutar(() => asignarRepartidor(pedidoId, e.target.value))}
+            className="h-10 rounded-lg border border-neutral-300 bg-white px-2 text-sm disabled:opacity-40"
+          >
+            <option value="">{tieneRepartidor ? "Reasignar repartidor…" : "Asignar repartidor…"}</option>
+            {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+          </select>
+        )}
+        {esperandoPagoMP && puedeConfirmarPago && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => ejecutar(() => confirmarPagoRecibido(pedidoId))}
+            className="h-10 whitespace-nowrap rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {pending ? "Guardando…" : "Confirmar pago recibido"}
+          </button>
+        )}
+        {siguienteLabel && (
+          <button
+            type="button"
+            disabled={pending || bloqueadoSinRepartidor}
+            onClick={() => ejecutar(() => avanzarEstadoPedido(pedidoId, siguienteEstado))}
+            title={bloqueadoSinRepartidor ? "Asigná un repartidor primero" : undefined}
+            className="h-10 whitespace-nowrap rounded-lg bg-tierra-700 px-4 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {pending ? "Guardando…" : siguienteLabel}
+          </button>
+        )}
+      </div>
       {cancelable && (
         <button
           type="button"
           disabled={pending}
           onClick={() => { if (confirm("¿Cancelar este pedido?")) ejecutar(() => cancelarPedido(pedidoId)); }}
-          className="text-[11px] text-neutral-400 hover:text-red-600 hover:underline disabled:opacity-40"
+          className="text-xs text-neutral-400 hover:text-red-600 hover:underline disabled:opacity-40"
         >
           Cancelar pedido
         </button>
       )}
-      {error && <p className="text-[11px] text-danger text-right max-w-[200px]">{error}</p>}
+      {error && <p className="max-w-[240px] text-right text-xs text-danger">{error}</p>}
     </div>
   );
 }

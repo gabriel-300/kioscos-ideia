@@ -168,6 +168,9 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   aparecer; una vez visto, no vuelve por el mismo pedido. Además deja el número en el título de la pestaña y en el
   menú de Tenteo, y recarga la lista si está abierta. Consulta cada 30 s. Lo ven admin, encargado, vendedor y
   concesionario **con acceso a Tenteo** (el repartidor no), y cada uno solo de sus sucursales.
+- **Lista de pedidos (personal)**: tarjetas agrupadas por urgencia: "Para atender" (el que más espera, primero; en rojo pasados 10 minutos),
+  "En preparación", "Listos" y "Entregados" (plegado). Cada tarjeta muestra lo que pidió el cliente, la aclaración destacada, cómo paga y cómo lo
+  recibe, y un botón grande con la siguiente acción. La hora "hace X min" es la de la última carga de la pantalla.
 - **Qué pidió el cliente**: la lista de pedidos, la pantalla del repartidor y el seguimiento del cliente muestran las líneas del
   pedido (una promo agrupa sus componentes) y las aclaraciones. Límite conocido: de una promo no queda guardada la
   cantidad pedida, solo la de cada componente ya multiplicada (puede verse "0,22× bolsa de ..." en una receta).
