@@ -307,3 +307,50 @@ export function cruzarConSistema(cobros: CobroGuardado[], ordenes: OrdenQr[], ra
   }
   return res;
 }
+
+// ── Comparación por día y local: lo que cobró Mercado Pago contra lo que el sistema registró como billetera/transferencia ──
+export interface VentaMp { fecha: string; sucursal_id: string; billetera: number; transferencia: number }
+
+export interface FilaDia {
+  dia:          string;     // AAAA-MM-DD
+  sucursal_id:  string;
+  cobros:       number;     // cantidad de cobros de caja de MP ese día
+  mp:           number;     // lo que cobró MP (bruto)
+  viaSistema:   number;     // de eso, lo que entró por una orden de QR del sistema
+  qrFijo:       number;     // de eso, lo que NO tiene orden en el sistema (se cobró fuera de la pantalla de venta)
+  qrFijoCobros: number;
+  sistema:      number;     // lo que el sistema registró como billetera + transferencia
+  diferencia:   number;     // mp − sistema: positivo = MP cobró más de lo que se registró
+}
+
+// Solo los días cubiertos por una importación: en un día sin archivo no se puede afirmar nada. `sinOrden` son los
+// operation_id que el cruce no encontró entre las órdenes del sistema (cruzarConSistema().mpSinSistema).
+export function compararPorDia(
+  cobros: CobroGuardado[], ventas: VentaMp[], sinOrden: Set<string>, rangos: { desde: string; hasta: string }[],
+): FilaDia[] {
+  const cubierto = (dia: string) => rangos.some((r) => dia >= r.desde && dia <= r.hasta);
+  const filas = new Map<string, FilaDia>();
+  const fila = (dia: string, sucursal_id: string): FilaDia => {
+    const k = `${dia}|${sucursal_id}`;
+    let f = filas.get(k);
+    if (!f) { f = { dia, sucursal_id, cobros: 0, mp: 0, viaSistema: 0, qrFijo: 0, qrFijoCobros: 0, sistema: 0, diferencia: 0 }; filas.set(k, f); }
+    return f;
+  };
+  for (const c of cobros) {
+    if (c.clase !== "cobro" || c.estado !== "approved" || !c.sucursal_id) continue;
+    const dia = diaArgentino(c.fecha_cobro);
+    if (!cubierto(dia)) continue;
+    const f = fila(dia, c.sucursal_id);
+    f.cobros += 1;
+    f.mp += c.monto_bruto;
+    if (sinOrden.has(c.operation_id)) { f.qrFijo += c.monto_bruto; f.qrFijoCobros += 1; } else f.viaSistema += c.monto_bruto;
+  }
+  for (const v of ventas) {
+    if (!cubierto(v.fecha)) continue;
+    fila(v.fecha, v.sucursal_id).sistema += v.billetera + v.transferencia;
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return [...filas.values()]
+    .map((f) => ({ ...f, mp: r2(f.mp), viaSistema: r2(f.viaSistema), qrFijo: r2(f.qrFijo), sistema: r2(f.sistema), diferencia: r2(f.mp - f.sistema) }))
+    .sort((a, b) => (a.dia === b.dia ? a.sucursal_id.localeCompare(b.sucursal_id) : b.dia.localeCompare(a.dia)));
+}

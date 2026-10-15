@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  leerReporteCobros, validarCobros, fechaMp, diaArgentino, claseDeCobro, resumirCobros, cruzarConSistema, MAX_FILAS_IMPORTACION,
+  leerReporteCobros, validarCobros, fechaMp, diaArgentino, claseDeCobro, resumirCobros, cruzarConSistema, compararPorDia, MAX_FILAS_IMPORTACION,
   type Celda, type CobroGuardado, type OrdenQr,
 } from "@/lib/tesoreria/mp-cobros";
 
@@ -173,5 +173,49 @@ describe("cruzarConSistema", () => {
   it("une por referencia cuando la orden no tiene número de operación", () => {
     const c = cruzarConSistema([cobro()], [orden({ mp_payment_id: null })], rango);
     expect(c.mpSinSistema).toHaveLength(0);
+  });
+});
+
+describe("compararPorDia", () => {
+  const rangos = [{ desde: "2026-10-09", hasta: "2026-10-13" }];
+  const dia = (iso: string) => iso;
+
+  it("separa lo que entró por el QR del sistema de lo que no tiene orden y calcula la diferencia contra el sistema", () => {
+    const cobros = [
+      cobro({ operation_id: "1", monto_bruto: 1000 }),
+      cobro({ operation_id: "2", monto_bruto: 4000 }),
+    ];
+    const f = compararPorDia(cobros, [{ fecha: dia("2026-10-13"), sucursal_id: "parque", billetera: 1000, transferencia: 0 }], new Set(["2"]), rangos);
+    expect(f).toEqual([{
+      dia: "2026-10-13", sucursal_id: "parque", cobros: 2, mp: 5000, viaSistema: 1000, qrFijo: 4000, qrFijoCobros: 1, sistema: 1000, diferencia: 4000,
+    }]);
+  });
+
+  it("no muestra días que ningún archivo importado cubre", () => {
+    const f = compararPorDia(
+      [cobro({ fecha_cobro: "2026-10-20T10:00:00-03:00" })],
+      [{ fecha: "2026-10-20", sucursal_id: "parque", billetera: 500, transferencia: 0 }],
+      new Set(), rangos,
+    );
+    expect(f).toEqual([]);
+  });
+
+  it("un día con ventas del sistema y sin cobros de MP muestra la diferencia negativa", () => {
+    const f = compararPorDia([], [{ fecha: "2026-10-12", sucursal_id: "unam", billetera: 300, transferencia: 200 }], new Set(), rangos);
+    expect(f[0]).toMatchObject({ dia: "2026-10-12", sucursal_id: "unam", mp: 0, sistema: 500, diferencia: -500 });
+  });
+
+  it("ignora lo que no es cobro de caja aprobado y ordena del día más nuevo al más viejo", () => {
+    const f = compararPorDia(
+      [
+        cobro({ operation_id: "a", fecha_cobro: "2026-10-10T12:00:00-03:00" }),
+        cobro({ operation_id: "b", fecha_cobro: "2026-10-12T12:00:00-03:00" }),
+        cobro({ operation_id: "c", clase: "a_clasificar", fecha_cobro: "2026-10-12T12:00:00-03:00" }),
+        cobro({ operation_id: "d", estado: "refunded", fecha_cobro: "2026-10-12T12:00:00-03:00" }),
+      ],
+      [], new Set(), rangos,
+    );
+    expect(f.map((x) => x.dia)).toEqual(["2026-10-12", "2026-10-10"]);
+    expect(f[0].cobros).toBe(1);
   });
 });

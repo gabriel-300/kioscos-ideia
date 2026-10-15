@@ -3,7 +3,7 @@
 
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/paginar";
-import type { CobroGuardado, OrdenQr } from "./mp-cobros";
+import type { CobroGuardado, OrdenQr, VentaMp } from "./mp-cobros";
 
 type Admin = ReturnType<typeof createAdminClient>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,4 +70,15 @@ export async function cargarOrdenesQr(admin: Admin, desdeIso: string, hastaIso: 
       .select("external_reference, mp_payment_id, estado, monto, paid_at, movimiento_id, sucursal_id", { count: "exact" })
       .eq("estado", "pagado").gte("paid_at", desde).lte("paid_at", hasta).order("id").range(d, h));
   return filas.map((f) => ({ ...(f as unknown as OrdenQr), monto: Number(f.monto) }));
+}
+
+// Ventas del sistema cobradas por billetera o transferencia (para compararlas con lo que cobró Mercado Pago, por día y local).
+export async function cargarVentasMp(admin: Admin, desde: string, hasta: string): Promise<VentaMp[]> {
+  const filas = await fetchAll<{ fecha: string; sucursal_id: string; pago_billetera: number | null; pago_transferencia: number | null }>((d, h) =>
+    tabla(admin, "movimientos").select("fecha, sucursal_id, pago_billetera, pago_transferencia", { count: "exact" })
+      .eq("tipo", "venta").is("anulado_en", null).gte("fecha", desde).lte("fecha", hasta)
+      .or("pago_billetera.gt.0,pago_transferencia.gt.0").order("id").range(d, h));
+  return filas.map((f) => ({
+    fecha: f.fecha, sucursal_id: f.sucursal_id, billetera: Number(f.pago_billetera ?? 0), transferencia: Number(f.pago_transferencia ?? 0),
+  }));
 }

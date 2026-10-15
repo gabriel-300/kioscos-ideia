@@ -17,8 +17,8 @@ import { ParaRegistrar } from "./_components/para-registrar";
 import { EgresosLista } from "./_components/egresos-lista";
 import { FijosLista } from "./_components/fijos-lista";
 import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago-view";
-import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr } from "@/lib/tesoreria/mp-consultas";
-import { cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
+import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
+import { compararPorDia, cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
 import { SolapasTesoreria } from "./_components/solapas";
 
 export const revalidate = 0;
@@ -126,10 +126,12 @@ export default async function TesoreriaPage({
     try {
       const desdeIso = `${rango.desde}T00:00:00-03:00`;
       const hastaIso = `${rango.hasta}T23:59:59-03:00`;
-      const [cobros, sinClasificar, importaciones, rangos, ordenes] = await Promise.all([
+      const [cobros, sinClasificar, importaciones, rangos, ordenes, ventasMp] = await Promise.all([
         cargarCobrosMp(admin, desdeIso, hastaIso), cargarCobrosSinClasificar(admin),
         cargarImportacionesMp(admin), cargarRangosImportados(admin), cargarOrdenesQr(admin, desdeIso, hastaIso),
+        cargarVentasMp(admin, rango.desde, rango.hasta),
       ]);
+      const cruce = cruzarConSistema(cobros, ordenes, rangos);
       const { total, porSucursal } = resumirCobros(cobros);
       const nombreLocal = Object.fromEntries(datos.sucursales.map((s) => [s.id, s.nombre]));
       mp = {
@@ -138,7 +140,8 @@ export default async function TesoreriaPage({
           .sort((a, b) => b.totales.bruto - a.totales.bruto),
         sinClasificar,
         clasificados: cobros.filter((c) => c.clase === "a_clasificar" && c.clasificacion),
-        cruce: cruzarConSistema(cobros, ordenes, rangos),
+        cruce,
+        porDia: compararPorDia(cobros, ventasMp, new Set(cruce.mpSinSistema.map((c) => c.operation_id)), rangos),
         importaciones, nombreLocal,
       };
     } catch (e) {

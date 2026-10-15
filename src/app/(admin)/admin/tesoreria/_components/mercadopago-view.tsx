@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CLASIFICACIONES, etiquetaClasificacion, type CruceCobros, type TotalesCobros } from "@/lib/tesoreria/mp-cobros";
+import { CLASIFICACIONES, etiquetaClasificacion, type CruceCobros, type FilaDia, type TotalesCobros } from "@/lib/tesoreria/mp-cobros";
 import type { CobroLista, ImportacionMp } from "@/lib/tesoreria/mp-consultas";
 import { clasificarCobroMp } from "../mp-actions";
 import { ImportarMp } from "./importar-mp";
@@ -21,6 +21,7 @@ export interface MercadoPagoData {
   sinClasificar: CobroLista[];
   clasificados: CobroLista[];            // del período, ya resueltos
   cruce:        CruceCobros;
+  porDia:       FilaDia[];
   importaciones: ImportacionMp[];
   nombreLocal:  Record<string, string>;
 }
@@ -97,8 +98,17 @@ function Bloque({ titulo, ayuda, vacio, children, cantidad }: { titulo: string; 
 }
 
 export function MercadoPagoView({ data, puedeCargar, mesLabel }: { data: MercadoPagoData; puedeCargar: boolean; mesLabel: string }) {
-  const { total, porLocal, sinClasificar, clasificados, cruce, importaciones, nombreLocal } = data;
+  const { total, porLocal, sinClasificar, clasificados, cruce, porDia, importaciones, nombreLocal } = data;
   const nombre = (id: string | null) => (id ? nombreLocal[id] ?? "—" : "Sin local");
+  // Cobros sin orden en el sistema, agrupados por local: pueden ser muchos y no son un error por sí solos.
+  const qrFijoPorLocal = new Map<string, { n: number; monto: number }>();
+  for (const c of cruce.mpSinSistema) {
+    const k = c.sucursal_id ?? "";
+    const a = qrFijoPorLocal.get(k) ?? { n: 0, monto: 0 };
+    a.n += 1;
+    a.monto += c.monto_bruto;
+    qrFijoPorLocal.set(k, a);
+  }
 
   return (
     <div className="space-y-6">
@@ -157,6 +167,49 @@ export function MercadoPagoView({ data, puedeCargar, mesLabel }: { data: Mercado
         </ul>
       </Bloque>
 
+      {porDia.length > 0 && (
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-900">Por día y local: lo que cobró Mercado Pago contra lo que registró el sistema</h2>
+            <p className="text-xs text-neutral-500">
+              «Sistema» es lo que las ventas dicen que se cobró por billetera o transferencia. Una diferencia positiva es plata que entró a
+              Mercado Pago y no figura como cobrada así en las ventas. «Sin orden» son cobros de Mercado Pago que no salieron de una orden creada
+              por la pantalla de venta del sistema. Solo se muestran los días de los archivos importados.
+            </p>
+          </div>
+          <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-neutral-400 border-b border-neutral-100">
+                  <th className="px-3 py-2 font-semibold">Día</th>
+                  <th className="px-3 py-2 font-semibold">Local</th>
+                  <th className="px-3 py-2 font-semibold text-right">MP cobró</th>
+                  <th className="px-3 py-2 font-semibold text-right">QR del sistema</th>
+                  <th className="px-3 py-2 font-semibold text-right">Sin orden</th>
+                  <th className="px-3 py-2 font-semibold text-right">Sistema</th>
+                  <th className="px-3 py-2 font-semibold text-right">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {porDia.map((f) => (
+                  <tr key={`${f.dia}|${f.sucursal_id}`} className="border-b border-neutral-50 last:border-0">
+                    <td className="px-3 py-2 whitespace-nowrap">{f.dia.split("-").reverse().join("/")}</td>
+                    <td className="px-3 py-2">{nombre(f.sucursal_id)}</td>
+                    <td className="px-3 py-2 text-right">{AR.format(f.mp)}</td>
+                    <td className="px-3 py-2 text-right text-neutral-500">{AR.format(f.viaSistema)}</td>
+                    <td className="px-3 py-2 text-right text-neutral-500">{f.qrFijo > 0 ? `${AR.format(f.qrFijo)} (${f.qrFijoCobros})` : "—"}</td>
+                    <td className="px-3 py-2 text-right">{AR.format(f.sistema)}</td>
+                    <td className={`px-3 py-2 text-right font-medium ${Math.abs(f.diferencia) < 1 ? "text-neutral-400" : f.diferencia > 0 ? "text-amber-700" : "text-danger"}`}>
+                      {Math.abs(f.diferencia) < 1 ? "—" : AR.format(f.diferencia)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-4">
         <div>
           <h2 className="text-sm font-semibold text-neutral-900">Control contra las ventas del sistema</h2>
@@ -164,17 +217,28 @@ export function MercadoPagoView({ data, puedeCargar, mesLabel }: { data: Mercado
             Cada cobro de Mercado Pago se busca entre las órdenes de QR del sistema (por número de operación o referencia).
           </p>
         </div>
-        <Bloque titulo="Mercado Pago cobró y el sistema no lo tiene"
-          ayuda="Plata que entró a la cuenta y no figura como pagada en ninguna orden QR del sistema."
-          vacio="Todo lo que cobró Mercado Pago está en el sistema." cantidad={cruce.mpSinSistema.length}>
+        <Bloque titulo="Cobros de Mercado Pago sin orden en el sistema"
+          ayuda="Plata que entró a la cuenta de Mercado Pago sin que el sistema haya creado la orden. No es un error por sí solo: hay que ver quién la cobró y si la venta se cargó, y cómo."
+          vacio="Todo lo que cobró Mercado Pago pasó por una orden del sistema." cantidad={cruce.mpSinSistema.length}>
           <ul className="divide-y divide-neutral-100">
-            {cruce.mpSinSistema.slice(0, 50).map((c) => (
-              <li key={c.operation_id} className="px-4 py-2 text-sm flex justify-between gap-3">
-                <span>{AR.format(c.monto_bruto)} · {nombre(c.sucursal_id)}</span>
-                <span className="text-xs text-neutral-400">{fechaHora(c.fecha_cobro)} · op. {c.operation_id}</span>
+            {[...qrFijoPorLocal.entries()].map(([id, a]) => (
+              <li key={id} className="px-4 py-2 text-sm flex justify-between gap-3">
+                <span>{nombre(id || null)}</span>
+                <span><b>{a.n}</b> cobros · {AR.format(a.monto)}</span>
               </li>
             ))}
           </ul>
+          <details className="border-t border-neutral-100">
+            <summary className="px-4 py-2 text-xs text-neutral-500 cursor-pointer">Ver el detalle (los últimos 50)</summary>
+            <ul className="divide-y divide-neutral-100">
+              {cruce.mpSinSistema.slice(0, 50).map((c) => (
+                <li key={c.operation_id} className="px-4 py-2 text-sm flex justify-between gap-3">
+                  <span>{AR.format(c.monto_bruto)} · {nombre(c.sucursal_id)}</span>
+                  <span className="text-xs text-neutral-400">{fechaHora(c.fecha_cobro)} · op. {c.operation_id}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
         </Bloque>
         <Bloque titulo="Cobrado pero sin venta registrada"
           ayuda="El pago llegó y la orden figura pagada, pero no quedó atada a una venta (típico de cuando se cobra y no se cierra la venta)."
