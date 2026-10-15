@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-05",
+  "generado": "2026-10-15",
   "tablas": [
     {
       "t": "alertas_precio",
@@ -85,6 +85,16 @@
       "t": "movimientos_socio",
       "k": "r",
       "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | socio_id:uuid:NN | tipo:text:NN | monto:numeric:NN | fecha:date:NN | notas:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF"
+    },
+    {
+      "t": "mp_cobros",
+      "k": "r",
+      "cols": "operation_id:text:NN | sucursal_id:uuid | caja_externa:text | fecha_cobro:timestamp with time zone:NN | fecha_acreditacion:timestamp with time zone | fecha_liberacion:timestamp with time zone | monto_bruto:numeric(14,2):NN | tarifa:numeric(14,2):NN:DEF | monto_neto:numeric(14,2):NN | monto_devuelto:numeric(14,2):NN:DEF | estado:text:NN | estado_detalle:text | tipo_operacion:text:NN | medio_pago:text | descripcion:text | external_reference:text | clase:text:NN | clasificacion:text | clasificacion_nota:text | clasificado_por:uuid | clasificado_en:timestamp with time zone | importacion_id:uuid | creado_en:timestamp with time zone:NN:DEF | actualizado_en:timestamp with time zone:NN:DEF"
+    },
+    {
+      "t": "mp_importaciones",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | creado_en:timestamp with time zone:NN:DEF | importado_por:uuid | archivo:text | desde:date:NN | hasta:date:NN | filas:integer:NN | nuevas:integer:NN | actualizadas:integer:NN"
     },
     {
       "t": "nichos",
@@ -532,6 +542,26 @@
       "movimientos_socio",
       "sucursal_id",
       "sucursales"
+    ],
+    [
+      "mp_cobros",
+      "clasificado_por",
+      "auth.users"
+    ],
+    [
+      "mp_cobros",
+      "importacion_id",
+      "mp_importaciones"
+    ],
+    [
+      "mp_cobros",
+      "sucursal_id",
+      "sucursales"
+    ],
+    [
+      "mp_importaciones",
+      "importado_por",
+      "auth.users"
     ],
     [
       "pagos_proveedor",

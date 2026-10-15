@@ -1,8 +1,8 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-05) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-15) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **47 tablas y vistas**, **134 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **49 tablas y vistas**, **138 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -400,7 +400,7 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
 **Personas (auth.users):** `encargado_user_id`  
-**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
+**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
 
 ### `movimientos`
 
@@ -723,6 +723,7 @@ erDiagram
   profiles |o--o{ gastos : "empleado_id"
   gastos_fijos |o--o{ gastos : "gasto_fijo_id"
   profiles ||--o{ movimientos_socio : "socio_id"
+  mp_importaciones |o--o{ mp_cobros : "importacion_id"
   movimientos |o--o{ pagos_proveedor : "movimiento_id"
   proveedores ||--o{ pagos_proveedor : "proveedor_id"
   profiles ||--o{ pagos_socio : "socio_id"
@@ -733,6 +734,12 @@ erDiagram
     uuid id PK
   }
   tesoreria_config {
+    uuid id PK
+  }
+  mp_cobros {
+    uuid id PK
+  }
+  mp_importaciones {
     uuid id PK
   }
   gastos {
@@ -807,7 +814,7 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
 | `usuario_id` | id | Quién lo hizo. |
-| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado o permiso_cambiado. |
+| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados o mp_cobro_clasificado. |
 | `entidad_id` | id | El egreso, la entrega (movimiento) o la persona afectada, según la acción. |
 | `detalle` | datos JSON | Valores antes y después, importes y descripción: lo necesario para entender el cambio sin buscar la fila original. |
 | `motivo` | texto | Por qué (obligatorio al anular, descartar o cambiar el efectivo inicial desde la segunda vez). |
@@ -829,6 +836,56 @@ Otras columnas: `id`, `creado_en`.
 Otras columnas: `updated_by`, `updated_at`.
 
 **Personas (auth.users):** `updated_by`
+
+### `mp_cobros`
+
+**Cobros de Mercado Pago importados.** Cada cobro del reporte de Mercado Pago que el administrativo sube a Tesorería (una fila por número de operación). Sirve para saber cuánto entró por MP, cuánto fue comisión y cuánto queda por liberar, y para cruzarlo con las órdenes de QR del sistema. No guarda nombres ni documentos de clientes. Reimportar actualiza estado e importes y no pisa la clasificación.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `operation_id` | texto · obligatoria | Número de operación de Mercado Pago: único, es lo que evita duplicados. |
+| `sucursal_id` | id → sucursales | Local, deducido de la caja del cobro; vacío si no se pudo. |
+| `caja_externa` | texto | Identificador externo de la caja de MP (el mismo que guarda sucursales.mercadopago_pos_id). |
+| `fecha_cobro` | fecha y hora · obligatoria | Cuándo se hizo el cobro. |
+| `fecha_acreditacion` | fecha y hora | Cuándo se acreditó. |
+| `fecha_liberacion` | fecha y hora | Cuándo MP libera la plata; si es posterior a hoy, el neto está «a liberar». |
+| `monto_bruto` | número · obligatoria | Lo que pagó el cliente. |
+| `tarifa` | número | Comisión de Mercado Pago (positiva). |
+| `monto_neto` | número · obligatoria | Lo que recibe la cuenta después de la comisión. |
+| `monto_devuelto` | número | Devoluciones. |
+| `estado` | texto · obligatoria | approved, refunded, charged_back… |
+| `tipo_operacion` | texto · obligatoria | regular_payment = cobro; account_fund = ingreso de dinero a la cuenta; partition_transfer = movimiento entre reservas de MP. |
+| `external_reference` | texto | Referencia de la orden de QR del sistema (mercadopago_qr_orders.external_reference). |
+| `clase` | texto · obligatoria | cobro = venta por QR de una caja conocida; a_clasificar = no es una venta de caja y lo decide una persona. |
+| `clasificacion` | texto | Qué es, según quien lo clasificó (traspaso propio, aporte de socio, otro ingreso o no es ingreso). Vacío = sin clasificar. |
+| `clasificacion_nota` | texto | Aclaración de quien clasificó. |
+| `clasificado_por` | id | Quién lo clasificó. |
+| `clasificado_en` | fecha y hora | Cuándo. |
+| `importacion_id` | id → mp_importaciones | Archivo con el que entró (o se actualizó por última vez). |
+
+Otras columnas: `estado_detalle`, `medio_pago`, `descripcion`, `creado_en`, `actualizado_en`.
+
+**Apunta a:** `importacion_id` → `mp_importaciones` · `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `clasificado_por`
+
+### `mp_importaciones`
+
+**Archivos de Mercado Pago importados.** Un registro por cada archivo de cobros que se sube. Dice qué días cubre: solo en esos días se puede afirmar que Mercado Pago no informó una orden del sistema.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `importado_por` | id | Quién lo subió. |
+| `archivo` | texto | Nombre del archivo. |
+| `desde` | fecha · obligatoria | Primer día de cobros del archivo (hora argentina). |
+| `hasta` | fecha · obligatoria | Último día. |
+| `filas` | entero · obligatoria | Cobros que traía. |
+| `nuevas` | entero · obligatoria | Los que no estaban cargados. |
+| `actualizadas` | entero · obligatoria | Los que ya estaban. |
+
+Otras columnas: `id`, `creado_en`.
+
+**Personas (auth.users):** `importado_por`  
+**La usan:** `mp_cobros` (importacion_id)
 
 ### `gastos`
 
