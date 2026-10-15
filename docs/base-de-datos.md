@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-15) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **49 tablas y vistas**, **138 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **50 tablas y vistas**, **142 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -256,7 +256,7 @@ Otras columnas: `id`, `promo_id`, `sucursal_id`, `updated_at`, `updated_by`.
 Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 
 **Personas (auth.users):** `created_by`, `updated_by`  
-**La usan:** `egresos` (proveedor_id) · `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id) · `retiros_caja` (proveedor_id)
+**La usan:** `egresos` (proveedor_id) · `movimientos` (proveedor_id) · `pagos_proveedor` (proveedor_id) · `products` (proveedor_id) · `proveedor_cuenta` (proveedor_id) · `retiros_caja` (proveedor_id)
 
 ### `alertas_precio`
 
@@ -400,7 +400,7 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
 **Personas (auth.users):** `encargado_user_id`  
-**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
+**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `proveedor_cuenta` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
 
 ### `movimientos`
 
@@ -727,6 +727,7 @@ erDiagram
   movimientos |o--o{ pagos_proveedor : "movimiento_id"
   proveedores ||--o{ pagos_proveedor : "proveedor_id"
   profiles ||--o{ pagos_socio : "socio_id"
+  proveedores ||--o{ proveedor_cuenta : "proveedor_id"
   egresos {
     uuid id PK
   }
@@ -734,6 +735,9 @@ erDiagram
     uuid id PK
   }
   tesoreria_config {
+    uuid id PK
+  }
+  proveedor_cuenta {
     uuid id PK
   }
   mp_cobros {
@@ -814,7 +818,7 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
 | `usuario_id` | id | Quién lo hizo. |
-| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados o mp_cobro_clasificado. |
+| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados, mp_cobro_clasificado, proveedor_saldo_inicial, proveedor_pago o proveedor_movimiento_anulado. |
 | `entidad_id` | id | El egreso, la entrega (movimiento) o la persona afectada, según la acción. |
 | `detalle` | datos JSON | Valores antes y después, importes y descripción: lo necesario para entender el cambio sin buscar la fila original. |
 | `motivo` | texto | Por qué (obligatorio al anular, descartar o cambiar el efectivo inicial desde la segunda vez). |
@@ -836,6 +840,29 @@ Otras columnas: `id`, `creado_en`.
 Otras columnas: `updated_by`, `updated_at`.
 
 **Personas (auth.users):** `updated_by`
+
+### `proveedor_cuenta`
+
+**Cuenta corriente de cada proveedor, por local.** Los pagos a proveedor y el saldo inicial. El saldo de un proveedor en un local es: saldo inicial + compras que todavía se deben − pagos (si da negativo es saldo a favor). No se imputa cada pago a un remito: los pagos cubren primero el saldo inicial y después las compras más viejas, y eso se calcula en pantalla. Un pago no es un gasto nuevo (el gasto es la compra). Nada se borra: un error se anula con motivo.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `tipo` | texto · obligatoria | saldo_inicial = lo que ya se debía antes de usar Tesorería (uno solo vigente por proveedor y local); pago = plata entregada al proveedor, a cuenta de lo que se le debe. |
+| `proveedor_id` | id · obligatoria → proveedores | A quién. |
+| `sucursal_id` | id · obligatoria → sucursales | De qué local es la cuenta. |
+| `fecha` | fecha · obligatoria | Del pago (cuándo salió la plata) o, en el saldo inicial, la fecha de corte. |
+| `monto` | número · obligatoria | Siempre positivo. |
+| `origen` | texto | De dónde salió la plata del pago: efectivo_tesoreria, transferencia o mercadopago. El efectivo de Tesorería baja el efectivo en mano. Vacío en el saldo inicial. |
+| `nota` | texto | Referencia libre, por ejemplo los remitos que cubre. |
+| `anulado_en` | fecha y hora | Si tiene fecha, el movimiento está anulado y no cuenta. |
+| `anulado_por` | id | Quién lo anuló. |
+| `anulado_motivo` | texto | Por qué se anuló. |
+| `created_by` | id | Quién lo cargó. |
+
+Otras columnas: `id`, `created_at`.
+
+**Apunta a:** `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `anulado_por`, `created_by`
 
 ### `mp_cobros`
 

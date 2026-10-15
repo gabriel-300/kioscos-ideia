@@ -182,6 +182,11 @@
       "cols": "id:uuid:NN:DEF | name:text:NN | price:numeric(12,2) | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF | tipo:text:NN:DEF | created_by:uuid | updated_by:uuid | cover_image_url:text | category_id:uuid | requiere_termo:boolean:NN:DEF"
     },
     {
+      "t": "proveedor_cuenta",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | tipo:text:NN | proveedor_id:uuid:NN | sucursal_id:uuid:NN | fecha:date:NN | monto:numeric(14,2):NN | origen:text | nota:text | anulado_en:timestamp with time zone | anulado_por:uuid | anulado_motivo:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF"
+    },
+    {
       "t": "proveedores",
       "k": "r",
       "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric"
@@ -787,6 +792,26 @@
       "promos",
       "updated_by",
       "auth.users"
+    ],
+    [
+      "proveedor_cuenta",
+      "anulado_por",
+      "auth.users"
+    ],
+    [
+      "proveedor_cuenta",
+      "created_by",
+      "auth.users"
+    ],
+    [
+      "proveedor_cuenta",
+      "proveedor_id",
+      "proveedores"
+    ],
+    [
+      "proveedor_cuenta",
+      "sucursal_id",
+      "sucursales"
     ],
     [
       "proveedores",
