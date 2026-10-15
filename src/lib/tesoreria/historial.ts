@@ -13,6 +13,7 @@ export const ACCIONES_HISTORIAL = [
   "entrega_descartada", "entrega_restaurada",
   "efectivo_inicial_cambiado", "permiso_cambiado",
   "mp_cobros_importados", "mp_cobro_clasificado",
+  "proveedor_saldo_inicial", "proveedor_pago", "proveedor_movimiento_anulado",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -26,6 +27,9 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   permiso_cambiado:          "Permiso cambiado",
   mp_cobros_importados:      "Cobros de Mercado Pago importados",
   mp_cobro_clasificado:      "Cobro de Mercado Pago clasificado",
+  proveedor_saldo_inicial:   "Saldo inicial de proveedor cargado",
+  proveedor_pago:            "Pago a proveedor registrado",
+  proveedor_movimiento_anulado: "Movimiento de proveedor anulado",
 };
 
 export interface EntradaHistorial {
@@ -99,6 +103,12 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `Importó cobros de Mercado Pago (${numero(d.nuevas) ?? 0} nuevos, ${numero(d.actualizadas) ?? 0} ya cargados) del ${texto(d.desde) ?? "?"} al ${texto(d.hasta) ?? "?"}`;
     case "mp_cobro_clasificado":
       return `Clasificó un movimiento de Mercado Pago de ${plata(d.monto)} como «${texto(d.clasificacion) ?? "?"}»`;
+    case "proveedor_saldo_inicial":
+      return `Cargó el saldo inicial de ${texto(d.proveedor) ?? "un proveedor"}${texto(d.sucursal) ? ` (${texto(d.sucursal)})` : ""}: ${plata(d.monto)}`;
+    case "proveedor_pago":
+      return `Registró un pago de ${plata(d.monto)} a ${texto(d.proveedor) ?? "un proveedor"}${texto(d.sucursal) ? ` (${texto(d.sucursal)})` : ""}${texto(d.origen) ? ` con ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)}` : ""}`;
+    case "proveedor_movimiento_anulado":
+      return `Anuló ${d.tipo === "saldo_inicial" ? "el saldo inicial" : "un pago"} de ${plata(d.monto)} de ${texto(d.proveedor) ?? "un proveedor"}`;
     case "permiso_cambiado": {
       const quien = texto(d.persona) ?? "una persona";
       const permiso = PERMISO[texto(d.permiso) ?? ""] ?? texto(d.permiso) ?? "un permiso";

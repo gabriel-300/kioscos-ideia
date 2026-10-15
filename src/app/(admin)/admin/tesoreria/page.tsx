@@ -11,12 +11,15 @@ import {
   cargarEntregasDescartadas, cargarTotalesKiosco, cargarHistorial, cargarCambiosEfectivoInicial,
 } from "@/lib/tesoreria/consultas";
 import { HistorialView } from "./_components/historial-view";
-import { agruparDeuda, efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
+import { efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
 import { ResumenView, type ResumenData } from "./_components/resumen-view";
 import { ParaRegistrar } from "./_components/para-registrar";
 import { EgresosLista } from "./_components/egresos-lista";
 import { FijosLista } from "./_components/fijos-lista";
 import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago-view";
+import { ProveedoresView, type ProveedoresData } from "./_components/proveedores-view";
+import { cargarMovimientosProveedor } from "@/lib/tesoreria/proveedores-consultas";
+import { deudaDelResumen, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
 import { compararPorDia, cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
 import { SolapasTesoreria } from "./_components/solapas";
@@ -24,7 +27,7 @@ import { SolapasTesoreria } from "./_components/solapas";
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = ["resumen", "para-registrar", "egresos", "fijos", "mercadopago", "historial"] as const;
+const VISTAS = ["resumen", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "historial"] as const;
 type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
@@ -85,20 +88,24 @@ export default async function TesoreriaPage({
     if (vista === "fijos") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
         cargarSobresRetirados(admin, sucursalIds, config.fecha_inicio),
         cargarSobresSinRetirar(admin, sucursalIds, config.fecha_inicio),
         cargarCambiosEfectivoInicial(admin),
+        cargarMovimientosProveedor(admin, true),
       ]);
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
       resumen = {
         entro: entro,
         gasto: resumirEgresos(egresosMes),
-        deuda: agruparDeuda(pendientes, nombreProveedor),
+        // Con cuenta corriente (migración 106) lo que se debe a un proveedor es su saldo, no la suma de compras sueltas.
+        deuda: (({ items, total }) => ({ items, total }))(
+          deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre]))),
+        ),
         efectivo: { ...efectivo, inicial: config.efectivo_inicial },
         sobresSinRetirar: sobresSinRetirar.reduce((s, c) => s + montoSobre(c), 0),
         cambiosEfectivoInicial,
@@ -149,6 +156,24 @@ export default async function TesoreriaPage({
     }
   }
 
+  // Solapa «Proveedores» (migración 106). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
+  let prov: ProveedoresData | null = null;
+  let provError = "";
+  if (vista === "proveedores") {
+    try {
+      const [pendientes, movimientos] = await Promise.all([cargarEgresosPendientes(admin), cargarMovimientosProveedor(admin)]);
+      const nombreProveedor = new Map(datos.proveedores.map((p) => [p.id, p.nombre]));
+      const nombreLocal = new Map(datos.sucursales.map((s) => [s.id, s.nombre]));
+      const d = deudaDelResumen(pendientes, movimientos, nombreProveedor, nombreLocal);
+      prov = {
+        cuentas: d.cuentas, totales: totalAdeudado(d.cuentas), sinProveedor: d.sinProveedor,
+        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal),
+      };
+    } catch (e) {
+      provError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial } = datos;
   // El contador cuenta solo los retiros de caja (son la tarea). Los ingresos del kiosco son un control, no una deuda.
   const pendientesDeRegistrar = retiros.length;
@@ -169,7 +194,7 @@ export default async function TesoreriaPage({
 
       <SolapasTesoreria activa={vista} esAdmin={esAdmin} pendientes={pendientesDeRegistrar} mes={mes} />
 
-      {vista !== "para-registrar" && (
+      {vista !== "para-registrar" && vista !== "proveedores" && (
         <div className="flex items-center gap-3 mb-6">
           <Link href={enlace(vista, anterior)} aria-label="Mes anterior" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
             <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -189,6 +214,16 @@ export default async function TesoreriaPage({
       )}
       {vista === "egresos" && (
         <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "proveedores" && prov && (
+        <ProveedoresView data={prov} proveedores={proveedores} sucursales={sucursales} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "proveedores" && provError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">La cuenta corriente de proveedores todavía no está lista en la base de datos.</p>
+          <p className="mt-1">Falta aplicar la migración 106 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {provError}</p>
+        </div>
       )}
       {vista === "mercadopago" && mp && <MercadoPagoView data={mp} puedeCargar={permisos.puedeCargar} mesLabel={mesLabel} />}
       {vista === "mercadopago" && mpError && (

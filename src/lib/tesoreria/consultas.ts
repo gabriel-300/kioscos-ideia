@@ -224,7 +224,22 @@ export async function cargarSalidasEfectivo(admin: Admin, desde: string): Promis
     admin.from("egresos").select("origen, monto", { count: "exact" })
       .is("anulado_en", null).eq("pagado", true).eq("origen", "efectivo_tesoreria").gte("fecha_pago", desde)
       .order("id").range(d, h));
-  return filas.map((f) => ({ origen: "efectivo_tesoreria" as const, monto: Number(f.monto) }));
+  const salidas = filas.map((f) => ({ origen: "efectivo_tesoreria" as const, monto: Number(f.monto) }));
+
+  // Los pagos a proveedor en efectivo (migración 106) también sacan plata del efectivo en mano. Si la migración todavía no está
+  // aplicada la tabla no existe: en ese caso no hay pagos que sumar y el efectivo se calcula como antes.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pagos = await fetchAll<{ monto: number | string }>((d, h) => (admin as any).from("proveedor_cuenta")
+      .select("monto", { count: "exact" })
+      .eq("tipo", "pago").eq("origen", "efectivo_tesoreria").is("anulado_en", null).gte("fecha", desde)
+      .order("id").range(d, h));
+    for (const p of pagos) salidas.push({ origen: "efectivo_tesoreria" as const, monto: Number(p.monto) });
+  } catch (e) {
+    // Solo se ignora «la tabla no existe»; cualquier otro error se propaga: un efectivo calculado de menos sería peor que un aviso.
+    if (!(e instanceof Error && e.message.includes("proveedor_cuenta"))) throw e;
+  }
+  return salidas;
 }
 
 // ── Lo que viene de los kioscos: ventas y sobres (tabla cierres_caja, una fila por turno) ──

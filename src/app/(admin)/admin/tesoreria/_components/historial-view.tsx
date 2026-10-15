@@ -16,6 +16,9 @@ const COLOR: Record<string, string> = {
   permiso_cambiado:          "border-blue-200 bg-blue-50 text-blue-700",
   mp_cobros_importados:      "border-blue-200 bg-blue-50 text-blue-700",
   mp_cobro_clasificado:      "border-amber-200 bg-amber-50 text-amber-700",
+  proveedor_saldo_inicial:   "border-blue-200 bg-blue-50 text-blue-700",
+  proveedor_pago:            "border-selva-200 bg-selva-50 text-selva-700",
+  proveedor_movimiento_anulado: "border-danger/30 bg-danger/5 text-danger",
 };
 
 export function HistorialView({ filas }: { filas: FilaHistorial[] }) {
