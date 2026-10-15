@@ -126,6 +126,12 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     `/admin/conciliacion-mercadopago`, solo admin) y Informe mensual (`/admin/informe-mensual`, admin o socio); no tienen entrada
     propia en el menú. El concesionario conserva «Cierres» en el menú porque no ve Tesorería. Cta. Corriente (venta fiada) queda
     fuera: es del kiosco.
+  - **Cobros de Mercado Pago** (solapa «Cobros MP», migración 105): el administrativo sube el Excel de cobros del panel de MP. El archivo
+    se abre en el navegador y al servidor solo viajan importes, fechas y nº de operación (nunca nombres ni documentos de clientes).
+    Cada cobro se ata a su local por la caja (`sucursales.mercadopago_pos_id` = external_id de la caja), la comisión de MP queda
+    aparte y se cruza contra las órdenes QR del sistema. Lo que no es una venta de caja (fondeos, movimientos internos) queda
+    «a clasificar» y lo decide una persona: no se asume qué es. Reimportar no duplica ni pisa la clasificación. Solo cobros: salidas
+    y saldo de la cuenta de MP todavía no (hace falta el reporte de movimientos).
 - **Estado**: **Construido, pendiente de probar con uso real** (0 egresos). La conciliación del cierre de caja no cambió: lo que
   antes entraba por Pagos a proveedores y Socios queda en cero. `pagos_proveedor`, `movimientos_socio`, `pagos_socio` y `gastos`
   quedan como histórico. Pendiente a propósito: el concepto de retiro **temporal** de un socio con devolución (se simplificó a

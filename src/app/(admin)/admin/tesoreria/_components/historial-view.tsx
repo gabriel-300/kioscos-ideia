@@ -14,6 +14,8 @@ const COLOR: Record<string, string> = {
   entrega_restaurada:        "border-neutral-200 bg-neutral-50 text-neutral-600",
   efectivo_inicial_cambiado: "border-amber-200 bg-amber-50 text-amber-700",
   permiso_cambiado:          "border-blue-200 bg-blue-50 text-blue-700",
+  mp_cobros_importados:      "border-blue-200 bg-blue-50 text-blue-700",
+  mp_cobro_clasificado:      "border-amber-200 bg-amber-50 text-amber-700",
 };
 
 export function HistorialView({ filas }: { filas: FilaHistorial[] }) {

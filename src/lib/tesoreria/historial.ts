@@ -12,6 +12,7 @@ export const ACCIONES_HISTORIAL = [
   "egreso_creado", "egreso_pagado", "egreso_anulado",
   "entrega_descartada", "entrega_restaurada",
   "efectivo_inicial_cambiado", "permiso_cambiado",
+  "mp_cobros_importados", "mp_cobro_clasificado",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -23,6 +24,8 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   entrega_restaurada:        "Ingreso del kiosco: vuelto a la lista",
   efectivo_inicial_cambiado: "Efectivo inicial cambiado",
   permiso_cambiado:          "Permiso cambiado",
+  mp_cobros_importados:      "Cobros de Mercado Pago importados",
+  mp_cobro_clasificado:      "Cobro de Mercado Pago clasificado",
 };
 
 export interface EntradaHistorial {
@@ -92,6 +95,10 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return numero(d.anterior) === null
         ? `Cargó el efectivo inicial: ${plata(d.nuevo)}`
         : `Cambió el efectivo inicial de ${plata(d.anterior)} a ${plata(d.nuevo)}`;
+    case "mp_cobros_importados":
+      return `Importó cobros de Mercado Pago (${numero(d.nuevas) ?? 0} nuevos, ${numero(d.actualizadas) ?? 0} ya cargados) del ${texto(d.desde) ?? "?"} al ${texto(d.hasta) ?? "?"}`;
+    case "mp_cobro_clasificado":
+      return `Clasificó un movimiento de Mercado Pago de ${plata(d.monto)} como «${texto(d.clasificacion) ?? "?"}»`;
     case "permiso_cambiado": {
       const quien = texto(d.persona) ?? "una persona";
       const permiso = PERMISO[texto(d.permiso) ?? ""] ?? texto(d.permiso) ?? "un permiso";

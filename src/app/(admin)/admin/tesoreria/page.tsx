@@ -16,12 +16,15 @@ import { ResumenView, type ResumenData } from "./_components/resumen-view";
 import { ParaRegistrar } from "./_components/para-registrar";
 import { EgresosLista } from "./_components/egresos-lista";
 import { FijosLista } from "./_components/fijos-lista";
+import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago-view";
+import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr } from "@/lib/tesoreria/mp-consultas";
+import { cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
 import { SolapasTesoreria } from "./_components/solapas";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = ["resumen", "para-registrar", "egresos", "fijos", "historial"] as const;
+const VISTAS = ["resumen", "para-registrar", "egresos", "fijos", "mercadopago", "historial"] as const;
 type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
@@ -116,6 +119,33 @@ export default async function TesoreriaPage({
     );
   }
 
+  // Solapa «Cobros MP» (migración 105). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
+  let mp: MercadoPagoData | null = null;
+  let mpError = "";
+  if (vista === "mercadopago") {
+    try {
+      const desdeIso = `${rango.desde}T00:00:00-03:00`;
+      const hastaIso = `${rango.hasta}T23:59:59-03:00`;
+      const [cobros, sinClasificar, importaciones, rangos, ordenes] = await Promise.all([
+        cargarCobrosMp(admin, desdeIso, hastaIso), cargarCobrosSinClasificar(admin),
+        cargarImportacionesMp(admin), cargarRangosImportados(admin), cargarOrdenesQr(admin, desdeIso, hastaIso),
+      ]);
+      const { total, porSucursal } = resumirCobros(cobros);
+      const nombreLocal = Object.fromEntries(datos.sucursales.map((s) => [s.id, s.nombre]));
+      mp = {
+        total,
+        porLocal: [...porSucursal.entries()].map(([sucursalId, totales]) => ({ sucursalId, nombre: nombreLocal[sucursalId] ?? "Sin local", totales }))
+          .sort((a, b) => b.totales.bruto - a.totales.bruto),
+        sinClasificar,
+        clasificados: cobros.filter((c) => c.clase === "a_clasificar" && c.clasificacion),
+        cruce: cruzarConSistema(cobros, ordenes, rangos),
+        importaciones, nombreLocal,
+      };
+    } catch (e) {
+      mpError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial } = datos;
   // El contador cuenta solo los retiros de caja (son la tarea). Los ingresos del kiosco son un control, no una deuda.
   const pendientesDeRegistrar = retiros.length;
@@ -156,6 +186,14 @@ export default async function TesoreriaPage({
       )}
       {vista === "egresos" && (
         <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "mercadopago" && mp && <MercadoPagoView data={mp} puedeCargar={permisos.puedeCargar} mesLabel={mesLabel} />}
+      {vista === "mercadopago" && mpError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Cobros de Mercado Pago todavía no está listo en la base de datos.</p>
+          <p className="mt-1">Falta aplicar la migración 105 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {mpError}</p>
+        </div>
       )}
       {vista === "historial" && <HistorialView filas={historial} />}
       {vista === "fijos" && (
