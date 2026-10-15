@@ -28,14 +28,17 @@ export function SolapasTesoreria({
   mes?:        string;   // YYYY-MM: las solapas propias de Tesorería lo conservan
 }) {
   return (
-    <nav aria-label="Tesorería" className="flex gap-1 border-b border-neutral-200 mb-6 overflow-x-auto">
+    <nav aria-label="Tesorería" className="flex flex-wrap gap-1.5 mb-6">
       {SOLAPAS.filter((s) => esAdmin || !s.soloAdmin).map((s) => {
         const propia = s.href.startsWith("/admin/tesoreria");
         const href   = propia && mes ? `${s.href}&mes=${mes}` : s.href;
         return (
           <Link key={s.id} href={href}
-            className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${
-              activa === s.id ? "border-tierra-700 font-semibold text-tierra-900" : "border-transparent text-neutral-500 hover:text-neutral-800"
+            aria-current={activa === s.id ? "page" : undefined}
+            className={`px-3.5 py-2 text-sm whitespace-nowrap rounded-lg border transition-colors ${
+              activa === s.id
+                ? "border-tierra-700 bg-tierra-700 font-semibold text-white"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-900"
             }`}>
             {s.etiqueta}
             {s.id === "para-registrar" && pendientes > 0 && (
