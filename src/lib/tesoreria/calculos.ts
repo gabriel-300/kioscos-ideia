@@ -108,3 +108,64 @@ export function efectivoDeTesoreria(p: {
   const salidas = redondearMoneda(p.egresos.filter((e) => e.origen === "efectivo_tesoreria").reduce((s, e) => s + e.monto, 0));
   return { efectivo: redondearMoneda(p.efectivoInicial + sobres - salidas), sobres, salidas };
 }
+
+// ── Obligaciones del mes ─────────────────────────────────────────────────────
+// Lo que se paga todos los meses (sueldos, alquiler, servicios, cuotas) es la lista de gastos fijos; el pago de cada mes es un
+// egreso con `gasto_fijo_id`. Una obligación está «sin registrar» mientras no tenga ningún egreso en el mes. Si se pagó en
+// partes (el sueldo en dos veces) cuenta como registrada y se suma lo pagado: el estimado es una referencia, no un tope.
+export interface FijoParaObligaciones {
+  id: string; categoria: string; descripcion: string; monto_estimado: number; dia_vencimiento: number; sucursal_id: string | null;
+}
+export interface ObligacionMes {
+  id: string; categoria: string; descripcion: string; sucursal_id: string | null;
+  estimado:    number;
+  pagado:      number;    // suma de lo registrado en el mes (0 si todavía no hay pago)
+  pagos:       number;    // cuántos pagos se registraron
+  registrada:  boolean;
+  vencimiento: string;    // AAAA-MM-DD
+  vencida:     boolean;   // sin registrar y ya pasó el día de vencimiento
+}
+
+export function obligacionesDelMes(
+  fijos: FijoParaObligaciones[],
+  egresosDelMes: Pick<Egreso, "gasto_fijo_id" | "monto">[],
+  mes: string,
+  hoy: string,
+): { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number } {
+  const rango = rangoDelMes(mes);
+  const ultimoDia = rango ? Number(rango.hasta.slice(8)) : 28;
+  const pagos = new Map<string, { monto: number; cantidad: number }>();
+  for (const e of egresosDelMes) {
+    if (!e.gasto_fijo_id) continue;
+    const p = pagos.get(e.gasto_fijo_id) ?? { monto: 0, cantidad: 0 };
+    p.monto += e.monto;
+    p.cantidad += 1;
+    pagos.set(e.gasto_fijo_id, p);
+  }
+  const items = fijos.map((f): ObligacionMes => {
+    const p = pagos.get(f.id);
+    const dia = Math.min(Math.max(f.dia_vencimiento, 1), ultimoDia);
+    const vencimiento = `${mes}-${String(dia).padStart(2, "0")}`;
+    const registrada = !!p;
+    return {
+      id: f.id, categoria: f.categoria, descripcion: f.descripcion, sucursal_id: f.sucursal_id,
+      estimado: redondearMoneda(f.monto_estimado), pagado: redondearMoneda(p?.monto ?? 0), pagos: p?.cantidad ?? 0,
+      registrada, vencimiento, vencida: !registrada && hoy > vencimiento,
+    };
+  }).sort((a, b) => (a.vencimiento === b.vencimiento ? a.descripcion.localeCompare(b.descripcion) : a.vencimiento.localeCompare(b.vencimiento)));
+
+  const sinRegistrar = items.filter((i) => !i.registrada);
+  return {
+    items,
+    pendiente:     redondearMoneda(sinRegistrar.reduce((s, i) => s + i.estimado, 0)),
+    sinRegistrar:  sinRegistrar.length,
+    registrado:    redondearMoneda(items.reduce((s, i) => s + i.pagado, 0)),
+    estimadoTotal: redondearMoneda(items.reduce((s, i) => s + i.estimado, 0)),
+  };
+}
+
+// «Tengo menos debo»: el efectivo en mano menos lo que se le debe a proveedores y las obligaciones del mes que todavía no se
+// registraron. Hoy «tengo» es solo el efectivo de Tesorería (todavía no hay saldos de Mercado Pago ni de bancos): la pantalla lo aclara.
+export function tengoMenosDebo(p: { efectivo: number; deudaProveedores: number; obligacionesPendientes: number }): number {
+  return redondearMoneda(p.efectivo - p.deudaProveedores - p.obligacionesPendientes);
+}

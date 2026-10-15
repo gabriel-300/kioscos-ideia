@@ -15,7 +15,7 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 // /admin/gastos; acá solo se registra el pago de cada mes, con el mismo formulario que cualquier egreso.
 export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores, puedeCargar }: {
   fijos: GastoFijoLista[];
-  pagadosPorFijo: Record<string, { monto: number; fecha: string }>;   // gasto_fijo_id → egreso de este mes
+  pagadosPorFijo: Record<string, { monto: number; fecha: string; pagos: number }>;   // gasto_fijo_id → lo registrado este mes
   mes: string;
   sucursales: Opcion[];
   proveedores: Opcion[];
@@ -27,9 +27,11 @@ export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores
 
   function registrar(g: GastoFijoLista) {
     const hoy = fechaHoyAR();
+    // Si ya se pagó una parte, se sugiere lo que falta del estimado (se corrige con el importe real).
+    const yaPagado = pagadosPorFijo[g.id]?.monto ?? 0;
     setBorrador({
       fecha: hoy.slice(0, 7) === mes ? hoy : `${mes}-01`,
-      monto: g.monto_estimado, categoria: g.categoria, descripcion: g.descripcion,
+      monto: Math.max(g.monto_estimado - yaPagado, 0) || g.monto_estimado, categoria: g.categoria, descripcion: g.descripcion,
       sucursal_id: g.sucursal_id, gasto_fijo_id: g.id,
     });
     setAbierto(true);
@@ -38,7 +40,10 @@ export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-sm text-neutral-500">Lo que se paga todos los meses. Registrá cada pago cuando se hace.</p>
+        <p className="text-sm text-neutral-500">
+          Obligaciones del mes: sueldos, alquiler, cuotas y servicios. Una obligación queda «sin registrar» hasta que cargues su pago; si se
+          paga en partes, registrá cada una y se suman.
+        </p>
         <Link href="/admin/gastos" className="text-xs font-semibold text-tierra-700 hover:underline">Editar la lista de gastos fijos</Link>
       </div>
 
@@ -57,14 +62,16 @@ export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores
                 </div>
                 <p className="mt-1 text-xs">
                   {pago ? (
-                    <span className="text-selva-700 font-medium">Registrado {AR.format(pago.monto)} el {new Date(pago.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
+                    <span className="text-selva-700 font-medium">Registrado {AR.format(pago.monto)}{pago.pagos > 1 ? ` en ${pago.pagos} pagos` : ""} · {pago.pagos > 1 ? "último " : ""}{new Date(pago.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · estimado {AR.format(g.monto_estimado)}</span>
                   ) : (
                     <span className="text-amber-700 font-medium">Sin registrar este mes — estimado {AR.format(g.monto_estimado)}</span>
                   )}
                 </p>
               </div>
-              {puedeCargar && !pago && (
-                <button onClick={() => registrar(g)} className="text-xs font-semibold text-tierra-700 hover:underline shrink-0">Registrar pago</button>
+              {puedeCargar && (
+                <button onClick={() => registrar(g)} className="text-xs font-semibold text-tierra-700 hover:underline shrink-0">
+                  {pago ? "Registrar otro pago" : "Registrar pago"}
+                </button>
               )}
             </div>
           );

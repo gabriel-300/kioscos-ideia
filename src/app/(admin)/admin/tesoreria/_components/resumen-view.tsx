@@ -1,5 +1,5 @@
 import { etiquetaCategoria } from "@/lib/tesoreria/tipos";
-import type { Deuda, ResumenEgresos } from "@/lib/tesoreria/calculos";
+import type { Deuda, ObligacionMes, ResumenEgresos } from "@/lib/tesoreria/calculos";
 import { EfectivoInicialForm } from "./efectivo-inicial-form";
 import { describirHistorial } from "@/lib/tesoreria/historial";
 import type { CambiosEfectivoInicial } from "@/lib/tesoreria/consultas";
@@ -10,6 +10,8 @@ export interface ResumenData {
   entro:            number;            // ventas cobradas del mes (turnos cerrados)
   gasto:            ResumenEgresos;    // egresos del mes por fecha de compra, pagados o no
   deuda:            { items: Deuda[]; total: number };
+  obligaciones:     { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number };
+  tengoMenosDebo:   number | null;     // efectivo en mano − lo que se debe a proveedores − obligaciones sin registrar (solo mes en curso)
   efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
   sobresSinRetirar: number;
   cambiosEfectivoInicial: CambiosEfectivoInicial;   // cuántas veces se tocó y el último cambio (del historial)
@@ -47,8 +49,16 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
 
       <section>
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Hoy</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Tarjeta titulo="Se debe" valor={AR.format(data.deuda.total)} pie="Compras cargadas como pendientes de pago" tono={data.deuda.total > 0 ? "ambar" : "neutro"} />
+        {data.tengoMenosDebo !== null && <div className="mb-4">
+          <Tarjeta titulo="Tengo menos debo" valor={`${data.tengoMenosDebo >= 0 ? "" : "−"}${AR.format(Math.abs(data.tengoMenosDebo))}`}
+            pie={`Efectivo en mano ${AR.format(data.efectivo.efectivo)} − proveedores ${AR.format(data.deuda.total)} − obligaciones del mes sin registrar ${AR.format(data.obligaciones.pendiente)}. No incluye saldos de Mercado Pago ni de bancos.`}
+            tono={data.tengoMenosDebo >= 0 ? "verde" : "rojo"} />
+        </div>}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Tarjeta titulo="Se debe" valor={AR.format(data.deuda.total)} pie="A proveedores: compras que se deben menos pagos" tono={data.deuda.total > 0 ? "ambar" : "neutro"} />
+          <Tarjeta titulo="Obligaciones sin registrar" valor={AR.format(data.obligaciones.pendiente)}
+            pie={data.obligaciones.sinRegistrar === 0 ? "Todo lo del mes está registrado" : `${data.obligaciones.sinRegistrar} de ${data.obligaciones.items.length} del mes (sueldos, alquiler, cuotas…)`}
+            tono={data.obligaciones.pendiente > 0 ? "ambar" : "neutro"} />
           <Tarjeta titulo="Efectivo en mano" valor={AR.format(data.efectivo.efectivo)} pie="Lo de Tesorería, sin contar los kioscos" />
           <Tarjeta titulo="Sobres en los kioscos" valor={AR.format(data.sobresSinRetirar)} pie="Cerrados desde el arranque, todavía sin retirar" />
         </div>
@@ -74,6 +84,27 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
             <p className="flex justify-between"><span>Sin factura</span><span className="tabular-nums">{AR.format(data.gasto.sinFactura)}</span></p>
             <p className="flex justify-between"><span>Retiros de socios (aparte)</span><span className="tabular-nums">{AR.format(data.gasto.retirosSocio)}</span></p>
           </div>
+        </section>
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-neutral-900 mb-3">Obligaciones del mes</h2>
+          {data.obligaciones.items.length === 0 ? (
+            <p className="text-sm text-neutral-400">No hay gastos fijos cargados. Se editan en la solapa Obligaciones.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {data.obligaciones.items.map((o) => (
+                <li key={o.id} className="flex justify-between gap-3 text-sm">
+                  <span className="text-neutral-600">
+                    {o.descripcion} <span className="text-xs text-neutral-400">· día {Number(o.vencimiento.slice(8))}</span>
+                    {o.vencida && <span className="ml-1.5 text-xs font-medium text-red-600">vencida</span>}
+                  </span>
+                  <span className={`tabular-nums font-medium ${o.registrada ? "text-selva-700" : "text-neutral-800"}`}>
+                    {o.registrada ? `${AR.format(o.pagado)} pagado` : `~${AR.format(o.estimado)}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-4">

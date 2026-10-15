@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
-import { agruparDeuda, diferenciaConKiosco, efectivoDeTesoreria, montoSobre, rangoDelMes, mesAnteriorYSiguiente, resumirEgresos } from "@/lib/tesoreria/calculos";
+import { agruparDeuda, diferenciaConKiosco, efectivoDeTesoreria, montoSobre, obligacionesDelMes, rangoDelMes, mesAnteriorYSiguiente, resumirEgresos, tengoMenosDebo, type FijoParaObligaciones } from "@/lib/tesoreria/calculos";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const HOY = "2026-10-05";
@@ -191,5 +191,46 @@ describe("meses", () => {
   it("navega entre años", () => {
     expect(mesAnteriorYSiguiente("2026-01")).toEqual({ anterior: "2025-12", siguiente: "2026-02" });
     expect(mesAnteriorYSiguiente("2026-12")).toEqual({ anterior: "2026-11", siguiente: "2027-01" });
+  });
+});
+
+describe("obligacionesDelMes", () => {
+  const fijo = (o: Partial<FijoParaObligaciones> = {}): FijoParaObligaciones => ({
+    id: "f1", categoria: "sueldos", descripcion: "Sueldo Iris", monto_estimado: 1000000, dia_vencimiento: 5, sucursal_id: null, ...o,
+  });
+
+  it("una obligación sin pago en el mes está sin registrar y suma a lo pendiente", () => {
+    const r = obligacionesDelMes([fijo(), fijo({ id: "f2", descripcion: "Alquiler", monto_estimado: 500000, dia_vencimiento: 10 })], [], "2026-10", "2026-10-03");
+    expect(r.pendiente).toBe(1500000);
+    expect(r.sinRegistrar).toBe(2);
+    expect(r.items.map((i) => [i.descripcion, i.vencimiento, i.vencida])).toEqual([["Sueldo Iris", "2026-10-05", false], ["Alquiler", "2026-10-10", false]]);
+  });
+
+  it("queda vencida cuando pasó el día y no se registró", () => {
+    const r = obligacionesDelMes([fijo()], [], "2026-10", "2026-10-06");
+    expect(r.items[0].vencida).toBe(true);
+  });
+
+  it("registrada deja de ser pendiente, y si se pagó en partes se suman (el estimado no es un tope)", () => {
+    const r = obligacionesDelMes(
+      [fijo()],
+      [{ gasto_fijo_id: "f1", monto: 600000 }, { gasto_fijo_id: "f1", monto: 450000 }, { gasto_fijo_id: null, monto: 99999 }],
+      "2026-10", "2026-10-20",
+    );
+    expect(r.items[0]).toMatchObject({ registrada: true, pagado: 1050000, pagos: 2, vencida: false });
+    expect(r.pendiente).toBe(0);
+    expect(r.registrado).toBe(1050000);
+  });
+
+  it("un vencimiento que no existe en el mes (día 31 en un mes de 30) cae en el último día", () => {
+    const r = obligacionesDelMes([fijo({ dia_vencimiento: 31 })], [], "2026-11", "2026-11-01");
+    expect(r.items[0].vencimiento).toBe("2026-11-30");
+  });
+});
+
+describe("tengoMenosDebo", () => {
+  it("efectivo menos proveedores menos obligaciones sin registrar; puede dar negativo", () => {
+    expect(tengoMenosDebo({ efectivo: 3000000, deudaProveedores: 1000000, obligacionesPendientes: 1500000 })).toBe(500000);
+    expect(tengoMenosDebo({ efectivo: 100000, deudaProveedores: 2630000, obligacionesPendientes: 4200000 })).toBe(-6730000);
   });
 });

@@ -11,7 +11,7 @@ import {
   cargarEntregasDescartadas, cargarTotalesKiosco, cargarHistorial, cargarCambiosEfectivoInicial,
 } from "@/lib/tesoreria/consultas";
 import { HistorialView } from "./_components/historial-view";
-import { efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, rangoDelMes, resumirEgresos } from "@/lib/tesoreria/calculos";
+import { efectivoDeTesoreria, mesAnteriorYSiguiente, montoSobre, obligacionesDelMes, rangoDelMes, resumirEgresos, tengoMenosDebo } from "@/lib/tesoreria/calculos";
 import { ResumenView, type ResumenData } from "./_components/resumen-view";
 import { ParaRegistrar } from "./_components/para-registrar";
 import { EgresosLista } from "./_components/egresos-lista";
@@ -85,7 +85,7 @@ export default async function TesoreriaPage({
     }
     if (vista === "historial") historial = await cargarHistorial(admin, rango.desde, rango.hasta);
     if (vista === "para-registrar") descartadas = await cargarEntregasDescartadas(admin, sucursalIds, config.fecha_inicio);
-    if (vista === "fijos") fijos = await cargarGastosFijos(admin);
+    if (vista === "fijos" || vista === "resumen") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
       const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv] = await Promise.all([
@@ -99,13 +99,20 @@ export default async function TesoreriaPage({
       ]);
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
+      const deudaResumen = (({ items, total }) => ({ items, total }))(
+        deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre]))),
+      );
+      const obligaciones = obligacionesDelMes(fijos, egresosMes, mes, fechaHoyAR());
       resumen = {
         entro: entro,
         gasto: resumirEgresos(egresosMes),
         // Con cuenta corriente (migración 106) lo que se debe a un proveedor es su saldo, no la suma de compras sueltas.
-        deuda: (({ items, total }) => ({ items, total }))(
-          deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre]))),
-        ),
+        deuda: deudaResumen,
+        obligaciones,
+        // «Tengo» es lo de hoy: solo tiene sentido junto con las obligaciones del mes en curso, no con las de un mes pasado.
+        tengoMenosDebo: mes === mesActual
+          ? tengoMenosDebo({ efectivo: efectivo.efectivo, deudaProveedores: deudaResumen.total, obligacionesPendientes: obligaciones.pendiente })
+          : null,
         efectivo: { ...efectivo, inicial: config.efectivo_inicial },
         sobresSinRetirar: sobresSinRetirar.reduce((s, c) => s + montoSobre(c), 0),
         cambiosEfectivoInicial,
@@ -179,8 +186,16 @@ export default async function TesoreriaPage({
   const pendientesDeRegistrar = retiros.length;
   const enlace = (v: string, m: string = mes) => `/admin/tesoreria?vista=${v}&mes=${m}`;
 
-  const pagadosPorFijo: Record<string, { monto: number; fecha: string }> = {};
-  for (const e of egresosMes) if (e.gasto_fijo_id) pagadosPorFijo[e.gasto_fijo_id] = { monto: e.monto, fecha: e.fecha };
+  // Un gasto fijo puede pagarse en partes (el sueldo en dos veces): se suma lo registrado y se muestra la fecha del último pago.
+  const pagadosPorFijo: Record<string, { monto: number; fecha: string; pagos: number }> = {};
+  for (const e of egresosMes) {
+    if (!e.gasto_fijo_id) continue;
+    const p = pagadosPorFijo[e.gasto_fijo_id] ?? { monto: 0, fecha: e.fecha, pagos: 0 };
+    p.monto += e.monto;
+    p.pagos += 1;
+    if (e.fecha > p.fecha) p.fecha = e.fecha;
+    pagadosPorFijo[e.gasto_fijo_id] = p;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-5xl">

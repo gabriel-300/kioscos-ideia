@@ -121,11 +121,17 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».
   - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
   - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
-  - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Para registrar, Egresos, Gastos fijos, Cierres de caja,
+  - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Para registrar, Egresos, Proveedores, Obligaciones (los gastos fijos), Cierres de caja,
     Conciliación MP, Informe mensual e Historial. Cierres y Conciliación MP siguen siendo pantallas con su ruta (`/admin/cierres`,
     `/admin/conciliacion-mercadopago`, solo admin) y Informe mensual (`/admin/informe-mensual`, admin o socio); no tienen entrada
     propia en el menú. El concesionario conserva «Cierres» en el menú porque no ve Tesorería. Cta. Corriente (venta fiada) queda
     fuera: es del kiosco.
+  - **Obligaciones del mes** (solapa «Obligaciones»; no tiene tabla propia): son los gastos fijos (sueldos, alquiler, cuotas, servicios,
+    una fila por persona o concepto, se editan en /admin/gastos). Una obligación está «sin registrar» mientras no tenga ningún egreso
+    en el mes con su `gasto_fijo_id`; si se paga en partes se suman y cuenta como registrada (el estimado es referencia, no tope).
+    Una cuota que termina se desactiva en la lista. El Resumen muestra lo que falta registrar y **«Tengo menos debo»** = efectivo en
+    mano − saldo con proveedores − obligaciones del mes sin registrar. **Hoy «tengo» es solo el efectivo de Tesorería**: no incluye
+    Mercado Pago ni bancos hasta que haya cuentas con saldo. Solo se muestra en el mes en curso.
   - **Cuenta corriente de proveedores** (solapa «Proveedores», migración 106): el saldo por proveedor **y local** se resta, no se imputa
     remito por remito: `saldo = saldo inicial + compras que todavía se deben − pagos` (negativo = saldo a favor). Un pago puede cubrir
     varios remitos o quedar a cuenta; los más viejos se cubren primero (es solo informativo, no se guarda). El **pago no es un gasto
