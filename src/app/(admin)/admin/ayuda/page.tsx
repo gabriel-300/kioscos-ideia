@@ -302,7 +302,9 @@ export default async function AyudaPage() {
           <p className="text-sm text-neutral-600">
             Toda la contabilidad está en un solo lugar: <Campo>Finanzas</Campo> → <Campo>Tesorería</Campo>. La carga el
             administrativo (hoy Damián), mirando la factura o el remito real; el personal del kiosco no carga nada de esto.
-            Los demás socios pueden verla pero no cargar.
+            Los demás socios pueden verla pero no cargar. Dentro de Tesorería, la barra de solapas también tiene los
+            <Campo>Cierres de caja</Campo>, la <Campo>Conciliación MP</Campo> y el <Campo>Informe mensual</Campo>: todo lo de la plata
+            se mira desde ahí.
           </p>
           <div className="space-y-3">
             <Paso n={1}>

@@ -85,19 +85,18 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/ventas-por-vendedor", label: "Por vendedor",     roles: ["admin", "concesionario"], icon: "staff" },
       { href: "/admin/comandera-offline",  label: "Comandera offline", roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ventas" },
       { href: "/admin/pedidoya",           label: "Pedido Ya",        roles: ["admin"], icon: "webhook" },
-      { href: "/admin/conciliacion-mercadopago", label: "Conciliación MP", roles: ["admin"], icon: "conciliacion" },
     ],
   },
   {
     // La contabilidad (egresos, compras, lo que se debe, efectivo de Tesorería) vive toda en /admin/tesoreria: un
     // solo módulo que carga el administrativo. Gastos, Pagos a proveedores y Socios dejaron de tener entrada propia
-    // (sus URLs viejas redirigen a Tesorería, ver next.config.ts). Cierres, Informe mensual y Cta. Corriente siguen
-    // siendo del día a día del kiosco / informes.
+    // (sus URLs viejas redirigen a Tesorería, ver next.config.ts). Cierres de caja, Conciliación MP e Informe mensual son
+    // solapas de Tesorería (tesoreria/_components/solapas.tsx), por eso no tienen entrada propia acá; Cierres se mantiene
+    // SOLO para el concesionario, que no ve Tesorería. Cta. Corriente es la venta fiada del kiosco y queda aparte.
     label: "Finanzas", icon: "gastos",
     children: [
       { href: "/admin/tesoreria",         label: "Tesorería",           roles: ["admin", "socio"],                                 icon: "tesoreria" },
-      { href: "/admin/cierres",           label: "Cierres",             roles: ["admin", "concesionario"],                         icon: "cierres" },
-      { href: "/admin/informe-mensual",   label: "Informe mensual",     roles: ["admin", "socio"],                                 icon: "ventasdiarias" },
+      { href: "/admin/cierres",           label: "Cierres",             roles: ["concesionario"],                                  icon: "cierres" },
       { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "staff" },
     ],
   },
@@ -169,11 +168,11 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
     "/admin/alertas-precio": alertasPrecioPendientes,
     "/admin/transferencias": transferenciasPendientes,
     "/admin/reposicion":     reposicionPendientes,
-    "/admin/conciliacion-mercadopago": conciliacionPendientes,
-    "/admin/tesoreria":      tesoreriaPendientes,
+    // Retiros sin registrar + transferencias/QR de Mercado Pago sin asignar: las dos son tareas de Tesorería.
+    "/admin/tesoreria":      tesoreriaPendientes + conciliacionPendientes,
   };
   const stockGroupPendientes  = auditoriaPendientes + alertasPrecioPendientes + transferenciasPendientes + reposicionPendientes;
-  const ventasGroupPendientes = conciliacionPendientes;
+  const finanzasGroupPendientes = tesoreriaPendientes + conciliacionPendientes;
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
@@ -349,7 +348,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
                     <span style={{ display: "flex", color: active ? "#ffffff" : "rgba(255,255,255,0.60)" }}>
                       <NavIcon name={group.icon} size={15} />
                     </span>
-                    {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Ventas" && ventasGroupPendientes > 0) || (group.label === "Finanzas" && tesoreriaPendientes > 0)) && (
+                    {((group.label === "Stock" && stockGroupPendientes > 0) || (group.label === "Finanzas" && finanzasGroupPendientes > 0)) && (
                       <span style={{
                         position: "absolute", top: -3, right: -3, width: 7, height: 7,
                         borderRadius: "50%", background: "#FFD9B8", border: "1.5px solid " + NAVY,

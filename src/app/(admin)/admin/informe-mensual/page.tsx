@@ -21,6 +21,8 @@ const CANAL_LABELS: Record<string, string> = {
   pedido_online:        "Pedido Online",
 };
 
+import { SolapasTesoreria } from "@/app/(admin)/admin/tesoreria/_components/solapas";
+
 export default async function InformeMensualPage({
   searchParams,
 }: {
@@ -291,6 +293,7 @@ export default async function InformeMensualPage({
 
   return (
     <div className="p-4 md:p-8 max-w-[1100px]">
+      <SolapasTesoreria activa="informe-mensual" esAdmin={role === "admin"} />
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Informe mensual</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Ventas por tipo, local y forma de pago, cuenta corriente y egresos del mes</p>

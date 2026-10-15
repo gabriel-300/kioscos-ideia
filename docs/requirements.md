@@ -121,6 +121,11 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».
   - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
   - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
+  - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Para registrar, Egresos, Gastos fijos, Cierres de caja,
+    Conciliación MP, Informe mensual e Historial. Cierres y Conciliación MP siguen siendo pantallas con su ruta (`/admin/cierres`,
+    `/admin/conciliacion-mercadopago`, solo admin) y Informe mensual (`/admin/informe-mensual`, admin o socio); no tienen entrada
+    propia en el menú. El concesionario conserva «Cierres» en el menú porque no ve Tesorería. Cta. Corriente (venta fiada) queda
+    fuera: es del kiosco.
 - **Estado**: **Construido, pendiente de probar con uso real** (0 egresos). La conciliación del cierre de caja no cambió: lo que
   antes entraba por Pagos a proveedores y Socios queda en cero. `pagos_proveedor`, `movimientos_socio`, `pagos_socio` y `gastos`
   quedan como histórico. Pendiente a propósito: el concepto de retiro **temporal** de un socio con devolución (se simplificó a

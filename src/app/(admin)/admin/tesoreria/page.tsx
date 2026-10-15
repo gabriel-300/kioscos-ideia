@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, getUser } from "@/lib/supabase/server";
+import { rolDe } from "@/lib/auth/acceso";
 import { fechaHoyAR } from "@/lib/fecha";
 import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import {
@@ -15,18 +16,13 @@ import { ResumenView, type ResumenData } from "./_components/resumen-view";
 import { ParaRegistrar } from "./_components/para-registrar";
 import { EgresosLista } from "./_components/egresos-lista";
 import { FijosLista } from "./_components/fijos-lista";
+import { SolapasTesoreria } from "./_components/solapas";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = [
-  { id: "resumen",        etiqueta: "Resumen" },
-  { id: "para-registrar", etiqueta: "Para registrar" },
-  { id: "egresos",        etiqueta: "Egresos" },
-  { id: "fijos",          etiqueta: "Gastos fijos" },
-  { id: "historial",      etiqueta: "Historial" },
-] as const;
-type Vista = (typeof VISTAS)[number]["id"];
+const VISTAS = ["resumen", "para-registrar", "egresos", "fijos", "historial"] as const;
+type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
   searchParams,
@@ -38,8 +34,9 @@ export default async function TesoreriaPage({
   // Ver Tesorería: admin o socio. Cargar: solo el administrativo (lib/tesoreria/permisos.ts).
   if (!permisos.puedeVer) redirect("/admin/dashboard");
 
+  const esAdmin = rolDe(await getUser()) === "admin";
   const sp    = await searchParams;
-  const vista = (VISTAS.find((v) => v.id === sp.vista)?.id ?? "resumen") as Vista;
+  const vista = (VISTAS.find((v) => v === sp.vista) ?? "resumen") as Vista;
   const mesActual = fechaHoyAR().slice(0, 7);
   const mes   = sp.mes && rangoDelMes(sp.mes) ? sp.mes : mesActual;
   const rango = rangoDelMes(mes)!;
@@ -137,19 +134,7 @@ export default async function TesoreriaPage({
         </p>
       </div>
 
-      <nav className="flex gap-1 border-b border-neutral-200 mb-6 overflow-x-auto">
-        {VISTAS.map((v) => (
-          <Link key={v.id} href={enlace(v.id)}
-            className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${
-              vista === v.id ? "border-tierra-700 font-semibold text-tierra-900" : "border-transparent text-neutral-500 hover:text-neutral-800"
-            }`}>
-            {v.etiqueta}
-            {v.id === "para-registrar" && pendientesDeRegistrar > 0 && (
-              <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-xs font-bold text-amber-800">{pendientesDeRegistrar}</span>
-            )}
-          </Link>
-        ))}
-      </nav>
+      <SolapasTesoreria activa={vista} esAdmin={esAdmin} pendientes={pendientesDeRegistrar} mes={mes} />
 
       {vista !== "para-registrar" && (
         <div className="flex items-center gap-3 mb-6">

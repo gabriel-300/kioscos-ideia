@@ -12,6 +12,8 @@ export const metadata: Metadata = { title: "Informe de cierres — Kioscos IDEIA
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
+import { SolapasTesoreria } from "@/app/(admin)/admin/tesoreria/_components/solapas";
+
 export default async function CierresPage({
   searchParams,
 }: {
@@ -260,6 +262,7 @@ export default async function CierresPage({
 
   return (
     <div className="p-4 md:p-8 max-w-[1600px]">
+      {role === "admin" && <SolapasTesoreria activa="cierres" esAdmin />}
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>

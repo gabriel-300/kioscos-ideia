@@ -14,6 +14,8 @@ type QrOrder = { sucursal_id: string; monto: number; paid_at: string; movimiento
 type Transferencia = { sucursal_id: string | null; monto: number; recibido_en: string; movimiento_id: string | null };
 type Venta = { id: string; fecha: string; sucursal_id: string; pago_billetera: number | null; pago_transferencia: number | null };
 
+import { SolapasTesoreria } from "@/app/(admin)/admin/tesoreria/_components/solapas";
+
 export default async function ConciliacionMercadoPagoPage({
   searchParams,
 }: {
@@ -104,6 +106,7 @@ export default async function ConciliacionMercadoPagoPage({
 
   return (
     <div className="p-4 md:p-8 max-w-[1100px]">
+      <SolapasTesoreria activa="conciliacion" esAdmin />
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Conciliación Mercado Pago</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Compara lo que Mercado Pago confirmó contra lo que el sistema registró como cobrado por QR/transferencia</p>
