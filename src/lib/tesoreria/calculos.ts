@@ -165,7 +165,7 @@ export function obligacionesDelMes(
 }
 
 // «Tengo menos debo»: el efectivo en mano menos lo que se le debe a proveedores y las obligaciones del mes que todavía no se
-// registraron. Hoy «tengo» es solo el efectivo de Tesorería (todavía no hay saldos de Mercado Pago ni de bancos): la pantalla lo aclara.
-export function tengoMenosDebo(p: { efectivo: number; deudaProveedores: number; obligacionesPendientes: number }): number {
-  return redondearMoneda(p.efectivo - p.deudaProveedores - p.obligacionesPendientes);
+// registraron. «Tengo» es el efectivo de Tesorería más lo disponible en Mercado Pago (sin el saldo inicial cargado vale cero). No incluye bancos.
+export function tengoMenosDebo(p: { efectivo: number; mpDisponible?: number; deudaProveedores: number; obligacionesPendientes: number }): number {
+  return redondearMoneda(p.efectivo + (p.mpDisponible ?? 0) - p.deudaProveedores - p.obligacionesPendientes);
 }

@@ -11,6 +11,7 @@ export interface ResumenData {
   gasto:            ResumenEgresos;    // egresos del mes por fecha de compra, pagados o no
   deuda:            { items: Deuda[]; total: number };
   obligaciones:     { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number };
+  mp:               { configurada: boolean; disponible: number };   // cuenta de Mercado Pago (migración 107)
   tengoMenosDebo:   number | null;     // efectivo en mano − lo que se debe a proveedores − obligaciones sin registrar (solo mes en curso)
   efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
   sobresSinRetirar: number;
@@ -51,7 +52,7 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Hoy</p>
         {data.tengoMenosDebo !== null && <div className="mb-4">
           <Tarjeta titulo="Tengo menos debo" valor={`${data.tengoMenosDebo >= 0 ? "" : "−"}${AR.format(Math.abs(data.tengoMenosDebo))}`}
-            pie={`Efectivo en mano ${AR.format(data.efectivo.efectivo)} − proveedores ${AR.format(data.deuda.total)} − obligaciones del mes sin registrar ${AR.format(data.obligaciones.pendiente)}. No incluye saldos de Mercado Pago ni de bancos.`}
+            pie={`Efectivo en mano ${AR.format(data.efectivo.efectivo)}${data.mp.configurada ? ` + Mercado Pago disponible ${AR.format(data.mp.disponible)}` : ""} − proveedores ${AR.format(data.deuda.total)} − obligaciones del mes sin registrar ${AR.format(data.obligaciones.pendiente)}. ${data.mp.configurada ? "No incluye bancos." : "Falta cargar el saldo de Mercado Pago (solapa Cuentas): hoy solo cuenta el efectivo."}`}
             tono={data.tengoMenosDebo >= 0 ? "verde" : "rojo"} />
         </div>}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

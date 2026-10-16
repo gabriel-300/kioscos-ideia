@@ -121,11 +121,19 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».
   - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
   - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
-  - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Para registrar, Egresos, Proveedores, Obligaciones (los gastos fijos), Cierres de caja,
+  - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Cuentas, Para registrar, Egresos, Proveedores, Obligaciones (los gastos fijos), Cierres de caja,
     Conciliación MP, Informe mensual e Historial. Cierres y Conciliación MP siguen siendo pantallas con su ruta (`/admin/cierres`,
     `/admin/conciliacion-mercadopago`, solo admin) y Informe mensual (`/admin/informe-mensual`, admin o socio); no tienen entrada
     propia en el menú. El concesionario conserva «Cierres» en el menú porque no ve Tesorería. Cta. Corriente (venta fiada) queda
     fuera: es del kiosco.
+  - **Cuentas** (solapa «Cuentas», migración 107): se llevan **solo dos**, el efectivo de Tesorería y **Mercado Pago** (decisión del usuario: no
+    hay Brubank ni Ualá ni otras). Saldo de Mercado Pago = saldo inicial + cobros importados (neto de comisión) + ingresos clasificados
+    como entrada (traspaso propio, aporte de socio, otro ingreso; «no es un ingreso» y lo sin clasificar NO suman) − pagos con origen
+    «Mercado Pago» (egresos y pagos a proveedor) − retiros de la cuenta. Los cobros que MP todavía no liberó se muestran «a liberar» y
+    no son disponibles. El saldo inicial es de **al comenzar** el día elegido y solo cuentan movimientos desde ahí. Es una **estimación**:
+    lo que MP no informa a este sistema (retiros, otras comisiones) entra solo si se carga; cuando se importe el reporte de movimientos
+    de MP será exacto. «Tengo» de «Tengo menos debo» = efectivo en mano + Mercado Pago disponible. Un pago por «transferencia» no
+    toca ninguna cuenta (no se llevan bancos).
   - **Obligaciones del mes** (solapa «Obligaciones»; no tiene tabla propia): son los gastos fijos (sueldos, alquiler, cuotas, servicios,
     una fila por persona o concepto, se editan en /admin/gastos). Una obligación está «sin registrar» mientras no tenga ningún egreso
     en el mes con su `gasto_fijo_id`; si se paga en partes se suman y cuenta como registrada (el estimado es referencia, no tope).

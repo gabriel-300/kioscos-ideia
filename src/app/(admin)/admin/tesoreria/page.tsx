@@ -18,6 +18,8 @@ import { EgresosLista } from "./_components/egresos-lista";
 import { FijosLista } from "./_components/fijos-lista";
 import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago-view";
 import { ProveedoresView, type ProveedoresData } from "./_components/proveedores-view";
+import { CuentasView, type CuentasData } from "./_components/cuentas-view";
+import { cargarCuentaMp } from "@/lib/tesoreria/cuenta-mp-consultas";
 import { cargarMovimientosProveedor } from "@/lib/tesoreria/proveedores-consultas";
 import { deudaDelResumen, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
@@ -27,7 +29,7 @@ import { SolapasTesoreria } from "./_components/solapas";
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = ["resumen", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "historial"] as const;
+const VISTAS = ["resumen", "cuentas", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "historial"] as const;
 type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
@@ -88,7 +90,7 @@ export default async function TesoreriaPage({
     if (vista === "fijos" || vista === "resumen") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, cuentaMp] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
@@ -96,6 +98,7 @@ export default async function TesoreriaPage({
         cargarSobresSinRetirar(admin, sucursalIds, config.fecha_inicio),
         cargarCambiosEfectivoInicial(admin),
         cargarMovimientosProveedor(admin, true),
+        cargarCuentaMp(admin, true),
       ]);
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
@@ -109,9 +112,10 @@ export default async function TesoreriaPage({
         // Con cuenta corriente (migración 106) lo que se debe a un proveedor es su saldo, no la suma de compras sueltas.
         deuda: deudaResumen,
         obligaciones,
+        mp: { configurada: cuentaMp.saldo.configurada, disponible: cuentaMp.saldo.disponible },
         // «Tengo» es lo de hoy: solo tiene sentido junto con las obligaciones del mes en curso, no con las de un mes pasado.
         tengoMenosDebo: mes === mesActual
-          ? tengoMenosDebo({ efectivo: efectivo.efectivo, deudaProveedores: deudaResumen.total, obligacionesPendientes: obligaciones.pendiente })
+          ? tengoMenosDebo({ efectivo: efectivo.efectivo, mpDisponible: cuentaMp.saldo.configurada ? cuentaMp.saldo.disponible : 0, deudaProveedores: deudaResumen.total, obligacionesPendientes: obligaciones.pendiente })
           : null,
         efectivo: { ...efectivo, inicial: config.efectivo_inicial },
         sobresSinRetirar: sobresSinRetirar.reduce((s, c) => s + montoSobre(c), 0),
@@ -163,6 +167,24 @@ export default async function TesoreriaPage({
     }
   }
 
+  // Solapa «Cuentas» (migración 107). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
+  let cuentas: CuentasData | null = null;
+  let cuentasError = "";
+  if (vista === "cuentas") {
+    try {
+      const idsSucursales = datos.sucursales.map((s) => s.id);
+      const [salidas, sobres, cuentaMp] = await Promise.all([
+        cargarSalidasEfectivo(admin, datos.config.fecha_inicio),
+        cargarSobresRetirados(admin, idsSucursales, datos.config.fecha_inicio),
+        cargarCuentaMp(admin),
+      ]);
+      const ef = efectivoDeTesoreria({ efectivoInicial: datos.config.efectivo_inicial, sobresRecibidos: sobres, egresos: salidas });
+      cuentas = { efectivo: { ...ef, inicial: datos.config.efectivo_inicial }, mp: cuentaMp.saldo, movimientos: cuentaMp.movimientos };
+    } catch (e) {
+      cuentasError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   // Solapa «Proveedores» (migración 106). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
   let prov: ProveedoresData | null = null;
   let provError = "";
@@ -209,7 +231,7 @@ export default async function TesoreriaPage({
 
       <SolapasTesoreria activa={vista} esAdmin={esAdmin} pendientes={pendientesDeRegistrar} mes={mes} />
 
-      {vista !== "para-registrar" && vista !== "proveedores" && (
+      {vista !== "para-registrar" && vista !== "proveedores" && vista !== "cuentas" && (
         <div className="flex items-center gap-3 mb-6">
           <Link href={enlace(vista, anterior)} aria-label="Mes anterior" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
             <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -229,6 +251,14 @@ export default async function TesoreriaPage({
       )}
       {vista === "egresos" && (
         <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "cuentas" && cuentas && <CuentasView data={cuentas} puedeCargar={permisos.puedeCargar} />}
+      {vista === "cuentas" && cuentasError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Las cuentas todavía no están listas en la base de datos.</p>
+          <p className="mt-1">Falta aplicar la migración 107 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {cuentasError}</p>
+        </div>
       )}
       {vista === "proveedores" && prov && (
         <ProveedoresView data={prov} proveedores={proveedores} sucursales={sucursales} puedeCargar={permisos.puedeCargar} />

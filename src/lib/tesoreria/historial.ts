@@ -14,6 +14,7 @@ export const ACCIONES_HISTORIAL = [
   "efectivo_inicial_cambiado", "permiso_cambiado",
   "mp_cobros_importados", "mp_cobro_clasificado",
   "proveedor_saldo_inicial", "proveedor_pago", "proveedor_movimiento_anulado",
+  "mp_saldo_inicial", "mp_retiro", "mp_movimiento_anulado",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -30,6 +31,9 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   proveedor_saldo_inicial:   "Saldo inicial de proveedor cargado",
   proveedor_pago:            "Pago a proveedor registrado",
   proveedor_movimiento_anulado: "Movimiento de proveedor anulado",
+  mp_saldo_inicial:          "Saldo inicial de Mercado Pago cargado",
+  mp_retiro:                 "Retiro de Mercado Pago registrado",
+  mp_movimiento_anulado:     "Movimiento de Mercado Pago anulado",
 };
 
 export interface EntradaHistorial {
@@ -109,6 +113,12 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `Registró un pago de ${plata(d.monto)} a ${texto(d.proveedor) ?? "un proveedor"}${texto(d.sucursal) ? ` (${texto(d.sucursal)})` : ""}${texto(d.origen) ? ` con ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)}` : ""}`;
     case "proveedor_movimiento_anulado":
       return `Anuló ${d.tipo === "saldo_inicial" ? "el saldo inicial" : "un pago"} de ${plata(d.monto)} de ${texto(d.proveedor) ?? "un proveedor"}`;
+    case "mp_saldo_inicial":
+      return `Cargó el saldo inicial de Mercado Pago: ${plata(d.monto)} al comenzar el ${texto(d.fecha) ?? "?"}`;
+    case "mp_retiro":
+      return `Registró un retiro de ${plata(d.monto)} de Mercado Pago`;
+    case "mp_movimiento_anulado":
+      return `Anuló ${d.tipo === "saldo_inicial" ? "el saldo inicial" : "un retiro"} de Mercado Pago de ${plata(d.monto)}`;
     case "permiso_cambiado": {
       const quien = texto(d.persona) ?? "una persona";
       const permiso = PERMISO[texto(d.permiso) ?? ""] ?? texto(d.permiso) ?? "un permiso";

@@ -5,10 +5,11 @@ import Link from "next/link";
 // Cierres y Conciliación MP son solo de admin (sus páginas lo exigen); Informe mensual lo ven admin y socio, igual que Tesorería.
 
 export type SolapaTesoreria =
-  | "resumen" | "para-registrar" | "egresos" | "proveedores" | "fijos" | "cierres" | "mercadopago" | "conciliacion" | "informe-mensual" | "historial";
+  | "resumen" | "cuentas" | "para-registrar" | "egresos" | "proveedores" | "fijos" | "cierres" | "mercadopago" | "conciliacion" | "informe-mensual" | "historial";
 
 const SOLAPAS: { id: SolapaTesoreria; etiqueta: string; href: string; soloAdmin?: boolean }[] = [
   { id: "resumen",         etiqueta: "Resumen",         href: "/admin/tesoreria?vista=resumen" },
+  { id: "cuentas",         etiqueta: "Cuentas",         href: "/admin/tesoreria?vista=cuentas" },
   { id: "para-registrar",  etiqueta: "Para registrar",  href: "/admin/tesoreria?vista=para-registrar" },
   { id: "egresos",         etiqueta: "Egresos",         href: "/admin/tesoreria?vista=egresos" },
   { id: "proveedores",     etiqueta: "Proveedores",     href: "/admin/tesoreria?vista=proveedores" },
