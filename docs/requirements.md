@@ -122,10 +122,20 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
   - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
   - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Cuentas, Para registrar, Egresos, Proveedores, Obligaciones (los gastos fijos), Cierres de caja,
-    Conciliación MP, Informe mensual e Historial. Cierres y Conciliación MP siguen siendo pantallas con su ruta (`/admin/cierres`,
+    Cobros MP, PedidosYa, Conciliación MP, Informe mensual e Historial. Cierres y Conciliación MP siguen siendo pantallas con su ruta (`/admin/cierres`,
     `/admin/conciliacion-mercadopago`, solo admin) y Informe mensual (`/admin/informe-mensual`, admin o socio); no tienen entrada
     propia en el menú. El concesionario conserva «Cierres» en el menú porque no ve Tesorería. Cta. Corriente (venta fiada) queda
     fuera: es del kiosco.
+  - **Liquidaciones de PedidosYa** (solapa «PedidosYa», migración 108; paso a paso en [pedidosya-liquidaciones.md](pedidosya-liquidaciones.md)): PedidosYa
+    no da API, así que una persona baja una vez por semana el CSV de pedidos y el Excel del estado de cuenta, y copia del PDF los importes que no vienen
+    por pedido (publicidad, IVA, retención SIRTAC, reintegros, ajustes). El sistema **solo confirma si el neto calculado es igual al «Total liquidado»**
+    del PDF (a $0,00); si no, muestra la diferencia. Dinero en centavos enteros. El porcentaje de comisión, el IVA y SIRTAC **no se fijan**: salen de los
+    archivos. Cada pedido se cruza con la venta «Pedido Ya» del kiosco por **día + importe exacto + hora cercana** (el sistema no guarda el número de pedido
+    y se decidió no pedírselo al kiosco); lo dudoso se cruza a mano. La fecha de cobro es la que informa el PDF (+72 hs hábiles de acreditación, sin
+    feriados); sin PDF se estima con el plazo de la última liquidación y se marca «estimada». PedidosYa transfiere cada semana a Mercado Pago: el cobro
+    se vincula con el movimiento de MP (queda clasificado como «otro ingreso»). Lo que PedidosYa debe es un **«a cobrar» informativo**, fuera de
+    «Tengo menos debo». **Efectivo, reintegros y notas de crédito: sin regla contable** (no hay ejemplo real): quedan «pendiente de validar» y como
+    importes genéricos. Hoy solo el Parque vende por PedidosYa (tienda 626966).
   - **Cuentas** (solapa «Cuentas», migración 107): se llevan **solo dos**, el efectivo de Tesorería y **Mercado Pago** (decisión del usuario: no
     hay Brubank ni Ualá ni otras). Saldo de Mercado Pago = saldo inicial + cobros importados (neto de comisión) + ingresos clasificados
     como entrada (traspaso propio, aporte de socio, otro ingreso; «no es un ingreso» y lo sin clasificar NO suman) − pagos con origen
