@@ -584,3 +584,30 @@ export function validarResumenExcel(e: unknown): { valor: LecturaExcel } | { err
     },
   };
 }
+
+// ── «A cobrar» de PedidosYa ──────────────────────────────────────────────────
+// Lo que PedidosYa todavía no pagó. Es un «a cobrar» informativo: NO suma al «tengo» ni resta al «debo» (la plata de la PeYa Wallet
+// pasa a Mercado Pago recién cuando se acredita). Importes en PESOS (como están en la base).
+export interface LiquidacionParaCobrar {
+  estado: "estimado" | "confirmado" | "acreditado" | "conciliado";
+  total_liquidado: number | null; ingreso_estimado: number;
+  fecha_pago_procesado: string | null; fecha_pago_estimada: string | null;
+}
+export interface ACobrarPeya {
+  confirmado: number;      // Σ «Total liquidado» de las liquidaciones confirmadas y todavía sin acreditar
+  estimado: number;        // Σ ingreso estimado de las liquidaciones sin estado de cuenta (faltan publicidad y retenciones)
+  cantidad: number;
+  proxima: { fecha: string; confirmada: boolean } | null;   // el cobro más cercano
+}
+export function aCobrarPeya(liquidaciones: LiquidacionParaCobrar[]): ACobrarPeya {
+  let confirmado = 0, estimado = 0, cantidad = 0;
+  let proxima: ACobrarPeya["proxima"] = null;
+  for (const l of liquidaciones) {
+    if (l.estado === "acreditado" || l.estado === "conciliado") continue;
+    cantidad++;
+    if (l.estado === "confirmado" && l.total_liquidado !== null) confirmado += aCentavos(l.total_liquidado); else estimado += aCentavos(l.ingreso_estimado);
+    const fecha = l.fecha_pago_procesado ?? l.fecha_pago_estimada;
+    if (fecha && (!proxima || fecha < proxima.fecha)) proxima = { fecha, confirmada: !!l.fecha_pago_procesado };
+  }
+  return { confirmado: aPesos(confirmado), estimado: aPesos(estimado), cantidad, proxima };
+}

@@ -1,5 +1,7 @@
 import { etiquetaCategoria } from "@/lib/tesoreria/tipos";
 import type { Deuda, ObligacionMes, ResumenEgresos } from "@/lib/tesoreria/calculos";
+import type { ACobrarPeya } from "@/lib/tesoreria/peya";
+import Link from "next/link";
 import { EfectivoInicialForm } from "./efectivo-inicial-form";
 import { describirHistorial } from "@/lib/tesoreria/historial";
 import type { CambiosEfectivoInicial } from "@/lib/tesoreria/consultas";
@@ -12,6 +14,7 @@ export interface ResumenData {
   deuda:            { items: Deuda[]; total: number };
   obligaciones:     { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number };
   mp:               { configurada: boolean; disponible: number };   // cuenta de Mercado Pago (migración 107)
+  peya:             ACobrarPeya;       // lo que PedidosYa todavía no pagó (informativo, fuera de «tengo menos debo»)
   tengoMenosDebo:   number | null;     // efectivo en mano − lo que se debe a proveedores − obligaciones sin registrar (solo mes en curso)
   efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
   sobresSinRetirar: number;
@@ -63,6 +66,15 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
           <Tarjeta titulo="Efectivo en mano" valor={AR.format(data.efectivo.efectivo)} pie="Lo de Tesorería, sin contar los kioscos" />
           <Tarjeta titulo="Sobres en los kioscos" valor={AR.format(data.sobresSinRetirar)} pie="Cerrados desde el arranque, todavía sin retirar" />
         </div>
+        {data.peya.cantidad > 0 && (
+          <p className="text-xs text-neutral-500 mt-3">
+            A cobrar de PedidosYa: <b>{AR.format(data.peya.confirmado)}</b> confirmado
+            {data.peya.estimado > 0 ? ` + ${AR.format(data.peya.estimado)} estimado` : ""}
+            {data.peya.proxima ? ` · próximo cobro el ${data.peya.proxima.fecha.split("-").reverse().join("/")}${data.peya.proxima.confirmada ? "" : " (estimado)"}` : ""}.
+            Es informativo: no suma a «Tengo menos debo» hasta que la plata llega a Mercado Pago.{" "}
+            <Link href="/admin/tesoreria?vista=pedidosya" className="font-semibold underline">Ver las liquidaciones</Link>
+          </p>
+        )}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

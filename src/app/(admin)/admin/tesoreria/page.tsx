@@ -19,6 +19,11 @@ import { FijosLista } from "./_components/fijos-lista";
 import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago-view";
 import { ProveedoresView, type ProveedoresData } from "./_components/proveedores-view";
 import { CuentasView, type CuentasData } from "./_components/cuentas-view";
+import { PeyaView, type PeyaData } from "./_components/peya-view";
+import { aCobrarPeya, diaAR } from "@/lib/tesoreria/peya";
+import {
+  cargarArchivosDeLiquidacion, cargarLiquidacionPeya, cargarLiquidacionesPeya, cargarLiquidacionesPeyaSiExiste, cargarPedidosDeLiquidacion, cargarVentasParaCruce, cargarVentasYaCruzadas,
+} from "@/lib/tesoreria/peya-consultas";
 import { cargarCuentaMp } from "@/lib/tesoreria/cuenta-mp-consultas";
 import { cargarMovimientosProveedor } from "@/lib/tesoreria/proveedores-consultas";
 import { deudaDelResumen, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
@@ -29,13 +34,13 @@ import { SolapasTesoreria } from "./_components/solapas";
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = ["resumen", "cuentas", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "historial"] as const;
+const VISTAS = ["resumen", "cuentas", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "pedidosya", "historial"] as const;
 type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; mes?: string }>;
+  searchParams: Promise<{ vista?: string; mes?: string; liq?: string }>;
 }) {
   const permisos = await permisosTesoreria();
   if (!permisos) redirect("/login");
@@ -90,7 +95,7 @@ export default async function TesoreriaPage({
     if (vista === "fijos" || vista === "resumen") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, cuentaMp] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, cuentaMp, liquidacionesPeya] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
@@ -99,6 +104,7 @@ export default async function TesoreriaPage({
         cargarCambiosEfectivoInicial(admin),
         cargarMovimientosProveedor(admin, true),
         cargarCuentaMp(admin, true),
+        cargarLiquidacionesPeyaSiExiste(admin),
       ]);
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
@@ -113,6 +119,7 @@ export default async function TesoreriaPage({
         deuda: deudaResumen,
         obligaciones,
         mp: { configurada: cuentaMp.saldo.configurada, disponible: cuentaMp.saldo.disponible },
+        peya: aCobrarPeya(liquidacionesPeya),
         // «Tengo» es lo de hoy: solo tiene sentido junto con las obligaciones del mes en curso, no con las de un mes pasado.
         tengoMenosDebo: mes === mesActual
           ? tengoMenosDebo({ efectivo: efectivo.efectivo, mpDisponible: cuentaMp.saldo.configurada ? cuentaMp.saldo.disponible : 0, deudaProveedores: deudaResumen.total, obligacionesPendientes: obligaciones.pendiente })
@@ -164,6 +171,37 @@ export default async function TesoreriaPage({
       };
     } catch (e) {
       mpError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // Solapa «PedidosYa» (migración 108). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
+  let peya: PeyaData | null = null;
+  let peyaError = "";
+  if (vista === "pedidosya") {
+    try {
+      const liquidaciones = await cargarLiquidacionesPeya(admin);
+      const nombreLocal = Object.fromEntries(datos.sucursales.map((s) => [s.id, s.nombre]));
+      let detalle: PeyaData["detalle"] = null;
+      const liqId = sp.liq && /^[0-9a-f-]{36}$/i.test(sp.liq) ? sp.liq : null;
+      if (liqId) {
+        const liquidacion = await cargarLiquidacionPeya(admin, liqId);
+        if (liquidacion) {
+          const [pedidos, archivos, ventas] = await Promise.all([
+            cargarPedidosDeLiquidacion(admin, liqId),
+            cargarArchivosDeLiquidacion(admin, liqId),
+            liquidacion.sucursal_id ? cargarVentasParaCruce(admin, liquidacion.sucursal_id, liquidacion.periodo_desde, liquidacion.periodo_hasta) : Promise.resolve([]),
+          ]);
+          // Ventas del kiosco del período que no están cruzadas con ningún pedido (de esta ni de otra liquidación).
+          const cruzadas = await cargarVentasYaCruzadas(admin, ventas.map((v) => v.id));
+          const ventasSinPeya = ventas
+            .filter((v) => !cruzadas.has(v.id) && diaAR(v.creado_en) >= liquidacion.periodo_desde && diaAR(v.creado_en) <= liquidacion.periodo_hasta)
+            .map((v) => ({ id: v.id, creado_en: v.creado_en, total: v.total / 100, canal: v.canal }));
+          detalle = { liquidacion, pedidos, archivos, ventasSinPeya };
+        }
+      }
+      peya = { liquidaciones, nombreLocal, aCobrar: aCobrarPeya(liquidaciones), detalle };
+    } catch (e) {
+      peyaError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -231,7 +269,7 @@ export default async function TesoreriaPage({
 
       <SolapasTesoreria activa={vista} esAdmin={esAdmin} pendientes={pendientesDeRegistrar} mes={mes} />
 
-      {vista !== "para-registrar" && vista !== "proveedores" && vista !== "cuentas" && (
+      {vista !== "para-registrar" && vista !== "proveedores" && vista !== "cuentas" && vista !== "pedidosya" && (
         <div className="flex items-center gap-3 mb-6">
           <Link href={enlace(vista, anterior)} aria-label="Mes anterior" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
             <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -251,6 +289,14 @@ export default async function TesoreriaPage({
       )}
       {vista === "egresos" && (
         <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+      )}
+      {vista === "pedidosya" && peya && <PeyaView data={peya} puedeCargar={permisos.puedeCargar} />}
+      {vista === "pedidosya" && peyaError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Las liquidaciones de PedidosYa todavía no están listas en la base de datos.</p>
+          <p className="mt-1">Falta aplicar la migración 108 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {peyaError}</p>
+        </div>
       )}
       {vista === "cuentas" && cuentas && <CuentasView data={cuentas} puedeCargar={permisos.puedeCargar} />}
       {vista === "cuentas" && cuentasError && (

@@ -22,6 +22,10 @@ const COLOR: Record<string, string> = {
   mp_saldo_inicial:          "border-blue-200 bg-blue-50 text-blue-700",
   mp_retiro:                 "border-amber-200 bg-amber-50 text-amber-700",
   mp_movimiento_anulado:     "border-danger/30 bg-danger/5 text-danger",
+  peya_liquidacion_importada:   "border-blue-200 bg-blue-50 text-blue-700",
+  peya_liquidacion_confirmada:  "border-selva-200 bg-selva-50 text-selva-700",
+  peya_acreditacion_registrada: "border-selva-200 bg-selva-50 text-selva-700",
+  peya_conciliacion_manual:     "border-amber-200 bg-amber-50 text-amber-700",
 };
 
 export function HistorialView({ filas }: { filas: FilaHistorial[] }) {

@@ -15,6 +15,7 @@ export const ACCIONES_HISTORIAL = [
   "mp_cobros_importados", "mp_cobro_clasificado",
   "proveedor_saldo_inicial", "proveedor_pago", "proveedor_movimiento_anulado",
   "mp_saldo_inicial", "mp_retiro", "mp_movimiento_anulado",
+  "peya_liquidacion_importada", "peya_liquidacion_confirmada", "peya_acreditacion_registrada", "peya_conciliacion_manual",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -34,6 +35,10 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   mp_saldo_inicial:          "Saldo inicial de Mercado Pago cargado",
   mp_retiro:                 "Retiro de Mercado Pago registrado",
   mp_movimiento_anulado:     "Movimiento de Mercado Pago anulado",
+  peya_liquidacion_importada:   "Liquidación de PedidosYa importada (estimada)",
+  peya_liquidacion_confirmada:  "Liquidación de PedidosYa confirmada",
+  peya_acreditacion_registrada: "Cobro de PedidosYa registrado",
+  peya_conciliacion_manual:     "Pedido de PedidosYa cruzado a mano",
 };
 
 export interface EntradaHistorial {
@@ -119,6 +124,15 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `Registró un retiro de ${plata(d.monto)} de Mercado Pago`;
     case "mp_movimiento_anulado":
       return `Anuló ${d.tipo === "saldo_inicial" ? "el saldo inicial" : "un retiro"} de Mercado Pago de ${plata(d.monto)}`;
+    case "peya_liquidacion_importada":
+    case "peya_liquidacion_confirmada": {
+      const estado = f.accion === "peya_liquidacion_confirmada" ? "confirmó" : "importó (estimada)";
+      return `Se ${estado} la liquidación de PedidosYa del ${texto(d.desde) ?? "?"} al ${texto(d.hasta) ?? "?"} (${numero(d.pedidos) ?? 0} pedidos${numero(d.total_liquidado) !== null ? `, total ${plata(d.total_liquidado)}` : ""})${d.reimportada === true ? ", reimportada" : ""}`;
+    }
+    case "peya_acreditacion_registrada":
+      return `Registró el cobro de PedidosYa del ${texto(d.desde) ?? "?"} al ${texto(d.hasta) ?? "?"}: llegaron ${plata(d.acreditado)} de ${plata(d.esperado)} esperados${d.mercadopago === true ? " (vinculado a Mercado Pago)" : ""}`;
+    case "peya_conciliacion_manual":
+      return `Cruzó a mano el pedido ${texto(d.pedido) ?? "?"} de PedidosYa: ${texto(d.resultado) ?? "?"}`;
     case "permiso_cambiado": {
       const quien = texto(d.persona) ?? "una persona";
       const permiso = PERMISO[texto(d.permiso) ?? ""] ?? texto(d.permiso) ?? "un permiso";

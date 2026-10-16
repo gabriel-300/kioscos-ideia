@@ -5,7 +5,7 @@ import Link from "next/link";
 // Cierres y Conciliación MP son solo de admin (sus páginas lo exigen); Informe mensual lo ven admin y socio, igual que Tesorería.
 
 export type SolapaTesoreria =
-  | "resumen" | "cuentas" | "para-registrar" | "egresos" | "proveedores" | "fijos" | "cierres" | "mercadopago" | "conciliacion" | "informe-mensual" | "historial";
+  | "resumen" | "cuentas" | "para-registrar" | "egresos" | "proveedores" | "fijos" | "cierres" | "mercadopago" | "pedidosya" | "conciliacion" | "informe-mensual" | "historial";
 
 const SOLAPAS: { id: SolapaTesoreria; etiqueta: string; href: string; soloAdmin?: boolean }[] = [
   { id: "resumen",         etiqueta: "Resumen",         href: "/admin/tesoreria?vista=resumen" },
@@ -16,6 +16,7 @@ const SOLAPAS: { id: SolapaTesoreria; etiqueta: string; href: string; soloAdmin?
   { id: "fijos",           etiqueta: "Obligaciones",    href: "/admin/tesoreria?vista=fijos" },
   { id: "cierres",         etiqueta: "Cierres de caja", href: "/admin/cierres", soloAdmin: true },
   { id: "mercadopago",     etiqueta: "Cobros MP",       href: "/admin/tesoreria?vista=mercadopago" },
+  { id: "pedidosya",       etiqueta: "PedidosYa",       href: "/admin/tesoreria?vista=pedidosya" },
   { id: "conciliacion",    etiqueta: "Conciliación MP", href: "/admin/conciliacion-mercadopago", soloAdmin: true },
   { id: "informe-mensual", etiqueta: "Informe mensual", href: "/admin/informe-mensual" },
   { id: "historial",       etiqueta: "Historial",       href: "/admin/tesoreria?vista=historial" },
