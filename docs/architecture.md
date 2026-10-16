@@ -65,8 +65,8 @@ lo importa ningún módulo.
   además hay ~14 migraciones registradas sin archivo en el repo y policies vivas sin archivo (categories, products,
   profiles), la tabla `cta_corriente_pagos` sin `CREATE` y el bucket `remitos` sin migración. **Repetir las migraciones
   no reconstruye la base viva.** Estado verificado el 2026-09-19: 000–095 aplicadas (la 095 la corrió el usuario).
-  `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
-  por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
+  `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) **fue aplicada el 2026-10-16**
+  (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
@@ -242,6 +242,17 @@ páginas con `.range()`).
 - Helpers usados por las policies: `is_admin()` y `current_role()` leen el rol del JWT (`app_metadata.role`),
   `my_sucursal_id()` lee `profiles.sucursal_id`, `movimiento_visible_por_turno(...)` restringe a vendedor/encargado a
   lo de su turno del día (fecha calculada en `America/Argentina/Buenos_Aires`).
+- **Cómo se escriben las policies (rendimiento, 2026-09-25).** Toda llamada a `auth.uid()`, `auth.jwt()`, `is_admin()` o
+  `my_sucursal_id()` dentro de una policy va envuelta en `(select ...)`: así Postgres la calcula una vez por consulta y no
+  una por fila (sin el envoltorio, `my_sucursal_id()`, que lee `profiles`, se ejecutaba por cada fila de `movimientos` y
+  dejó `profiles` con ~114 millones de lecturas secuenciales; la consulta de ventas del POS promediaba 857 ms). Además,
+  para un mismo rol y comando hay **una sola policy permisiva**: las `FOR ALL` de admin se reparten en
+  `FOR INSERT/UPDATE/DELETE` y su parte de SELECT se une (con OR) a la policy SELECT de la tabla. Las que van `TO public`
+  (`aperturas_caja`, `proveedores`, `retiros_caja`, `product_price_history`) no se mezclan con las `TO authenticated`: cambiaría
+  el conjunto de roles. `movimiento_visible_por_turno(...)` recibe columnas de la fila y no se puede envolver: es el costo
+  que queda. Verificado tras aplicar la 098 (2026-10-16): `get_advisors` (performance) muestra 0 `auth_rls_initplan` (antes 45) y solo el
+  `multiple_permissive_policies` de `aperturas_caja` (antes 46). Antes de tocar policies en producción: guardar el texto vivo de
+  `pg_policies` (reversión) y comparar por rol con `scripts/rls-rendimiento/01_comparar_por_rol.sql`.
 - Permisos por columna: `products.costo` y `margen_*` no son legibles por `anon` ni `authenticated`
   (`select("*")` sobre `products` con la anon key da **401** `42501`); `profiles.role/sucursal_id/es_socio/
   credito_limite` no son actualizables por `authenticated`.
@@ -709,6 +720,12 @@ Sin integración de facturación electrónica (AFIP/ARCA): no hay nada en el có
 8. **Overloads duplicados de RPC.** Cambiar la firma de una función con `create or replace` **agrega** un overload y
    deja el viejo; hay que hacer `drop function if exists ...(tipos)` antes (incidente de la migración 028, repetido en la
    085). Checklist: buscar todos los llamadores del RPC antes de cambiarlo y verificar en `pg_proc` que queda uno solo.
+16. **Policies de RLS: envolver y no duplicar.** Una policy con `auth.uid()`/`is_admin()`/`my_sucursal_id()` sin `(select ...)`
+    se reevalúa por fila; dos policies permisivas para el mismo rol y comando se evalúan las dos. Una `FOR ALL` de admin al lado
+    de una `FOR SELECT` es justo ese caso: usar `FOR INSERT/UPDATE/DELETE` para el admin y unir el SELECT (ver §3).
+17. **El MCP de Supabase (solo lectura) no puede probar RLS real**: su usuario no puede hacer `set role authenticated` ni ejecutar
+    `my_sucursal_id()`/`movimiento_visible_por_turno()`. La simulación por rol se hace en el SQL Editor (como `postgres`) o, desde
+    MCP, emulando las condiciones con el JWT reemplazado como texto (aproximación: las subconsultas ven todas las filas).
 9. **`select("*")` con columnas sin permiso.** Como `products.costo` no es legible por el rol de sesión, un
    `select("*")` con el cliente de sesión falla o devuelve 0 filas; usar el cliente admin o listar columnas.
 10. **El cliente admin no aplica RLS**, y un `update`/`delete` filtrado solo por `id` toca filas de otras sucursales.
