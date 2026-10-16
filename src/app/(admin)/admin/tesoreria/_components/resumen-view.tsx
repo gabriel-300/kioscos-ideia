@@ -1,6 +1,7 @@
 import { etiquetaCategoria } from "@/lib/tesoreria/tipos";
 import type { Deuda, ObligacionMes, ResumenEgresos } from "@/lib/tesoreria/calculos";
 import type { ACobrarPeya } from "@/lib/tesoreria/peya";
+import type { AlertaTesoreria } from "@/lib/tesoreria/alertas";
 import Link from "next/link";
 import { EfectivoInicialForm } from "./efectivo-inicial-form";
 import { describirHistorial } from "@/lib/tesoreria/historial";
@@ -14,6 +15,7 @@ export interface ResumenData {
   deuda:            { items: Deuda[]; total: number };
   obligaciones:     { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number };
   mp:               { configurada: boolean; disponible: number };   // cuenta de Mercado Pago (migración 107)
+  alertas:          AlertaTesoreria[]; // «Para revisar»: lo que no cierra o no coincide y alguien tiene que mirar
   peya:             ACobrarPeya;       // lo que PedidosYa todavía no pagó (informativo, fuera de «tengo menos debo»)
   tengoMenosDebo:   number | null;     // efectivo en mano − lo que se debe a proveedores − obligaciones sin registrar (solo mes en curso)
   efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
@@ -41,6 +43,20 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
   const diferencia = data.entro - data.gasto.operativos;
   return (
     <div className="space-y-8">
+      {data.alertas.length > 0 && (
+        <section aria-label="Para revisar">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Para revisar ({data.alertas.length})</p>
+          <ul className="space-y-2">
+            {data.alertas.map((a) => (
+              <li key={a.id} className={`rounded-xl border p-3 ${a.nivel === "rojo" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                <p className={`text-sm font-semibold ${a.nivel === "rojo" ? "text-red-800" : "text-amber-900"}`}>{a.titulo}</p>
+                <p className="text-xs text-neutral-600 mt-0.5">{a.detalle}</p>
+                <Link href={a.href} className="text-xs font-semibold underline text-neutral-800 mt-1 inline-block">Revisar</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section>
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3 capitalize">{mesLabel}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

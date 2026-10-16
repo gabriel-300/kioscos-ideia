@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { fechaHoyAR } from "@/lib/fecha";
 import type { ACobrarPeya } from "@/lib/tesoreria/peya";
 import type { ArchivoPeya, LiquidacionPeya, PedidoGuardado } from "@/lib/tesoreria/peya-consultas";
-import { candidatosAcreditacionMp, conciliarPedidoPeya, registrarAcreditacionPeya, urlArchivoPeya, type CandidatoAcreditacion } from "../peya-actions";
+import { candidatosAcreditacionMp, conciliarPedidoPeya, registrarAcreditacionPeya, revisarPedidoPeya, urlArchivoPeya, type CandidatoAcreditacion } from "../peya-actions";
 import { ImportarPeya } from "./importar-peya";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
@@ -139,11 +139,21 @@ function RegistrarCobro({ liq }: { liq: LiquidacionPeya }) {
 function PedidoFila({ p, ventas, puedeCargar }: { p: PedidoGuardado; ventas: VentaSinPeya[]; puedeCargar: boolean }) {
   const router = useRouter();
   const [venta, setVenta] = useState("");
+  const [notaRevision, setNotaRevision] = useState("");
   const [error, setError] = useState("");
   const [pendiente, empezar] = useTransition();
   const c = CRUCE[p.conciliacion] ?? CRUCE.sin_revisar;
   const sinResolver = p.estado === "entregado" && (p.conciliacion === "sin_venta" || p.conciliacion === "importe_distinto");
 
+  function revisar(reabrir: boolean) {
+    setError("");
+    empezar(async () => {
+      const r = await revisarPedidoPeya(p.id, notaRevision, reabrir);
+      if (r.error) { setError(r.error); return; }
+      setNotaRevision("");
+      router.refresh();
+    });
+  }
   function cruzar(id: string | null) {
     setError("");
     empezar(async () => {
@@ -170,6 +180,19 @@ function PedidoFila({ p, ventas, puedeCargar }: { p: PedidoGuardado; ventas: Ven
             </select>
             <button type="button" disabled={!venta || pendiente} onClick={() => cruzar(venta)} className="text-xs font-semibold text-tierra-700 hover:underline disabled:opacity-50">Cruzar</button>
           </div>
+        )}
+        {sinResolver && !p.revisado_en && puedeCargar && (
+          <div className="mt-1 flex gap-1.5 flex-wrap items-center">
+            <input value={notaRevision} onChange={(e) => setNotaRevision(e.target.value)} maxLength={200} placeholder="Qué averiguaste"
+              className="h-8 rounded border border-neutral-300 px-2 text-xs w-52" />
+            <button type="button" disabled={notaRevision.trim().length < 3 || pendiente} onClick={() => revisar(false)} className="text-xs font-semibold text-tierra-700 hover:underline disabled:opacity-50">Ya lo revisé</button>
+          </div>
+        )}
+        {sinResolver && p.revisado_en && (
+          <p className="mt-1 text-neutral-600">
+            Revisado el {hora(p.revisado_en)}: {p.revisado_nota}
+            {puedeCargar && <button type="button" disabled={pendiente} onClick={() => revisar(true)} className="ml-2 underline hover:text-danger">Volver a abrir</button>}
+          </p>
         )}
         {error && <p role="alert" className="text-danger">{error}</p>}
       </td>

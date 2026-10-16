@@ -16,6 +16,7 @@ export const ACCIONES_HISTORIAL = [
   "proveedor_saldo_inicial", "proveedor_pago", "proveedor_movimiento_anulado",
   "mp_saldo_inicial", "mp_retiro", "mp_movimiento_anulado",
   "peya_liquidacion_importada", "peya_liquidacion_confirmada", "peya_acreditacion_registrada", "peya_conciliacion_manual",
+  "peya_pedido_revisado",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -39,6 +40,7 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   peya_liquidacion_confirmada:  "Liquidación de PedidosYa confirmada",
   peya_acreditacion_registrada: "Cobro de PedidosYa registrado",
   peya_conciliacion_manual:     "Pedido de PedidosYa cruzado a mano",
+  peya_pedido_revisado:         "Pedido de PedidosYa revisado",
 };
 
 export interface EntradaHistorial {
@@ -133,6 +135,10 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `Registró el cobro de PedidosYa del ${texto(d.desde) ?? "?"} al ${texto(d.hasta) ?? "?"}: llegaron ${plata(d.acreditado)} de ${plata(d.esperado)} esperados${d.mercadopago === true ? " (vinculado a Mercado Pago)" : ""}`;
     case "peya_conciliacion_manual":
       return `Cruzó a mano el pedido ${texto(d.pedido) ?? "?"} de PedidosYa: ${texto(d.resultado) ?? "?"}`;
+    case "peya_pedido_revisado":
+      return d.reabierto === true
+        ? `Volvió a abrir el pedido ${texto(d.pedido) ?? "?"} de PedidosYa para revisar`
+        : `Dio por revisado el pedido ${texto(d.pedido) ?? "?"} de PedidosYa (${texto(d.conciliacion) === "sin_venta" ? "sin venta en el sistema" : "con otro importe"}): ${texto(d.nota) ?? ""}`;
     case "permiso_cambiado": {
       const quien = texto(d.persona) ?? "una persona";
       const permiso = PERMISO[texto(d.permiso) ?? ""] ?? texto(d.permiso) ?? "un permiso";

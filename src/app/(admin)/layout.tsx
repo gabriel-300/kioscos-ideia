@@ -4,6 +4,7 @@ import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-gua
 import { redirect } from "next/navigation";
 import { AvisoPedidos } from "@/components/tenteo/aviso-pedidos";
 import { ROLES_CON_SUCURSAL, esPersonal, puedeEntrar, rolDe } from "@/lib/auth/acceso";
+import { fechaHoyAR } from "@/lib/fecha";
 
 // repartidor entra al layout pero middleware.ts lo contiene a /tenteo/repartos (ver ahí).
 // El control por sistema (kiosco/tenteo) lo hace el middleware, que conoce la ruta.
@@ -46,7 +47,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   let conciliacionPendientes = 0;
   let tesoreriaPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }, { count: countRetirosSinRegistrar }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }, { count: countRetirosSinRegistrar }, { count: countPeyaPedidos }, { count: countPeyaAtrasadas }, { count: countMpSinClasificar }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -93,12 +94,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .is("egreso_id", null)
           .gte("fecha", cfg.fecha_inicio);
       })(),
+      // «Para revisar» de Tesorería (ver lib/tesoreria/alertas.ts). Conteos baratos y accionables; las tres tablas pueden no existir todavía
+      // (migraciones 105/108/109): en ese caso la consulta da error, el conteo queda en null y no se muestra nada.
+      (supabase as any).from("peya_pedidos").select("id", { count: "exact", head: true })
+        .eq("estado", "entregado").in("conciliacion", ["sin_venta", "importe_distinto"]).is("revisado_en", null),
+      (supabase as any).from("peya_liquidaciones").select("id", { count: "exact", head: true })
+        .eq("estado", "confirmado").lt("fecha_acreditacion_hasta", fechaHoyAR()),
+      (supabase as any).from("mp_cobros").select("operation_id", { count: "exact", head: true })
+        .eq("clase", "a_clasificar").is("clasificacion", null).eq("estado", "approved"),
     ]);
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
     conciliacionPendientes  = (countQrSinVenta ?? 0) + (countTransfSinAsignar ?? 0);
-    tesoreriaPendientes     = countRetirosSinRegistrar ?? 0;
+    tesoreriaPendientes     = (countRetirosSinRegistrar ?? 0) + (countPeyaPedidos ?? 0) + (countPeyaAtrasadas ?? 0) + (countMpSinClasificar ?? 0);
 
     if (puntosConPedido && puntosConPedido.length > 0) {
       const productIds = [...new Set(puntosConPedido.map((p) => p.product_id))];

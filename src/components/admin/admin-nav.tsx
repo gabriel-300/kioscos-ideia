@@ -155,7 +155,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
   transferenciasPendientes?: number;
   reposicionPendientes?: number;
   conciliacionPendientes?: number;
-  tesoreriaPendientes?: number;   // retiros de caja sin registrar en Tesorería
+  tesoreriaPendientes?: number;   // retiros de caja sin registrar + casos «Para revisar» de Tesorería (PedidosYa, movimientos de MP sin clasificar)
 }) {
   // "socio" es un rol sintético (no viene de app_metadata.role) para que los
   // ítems de nav puedan pedir roles:["admin","socio"] sin tener que inventar

@@ -16,7 +16,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tesoreria/permisos", () => ({ permisosTesoreria: async () => h.permisos }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
-import { conciliarPedidoPeya, guardarLiquidacionPeya, registrarAcreditacionPeya } from "@/app/(admin)/admin/tesoreria/peya-actions";
+import { conciliarPedidoPeya, guardarLiquidacionPeya, registrarAcreditacionPeya, revisarPedidoPeya } from "@/app/(admin)/admin/tesoreria/peya-actions";
 
 const CARGA = { userId: "damian", puedeVer: true, puedeCargar: true };
 const SOLO_VE = { userId: "javier", puedeVer: true, puedeCargar: false };
@@ -58,7 +58,7 @@ const VENTAS = [
 type Esc = {
   sinTienda?: boolean; existente?: { estado: string } | null; previa?: { periodo_hasta: string; fecha_pago_procesado: string | null } | null;
   liquidacion?: Record<string, unknown> | null; pedido?: Record<string, unknown> | null; venta?: Record<string, unknown> | null; ventaUsada?: boolean;
-  mpMov?: Record<string, unknown> | null; historialError?: string;
+  mpMov?: Record<string, unknown> | null; historialError?: string; previos?: Record<string, unknown>[];
 };
 
 function montar(permisos: unknown, e: Esc = {}) {
@@ -81,6 +81,7 @@ function montar(permisos: unknown, e: Esc = {}) {
         if (q.filters.some((x) => x.col === "id")) return { data: e.liquidacion ?? null };
         return { data: e.existente === undefined ? null : e.existente };
       case "peya_pedidos":
+        if (q.op === "select" && q.filters.some((x) => x.col === "liquidacion_id")) return { data: e.previos ?? [] };
         if (q.op === "select" && q.maybeSingle) return { data: e.pedido ?? null };
         if (q.op === "select") return { data: e.ventaUsada ? [{ id: "otro" }] : [] };
         return { data: null };
@@ -278,6 +279,56 @@ describe("conciliarPedidoPeya (cruce a mano)", () => {
   it("sin permiso no hace nada", async () => {
     const f = montar(SOLO_VE, { pedido: ped, liquidacion: liqRow });
     expect(await conciliarPedidoPeya("P1", "vx")).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+});
+
+describe("reimportar una semana no deshace lo ya cruzado", () => {
+  it("un pedido cruzado a mano conserva su venta al volver a importar, y esa venta no se reparte a otro pedido", async () => {
+    // El pedido de $3.400 («2 Facturas») se había cruzado a mano con la venta v3 (de $12.000: importe distinto). Al reimportar, v3 NO debe volver al
+    // pozo automático ni perderse el cruce: el pedido de $12.000 de ese día no puede quedarse con ella.
+    const previos = [{ id: "P1", nro_pedido: "2316119662", movimiento_id: "v3", conciliacion: "importe_distinto", diferencia_importe: -8600 }];
+    const { calls } = montar(CARGA, { existente: { id: "L1", estado: "estimado" } as never, previos });
+    const r = await guardarLiquidacionPeya(entrada());
+    expect(r).toMatchObject({ id: "L1", estado: "confirmado" });
+    const filas = calls.filter((q) => q.table === "peya_pedidos" && q.op === "upsert").flatMap((q) => q.payload as Record<string, unknown>[]);
+    expect(filas.find((p) => p.nro_pedido === "2316119662")).toMatchObject({ movimiento_id: "v3", conciliacion: "importe_distinto", diferencia_importe: -8600 });
+    expect(filas.filter((p) => p.movimiento_id === "v3")).toHaveLength(1);
+  });
+});
+
+describe("revisarPedidoPeya (dejar una alerta como revisada)", () => {
+  const ped = { id: "P1", nro_pedido: "2316119662", estado: "entregado", conciliacion: "sin_venta" };
+
+  it("anota quién lo revisó y qué averiguó, y lo deja en el historial", async () => {
+    const { calls } = montar(CARGA, { pedido: ped });
+    expect(await revisarPedidoPeya("P1", " el local se olvidó de cargarla ")).toEqual({});
+    const upd = calls.find((q) => q.table === "peya_pedidos" && q.op === "update")!;
+    expect(upd.payload).toMatchObject({ revisado_por: "damian", revisado_nota: "el local se olvidó de cargarla" });
+    expect(upd.payload.revisado_en).toBeTruthy();
+    expect(historialDe(calls)[0]).toMatchObject({ accion: "peya_pedido_revisado", motivo: "el local se olvidó de cargarla", detalle: { pedido: "2316119662", conciliacion: "sin_venta", reabierto: false } });
+  });
+
+  it("exige una nota, y solo se revisa lo que no cruzó con una venta", async () => {
+    let f = montar(CARGA, { pedido: ped });
+    expect((await revisarPedidoPeya("P1", " ")).error).toMatch(/qué averiguaste/);
+    f = montar(CARGA, { pedido: { ...ped, conciliacion: "conciliado" } });
+    expect((await revisarPedidoPeya("P1", "una nota válida")).error).toMatch(/no cruzaron|importe/);
+    f = montar(CARGA, { pedido: { ...ped, estado: "cancelado" } });
+    expect((await revisarPedidoPeya("P1", "una nota válida")).error).toBeTruthy();
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("se puede volver a abrir sin nota: vuelve a ser una alerta", async () => {
+    const { calls } = montar(CARGA, { pedido: ped });
+    expect(await revisarPedidoPeya("P1", "", true)).toEqual({});
+    expect(calls.find((q) => q.table === "peya_pedidos" && q.op === "update")!.payload).toMatchObject({ revisado_en: null, revisado_por: null, revisado_nota: null });
+    expect(historialDe(calls)[0]).toMatchObject({ detalle: expect.objectContaining({ reabierto: true }) });
+  });
+
+  it("sin permiso de cargar no escribe", async () => {
+    const f = montar(SOLO_VE, { pedido: ped });
+    expect(await revisarPedidoPeya("P1", "una nota válida")).toHaveProperty("error");
     expect(escrituras(f.calls)).toEqual([]);
   });
 });

@@ -26,6 +26,7 @@ const COLOR: Record<string, string> = {
   peya_liquidacion_confirmada:  "border-selva-200 bg-selva-50 text-selva-700",
   peya_acreditacion_registrada: "border-selva-200 bg-selva-50 text-selva-700",
   peya_conciliacion_manual:     "border-amber-200 bg-amber-50 text-amber-700",
+  peya_pedido_revisado:         "border-amber-200 bg-amber-50 text-amber-700",
 };
 
 export function HistorialView({ filas }: { filas: FilaHistorial[] }) {

@@ -80,12 +80,13 @@ export interface PedidoGuardado {
   motivo_rechazo: string | null; total_parcial: number; impuesto: number; comision_pago_linea: number; cargo_plus: number; comision: number;
   gastos_operativos: number; ingreso_estimado: number; efectivo_cobrado: number; monto_adeudado: number; articulos: string | null;
   movimiento_id: string | null; conciliacion: EstadoCruce | "sin_revisar"; diferencia_importe: number | null; cobrado_por: string | null;
+  revisado_en: string | null; revisado_nota: string | null;   // migración 109: ya se averiguó qué pasó (deja de ser una alerta)
 }
 
 export async function cargarPedidosDeLiquidacion(admin: Admin, liquidacionId: string): Promise<PedidoGuardado[]> {
   const filas = await fetchAll<Record<string, unknown>>((d, h) =>
     tabla(admin, "peya_pedidos")
-      .select("id, nro_pedido, estado, forma_pago, fecha_pedido, entregado_en, motivo_rechazo, total_parcial, impuesto, comision_pago_linea, cargo_plus, comision, gastos_operativos, ingreso_estimado, efectivo_cobrado, monto_adeudado, articulos, movimiento_id, conciliacion, diferencia_importe, cobrado_por", { count: "exact" })
+      .select("id, nro_pedido, estado, forma_pago, fecha_pedido, entregado_en, motivo_rechazo, total_parcial, impuesto, comision_pago_linea, cargo_plus, comision, gastos_operativos, ingreso_estimado, efectivo_cobrado, monto_adeudado, articulos, movimiento_id, conciliacion, diferencia_importe, cobrado_por, revisado_en, revisado_nota", { count: "exact" })
       .eq("liquidacion_id", liquidacionId).order("nro_pedido").range(d, h));
   const n = (v: unknown) => Number(v ?? 0);
   return filas.map((f) => ({

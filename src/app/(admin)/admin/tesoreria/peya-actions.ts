@@ -10,7 +10,7 @@ import {
   type EstadoCruce, type EstadoCuentaPeya, type LecturaExcel, type PedidoPeya, type PlazoCobro, type ResultadoCierre,
 } from "@/lib/tesoreria/peya";
 import {
-  cargarLiquidacionPeya, cargarLiquidacionPorPeriodo, cargarLiquidacionPrevia, cargarTiendasPeya, cargarVentasParaCruce, type LiquidacionPeya,
+  cargarLiquidacionPeya, cargarLiquidacionPorPeriodo, cargarLiquidacionPrevia, cargarPedidosDeLiquidacion, cargarTiendasPeya, cargarVentasParaCruce, type LiquidacionPeya,
 } from "@/lib/tesoreria/peya-consultas";
 
 // Mismas convenciones que actions.ts: devuelven { error } en vez de lanzar, escribe solo el servidor (service_role) y cada acción
@@ -205,7 +205,22 @@ export async function guardarLiquidacionPeya(entrada: GuardarPeyaEntrada): Promi
       cargarVentasParaCruce(admin, p.sucursalId, p.periodo.desde, p.periodo.hasta),
       cargarLiquidacionPrevia(admin, p.tiendaId, p.periodo.hasta),
     ]);
-    const cruce = cruzarConVentas(p.pedidos, ventas);
+    // Reimportar (por ejemplo para confirmar con el estado de cuenta una semana que estaba estimada) NO deshace lo que ya se cruzó: los pedidos que
+    // ya tienen una venta (sea automática o hecha a mano) la conservan, y esas ventas salen del pozo para no cruzarse dos veces.
+    const previos = existente ? await cargarPedidosDeLiquidacion(admin, existente.id) : [];
+    const fijos = new Map(previos.filter((x) => x.movimiento_id).map((x) => [x.nro_pedido, x]));
+    const ventasFijas = new Set([...fijos.values()].map((x) => x.movimiento_id as string));
+    const sueltos = p.pedidos.filter((x) => !fijos.has(x.nro_pedido));
+    const nuevo = cruzarConVentas(sueltos, ventas.filter((v) => !ventasFijas.has(v.id)));
+    const cruce = {
+      ...nuevo,
+      filas: p.pedidos.map((x) => {
+        const f = fijos.get(x.nro_pedido);
+        return f
+          ? { nro_pedido: x.nro_pedido, estado: f.conciliacion as EstadoCruce, movimiento_id: f.movimiento_id, diferencia: f.diferencia_importe === null ? null : Math.round(f.diferencia_importe * 100) }
+          : (nuevo.filas.find((y) => y.nro_pedido === x.nro_pedido) as typeof nuevo.filas[number]);
+      }),
+    };
     const plazo = calcularPlazoCobro({ periodo_hasta: p.periodo.hasta, fecha_pago_procesado: p.estado?.fecha_pago_procesado ?? null, anterior: previa });
     const e = p.estado;
     const ahora = new Date().toISOString();
@@ -379,6 +394,40 @@ export async function conciliarPedidoPeya(pedidoId: string, movimientoId: string
     const historial = await registrarHistorial(admin, {
       usuario_id: permisos.userId, accion: "peya_conciliacion_manual", entidad_id: pedidoId,
       detalle: { pedido: ped.nro_pedido, venta: movimientoId, resultado: conciliacion },
+    });
+    revalidatePath("/admin/tesoreria");
+    return historial.error ? { error: "Se guardó, pero no quedó anotado en el historial. Avisale al administrador del sistema." } : {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// ── «Ya lo revisé»: un pedido que no cruza con ninguna venta y ya se averiguó qué pasó ──────────────────
+// No cambia el pedido ni la liquidación: solo anota quién lo revisó y qué encontró, y deja de ser una alerta. Se puede volver a abrir.
+export async function revisarPedidoPeya(pedidoId: string, nota: string, reabrir = false): Promise<Resultado> {
+  const permisos = await exigirCargar();
+  if (!permisos) return { error: SIN_PERMISO };
+  const texto = (nota ?? "").trim();
+  if (!reabrir && texto.length < 3) return { error: "Escribí qué averiguaste (por ejemplo: «el local se olvidó de cargarla»)" };
+  if (texto.length > 200) return { error: "La nota es demasiado larga (máximo 200 caracteres)" };
+
+  const admin: Admin = createAdminClient();
+  try {
+    const { data: ped } = await admin.from("peya_pedidos").select("id, nro_pedido, estado, conciliacion").eq("id", pedidoId).maybeSingle();
+    if (!ped) return { error: "No se encontró el pedido" };
+    if (ped.estado !== "entregado" || !["sin_venta", "importe_distinto"].includes(ped.conciliacion)) {
+      return { error: "Solo se revisan los pedidos entregados que no cruzaron con una venta o tienen otro importe." };
+    }
+    const cambio = reabrir
+      ? { revisado_en: null, revisado_por: null, revisado_nota: null }
+      : { revisado_en: new Date().toISOString(), revisado_por: permisos.userId, revisado_nota: texto };
+    const { error } = await admin.from("peya_pedidos").update({ ...cambio, updated_at: new Date().toISOString() }).eq("id", pedidoId);
+    if (error) return { error: /revisado_/.test(error.message) ? "Falta aplicar la migración 109 de la base de datos" : error.message };
+
+    const historial = await registrarHistorial(admin, {
+      usuario_id: permisos.userId, accion: "peya_pedido_revisado", entidad_id: pedidoId,
+      detalle: { pedido: ped.nro_pedido, conciliacion: ped.conciliacion, nota: reabrir ? null : texto, reabierto: reabrir },
+      motivo: reabrir ? null : texto,
     });
     revalidatePath("/admin/tesoreria");
     return historial.error ? { error: "Se guardó, pero no quedó anotado en el historial. Avisale al administrador del sistema." } : {};

@@ -50,6 +50,17 @@ Subir la misma semana de nuevo **no duplica** nada: actualiza la liquidación (s
 PedidosYa transfiere cada semana de la PeYa Wallet a **Mercado Pago**. En **PedidosYa → Ver** (la liquidación) → **Registrar que el cobro llegó**: el sistema
 sugiere el movimiento de Mercado Pago que coincide (hay que haber importado antes el Excel de cobros de MP). Si el monto no es el esperado, queda la diferencia.
 
+## Las alertas
+
+Si algo no cuadra, aparece en **Tesorería → Resumen → Para revisar** (y el menú Finanzas muestra un punto):
+
+- **Pedido sin venta en el sistema** (rojo): PedidosYa lo entregó y te lo paga, pero el kiosco no lo cargó. Averiguá qué pasó (¿se olvidaron de cargarlo?), corregí
+  el stock si hace falta y, en la liquidación, escribí qué averiguaste y tocá **«Ya lo revisé»**: deja de ser una alerta. Si en realidad hay una venta con otro
+  importe, cruzalo a mano con **«Cruzar con una venta»**.
+- **Cobro atrasado** (rojo): pasó la fecha máxima de acreditación y no registraste que llegó. Fijate si entró a Mercado Pago; si no, reclamalo.
+- **Llegó otro monto** (rojo), **otro importe** o **ventas que PedidosYa no informa** (ámbar), **cambió el plazo de cobro** (ámbar).
+- **Hace más de 14 días que no se importa** una liquidación (recordatorio semanal).
+
 ## Cómo cierra la cuenta (para entender el control)
 
 ```

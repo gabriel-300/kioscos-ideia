@@ -136,6 +136,13 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     se vincula con el movimiento de MP (queda clasificado como «otro ingreso»). Lo que PedidosYa debe es un **«a cobrar» informativo**, fuera de
     «Tengo menos debo». **Efectivo, reintegros y notas de crédito: sin regla contable** (no hay ejemplo real): quedan «pendiente de validar» y como
     importes genéricos. Hoy solo el Parque vende por PedidosYa (tienda 626966).
+  - **Para revisar** (panel arriba del Resumen y aviso en el menú de Finanzas → Tesorería; migración 109): hace visibles los casos que antes solo se
+    veían entrando a cada pantalla. En rojo: pedidos de PedidosYa que PedidosYa entregó y **no tienen venta en el sistema** (plata que te pagan por una venta que el
+    kiosco no cargó: descuadra el stock), cobro de PedidosYa **atrasado** (pasó la fecha máxima de acreditación y no se registró) y cobro que llegó con **otro
+    monto**. En ámbar: pedidos con otro importe que la venta, ventas cargadas como PedidosYa que PedidosYa no informa, cambio del plazo de cobro, movimientos de
+    Mercado Pago sin clasificar, pagos QR de los últimos 30 días sin venta, y el recordatorio de que hace más de 14 días no se importa una liquidación. Un pedido
+    sin venta se da por **revisado** con una nota (qué se averiguó) y deja de ser alerta; queda quién y cuándo, y se puede volver a abrir. Lo normal (una liquidación
+    que todavía no llegó a su fecha de cobro) no es una alerta. Reimportar una semana conserva los cruces ya hechos, también los manuales.
   - **Cuentas** (solapa «Cuentas», migración 107): se llevan **solo dos**, el efectivo de Tesorería y **Mercado Pago** (decisión del usuario: no
     hay Brubank ni Ualá ni otras). Saldo de Mercado Pago = saldo inicial + cobros importados (neto de comisión) + ingresos clasificados
     como entrada (traspaso propio, aporte de socio, otro ingreso; «no es un ingreso» y lo sin clasificar NO suman) − pagos con origen

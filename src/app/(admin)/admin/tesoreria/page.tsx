@@ -20,6 +20,8 @@ import { MercadoPagoView, type MercadoPagoData } from "./_components/mercadopago
 import { ProveedoresView, type ProveedoresData } from "./_components/proveedores-view";
 import { CuentasView, type CuentasData } from "./_components/cuentas-view";
 import { PeyaView, type PeyaData } from "./_components/peya-view";
+import { construirAlertas } from "@/lib/tesoreria/alertas";
+import { cargarEntradaAlertas } from "@/lib/tesoreria/alertas-consultas";
 import { aCobrarPeya, diaAR } from "@/lib/tesoreria/peya";
 import {
   cargarArchivosDeLiquidacion, cargarLiquidacionPeya, cargarLiquidacionesPeya, cargarLiquidacionesPeyaSiExiste, cargarPedidosDeLiquidacion, cargarVentasParaCruce, cargarVentasYaCruzadas,
@@ -106,6 +108,7 @@ export default async function TesoreriaPage({
         cargarCuentaMp(admin, true),
         cargarLiquidacionesPeyaSiExiste(admin),
       ]);
+      const alertas = construirAlertas(await cargarEntradaAlertas(admin, fechaHoyAR(), liquidacionesPeya));
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
       const deudaResumen = (({ items, total }) => ({ items, total }))(
@@ -120,6 +123,7 @@ export default async function TesoreriaPage({
         obligaciones,
         mp: { configurada: cuentaMp.saldo.configurada, disponible: cuentaMp.saldo.disponible },
         peya: aCobrarPeya(liquidacionesPeya),
+        alertas,
         // «Tengo» es lo de hoy: solo tiene sentido junto con las obligaciones del mes en curso, no con las de un mes pasado.
         tengoMenosDebo: mes === mesActual
           ? tengoMenosDebo({ efectivo: efectivo.efectivo, mpDisponible: cuentaMp.saldo.configurada ? cuentaMp.saldo.disponible : 0, deudaProveedores: deudaResumen.total, obligacionesPendientes: obligaciones.pendiente })
