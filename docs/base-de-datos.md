@@ -1,8 +1,8 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-15) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-16) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **50 tablas y vistas**, **142 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **54 tablas y vistas**, **152 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -400,7 +400,7 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
 **Personas (auth.users):** `encargado_user_id`  
-**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `proveedor_cuenta` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
+**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `peya_liquidaciones` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `proveedor_cuenta` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
 
 ### `movimientos`
 
@@ -434,7 +434,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`.
 
 **Apunta a:** `contacto_id` → `contactos_crm` · `egreso_id` → `egresos` · `personal_id` → `profiles` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`, `tesoreria_descartado_por`  
-**La usan:** `alertas_precio` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
+**La usan:** `alertas_precio` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `peya_pedidos` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
 
 ### `movimiento_items`
 
@@ -727,6 +727,9 @@ erDiagram
   movimientos |o--o{ pagos_proveedor : "movimiento_id"
   proveedores ||--o{ pagos_proveedor : "proveedor_id"
   profiles ||--o{ pagos_socio : "socio_id"
+  peya_liquidaciones ||--o{ peya_archivos : "liquidacion_id"
+  peya_liquidaciones ||--o{ peya_pedidos : "liquidacion_id"
+  movimientos |o--o{ peya_pedidos : "movimiento_id"
   proveedores ||--o{ proveedor_cuenta : "proveedor_id"
   egresos {
     uuid id PK
@@ -735,6 +738,18 @@ erDiagram
     uuid id PK
   }
   tesoreria_config {
+    uuid id PK
+  }
+  cuenta_mp {
+    uuid id PK
+  }
+  peya_liquidaciones {
+    uuid id PK
+  }
+  peya_pedidos {
+    uuid id PK
+  }
+  peya_archivos {
     uuid id PK
   }
   proveedor_cuenta {
@@ -818,7 +833,7 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
 | `usuario_id` | id | Quién lo hizo. |
-| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados, mp_cobro_clasificado, proveedor_saldo_inicial, proveedor_pago o proveedor_movimiento_anulado. |
+| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados, mp_cobro_clasificado, proveedor_saldo_inicial, proveedor_pago, proveedor_movimiento_anulado, mp_saldo_inicial, mp_retiro, mp_movimiento_anulado, peya_liquidacion_importada, peya_liquidacion_confirmada, peya_acreditacion_registrada o peya_conciliacion_manual. |
 | `entidad_id` | id | El egreso, la entrega (movimiento) o la persona afectada, según la acción. |
 | `detalle` | datos JSON | Valores antes y después, importes y descripción: lo necesario para entender el cambio sin buscar la fila original. |
 | `motivo` | texto | Por qué (obligatorio al anular, descartar o cambiar el efectivo inicial desde la segunda vez). |
@@ -840,6 +855,129 @@ Otras columnas: `id`, `creado_en`.
 Otras columnas: `updated_by`, `updated_at`.
 
 **Personas (auth.users):** `updated_by`
+
+### `cuenta_mp`
+
+**Saldo inicial y retiros de la cuenta de Mercado Pago.** Lo único de la cuenta de Mercado Pago que no se puede deducir de lo demás. El saldo = saldo inicial + cobros importados (neto de comisión) + ingresos clasificados como entrada − pagos hechos con origen Mercado Pago − retiros. Los cobros todavía no liberados por MP se muestran aparte («a liberar»). Nada se borra: un error se anula con motivo.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `tipo` | texto · obligatoria | saldo_inicial = con cuánto arrancó la cuenta (uno solo vigente; puede ser cero); retiro = plata que se sacó de la cuenta (por ejemplo, pasada a un banco): no es un gasto. |
+| `fecha` | fecha · obligatoria | Saldo inicial: el saldo es el de AL COMENZAR ese día (los cobros de ese día ya suman). Retiro: cuándo salió la plata. |
+| `monto` | número · obligatoria | Siempre positivo (el saldo inicial puede ser 0). |
+| `nota` | texto | En un retiro, a dónde fue la plata (obligatorio). |
+| `anulado_en` | fecha y hora | Si tiene fecha, el movimiento está anulado y no cuenta. |
+| `anulado_por` | id | Quién lo anuló. |
+| `anulado_motivo` | texto | Por qué. |
+| `created_by` | id | Quién lo cargó. |
+
+Otras columnas: `id`, `created_at`.
+
+**Personas (auth.users):** `anulado_por`, `created_by`
+
+### `peya_liquidaciones`
+
+**Liquidación semanal de PedidosYa (por tienda).** Una fila por tienda y período, armada con el CSV de pedidos, el Excel del estado de cuenta y los importes que se copian del PDF (PedidosYa no da API). total_liquidado (el del estado de cuenta) es la verdad de lo que se cobra; neto_calculado sale de los pedidos y de los conceptos de la semana, y la diferencia tiene que ser exactamente 0 para confirmarla. Lo que PedidosYa todavía no pagó es un «a cobrar» informativo. Dinero siempre en numeric(14,2); el código calcula en centavos enteros.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `tienda_id` | texto · obligatoria | «ID de tienda» del portal de PedidosYa (sucursales.pedidoya_store_id). |
+| `sucursal_id` | id → sucursales | Local del sistema al que corresponde la tienda. |
+| `periodo_desde` | fecha · obligatoria | Lunes del período. |
+| `periodo_hasta` | fecha · obligatoria | Domingo del período. |
+| `estado` | texto | estimado = sin estado de cuenta (monto y fecha estimados); confirmado = la cuenta cerró contra el Total liquidado; acreditado = ya llegó la plata; conciliado = llegó el monto exacto y se vinculó con el movimiento de Mercado Pago. |
+| `pedidos_entregados` | entero | Cantidad de pedidos entregados. |
+| `pedidos_cancelados` | entero | Cantidad de cancelados (que PedidosYa descuenta). |
+| `ventas_netas` | número | Suma de la venta bruta de los entregados. |
+| `servicio_ventas` | número | Comisión por ventas de PedidosYa. |
+| `servicio_pago_linea` | número | Comisión por pago en línea. |
+| `cargo_plus` | número | Cargo por pedidos con Plus (en el CSV se llama «Descuento financiado por usted»). |
+| `cargos_cancelacion` | número | Lo que se descuenta por los cancelados, con IVA. |
+| `impuestos_pedidos` | número | Suma del IVA de los pedidos. |
+| `ingreso_estimado` | número | Suma del ingreso estimado de los pedidos (el cancelado va en negativo). |
+| `publicidad` | número | Publicidad dentro de la aplicación, con el signo del estado de cuenta (descuento = negativo). |
+| `iva_comisiones` | número | «Impuesto en comisiones - IVA» del estado de cuenta (incluye el IVA de la publicidad). |
+| `retenciones_sirtac` | número | Retenciones fiscales (SIRTAC). |
+| `reintegros` | número | Reintegros. Sin regla contable definida. |
+| `ajustes` | número | Ajustes de liquidación. Sin regla contable definida. |
+| `saldo_anterior` | número | Saldo pendiente de la liquidación anterior. |
+| `ajustes_nota` | texto | Aclaración de reintegros o ajustes. |
+| `total_liquidado` | número | El «Total liquidado» del estado de cuenta. |
+| `neto_calculado` | número | Lo que da la cuenta con los archivos. |
+| `diferencia` | número | neto_calculado − total_liquidado. Cero = cierra. |
+| `fecha_pago_procesado` | fecha | Fecha que informa PedidosYa («procesaremos el pago el…»). |
+| `fecha_pago_estimada` | fecha | Si todavía no hay estado de cuenta: fin del período + el plazo de la última liquidación. |
+| `fecha_acreditacion_hasta` | fecha | Fecha de pago + 72 hs hábiles (sin contar feriados). |
+| `fecha_acreditacion_real` | fecha | Cuándo entró a Mercado Pago (la carga el administrativo). |
+| `monto_acreditado` | número | Lo que entró. |
+| `mp_operation_id` | texto | Movimiento de Mercado Pago (mp_cobros) que acreditó el pago. |
+| `cuenta_destino` | texto | Cuenta de destino que dice el estado de cuenta (PSP PEYA terminada en…). |
+| `alerta_plazo` | texto | Se llena si cambió el plazo entre el fin del período y el pago. |
+| `confirmada_por` | id | Quién la confirmó. |
+| `confirmada_en` | fecha y hora | Cuándo. |
+| `created_by` | id | Quién la importó. |
+| `updated_by` | id | Quién la tocó por última vez. |
+
+Otras columnas: `id`, `created_at`, `updated_at`.
+
+**Apunta a:** `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `confirmada_por`, `created_by`, `updated_by`  
+**La usan:** `peya_archivos` (liquidacion_id) · `peya_pedidos` (liquidacion_id)
+
+### `peya_pedidos`
+
+**Pedidos de PedidosYa de cada liquidación.** Una fila por pedido (clave: tienda + número de pedido). Guarda el desglose que trae el portal y con qué venta del kiosco se cruzó: el sistema no guarda el número de pedido, así que el cruce es por día, importe exacto y hora cercana, y lo dudoso se cruza a mano. No tiene datos de clientes.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `liquidacion_id` | id · obligatoria → peya_liquidaciones | Liquidación a la que pertenece. |
+| `nro_pedido` | texto · obligatoria | Número de pedido de PedidosYa. |
+| `estado` | texto · obligatoria | entregado o cancelado (como lo dice el portal, en minúsculas). |
+| `forma_pago` | texto | Pago online u otro. |
+| `fecha_pedido` | fecha y hora | Cuándo se hizo (un cancelado puede no traerla). |
+| `entregado_en` | fecha y hora | Cuándo se entregó. |
+| `cancelado_en` | fecha y hora | Cuándo se canceló. |
+| `motivo_rechazo` | texto | Por qué se canceló. |
+| `responsable_rechazo` | texto | Quién canceló. |
+| `total_parcial` | número | Venta bruta. |
+| `impuesto` | número | IVA de las comisiones y cargos del pedido. |
+| `comision_pago_linea` | número | Comisión por pago en línea. |
+| `cargo_plus` | número | Cargo por pedidos con Plus. |
+| `comision` | número | Comisión por la venta. |
+| `gastos_operativos` | número | En un cancelado, el cargo por cancelar. |
+| `ingreso_estimado` | número | Neto del pedido (negativo en un cancelado). |
+| `importe_pago` | número | Importe de pago del portal. |
+| `monto_adeudado` | número | Monto adeudado a PedidosYa. |
+| `efectivo_cobrado` | número | Monto en efectivo ya cobrado por el local. Sin regla contable definida. |
+| `metodo_pago` | texto | Del Excel: método de pago. |
+| `cobrado_por` | texto | Del Excel: quién cobró. |
+| `articulos` | texto | Productos del pedido (texto del portal). |
+| `movimiento_id` | id → movimientos | Venta del kiosco con la que se cruzó. |
+| `conciliacion` | texto | conciliado, sin_venta (está en PedidosYa y no en el sistema), importe_distinto, efectivo_pendiente (sin regla contable), no_aplica (cancelado) o sin_revisar. |
+| `diferencia_importe` | número | Pedido menos venta, si el importe es distinto. |
+
+Otras columnas: `id`, `tienda_id`, `created_at`, `updated_at`.
+
+**Apunta a:** `liquidacion_id` → `peya_liquidaciones` · `movimiento_id` → `movimientos`
+
+### `peya_archivos`
+
+**Archivos originales de cada liquidación de PedidosYa.** Auditoría: el CSV, el Excel y el PDF que se subieron, quién los subió y cuándo. Los archivos están en el depósito privado «peya» (no tiene acceso público).
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `liquidacion_id` | id · obligatoria → peya_liquidaciones | Liquidación a la que respaldan. |
+| `tipo` | texto · obligatoria | csv, excel o pdf. |
+| `nombre` | texto · obligatoria | Nombre con el que se subió. |
+| `path` | texto · obligatoria | Ruta en el depósito privado. |
+| `bytes` | entero | Tamaño. |
+| `subido_por` | id | Quién lo subió. |
+| `subido_en` | fecha y hora | Cuándo. |
+
+Otras columnas: `id`.
+
+**Apunta a:** `liquidacion_id` → `peya_liquidaciones`  
+**Personas (auth.users):** `subido_por`
 
 ### `proveedor_cuenta`
 

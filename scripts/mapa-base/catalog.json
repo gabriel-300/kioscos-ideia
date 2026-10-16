@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-15",
+  "generado": "2026-10-16",
   "tablas": [
     {
       "t": "alertas_precio",
@@ -45,6 +45,11 @@
       "t": "cta_corriente_pagos",
       "k": "r",
       "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | personal_id:uuid | fecha:date:NN:DEF | notas:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF | monto_efectivo:numeric:NN:DEF | monto_billetera:numeric:NN:DEF | monto:numeric:GEN | contacto_id:uuid"
+    },
+    {
+      "t": "cuenta_mp",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | tipo:text:NN | fecha:date:NN | monto:numeric(14,2):NN | nota:text | anulado_en:timestamp with time zone | anulado_por:uuid | anulado_motivo:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF"
     },
     {
       "t": "egresos",
@@ -130,6 +135,21 @@
       "t": "pedidoya_webhook_events",
       "k": "r",
       "cols": "id:uuid:NN:DEF | received_at:timestamp with time zone:NN:DEF | raw_payload:jsonb:NN | external_order_id:text | external_store_id:text | sucursal_id:uuid | movimiento_id:uuid | status:text:NN:DEF | error_message:text | processed_at:timestamp with time zone"
+    },
+    {
+      "t": "peya_archivos",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | liquidacion_id:uuid:NN | tipo:text:NN | nombre:text:NN | path:text:NN | bytes:integer | subido_por:uuid | subido_en:timestamp with time zone:NN:DEF"
+    },
+    {
+      "t": "peya_liquidaciones",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | tienda_id:text:NN | sucursal_id:uuid | periodo_desde:date:NN | periodo_hasta:date:NN | estado:text:NN:DEF | pedidos_entregados:integer:NN:DEF | pedidos_cancelados:integer:NN:DEF | ventas_netas:numeric(14,2):NN:DEF | servicio_ventas:numeric(14,2):NN:DEF | servicio_pago_linea:numeric(14,2):NN:DEF | cargo_plus:numeric(14,2):NN:DEF | cargos_cancelacion:numeric(14,2):NN:DEF | impuestos_pedidos:numeric(14,2):NN:DEF | ingreso_estimado:numeric(14,2):NN:DEF | publicidad:numeric(14,2) | iva_comisiones:numeric(14,2) | retenciones_sirtac:numeric(14,2) | reintegros:numeric(14,2) | ajustes:numeric(14,2) | saldo_anterior:numeric(14,2) | ajustes_nota:text | total_liquidado:numeric(14,2) | neto_calculado:numeric(14,2) | diferencia:numeric(14,2) | fecha_pago_procesado:date | fecha_pago_estimada:date | fecha_acreditacion_hasta:date | fecha_acreditacion_real:date | monto_acreditado:numeric(14,2) | mp_operation_id:text | cuenta_destino:text | alerta_plazo:text | confirmada_por:uuid | confirmada_en:timestamp with time zone | created_by:uuid | created_at:timestamp with time zone:NN:DEF | updated_by:uuid | updated_at:timestamp with time zone:NN:DEF"
+    },
+    {
+      "t": "peya_pedidos",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | liquidacion_id:uuid:NN | tienda_id:text:NN | nro_pedido:text:NN | estado:text:NN | forma_pago:text | fecha_pedido:timestamp with time zone | entregado_en:timestamp with time zone | cancelado_en:timestamp with time zone | motivo_rechazo:text | responsable_rechazo:text | total_parcial:numeric(14,2):NN:DEF | impuesto:numeric(14,2):NN:DEF | comision_pago_linea:numeric(14,2):NN:DEF | cargo_plus:numeric(14,2):NN:DEF | comision:numeric(14,2):NN:DEF | gastos_operativos:numeric(14,2):NN:DEF | ingreso_estimado:numeric(14,2):NN:DEF | importe_pago:numeric(14,2):NN:DEF | monto_adeudado:numeric(14,2):NN:DEF | efectivo_cobrado:numeric(14,2):NN:DEF | metodo_pago:text | cobrado_por:text | articulos:text | movimiento_id:uuid | conciliacion:text:NN:DEF | diferencia_importe:numeric(14,2) | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF"
     },
     {
       "t": "platform_settings",
@@ -372,6 +392,16 @@
       "cta_corriente_pagos",
       "sucursal_id",
       "sucursales"
+    ],
+    [
+      "cuenta_mp",
+      "anulado_por",
+      "auth.users"
+    ],
+    [
+      "cuenta_mp",
+      "created_by",
+      "auth.users"
     ],
     [
       "egresos",
@@ -657,6 +687,46 @@
       "pedidoya_webhook_events",
       "sucursal_id",
       "sucursales"
+    ],
+    [
+      "peya_archivos",
+      "liquidacion_id",
+      "peya_liquidaciones"
+    ],
+    [
+      "peya_archivos",
+      "subido_por",
+      "auth.users"
+    ],
+    [
+      "peya_liquidaciones",
+      "confirmada_por",
+      "auth.users"
+    ],
+    [
+      "peya_liquidaciones",
+      "created_by",
+      "auth.users"
+    ],
+    [
+      "peya_liquidaciones",
+      "sucursal_id",
+      "sucursales"
+    ],
+    [
+      "peya_liquidaciones",
+      "updated_by",
+      "auth.users"
+    ],
+    [
+      "peya_pedidos",
+      "liquidacion_id",
+      "peya_liquidaciones"
+    ],
+    [
+      "peya_pedidos",
+      "movimiento_id",
+      "movimientos"
     ],
     [
       "prestamos_termo",
