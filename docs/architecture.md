@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) está escrita, verificada
   por emulación y **sin aplicar**: se corre a mano, con la reversión y los scripts de prueba en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05) y `104_tesoreria_historial.sql` (escrita; **si no figura aplicada, correrla a mano**); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -486,6 +486,40 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   administrador** (`retiros_caja.proveedor_id` + `autorizado_por`, con un CHECK: si hay proveedor, hay quien autoriza; el servidor
   verifica que el autorizante sea admin). La **foto del ticket es obligatoria desde $20.000** (`RETIRO_FOTO_DESDE` en `lib/retiros.ts`,
   validada también en el servidor). El empleado no carga nada contable.
+- **Liquidaciones de PedidosYa** (`peya_liquidaciones`, `peya_pedidos`, `peya_archivos` y el depósito privado `peya`, migración 108; solapa «PedidosYa»):
+  `lib/tesoreria/peya.ts` es puro y concentra lo que importa (dinero en **centavos enteros**, `parsearMontoAR`, lectores del CSV y del Excel, `cerrarLiquidacion`,
+  `cruzarConVentas`, fechas de cobro, validadores del servidor). CSV y Excel se abren **en el navegador** (`excel-navegador.ts` usa el bundle de navegador de exceljs: el
+  índice del paquete rompe el Worker); al servidor viajan pedidos ya leídos, solo los totales y números de pedido del Excel y el estado de cuenta tipeado, y
+  `guardarLiquidacionPeya` **vuelve a validar y a calcular todo**: no guarda si la cuenta no cierra. Trampas: (1) en el CSV la columna «Descuento financiado por usted» es
+  el **cargo por pedidos con Plus**; (2) las ventas `pedido_ya_plataforma` tienen los `pago_*` en cero: el importe es la suma de `movimiento_items.subtotal`;
+  (3) el cancelado no trae «Fecha del pedido» (se usa «Cancelado el»); (4) `Date.parse` acepta el 30 de febrero: las fechas se validan con calendario estricto;
+  (5) el IVA de la publicidad no viene aparte: es «Impuesto en comisiones - IVA» del PDF menos Σ «Impuesto» de los pedidos. La tienda de PedidosYa se asocia al local
+  con `sucursales.pedidoya_store_id` (migración 058). Hoy el PDF no se lee solo: los importes se copian a mano y el control contra el «Total liquidado» los protege.
+- **Para revisar** (`lib/tesoreria/alertas.ts`, puro y con tests; `alertas-consultas.ts` arma la entrada; migración 109 agrega `peya_pedidos.revisado_*`): el Resumen llama a
+  `construirAlertas`; el menú **no**: `app/(admin)/layout.tsx` usa tres conteos baratos dentro del `Promise.all` que ya existía (pedidos sin venta/importe distinto sin
+  revisar, liquidaciones confirmadas atrasadas, movimientos de MP sin clasificar) y los suma a `tesoreriaPendientes`. Cada fuente tolera que su migración no esté aplicada. Los pagos
+  QR sin venta se miran solo los últimos 30 días (hay 168 viejos: no son accionables). `guardarLiquidacionPeya` al reimportar **conserva los cruces ya hechos** (sus ventas salen del
+  pozo del cruce automático) para no deshacer un cruce manual.
+- **Cuenta de Mercado Pago** (`cuenta_mp`, migración 107; solapa «Cuentas»): solo guarda el saldo inicial (único vigente, índice parcial
+  sobre `(true)`) y los retiros; el resto se deduce de `mp_cobros` y de los pagos con `origen = mercadopago`
+  (`lib/tesoreria/cuenta-mp.ts`, puro y con tests; lecturas en `cuenta-mp-consultas.ts`). Solo dos cuentas: efectivo y Mercado Pago.
+  El Resumen la lee tolerando que la tabla no exista (queda «sin configurar»); la solapa Cuentas, en cambio, avisa.
+- **Cuenta corriente de proveedores** (`proveedor_cuenta`, migración 106; solapa «Proveedores»): una sola tabla con `tipo` =
+  `saldo_inicial` (único vigente por proveedor y local, índice parcial) o `pago` (con `origen`, nunca `retiro_caja`). Las compras
+  siguen siendo `egresos`; **no se muta ninguna compra al pagar**: el saldo es `saldo inicial + compras no pagadas − pagos`
+  (`lib/tesoreria/proveedores-cuenta.ts`, puro y con tests) y qué compras quedan cubiertas se calcula en pantalla, primero el saldo
+  inicial y después las más viejas. Los pagos en efectivo de Tesorería se suman a `cargarSalidasEfectivo` (el efectivo en mano), y
+  si la tabla no existe se ignoran solo en ese cálculo y en el Resumen (el resto avisa). Trampa: una compra marcada pagada a mano
+  **y** cubierta por un pago a cuenta se descuenta dos veces; por eso el saldo puede dar negativo y se muestra «a favor».
+- **Cobros de Mercado Pago** (`mp_cobros` y `mp_importaciones`, migración 105; solapa «Cobros MP»): el administrativo sube el Excel de
+  cobros del panel de MP. **El archivo se abre en el navegador** (`importar-mp.tsx`, exceljs en su bundle de navegador: nunca en el
+  servidor, por el problema de `fstream/umask` en Workers) y solo viajan las columnas que se guardan. `lib/tesoreria/mp-cobros.ts`
+  (funciones puras, con tests) elige columnas por el código técnico entre paréntesis del encabezado, y el servidor vuelve a validar
+  (`validarCobros`) antes del upsert por `operation_id`. El local sale de `sucursales.mercadopago_pos_id` (= columna `external_id` de la
+  caja, no el `pos_id` numérico); la hora de MP se interpreta como `-03:00`. Lo que no es una venta de caja (`account_fund`,
+  `partition_transfer`, sin local) queda `a_clasificar` y lo decide una persona; reimportar no pisa la clasificación. El cruce con
+  `mercadopago_qr_orders` es por `mp_payment_id` = `operation_id` (o `external_reference`); la dirección «el sistema dice pagado y MP no
+  lo informa» solo mira los días cubiertos por `mp_importaciones`. Solo cobros: no hay salidas ni saldo de la cuenta de MP.
 - **Resumen** (mes elegido): *Entró* = `cierres_caja.total_ventas` de los turnos cerrados; *Salió* = egresos del mes por fecha de compra,
   pagados o no, **sin** retiros de socios (se muestran aparte); *Se debe* = egresos no pagados, agrupados por proveedor.
   «Entró menos salió» **no es la ganancia** (falta el costo de lo vendido).
