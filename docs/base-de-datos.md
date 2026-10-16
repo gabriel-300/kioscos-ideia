@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-16) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **54 tablas y vistas**, **152 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **54 tablas y vistas**, **153 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -833,7 +833,7 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
 | `usuario_id` | id | Quién lo hizo. |
-| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados, mp_cobro_clasificado, proveedor_saldo_inicial, proveedor_pago, proveedor_movimiento_anulado, mp_saldo_inicial, mp_retiro, mp_movimiento_anulado, peya_liquidacion_importada, peya_liquidacion_confirmada, peya_acreditacion_registrada o peya_conciliacion_manual. |
+| `accion` | texto · obligatoria | egreso_creado, egreso_pagado, egreso_anulado, entrega_descartada, entrega_restaurada, efectivo_inicial_cambiado, permiso_cambiado, mp_cobros_importados, mp_cobro_clasificado, proveedor_saldo_inicial, proveedor_pago, proveedor_movimiento_anulado, mp_saldo_inicial, mp_retiro, mp_movimiento_anulado, peya_liquidacion_importada, peya_liquidacion_confirmada, peya_acreditacion_registrada o peya_conciliacion_manual o peya_pedido_revisado. |
 | `entidad_id` | id | El egreso, la entrega (movimiento) o la persona afectada, según la acción. |
 | `detalle` | datos JSON | Valores antes y después, importes y descripción: lo necesario para entender el cambio sin buscar la fila original. |
 | `motivo` | texto | Por qué (obligatorio al anular, descartar o cambiar el efectivo inicial desde la segunda vez). |
@@ -955,10 +955,14 @@ Otras columnas: `id`, `created_at`, `updated_at`.
 | `movimiento_id` | id → movimientos | Venta del kiosco con la que se cruzó. |
 | `conciliacion` | texto | conciliado, sin_venta (está en PedidosYa y no en el sistema), importe_distinto, efectivo_pendiente (sin regla contable), no_aplica (cancelado) o sin_revisar. |
 | `diferencia_importe` | número | Pedido menos venta, si el importe es distinto. |
+| `revisado_en` | fecha y hora | Cuándo se dio por revisado un pedido que no cruzó con una venta (sin_venta o importe_distinto). Mientras esté vacío genera una alerta en «Para revisar». |
+| `revisado_por` | id | Quién lo revisó. |
+| `revisado_nota` | texto | Qué se averiguó (obligatoria). |
 
 Otras columnas: `id`, `tienda_id`, `created_at`, `updated_at`.
 
-**Apunta a:** `liquidacion_id` → `peya_liquidaciones` · `movimiento_id` → `movimientos`
+**Apunta a:** `liquidacion_id` → `peya_liquidaciones` · `movimiento_id` → `movimientos`  
+**Personas (auth.users):** `revisado_por`
 
 ### `peya_archivos`
 

@@ -149,7 +149,7 @@
     {
       "t": "peya_pedidos",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | liquidacion_id:uuid:NN | tienda_id:text:NN | nro_pedido:text:NN | estado:text:NN | forma_pago:text | fecha_pedido:timestamp with time zone | entregado_en:timestamp with time zone | cancelado_en:timestamp with time zone | motivo_rechazo:text | responsable_rechazo:text | total_parcial:numeric(14,2):NN:DEF | impuesto:numeric(14,2):NN:DEF | comision_pago_linea:numeric(14,2):NN:DEF | cargo_plus:numeric(14,2):NN:DEF | comision:numeric(14,2):NN:DEF | gastos_operativos:numeric(14,2):NN:DEF | ingreso_estimado:numeric(14,2):NN:DEF | importe_pago:numeric(14,2):NN:DEF | monto_adeudado:numeric(14,2):NN:DEF | efectivo_cobrado:numeric(14,2):NN:DEF | metodo_pago:text | cobrado_por:text | articulos:text | movimiento_id:uuid | conciliacion:text:NN:DEF | diferencia_importe:numeric(14,2) | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF"
+      "cols": "id:uuid:NN:DEF | liquidacion_id:uuid:NN | tienda_id:text:NN | nro_pedido:text:NN | estado:text:NN | forma_pago:text | fecha_pedido:timestamp with time zone | entregado_en:timestamp with time zone | cancelado_en:timestamp with time zone | motivo_rechazo:text | responsable_rechazo:text | total_parcial:numeric(14,2):NN:DEF | impuesto:numeric(14,2):NN:DEF | comision_pago_linea:numeric(14,2):NN:DEF | cargo_plus:numeric(14,2):NN:DEF | comision:numeric(14,2):NN:DEF | gastos_operativos:numeric(14,2):NN:DEF | ingreso_estimado:numeric(14,2):NN:DEF | importe_pago:numeric(14,2):NN:DEF | monto_adeudado:numeric(14,2):NN:DEF | efectivo_cobrado:numeric(14,2):NN:DEF | metodo_pago:text | cobrado_por:text | articulos:text | movimiento_id:uuid | conciliacion:text:NN:DEF | diferencia_importe:numeric(14,2) | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF | revisado_en:timestamp with time zone | revisado_por:uuid | revisado_nota:text"
     },
     {
       "t": "platform_settings",
@@ -727,6 +727,11 @@
       "peya_pedidos",
       "movimiento_id",
       "movimientos"
+    ],
+    [
+      "peya_pedidos",
+      "revisado_por",
+      "auth.users"
     ],
     [
       "prestamos_termo",
