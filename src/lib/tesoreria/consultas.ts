@@ -11,7 +11,7 @@ import type { FilaHistorial, AccionHistorial } from "./historial";
 type Admin = ReturnType<typeof createAdminClient>;
 
 export interface SucursalTesoreria { id: string; nombre: string }
-export interface ProveedorLista    { id: string; nombre: string }
+export interface ProveedorLista    { id: string; nombre: string; plazo_pago_dias: number | null }
 
 export interface RetiroPendiente {
   id: string; sucursal_id: string; fecha: string; monto: number; motivo: string | null; comprobante_image_url: string | null;
@@ -61,7 +61,7 @@ export async function cargarSucursales(admin: Admin): Promise<SucursalTesoreria[
 }
 
 export async function cargarProveedores(admin: Admin): Promise<ProveedorLista[]> {
-  const { data, error } = await admin.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre");
+  const { data, error } = await admin.from("proveedores").select("id, nombre, plazo_pago_dias").eq("is_active", true).order("nombre");
   if (error) throw new Error(error.message);
   return data ?? [];
 }

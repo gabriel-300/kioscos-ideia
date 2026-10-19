@@ -1472,6 +1472,7 @@ export type Database = {
           is_active: boolean
           modo_facturacion: string
           nombre: string
+          plazo_pago_dias: number | null
           porcentaje_descuento: number | null
           updated_by: string | null
         }
@@ -1483,6 +1484,7 @@ export type Database = {
           is_active?: boolean
           modo_facturacion?: string
           nombre: string
+          plazo_pago_dias?: number | null
           porcentaje_descuento?: number | null
           updated_by?: string | null
         }

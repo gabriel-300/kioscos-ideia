@@ -41,7 +41,7 @@ const DOMINIOS = [
     T("promo_items", "Los componentes de un combo o receta", "Qué productos lleva cada promo y cuántas unidades de cada uno.", { cantidad: "Unidades del producto por cada promo vendida." }),
     T("promo_prices", "Precio de una promo EN una sucursal", "Igual que product_prices pero para los combos.", { price: "Precio de la promo en esa sucursal." }),
     T("proveedores", "Proveedores", "A quién se le compra. Define cómo se calcula el costo de una entrega.", {
-      modo_facturacion: "costo = el costo es lo que se factura; precio_sugerido = el costo se calcula desde el precio de venta.", porcentaje_descuento: "Descuento aplicado al costo en el modo precio_sugerido.",
+      modo_facturacion: "costo = el costo es lo que se factura; precio_sugerido = el costo se calcula desde el precio de venta.", porcentaje_descuento: "Descuento aplicado al costo en el modo precio_sugerido.", plazo_pago_dias: "Días de plazo para pagarle (0 = contado). Vacío = sin plazo fijo. Solo sirve para proponer el vencimiento al cargar un remito o factura en Tesorería.",
     }),
     T("alertas_precio", "Aviso: el proveedor cambió el precio", "Se genera sola cuando una entrega trae un costo distinto al cargado. Un admin decide si actualiza el costo o la ignora.", {
       costo_anterior: "Costo que estaba cargado.", costo_nuevo: "Costo de la entrega.", revisado_por: "Quién la resolvió (vacío = pendiente).", costo_actualizado: "Si se aplicó el costo nuevo.",

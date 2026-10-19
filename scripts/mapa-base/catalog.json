@@ -214,7 +214,7 @@
     {
       "t": "proveedores",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric"
+      "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric | plazo_pago_dias:smallint"
     },
     {
       "t": "reposicion_marcas_pedido",

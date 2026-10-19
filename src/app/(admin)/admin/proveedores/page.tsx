@@ -11,7 +11,7 @@ export default async function ProveedoresPage() {
   const supabase = createAdminClient();
 
   const [provRes, comprasRes] = await Promise.all([
-    supabase.from("proveedores").select("id, nombre, contacto, is_active, modo_facturacion, porcentaje_descuento").order("nombre"),
+    supabase.from("proveedores").select("id, nombre, contacto, is_active, modo_facturacion, porcentaje_descuento, plazo_pago_dias").order("nombre"),
     (supabase as any)
       .from("movimientos")
       .select("proveedor, movimiento_items(subtotal)")

@@ -178,7 +178,9 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     lo que le falta a cada comprobante; si se anula el pago o la compra, la imputación deja de valer. **Deuda vencida y a vencer**: cada remito o factura puede tener un vencimiento opcional (`egresos.fecha_vencimiento`,
     migración 113; se carga con la compra o después y cada cambio queda en el historial) y un listado separa lo que falta pagar de cada
     comprobante en vencida / vence en 7 días / en 30 / más adelante / sin vencimiento (el saldo inicial sin cubrir figura como «saldo
-    anterior», sin vencimiento), con totales por tramo y descarga a Excel; las filas suman lo mismo que «Se debe a proveedores». El **pago no es un gasto
+    anterior», sin vencimiento), con totales por tramo y descarga a Excel; las filas suman lo mismo que «Se debe a proveedores». Cada proveedor puede tener un
+    **plazo de pago** en días (`proveedores.plazo_pago_dias`, migración 114, se edita en Catálogo → Proveedores; 0 = contado): al cargar
+    un remito o factura el formulario propone como vencimiento la fecha de la compra + ese plazo, y quien carga lo puede cambiar. El **pago no es un gasto
     nuevo** (el gasto es la compra, esté pagada o no) pero sí baja el efectivo de Tesorería cuando sale de ahí. El saldo inicial es
     único por proveedor y local y se carga una vez; un error se anula con motivo. Si un mismo pago cubre a los dos locales se carga como
     dos pagos. Las compras sin proveedor de la lista no tienen cuenta y quedan agrupadas por lo que se escribió.

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { registrarEgreso, crearUrlSubidaComprobante } from "../actions";
+import { sumarDias } from "@/lib/tesoreria/deuda-vencimientos";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { reducirImagen, formatearPeso } from "@/lib/imagen";
 import { friendlyError } from "@/lib/utils";
@@ -17,7 +18,7 @@ import type { EntregaPendiente } from "@/lib/tesoreria/consultas";
 // haga falta con la factura o el remito real en la mano.
 
 export type Borrador = Partial<Omit<EgresoEntrada, "monto">> & { monto?: number };
-type Opcion = { id: string; nombre: string };
+type Opcion = { id: string; nombre: string; plazo_pago_dias?: number | null };
 
 // Tickets y facturas tienen que poder leerse: más grandes que las fotos de productos (1000 px).
 const LADO_COMPROBANTE_PX = 1600;
@@ -76,12 +77,16 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const [descripcion, setDescripcion] = useState(b.descripcion ?? "");
   const [comprobante, setComprobante] = useState<"con" | "sin" | null>((b.comprobante as "con" | "sin" | undefined) ?? null);
   const [numero, setNumero]           = useState(b.comprobante_numero ?? "");
-  const [vence, setVence]             = useState(b.fecha_vencimiento ?? "");
+  // Vencimiento: si quien carga no lo tocó, se propone fecha de la compra + plazo de pago del proveedor (Catálogo → Proveedores).
+  const [venceManual, setVenceManual] = useState<string | null>(b.fecha_vencimiento ?? null);
   const [sucursalId, setSucursalId]   = useState(b.sucursal_id ?? "");
   const [origen, setOrigen]           = useState(esRetiro ? "retiro_caja" : (b.origen ?? ""));
   const [nota, setNota]               = useState(b.nota ?? "");
   const [entregasElegidas, setEntregasElegidas] = useState<Set<string>>(new Set(b.entregas_ids ?? []));
   const conProveedor = !esRetiro && proveedorId !== "";
+  const plazo = proveedores.find((p) => p.id === proveedorId)?.plazo_pago_dias ?? null;
+  const venceSugerido = plazo !== null && fecha ? sumarDias(fecha, plazo) : "";
+  const venceFinal = venceManual ?? venceSugerido;
   const [archivo, setArchivo]         = useState<File | null>(null);
   const [subido, setSubido]           = useState<{ nombre: string; path: string } | null>(null);
 
@@ -110,6 +115,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
     if (comprobante === null)       { fallar("comprobante", "Indicá si tiene factura o no"); return; }
     if (pagado && !origen)          { fallar("origen", "Indicá de dónde salió la plata"); return; }
     const nombreProveedor = proveedores.find((p) => p.id === proveedorId)?.nombre ?? "";
+    const vence = venceFinal;
     const desc = descripcion.trim() || nombreProveedor;
     if (!desc)                      { fallar("descripcion", "Escribí a quién o qué se pagó (o elegí un proveedor)"); return; }
     if (conProveedor && !sucursalId) { fallar("sucursal", "Elegí el kiosco de la compra"); return; }
@@ -234,8 +240,11 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
           {pagado === false && (
             <div>
               <label className={etiqueta}>Vence el (opcional)</label>
-              <input type="date" value={vence} min={fecha} onChange={(e) => setVence(e.target.value)} className={campo} />
-              <p className="mt-1 text-xs text-neutral-400">Si lo cargás, esta compra figura en el listado de deuda vencida y a vencer.</p>
+              <input type="date" value={venceFinal} min={fecha} onChange={(e) => setVenceManual(e.target.value)} className={campo} />
+              <p className="mt-1 text-xs text-neutral-400">
+                {venceManual === null && venceSugerido ? `Propuesto: la fecha de la compra + ${plazo} ${plazo === 1 ? "día" : "días"} de plazo de este proveedor. Cambialo si hace falta. ` : ""}
+                Si lo cargás, esta compra figura en el listado de deuda vencida y a vencer.
+              </p>
             </div>
           )}
 

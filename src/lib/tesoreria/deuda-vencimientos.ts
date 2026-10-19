@@ -48,6 +48,12 @@ export function tramoDe(vencimiento: string | null, hoy: string): Tramo {
   return "mas_30";
 }
 
+// Fecha + días (para proponer el vencimiento: fecha de la compra + plazo del proveedor). Sin zona horaria: solo calendario.
+export function sumarDias(fecha: string, dias: number): string {
+  const d = new Date(Date.UTC(+fecha.slice(0, 4), +fecha.slice(5, 7) - 1, +fecha.slice(8, 10) + dias));
+  return d.toISOString().slice(0, 10);
+}
+
 const ORDEN = new Map<Tramo, number>(TRAMOS.map((t, i) => [t.valor, i]));
 
 export function listadoDeuda(cuentas: CuentaProveedor[], hoy: string): ListadoDeuda {

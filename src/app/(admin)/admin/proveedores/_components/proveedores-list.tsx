@@ -10,7 +10,7 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 type ModoFacturacion = "costo" | "precio_sugerido";
 export type ProveedorRow = {
   id: string; nombre: string; contacto: string | null; is_active: boolean;
-  modo_facturacion: ModoFacturacion; porcentaje_descuento: number | null;
+  modo_facturacion: ModoFacturacion; porcentaje_descuento: number | null; plazo_pago_dias: number | null;
 };
 type Proveedor = ProveedorRow;
 
@@ -33,14 +33,15 @@ function ProveedorForm({
   onSave,
   onCancel,
 }: {
-  initial?: { nombre: string; contacto: string; modoFacturacion: ModoFacturacion; porcentajeDescuento: number | null };
-  onSave: (nombre: string, contacto: string, modoFacturacion: ModoFacturacion, porcentajeDescuento: number | null) => Promise<void>;
+  initial?: { nombre: string; contacto: string; modoFacturacion: ModoFacturacion; porcentajeDescuento: number | null; plazoPagoDias: number | null };
+  onSave: (nombre: string, contacto: string, modoFacturacion: ModoFacturacion, porcentajeDescuento: number | null, plazoPagoDias: number | null) => Promise<void>;
   onCancel: () => void;
 }) {
   const [nombre,   setNombre]   = useState(initial?.nombre   ?? "");
   const [contacto, setContacto] = useState(initial?.contacto ?? "");
   const [modo,     setModo]     = useState<ModoFacturacion>(initial?.modoFacturacion ?? "costo");
   const [descuento, setDescuento] = useState(initial?.porcentajeDescuento != null ? String(initial.porcentajeDescuento) : "");
+  const [plazo, setPlazo] = useState(initial?.plazoPagoDias != null ? String(initial.plazoPagoDias) : "");
   const [pending,  startTransition] = useTransition();
   const [error,    setError]    = useState<string | null>(null);
 
@@ -48,8 +49,10 @@ function ProveedorForm({
     if (!nombre.trim()) { setError("El nombre es requerido"); return; }
     setError(null);
     const pct = modo === "precio_sugerido" && descuento ? parseFloat(descuento) : null;
+    const dias = plazo.trim() === "" ? null : Number(plazo);
+    if (dias !== null && (!Number.isInteger(dias) || dias < 0 || dias > 365)) { setError("El plazo de pago tiene que ser un número entero de días entre 0 y 365"); return; }
     startTransition(async () => {
-      try { await onSave(nombre, contacto, modo, pct); }
+      try { await onSave(nombre, contacto, modo, pct, dias); }
       catch (e) { setError(friendlyError(e)); }
     });
   }
@@ -116,6 +119,18 @@ function ProveedorForm({
           <p className="text-[11px] text-neutral-400 mt-1">El remito viene con el precio sugerido de venta; a eso se le resta este % para calcular el costo real.</p>
         </div>
       )}
+      <div>
+        <label className="text-xs font-medium text-neutral-600 block mb-1">Plazo de pago en días (opcional)</label>
+        <input
+          type="number" min="0" max="365" step="1" inputMode="numeric"
+          value={plazo}
+          onChange={(e) => setPlazo(e.target.value)}
+          placeholder="Ej: 15 (0 = contado)"
+          className="h-9 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        />
+        <p className="text-[11px] text-neutral-400 mt-1">Al cargar un remito o factura de este proveedor en Tesorería, el vencimiento se propone como la fecha de la compra más estos días.</p>
+      </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={pending} onClick={handleSave}>Guardar</Button>
@@ -129,13 +144,13 @@ export function ProveedoresList({ proveedores, comprasMap = {} }: { proveedores:
   const [showNew,  setShowNew]  = useState(false);
   const [editing,  setEditing]  = useState<string | null>(null);
 
-  async function handleCreate(nombre: string, contacto: string, modo: ModoFacturacion, pct: number | null) {
-    await crearProveedor(nombre, contacto, modo, pct);
+  async function handleCreate(nombre: string, contacto: string, modo: ModoFacturacion, pct: number | null, dias: number | null) {
+    await crearProveedor(nombre, contacto, modo, pct, dias);
     setShowNew(false);
   }
 
-  async function handleUpdate(id: string, nombre: string, contacto: string, modo: ModoFacturacion, pct: number | null) {
-    await actualizarProveedor(id, nombre, contacto, modo, pct);
+  async function handleUpdate(id: string, nombre: string, contacto: string, modo: ModoFacturacion, pct: number | null, dias: number | null) {
+    await actualizarProveedor(id, nombre, contacto, modo, pct, dias);
     setEditing(null);
   }
 
@@ -187,9 +202,9 @@ export function ProveedoresList({ proveedores, comprasMap = {} }: { proveedores:
                       <ProveedorForm
                         initial={{
                           nombre: p.nombre, contacto: p.contacto ?? "",
-                          modoFacturacion: p.modo_facturacion, porcentajeDescuento: p.porcentaje_descuento,
+                          modoFacturacion: p.modo_facturacion, porcentajeDescuento: p.porcentaje_descuento, plazoPagoDias: p.plazo_pago_dias,
                         }}
-                        onSave={(nombre, contacto, modo, pct) => handleUpdate(p.id, nombre, contacto, modo, pct)}
+                        onSave={(nombre, contacto, modo, pct, dias) => handleUpdate(p.id, nombre, contacto, modo, pct, dias)}
                         onCancel={() => setEditing(null)}
                       />
                     ) : (
@@ -197,6 +212,11 @@ export function ProveedoresList({ proveedores, comprasMap = {} }: { proveedores:
                         <span className={`font-medium ${p.is_active ? "text-neutral-900" : "text-neutral-400"}`}>
                           {p.nombre}
                         </span>
+                        {p.plazo_pago_dias != null && (
+                          <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                            {p.plazo_pago_dias === 0 ? "Contado" : `Paga a ${p.plazo_pago_dias} días`}
+                          </span>
+                        )}
                         {p.modo_facturacion === "precio_sugerido" && (
                           <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                             Precio sugerido{p.porcentaje_descuento != null ? ` -${p.porcentaje_descuento}%` : ""}

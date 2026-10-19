@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { calcularCuentas, type CompraAdeudada, type MovimientoProveedor } from "@/lib/tesoreria/proveedores-cuenta";
-import { listadoDeuda, tramoDe } from "@/lib/tesoreria/deuda-vencimientos";
+import { listadoDeuda, sumarDias, tramoDe } from "@/lib/tesoreria/deuda-vencimientos";
 
 const HOY = "2026-10-19";
 const compra = (o: Partial<CompraAdeudada> = {}): CompraAdeudada => ({
@@ -93,5 +93,17 @@ describe("listadoDeuda", () => {
     expect(l.totales.vencida).toEqual({ cantidad: 2, monto: 900 });
     expect(l.totales.vence_7).toEqual({ cantidad: 1, monto: 300 });
     expect(l.totales.sin_vencimiento).toEqual({ cantidad: 1, monto: 100 });
+  });
+});
+
+describe("sumarDias (vencimiento propuesto = compra + plazo del proveedor)", () => {
+  it("suma días de calendario, cruzando mes y año", () => {
+    expect(sumarDias("2026-10-19", 15)).toBe("2026-11-03");
+    expect(sumarDias("2026-12-20", 15)).toBe("2027-01-04");
+    expect(sumarDias("2026-10-19", 0)).toBe("2026-10-19");
+  });
+  it("respeta los años bisiestos", () => {
+    expect(sumarDias("2028-02-20", 10)).toBe("2028-03-01");
+    expect(sumarDias("2027-02-20", 10)).toBe("2027-03-02");
   });
 });

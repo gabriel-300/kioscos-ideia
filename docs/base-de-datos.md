@@ -252,6 +252,7 @@ Otras columnas: `id`, `promo_id`, `sucursal_id`, `updated_at`, `updated_by`.
 | `is_active` | sí / no | Apagado = deja de ofrecerse. |
 | `modo_facturacion` | texto | costo = el costo es lo que se factura; precio_sugerido = el costo se calcula desde el precio de venta. |
 | `porcentaje_descuento` | número | Descuento aplicado al costo en el modo precio_sugerido. |
+| `plazo_pago_dias` | entero | Días de plazo para pagarle (0 = contado). Vacío = sin plazo fijo. Solo sirve para proponer el vencimiento al cargar un remito o factura en Tesorería. |
 
 Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 
