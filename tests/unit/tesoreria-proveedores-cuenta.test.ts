@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  calcularCuentas, estadoPorCompra, totalAdeudado, validarMovimientoProveedor, deudaDelResumen,
+  calcularCuentas, estadoPorCompra, totalAdeudado, validarMovimientoProveedor, validarImputaciones, deudaDelResumen,
   type CompraAdeudada, type MovimientoProveedor,
 } from "@/lib/tesoreria/proveedores-cuenta";
 
@@ -157,5 +157,92 @@ describe("deudaDelResumen", () => {
     const r = deudaDelResumen([pend({ monto: 1000 })], [mov({ monto: 1000 })], nombreProv, nombreLoc);
     expect(r.items).toEqual([]);
     expect(r.total).toBe(0);
+  });
+});
+
+describe("imputación de pagos a remitos o facturas (migración 112)", () => {
+  const dos = [compra({ id: "vieja", fecha: "2026-10-02", monto: 1000 }), compra({ id: "nueva", fecha: "2026-10-10", monto: 2000 })];
+
+  it("un pago imputado a la compra nueva la cubre a ella y no a la más vieja", () => {
+    const [c] = calcularCuentas(dos, [mov({ id: "p", monto: 2000 })], [{ pago_id: "p", egreso_id: "nueva", monto: 2000 }]);
+    expect(c.detalleCompras.map((d) => [d.compra.id, d.estado, d.resta])).toEqual([["vieja", "pendiente", 1000], ["nueva", "cubierta", 0]]);
+  });
+
+  it("el saldo no cambia por imputar: sigue siendo saldo inicial + compras − pagos", () => {
+    const sin = calcularCuentas(dos, [mov({ id: "p", monto: 2000 })])[0];
+    const con = calcularCuentas(dos, [mov({ id: "p", monto: 2000 })], [{ pago_id: "p", egreso_id: "nueva", monto: 2000 }])[0];
+    expect(con.saldo).toBe(sin.saldo);
+    expect(con.saldo).toBe(1000);
+  });
+
+  it("un pago se reparte entre varios remitos y lo que sobra cubre lo más viejo", () => {
+    const tres = [...dos, compra({ id: "ultima", fecha: "2026-10-12", monto: 500 })];
+    const [c] = calcularCuentas(tres, [mov({ id: "p", monto: 1600 })], [{ pago_id: "p", egreso_id: "nueva", monto: 1000 }, { pago_id: "p", egreso_id: "ultima", monto: 500 }]);
+    // 1500 imputados; los 100 restantes caen en la más vieja.
+    expect(Object.fromEntries(c.detalleCompras.map((d) => [d.compra.id, [d.estado, d.resta]]))).toEqual({
+      vieja: ["parcial", 900], nueva: ["parcial", 1000], ultima: ["cubierta", 0],
+    });
+  });
+
+  it("imputar parte de un remito lo deja en parte y el resto del pago a cuenta cubre lo más viejo", () => {
+    const [c] = calcularCuentas(dos, [mov({ id: "p", monto: 1500 })], [{ pago_id: "p", egreso_id: "nueva", monto: 500 }]);
+    expect(Object.fromEntries(c.detalleCompras.map((d) => [d.compra.id, [d.estado, d.resta]]))).toEqual({
+      vieja: ["cubierta", 0], nueva: ["parcial", 1500],
+    });
+  });
+
+  it("si el pago se anuló (ya no está entre los movimientos), su imputación se ignora", () => {
+    const [c] = calcularCuentas(dos, [], [{ pago_id: "anulado", egreso_id: "nueva", monto: 2000 }]);
+    expect(c.detalleCompras.every((d) => d.estado === "pendiente")).toBe(true);
+  });
+
+  it("si la compra ya no está (anulada o pagada), su imputación se ignora y el pago cubre lo que queda", () => {
+    const [c] = calcularCuentas([dos[0]], [mov({ id: "p", monto: 1000 })], [{ pago_id: "p", egreso_id: "ya-no-esta", monto: 1000 }]);
+    expect(c.detalleCompras[0].estado).toBe("cubierta");
+    expect(c.saldo).toBe(0);
+  });
+
+  it("una imputación mayor al monto de la compra no la cubre de más: el exceso sigue a cuenta", () => {
+    const [c] = calcularCuentas(dos, [mov({ id: "p", monto: 1500 })], [{ pago_id: "p", egreso_id: "vieja", monto: 1500 }]);
+    expect(c.detalleCompras.map((d) => [d.compra.id, d.estado, d.resta])).toEqual([["vieja", "cubierta", 0], ["nueva", "parcial", 1500]]);
+  });
+
+  it("sin imputaciones se comporta igual que antes (pagos viejos)", () => {
+    const a = calcularCuentas(dos, [mov({ id: "p", monto: 1200 })]);
+    const b = calcularCuentas(dos, [mov({ id: "p", monto: 1200 })], []);
+    expect(b).toEqual(a);
+  });
+});
+
+describe("validarImputaciones", () => {
+  const resta = new Map([["a", 1000], ["b", 500]]);
+
+  it("sin imputaciones es válido (el pago queda a cuenta)", () => {
+    expect(validarImputaciones([], 700, resta)).toEqual({ valor: [] });
+    expect(validarImputaciones(undefined, 700, resta)).toEqual({ valor: [] });
+  });
+
+  it("acepta repartir el pago entre remitos, con su monto redondeado", () => {
+    expect(validarImputaciones([{ egreso_id: "a", monto: 600.004 }, { egreso_id: "b", monto: 400 }], 1000, resta))
+      .toEqual({ valor: [{ egreso_id: "a", monto: 600 }, { egreso_id: "b", monto: 400 }] });
+  });
+
+  it("rechaza un remito que no es de la cuenta o ya no se debe", () => {
+    expect(validarImputaciones([{ egreso_id: "x", monto: 100 }], 1000, resta)).toHaveProperty("error");
+  });
+
+  it("rechaza un remito repetido, montos en cero o negativos y no numéricos", () => {
+    expect(validarImputaciones([{ egreso_id: "a", monto: 100 }, { egreso_id: "a", monto: 100 }], 1000, resta)).toHaveProperty("error");
+    expect(validarImputaciones([{ egreso_id: "a", monto: 0 }], 1000, resta)).toHaveProperty("error");
+    expect(validarImputaciones([{ egreso_id: "a", monto: -5 }], 1000, resta)).toHaveProperty("error");
+    expect(validarImputaciones([{ egreso_id: "a", monto: NaN }], 1000, resta)).toHaveProperty("error");
+  });
+
+  it("rechaza imputar más de lo que le falta a un remito", () => {
+    expect(validarImputaciones([{ egreso_id: "b", monto: 501 }], 1000, resta)).toHaveProperty("error");
+  });
+
+  it("rechaza que lo imputado supere el monto del pago", () => {
+    expect(validarImputaciones([{ egreso_id: "a", monto: 600 }, { egreso_id: "b", monto: 500 }], 1000, resta)).toHaveProperty("error");
   });
 });

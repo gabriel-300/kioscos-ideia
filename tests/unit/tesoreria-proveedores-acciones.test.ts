@@ -22,6 +22,8 @@ type Fila = Record<string, unknown>;
 type Esc = {
   sinProveedor?: boolean; sinLocal?: boolean; insertError?: string; anulaFilas?: number; historialError?: string;
   proveedorDesactivado?: boolean;
+  imputaciones?: Fila[];       // filas de proveedor_pago_imputaciones ya guardadas
+  imputacionError?: string;    // falla el insert de las imputaciones del pago nuevo
   compras?: Fila[];            // egresos pendientes del proveedor+local (definen el saldo)
   movs?: Fila[];               // filas vigentes de proveedor_cuenta (p. ej. el saldo_inicial que fija el corte)
   retiro?: Fila | null;        // fila de retiros_caja
@@ -44,6 +46,8 @@ function montar(permisos: unknown, e: Esc = {}) {
       }
       case "sucursales":   return { data: e.sinLocal ? null : { id: "s1", nombre: "Parque" } };
       case "egresos":      return { data: e.compras ?? [COMPRA_VIEJA] };
+      case "proveedor_pago_imputaciones":
+        return q.op === "insert" && e.imputacionError ? { error: { message: e.imputacionError } } : { data: e.imputaciones ?? [] };
       case "retiros_caja":
         if (q.op === "select") return { data: e.retiro === undefined ? RETIRO : e.retiro };
         if (q.payload?.proveedor_cuenta_id === "m1") return { data: Array.from({ length: e.tomaRetiroFilas ?? 1 }, () => ({ id: "r1" })) };
@@ -194,6 +198,70 @@ describe("registrarMovimientoProveedor: reglas de la cuenta corriente", () => {
     const r = await registrarMovimientoProveedor({ ...pago, tipo: "saldo_inicial", origen: null });
     expect(r.error).toMatch(/desactivado/);
     expect(inserts(f.calls)).toEqual([]);
+  });
+});
+
+describe("registrarMovimientoProveedor: imputación a remitos o facturas (migración 112)", () => {
+  const dos = [
+    { id: "c1", fecha: "2019-12-01", monto: 10000, descripcion: "Remito 1", comprobante_numero: "1" },
+    { id: "c2", fecha: "2019-12-05", monto: 10000, descripcion: "Remito 2", comprobante_numero: "2" },
+  ];
+  const insertsImputaciones = (calls: Q[]) => calls.filter((q) => q.table === "proveedor_pago_imputaciones" && q.op === "insert");
+
+  it("guarda el pago y sus imputaciones, y el historial anota cuánto se imputó", async () => {
+    const f = montar(CARGA, { compras: dos });
+    const r = await registrarMovimientoProveedor({ ...pago, monto: 15000 }, false, [{ egreso_id: "c2", monto: 10000 }, { egreso_id: "c1", monto: 5000 }]);
+    expect(r).toEqual({});
+    const ins = insertsImputaciones(f.calls);
+    expect(ins).toHaveLength(1);
+    expect(ins[0].payload).toEqual([{ pago_id: "m1", egreso_id: "c2", monto: 10000 }, { pago_id: "m1", egreso_id: "c1", monto: 5000 }]);
+    expect(historialDe(f.calls)[0]).toMatchObject({ detalle: { imputado_a: 2, monto_imputado: 15000 } });
+  });
+
+  it("sin imputaciones no toca la tabla nueva (pago a cuenta)", async () => {
+    const f = montar(CARGA, { compras: dos });
+    expect(await registrarMovimientoProveedor({ ...pago, monto: 15000 })).toEqual({});
+    expect(insertsImputaciones(f.calls)).toEqual([]);
+  });
+
+  it("rechaza imputar a una compra que no es de la cuenta y no guarda nada", async () => {
+    const f = montar(CARGA, { compras: dos });
+    expect(await registrarMovimientoProveedor(pago, false, [{ egreso_id: "otra", monto: 100 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("rechaza imputar más que el pago o más de lo que le falta al remito", async () => {
+    let f = montar(CARGA, { compras: dos });
+    expect(await registrarMovimientoProveedor({ ...pago, monto: 5000 }, false, [{ egreso_id: "c1", monto: 6000 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+    f = montar(CARGA, { compras: dos });
+    expect(await registrarMovimientoProveedor({ ...pago, monto: 20000 }, false, [{ egreso_id: "c1", monto: 10001 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("lo ya imputado a un remito por otro pago se descuenta de lo que le falta", async () => {
+    const f = montar(CARGA, {
+      compras: dos,
+      movs: [{ id: "viejo", tipo: "pago", proveedor_id: "p1", sucursal_id: "s1", fecha: "2019-12-10", monto: 9000, origen: "efectivo_tesoreria", nota: null, created_at: "2019-12-10T00:00:00Z", created_by: null }],
+      imputaciones: [{ pago_id: "viejo", egreso_id: "c1", monto: 9000 }],
+    });
+    // A c1 le falta 1000: imputarle 2000 no se puede.
+    expect(await registrarMovimientoProveedor({ ...pago, monto: 5000 }, false, [{ egreso_id: "c1", monto: 2000 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("si no se pueden guardar las imputaciones, borra el pago recién creado y avisa", async () => {
+    const f = montar(CARGA, { compras: dos, imputacionError: "boom" });
+    const r = await registrarMovimientoProveedor({ ...pago, monto: 10000 }, false, [{ egreso_id: "c1", monto: 10000 }]);
+    expect(r.error).toBe("boom");
+    expect(f.calls.some((q) => q.table === "proveedor_cuenta" && q.op === "delete")).toBe(true);
+    expect(historialDe(f.calls)).toEqual([]);
+  });
+
+  it("si falta la migración 112, lo dice", async () => {
+    montar(CARGA, { compras: dos, imputacionError: 'relation "public.proveedor_pago_imputaciones" does not exist' });
+    const r = await registrarMovimientoProveedor({ ...pago, monto: 10000 }, false, [{ egreso_id: "c1", monto: 10000 }]);
+    expect(r.error).toMatch(/migración 112/);
   });
 });
 

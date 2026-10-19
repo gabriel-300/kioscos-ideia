@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fechaHoyAR } from "@/lib/fecha";
-import { ORIGENES_PAGO, type CuentaProveedor, type MovimientoProveedor } from "@/lib/tesoreria/proveedores-cuenta";
+import { ORIGENES_PAGO, type CuentaProveedor, type Imputacion, type MovimientoProveedor } from "@/lib/tesoreria/proveedores-cuenta";
 import type { Deuda } from "@/lib/tesoreria/calculos";
 import { etiquetaOrigen } from "@/lib/tesoreria/tipos";
 import { registrarMovimientoProveedor, anularMovimientoProveedor } from "../proveedores-actions";
@@ -20,25 +20,48 @@ export interface ProveedoresData {
   sinProveedor:  Deuda[];                       // compras que se deben sin proveedor de la lista (no tienen cuenta corriente)
   nombreProveedor: Record<string, string>;
   nombreLocal:   Record<string, string>;
+  imputaciones:  Imputacion[];                  // a qué remito o factura se imputó cada pago (migración 112)
 }
 
 const etiqueta = "text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5";
 const campo = "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700";
 
-type Borrador = { tipo: "pago" | "saldo_inicial"; proveedor_id: string; sucursal_id: string };
+type Borrador = { tipo: "pago" | "saldo_inicial"; proveedor_id: string; sucursal_id: string; egreso_id?: string };
 
-function Formulario({ borrador, proveedores, sucursales, onClose }: {
-  borrador: Borrador; proveedores: Opcion[]; sucursales: Opcion[]; onClose: () => void;
+function Formulario({ borrador, proveedores, sucursales, cuentas, onClose }: {
+  borrador: Borrador; proveedores: Opcion[]; sucursales: Opcion[]; cuentas: CuentaProveedor[]; onClose: () => void;
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const [error, setError] = useState("");
   const [exceso, setExceso] = useState(false);   // el pago supera el saldo: se pide confirmación antes de registrarlo
+  // «Pagar este» llega con un remito o factura elegido: se imputa por lo que le falta y el monto del pago acompaña.
+  const preseleccion = borrador.egreso_id ? cuentas.flatMap((c) => c.detalleCompras).find((x) => x.compra.id === borrador.egreso_id) : undefined;
   const [f, setF] = useState({
-    proveedor_id: borrador.proveedor_id, sucursal_id: borrador.sucursal_id, fecha: fechaHoyAR(), monto: "",
+    proveedor_id: borrador.proveedor_id, sucursal_id: borrador.sucursal_id, fecha: fechaHoyAR(), monto: preseleccion ? String(preseleccion.resta) : "",
     origen: "efectivo_tesoreria", nota: "",
   });
   const esPago = borrador.tipo === "pago";
+  // Remitos y facturas de la cuenta elegida que todavía no están cubiertos: el pago se puede imputar a uno o varios (migración 112).
+  const abiertas = esPago
+    ? (cuentas.find((c) => c.proveedor_id === f.proveedor_id && c.sucursal_id === f.sucursal_id)?.detalleCompras ?? []).filter((d) => d.resta > 0)
+    : [];
+  const [imp, setImp] = useState<Record<string, string>>(() => (preseleccion ? { [preseleccion.compra.id]: String(preseleccion.resta) } : {}));
+  const numero = (t: string) => Number(t.replace(",", "."));
+  const imputado = abiertas.reduce((t, d) => t + (d.compra.id in imp ? (numero(imp[d.compra.id]) || 0) : 0), 0);
+  const cambiarCuenta = (k: "proveedor_id" | "sucursal_id") => (e: React.ChangeEvent<HTMLSelectElement>) => { setImp({}); setF({ ...f, [k]: e.target.value }); };
+  // El monto acompaña a lo imputado mientras no se haya escrito a mano otra cosa.
+  function imputar(nuevo: Record<string, string>) {
+    const suma = (r: Record<string, string>) => abiertas.reduce((t, d) => t + (d.compra.id in r ? (numero(r[d.compra.id]) || 0) : 0), 0);
+    const montoActual = numero(f.monto) || 0;
+    setImp(nuevo);
+    if (montoActual === 0 || montoActual === suma(imp)) setF({ ...f, monto: suma(nuevo) > 0 ? String(suma(nuevo)) : "" });
+  }
+  function marcar(d: (typeof abiertas)[number]) {
+    const n = { ...imp };
+    if (d.compra.id in n) delete n[d.compra.id]; else n[d.compra.id] = String(d.resta);
+    imputar(n);
+  }
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   function guardar(confirmarExceso = false) {
@@ -49,7 +72,7 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
       const r = await registrarMovimientoProveedor({
         tipo: borrador.tipo, proveedor_id: f.proveedor_id, sucursal_id: f.sucursal_id, fecha: f.fecha,
         monto, origen: esPago ? f.origen : null, nota: f.nota || null,
-      }, confirmarExceso);
+      }, confirmarExceso, abiertas.filter((d) => d.compra.id in imp).map((d) => ({ egreso_id: d.compra.id, monto: numero(imp[d.compra.id]) })));
       if (r.error) { setError(r.error); setExceso(!!r.confirmar); return; }
       router.refresh();
       onClose();
@@ -62,21 +85,21 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
         <h3 className="text-sm font-semibold text-neutral-900">{esPago ? "Registrar un pago a proveedor" : "Cargar el saldo inicial de un proveedor"}</h3>
         <p className="text-xs text-neutral-500 mt-0.5">
           {esPago
-            ? "El pago baja lo que se le debe a ese proveedor en ese local. No hace falta decir a qué remito corresponde: se resta del saldo. No es un gasto nuevo."
+            ? "El pago baja lo que se le debe a ese proveedor en ese local. Podés imputarlo a los remitos o facturas que paga; lo que no imputes queda a cuenta y cubre lo más viejo. No es un gasto nuevo."
             : "Lo que ya se le debía a ese proveedor antes de empezar a usar Tesorería. Se carga una sola vez por proveedor y local."}
         </p>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label className={etiqueta}>Proveedor</label>
-          <select value={f.proveedor_id} onChange={set("proveedor_id")} className={campo}>
+          <select value={f.proveedor_id} onChange={cambiarCuenta("proveedor_id")} className={campo}>
             <option value="">Elegí…</option>
             {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
         </div>
         <div>
           <label className={etiqueta}>Local</label>
-          <select value={f.sucursal_id} onChange={set("sucursal_id")} className={campo}>
+          <select value={f.sucursal_id} onChange={cambiarCuenta("sucursal_id")} className={campo}>
             <option value="">Elegí…</option>
             {sucursales.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
@@ -102,6 +125,40 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
           <input value={f.nota} onChange={set("nota")} maxLength={200} placeholder={esPago ? "Ej.: remitos 204 y 210" : "Ej.: saldo al 30/9"} className={campo} />
         </div>
       </div>
+      {esPago && f.proveedor_id && f.sucursal_id && (
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">¿Qué remitos o facturas paga? (opcional)</p>
+          {abiertas.length === 0 ? (
+            <p className="text-xs text-neutral-500">Esta cuenta no tiene remitos ni facturas sin cubrir: el pago queda a cuenta.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {abiertas.map((d) => {
+                const marcado = d.compra.id in imp;
+                return (
+                  <li key={d.compra.id} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={marcado} onChange={() => marcar(d)} id={`imp-${d.compra.id}`} className="h-4 w-4 shrink-0" />
+                    <label htmlFor={`imp-${d.compra.id}`} className="flex-1 min-w-0">
+                      <span className="text-neutral-900">{d.compra.comprobante_numero ? `N° ${d.compra.comprobante_numero} · ` : ""}{d.compra.descripcion}</span>
+                      <span className="block text-xs text-neutral-500">{dma(d.compra.fecha)} · falta {AR.format(d.resta)}{d.resta < d.compra.monto ? ` de ${AR.format(d.compra.monto)}` : ""}</span>
+                    </label>
+                    {marcado && (
+                      <input inputMode="decimal" aria-label="Monto imputado" value={imp[d.compra.id]} onChange={(e) => imputar({ ...imp, [d.compra.id]: e.target.value })}
+                        className="h-9 w-28 rounded-lg border border-neutral-300 bg-white px-2 text-sm text-right" />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {imputado > 0 && (
+            <p className="text-xs text-neutral-600">
+              Imputado a remitos y facturas: <b>{AR.format(imputado)}</b>
+              {numero(f.monto) > imputado ? <> · el resto (<b>{AR.format(numero(f.monto) - imputado)}</b>) queda a cuenta</> : null}
+              {numero(f.monto) > 0 && numero(f.monto) < imputado ? <span className="text-danger"> · supera el monto del pago</span> : null}
+            </p>
+          )}
+        </div>
+      )}
       {error && !exceso && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
       {error && exceso && (
         <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 space-y-2">
@@ -128,7 +185,7 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
   );
 }
 
-function MovimientoFila({ m, puedeCargar }: { m: MovimientoProveedor; puedeCargar: boolean }) {
+function MovimientoFila({ m, puedeCargar, imputadoA }: { m: MovimientoProveedor; puedeCargar: boolean; imputadoA: string[] }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -151,6 +208,7 @@ function MovimientoFila({ m, puedeCargar }: { m: MovimientoProveedor; puedeCarga
           <b>{m.tipo === "pago" ? "Pago" : "Saldo inicial"}</b> · {AR.format(m.monto)}
           {m.origen && <span className="text-neutral-500"> · {etiquetaOrigen(m.origen)}</span>}
           {m.nota && <span className="text-neutral-500"> — {m.nota}</span>}
+          {imputadoA.length > 0 && <span className="block text-xs text-neutral-500">Imputado a: {imputadoA.join(" · ")}</span>}
         </span>
         <span className="text-xs text-neutral-400">
           {dma(m.fecha)}
@@ -180,7 +238,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
 export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: {
   data: ProveedoresData; proveedores: Opcion[]; sucursales: Opcion[]; puedeCargar: boolean;
 }) {
-  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal } = data;
+  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal, imputaciones } = data;
   const [form, setForm] = useState<Borrador | null>(null);
   // Remito o factura de un proveedor: es una compra (el mismo formulario de egresos) que se carga «todavía se debe» y suma a su cuenta.
   const [compra, setCompra] = useState<BorradorEgreso | null>(null);
@@ -223,18 +281,18 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
 
       <p className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-600">
         <b>Cómo se lleva la cuenta de un proveedor:</b> 1) <b>cargá cada remito o factura</b> que llega (suma a lo que se le debe, con su número);
-        2) <b>registrá los pagos</b> a medida que se hacen, aunque cubran varios remitos juntos (se restan del saldo).
+        2) <b>registrá los pagos</b> a medida que se hacen y, si querés, <b>imputalos a los remitos o facturas que pagan</b> (un pago puede repartirse entre varios). Lo que no imputes queda a cuenta y cubre lo más viejo.
       </p>
 
       {form && (
-        <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}`} borrador={form} proveedores={opcionesProveedor} sucursales={sucursales} onClose={() => setForm(null)} />
+        <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}|${form.egreso_id ?? ""}`} borrador={form} proveedores={opcionesProveedor} sucursales={sucursales} cuentas={cuentas} onClose={() => setForm(null)} />
       )}
 
       <section className="space-y-2">
         <div>
           <h2 className="text-sm font-semibold text-neutral-900">Cuenta por proveedor y local</h2>
           <p className="text-xs text-neutral-500">
-            Saldo = saldo inicial + compras que todavía se deben − pagos. Los pagos cubren primero el saldo inicial y después las compras más viejas.
+            Saldo = saldo inicial + compras que todavía se deben − pagos. Cada pago cubre los remitos o facturas a los que se imputó; lo que no se imputó cubre primero el saldo inicial y después lo más viejo.
           </p>
         </div>
         {cuentas.length === 0 ? (
@@ -284,6 +342,10 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                                   {d.compra.comprobante_numero && <span className="text-neutral-500"> · N° {d.compra.comprobante_numero}</span>}
                                 </span>
                                 <span className="text-xs text-neutral-400">
+                                  {puedeCargar && c.sucursal_id && d.resta > 0 && (
+                                    <button type="button" onClick={() => setForm({ tipo: "pago", proveedor_id: c.proveedor_id, sucursal_id: c.sucursal_id as string, egreso_id: d.compra.id })}
+                                      className="mr-3 underline text-tierra-700 hover:text-tierra-800">Pagar este</button>
+                                  )}
                                   {dma(d.compra.fecha)}{" "}
                                   <span className={`ml-2 rounded-full border px-2 py-0.5 ${ESTADO[d.estado].clase}`}>
                                     {ESTADO[d.estado].texto}{d.estado === "parcial" ? ` (resta ${AR.format(d.resta)})` : ""}
@@ -298,7 +360,13 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                         <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
                           <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100">Pagos y saldo inicial</p>
                           <ul className="divide-y divide-neutral-100">
-                            {c.movimientos.map((m) => <MovimientoFila key={m.id} m={m} puedeCargar={puedeCargar} />)}
+                            {c.movimientos.map((m) => (
+                              <MovimientoFila key={m.id} m={m} puedeCargar={puedeCargar}
+                                imputadoA={imputaciones.filter((i) => i.pago_id === m.id).map((i) => {
+                                  const compra = c.detalleCompras.find((d) => d.compra.id === i.egreso_id)?.compra;
+                                  return `${compra?.comprobante_numero ? `N° ${compra.comprobante_numero}` : compra?.descripcion ?? "una compra"} (${AR.format(i.monto)})`;
+                                })} />
+                            ))}
                           </ul>
                         </div>
                       )}

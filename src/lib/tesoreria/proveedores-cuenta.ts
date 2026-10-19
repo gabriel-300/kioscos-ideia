@@ -3,7 +3,8 @@
 // Regla (la misma que usa la planilla del administrativo): el saldo no se arma imputando cada pago a un remito, se resta:
 //     saldo = saldo inicial + compras que todavía se deben − pagos
 // Positivo = se le debe al proveedor. Negativo = saldo a favor (se pagó de más o por adelantado).
-// Qué compras quedan cubiertas es solo informativo: los pagos cubren primero el saldo inicial y después las compras más viejas.
+// Qué compras quedan cubiertas es solo informativo y no cambia el saldo: un pago puede imputarse a remitos o facturas concretos
+// (migración 112); lo que no se imputa cubre primero el saldo inicial y después las compras más viejas.
 
 import { redondearMoneda } from "@/lib/pedidos/pricing";
 import { agruparDeuda, type Deuda } from "./calculos";
@@ -44,7 +45,10 @@ export interface CuentaProveedor {
 
 const claveDe = (proveedor: string, sucursal: string | null) => `${proveedor}|${sucursal ?? "general"}`;
 
-export function calcularCuentas(compras: CompraAdeudada[], movimientos: MovimientoProveedor[]): CuentaProveedor[] {
+// Parte de un pago que se imputó a un remito o factura concreto (migración 112).
+export interface Imputacion { pago_id: string; egreso_id: string; monto: number }
+
+export function calcularCuentas(compras: CompraAdeudada[], movimientos: MovimientoProveedor[], imputaciones: Imputacion[] = []): CuentaProveedor[] {
   const cuentas = new Map<string, CuentaProveedor>();
   const cuenta = (proveedor: string, sucursal: string | null) => {
     const k = claveDe(proveedor, sucursal);
@@ -68,15 +72,31 @@ export function calcularCuentas(compras: CompraAdeudada[], movimientos: Movimien
     c.detalleCompras.push({ compra: cp, estado: "pendiente", cubierto: 0, resta: cp.monto });
   }
 
+  // Imputaciones vigentes: su pago no está anulado (está entre los movimientos) y la compra sigue pendiente (está entre las compras).
+  const pagosVigentes = new Set(movimientos.filter((m) => m.tipo === "pago").map((m) => m.id));
+  const imputadoA = new Map<string, number>();
+  for (const i of imputaciones) {
+    if (!pagosVigentes.has(i.pago_id)) continue;
+    imputadoA.set(i.egreso_id, (imputadoA.get(i.egreso_id) ?? 0) + i.monto);
+  }
+
   for (const c of cuentas.values()) {
-    // Los pagos se aplican primero al saldo inicial (lo más viejo) y el resto a las compras, de la más vieja a la más nueva.
-    let disponible = Math.max(0, c.pagos - c.saldoInicial);
+    // 1) Lo imputado a un remito lo cubre a ese remito (nunca más que su monto).
+    let imputadoTotal = 0;
     for (const d of c.detalleCompras) {
-      const aplicado = Math.min(d.compra.monto, disponible);
-      disponible -= aplicado;
-      d.cubierto = redondearMoneda(aplicado);
-      d.resta    = redondearMoneda(d.compra.monto - aplicado);
-      d.estado   = d.resta <= 0 ? "cubierta" : aplicado > 0 ? "parcial" : "pendiente";
+      const aplicado = Math.min(d.compra.monto, imputadoA.get(d.compra.id) ?? 0);
+      imputadoTotal += aplicado;
+      d.cubierto = aplicado;
+    }
+    // 2) Lo que de los pagos no se imputó cubre primero el saldo inicial (lo más viejo) y el resto a las compras, de la más vieja a la más nueva.
+    let disponible = Math.max(0, c.pagos - imputadoTotal - c.saldoInicial);
+    for (const d of c.detalleCompras) {
+      const aplicar = Math.min(d.compra.monto - d.cubierto, disponible);
+      disponible -= aplicar;
+      const cubierto = d.cubierto + aplicar;
+      d.cubierto = redondearMoneda(cubierto);
+      d.resta    = redondearMoneda(d.compra.monto - cubierto);
+      d.estado   = d.resta <= 0 ? "cubierta" : cubierto > 0 ? "parcial" : "pendiente";
     }
     c.saldoInicial = redondearMoneda(c.saldoInicial);
     c.compras      = redondearMoneda(c.compras);
@@ -138,6 +158,34 @@ export function validarMovimientoProveedor(e: MovimientoEntrada, hoy: string): {
   return { valor: { tipo, proveedor_id: e.proveedor_id, sucursal_id: e.sucursal_id, fecha: e.fecha, monto, origen, nota: nota || null } };
 }
 
+// A qué remitos o facturas se imputa un pago (migración 112). `resta` = lo que todavía falta cubrir de cada compra de la cuenta
+// (calculado sin este pago). La suma no puede superar el pago, ni cada parte lo que le resta a su compra.
+export interface ImputacionEntrada { egreso_id: string; monto: number }
+
+export function validarImputaciones(
+  entradas: ImputacionEntrada[] | undefined, montoPago: number, resta: Map<string, number>,
+): { valor: ImputacionEntrada[] } | { error: string } {
+  const lista = entradas ?? [];
+  if (lista.length === 0) return { valor: [] };
+  const vistos = new Set<string>();
+  const valor: ImputacionEntrada[] = [];
+  let suma = 0;
+  for (const i of lista) {
+    if (!i?.egreso_id || !resta.has(i.egreso_id)) return { error: "Elegiste un remito o factura que no corresponde a esta cuenta o ya no se debe. Recargá la pantalla." };
+    if (vistos.has(i.egreso_id)) return { error: "Un remito o factura está repetido en el pago" };
+    vistos.add(i.egreso_id);
+    if (typeof i.monto !== "number" || !Number.isFinite(i.monto) || i.monto <= 0) return { error: "El monto de cada remito o factura tiene que ser mayor a cero" };
+    const monto = redondearMoneda(i.monto);
+    if (monto <= 0) return { error: "El monto de cada remito o factura tiene que ser mayor a cero" };
+    const falta = resta.get(i.egreso_id) ?? 0;
+    if (monto > falta) return { error: `A un remito o factura le imputaste más de lo que le falta cubrir (le faltan ${falta.toLocaleString("es-AR")}).` };
+    suma += monto;
+    valor.push({ egreso_id: i.egreso_id, monto });
+  }
+  if (redondearMoneda(suma) > montoPago) return { error: "Lo imputado a los remitos y facturas supera el monto del pago" };
+  return { valor };
+}
+
 // ── «Se debe» del Resumen ────────────────────────────────────────────────────
 // Con cuenta corriente, lo que se debe a un proveedor es su saldo (compras − pagos + saldo inicial), no la suma de compras sueltas.
 // Las compras sin proveedor de la lista no tienen cuenta y siguen agrupadas por lo que se escribió («lo de Mario»).
@@ -147,6 +195,7 @@ export function deudaDelResumen(
   movimientos: MovimientoProveedor[],
   nombreProveedor: Map<string, string>,
   nombreLocal: Map<string, string>,
+  imputaciones: Imputacion[] = [],
 ): { items: Deuda[]; total: number; sinProveedor: Deuda[]; cuentas: CuentaProveedor[] } {
   const conProveedor = pendientes.filter((p) => p.proveedor_id) as (typeof pendientes[number] & { proveedor_id: string })[];
   const cuentas = calcularCuentas(
@@ -155,6 +204,7 @@ export function deudaDelResumen(
       descripcion: p.descripcion, comprobante_numero: p.comprobante_numero,
     })),
     movimientos,
+    imputaciones,
   );
   const items: Deuda[] = cuentas
     .filter((c) => c.saldo > 0)

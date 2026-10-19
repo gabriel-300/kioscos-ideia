@@ -169,9 +169,13 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     Una cuota que termina se desactiva en la lista. El Resumen muestra lo que falta registrar y **«Tengo menos debo»** = efectivo en
     mano − saldo con proveedores − obligaciones del mes sin registrar. **Hoy «tengo» es solo el efectivo de Tesorería**: no incluye
     Mercado Pago ni bancos hasta que haya cuentas con saldo. Solo se muestra en el mes en curso.
-  - **Cuenta corriente de proveedores** (solapa «Proveedores», migración 106): el saldo por proveedor **y local** se resta, no se imputa
-    remito por remito: `saldo = saldo inicial + compras que todavía se deben − pagos` (negativo = saldo a favor). Un pago puede cubrir
-    varios remitos o quedar a cuenta; los más viejos se cubren primero (es solo informativo, no se guarda). El **pago no es un gasto
+  - **Cuenta corriente de proveedores** (solapa «Proveedores», migración 106): el **saldo** por proveedor **y local** se resta:
+    `saldo = saldo inicial + compras que todavía se deben − pagos` (negativo = saldo a favor). **Un pago se puede imputar a remitos o
+    facturas concretos** (migración 112, `proveedor_pago_imputaciones`): al registrarlo se marcan los comprobantes que cubre y cuánto a
+    cada uno; un pago puede repartirse entre varios. Imputar no cambia el saldo, solo qué comprobante queda cubierto (sin cubrir / en
+    parte / cubierto, calculado, no guardado). Lo que no se imputa queda a cuenta y cubre primero el saldo inicial y después lo más
+    viejo; los pagos anteriores a la 112 y los retiros de caja registrados como pago quedan así. No se imputa más que el pago ni más de
+    lo que le falta a cada comprobante; si se anula el pago o la compra, la imputación deja de valer. El **pago no es un gasto
     nuevo** (el gasto es la compra, esté pagada o no) pero sí baja el efectivo de Tesorería cuando sale de ahí. El saldo inicial es
     único por proveedor y local y se carga una vez; un error se anula con motivo. Si un mismo pago cubre a los dos locales se carga como
     dos pagos. Las compras sin proveedor de la lista no tienen cuenta y quedan agrupadas por lo que se escribió.

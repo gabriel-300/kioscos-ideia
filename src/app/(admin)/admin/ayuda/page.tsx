@@ -322,8 +322,9 @@ export default async function AyudaPage() {
               La cuenta de cada proveedor se lleva en la solapa <Campo>Proveedores</Campo>: tocá{" "}
               <Boton>Cargar un remito o factura</Boton> por cada comprobante que llega (anotá su <Campo>N° de remito</Campo>, tenga o no
               factura): siempre queda como <Campo>todavía se debe</Campo>. Se paga solo desde acá, con{" "}
-              <Boton>Registrar un pago</Boton>, aunque un pago cubra varios remitos juntos; si el pago es mayor al saldo, te pide
-              confirmar. El saldo es lo comprado menos lo pagado. Un retiro de caja que pagó a un proveedor se registra desde{" "}
+              <Boton>Registrar un pago</Boton>: marcá los remitos o facturas que ese pago cubre (puede repartirse entre varios, con su monto
+              cada uno) o dejalo a cuenta, y cubrirá lo más viejo. Desde cada compra, <Boton>Pagar este</Boton> la deja marcada. Si el pago es
+              mayor al saldo, te pide confirmar. El saldo es lo comprado menos lo pagado. Un retiro de caja que pagó a un proveedor se registra desde{" "}
               <Campo>Para registrar</Campo> con <Boton>Registrar como pago a …</Boton>.
             </Paso>
             <Paso n={4}>

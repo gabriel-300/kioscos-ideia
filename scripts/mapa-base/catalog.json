@@ -207,6 +207,11 @@
       "cols": "id:uuid:NN:DEF | tipo:text:NN | proveedor_id:uuid:NN | sucursal_id:uuid:NN | fecha:date:NN | monto:numeric(14,2):NN | origen:text | nota:text | anulado_en:timestamp with time zone | anulado_por:uuid | anulado_motivo:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF"
     },
     {
+      "t": "proveedor_pago_imputaciones",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | pago_id:uuid:NN | egreso_id:uuid:NN | monto:numeric(14,2):NN | created_at:timestamp with time zone:NN:DEF"
+    },
+    {
       "t": "proveedores",
       "k": "r",
       "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric"
@@ -887,6 +892,16 @@
       "proveedor_cuenta",
       "sucursal_id",
       "sucursales"
+    ],
+    [
+      "proveedor_pago_imputaciones",
+      "egreso_id",
+      "egresos"
+    ],
+    [
+      "proveedor_pago_imputaciones",
+      "pago_id",
+      "proveedor_cuenta"
     ],
     [
       "proveedores",

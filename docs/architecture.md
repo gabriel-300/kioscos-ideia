@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) **fue aplicada el 2026-10-16**
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella un pago no se puede imputar a un remito, pero todo lo demás sigue igual); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -518,8 +518,11 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
 - **Cuenta corriente de proveedores** (`proveedor_cuenta`, migración 106; solapa «Proveedores»): una sola tabla con `tipo` =
   `saldo_inicial` (único vigente por proveedor y local, índice parcial) o `pago` (con `origen`, nunca `retiro_caja`). Las compras
   siguen siendo `egresos`; **no se muta ninguna compra al pagar**: el saldo es `saldo inicial + compras no pagadas − pagos`
-  (`lib/tesoreria/proveedores-cuenta.ts`, puro y con tests) y qué compras quedan cubiertas se calcula en pantalla, primero el saldo
-  inicial y después las más viejas. Los pagos en efectivo de Tesorería se suman a `cargarSalidasEfectivo` (el efectivo en mano), y
+  (`lib/tesoreria/proveedores-cuenta.ts`, puro y con tests) y qué compras quedan cubiertas se calcula en pantalla: lo imputado a cada
+  remito o factura (`proveedor_pago_imputaciones`, migración 112; un pago puede repartirse entre varios, se ignora si el pago o la compra
+  se anulan) y, con lo que no se imputó, primero el saldo inicial y después las más viejas. Imputar no cambia el saldo. `cargarImputaciones`
+  tolera que la tabla no exista (todo queda a cuenta, como antes); `cargarCuentaDe` devuelve cuánto le falta a cada compra y
+  `validarImputaciones` lo exige antes de guardar. Los pagos en efectivo de Tesorería se suman a `cargarSalidasEfectivo` (el efectivo en mano), y
   si la tabla no existe se ignoran solo en ese cálculo y en el Resumen (el resto avisa). Trampa: una compra marcada pagada a mano
   **y** cubierta por un pago a cuenta se descuenta dos veces; por eso el saldo puede dar negativo y se muestra «a favor».
   **Remito o factura**: se cargan desde la misma solapa «Proveedores» (botón «Cargar un remito o factura», arriba y dentro de cada

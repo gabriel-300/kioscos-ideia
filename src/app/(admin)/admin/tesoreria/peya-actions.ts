@@ -10,7 +10,7 @@ import {
   type EstadoCruce, type EstadoCuentaPeya, type LecturaExcel, type PedidoPeya, type PlazoCobro, type ResultadoCierre,
 } from "@/lib/tesoreria/peya";
 import {
-  cargarLiquidacionPeya, cargarLiquidacionPorPeriodo, cargarLiquidacionPrevia, cargarPedidosDeLiquidacion, cargarTiendasPeya, cargarVentasParaCruce, type LiquidacionPeya,
+  cargarLiquidacionPeya, cargarLiquidacionPorPeriodo, cargarLiquidacionPrevia, cargarPedidosDeLiquidacion, cargarTiendasPeya, cargarVentasParaCruce,
 } from "@/lib/tesoreria/peya-consultas";
 
 // Mismas convenciones que actions.ts: devuelven { error } en vez de lanzar, escribe solo el servidor (service_role) y cada acción

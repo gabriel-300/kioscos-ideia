@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-19) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **54 tablas y vistas**, **154 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **55 tablas y vistas**, **156 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -736,6 +736,8 @@ erDiagram
   peya_liquidaciones ||--o{ peya_pedidos : "liquidacion_id"
   movimientos |o--o{ peya_pedidos : "movimiento_id"
   proveedores ||--o{ proveedor_cuenta : "proveedor_id"
+  egresos ||--o{ proveedor_pago_imputaciones : "egreso_id"
+  proveedor_cuenta ||--o{ proveedor_pago_imputaciones : "pago_id"
   egresos {
     uuid id PK
   }
@@ -755,6 +757,9 @@ erDiagram
     uuid id PK
   }
   peya_archivos {
+    uuid id PK
+  }
+  proveedor_pago_imputaciones {
     uuid id PK
   }
   proveedor_cuenta {
@@ -829,7 +834,7 @@ Otras columnas: `id`, `created_at`, `updated_by`, `updated_at`.
 
 **Apunta a:** `gasto_fijo_id` → `gastos_fijos` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`, `updated_by`  
-**La usan:** `movimientos` (egreso_id) · `retiros_caja` (egreso_id)
+**La usan:** `movimientos` (egreso_id) · `proveedor_pago_imputaciones` (egreso_id) · `retiros_caja` (egreso_id)
 
 ### `tesoreria_historial`
 
@@ -988,9 +993,23 @@ Otras columnas: `id`.
 **Apunta a:** `liquidacion_id` → `peya_liquidaciones`  
 **Personas (auth.users):** `subido_por`
 
+### `proveedor_pago_imputaciones`
+
+**A qué remito o factura se imputó cada pago a proveedor.** Cuando se registra un pago a un proveedor se puede marcar qué remitos o facturas cubre y cuánto a cada uno; un pago puede repartirse entre varias compras. Imputar no cambia el saldo de la cuenta: solo define qué comprobante queda cubierto. Lo que de un pago no se imputa cubre primero el saldo inicial y después lo más viejo. Si se anula el pago o la compra, la imputación deja de valer (la fila queda como registro).
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `pago_id` | id · obligatoria → proveedor_cuenta | El pago (proveedor_cuenta con tipo pago). |
+| `egreso_id` | id · obligatoria → egresos | El remito o factura que cubre (egresos). |
+| `monto` | número · obligatoria | Parte del pago que cubre ese comprobante. Nunca más que el pago ni que lo que le faltaba al comprobante. |
+
+Otras columnas: `id`, `created_at`.
+
+**Apunta a:** `egreso_id` → `egresos` · `pago_id` → `proveedor_cuenta`
+
 ### `proveedor_cuenta`
 
-**Cuenta corriente de cada proveedor, por local.** Los pagos a proveedor y el saldo inicial. El saldo de un proveedor en un local es: saldo inicial + compras que todavía se deben − pagos (si da negativo es saldo a favor). No se imputa cada pago a un remito: los pagos cubren primero el saldo inicial y después las compras más viejas, y eso se calcula en pantalla. Un pago no es un gasto nuevo (el gasto es la compra). Nada se borra: un error se anula con motivo.
+**Cuenta corriente de cada proveedor, por local.** Los pagos a proveedor y el saldo inicial. El saldo de un proveedor en un local es: saldo inicial + compras que todavía se deben − pagos (si da negativo es saldo a favor). Un pago puede imputarse a remitos o facturas concretos (tabla proveedor_pago_imputaciones); lo que no se imputa cubre primero el saldo inicial y después las compras más viejas, y qué queda cubierto se calcula en pantalla. Un pago no es un gasto nuevo (el gasto es la compra). Nada se borra: un error se anula con motivo.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -1010,7 +1029,7 @@ Otras columnas: `id`, `created_at`.
 
 **Apunta a:** `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`  
-**La usan:** `retiros_caja` (proveedor_cuenta_id)
+**La usan:** `proveedor_pago_imputaciones` (pago_id) · `retiros_caja` (proveedor_cuenta_id)
 
 ### `mp_cobros`
 

@@ -27,7 +27,7 @@ import {
   cargarArchivosDeLiquidacion, cargarLiquidacionPeya, cargarLiquidacionesPeya, cargarLiquidacionesPeyaSiExiste, cargarPedidosDeLiquidacion, cargarVentasParaCruce, cargarVentasYaCruzadas,
 } from "@/lib/tesoreria/peya-consultas";
 import { cargarCuentaMp } from "@/lib/tesoreria/cuenta-mp-consultas";
-import { cargarMovimientosProveedor } from "@/lib/tesoreria/proveedores-consultas";
+import { cargarMovimientosProveedor, cargarImputaciones } from "@/lib/tesoreria/proveedores-consultas";
 import { deudaDelResumen, estadoPorCompra, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
 import { compararPorDia, cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
@@ -97,7 +97,7 @@ export default async function TesoreriaPage({
     if (vista === "fijos" || vista === "resumen") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, cuentaMp, liquidacionesPeya] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, imputaciones, cuentaMp, liquidacionesPeya] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
@@ -105,6 +105,7 @@ export default async function TesoreriaPage({
         cargarSobresSinRetirar(admin, sucursalIds, config.fecha_inicio),
         cargarCambiosEfectivoInicial(admin),
         cargarMovimientosProveedor(admin, true),
+        cargarImputaciones(admin, true),
         cargarCuentaMp(admin, true),
         cargarLiquidacionesPeyaSiExiste(admin),
       ]);
@@ -112,7 +113,7 @@ export default async function TesoreriaPage({
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
       const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
       const deudaResumen = (({ items, total }) => ({ items, total }))(
-        deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre]))),
+        deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre])), imputaciones),
       );
       const obligaciones = obligacionesDelMes(fijos, egresosMes, mes, fechaHoyAR());
       resumen = {
@@ -138,8 +139,8 @@ export default async function TesoreriaPage({
     let estadoCompra: ReturnType<typeof estadoPorCompra> = {};
     if (vista === "egresos") {
       try {
-        const movimientos = await cargarMovimientosProveedor(admin);
-        const { cuentas } = deudaDelResumen(pendientesTodos, movimientos, new Map(), new Map());
+        const [movimientos, imputaciones] = await Promise.all([cargarMovimientosProveedor(admin), cargarImputaciones(admin, true)]);
+        const { cuentas } = deudaDelResumen(pendientesTodos, movimientos, new Map(), new Map(), imputaciones);
         estadoCompra = estadoPorCompra(cuentas);
       } catch { /* sin la migración 106 no hay cuenta corriente: todo se muestra como hasta ahora */ }
     }
@@ -242,10 +243,10 @@ export default async function TesoreriaPage({
   let provError = "";
   if (vista === "proveedores") {
     try {
-      const [pendientes, movimientos] = await Promise.all([cargarEgresosPendientes(admin), cargarMovimientosProveedor(admin)]);
+      const [pendientes, movimientos, imputaciones] = await Promise.all([cargarEgresosPendientes(admin), cargarMovimientosProveedor(admin), cargarImputaciones(admin, true)]);
       const nombreProveedor = new Map(datos.proveedores.map((p) => [p.id, p.nombre]));
       const nombreLocal = new Map(datos.sucursales.map((s) => [s.id, s.nombre]));
-      const d = deudaDelResumen(pendientes, movimientos, nombreProveedor, nombreLocal);
+      const d = deudaDelResumen(pendientes, movimientos, nombreProveedor, nombreLocal, imputaciones);
       // Proveedores dados de baja que todavía tienen cuenta: se busca su nombre para poder mostrarlos y pagarles.
       const faltantes = [...new Set(d.cuentas.map((c) => c.proveedor_id))].filter((id) => !nombreProveedor.has(id));
       if (faltantes.length > 0) {
@@ -254,7 +255,7 @@ export default async function TesoreriaPage({
       }
       prov = {
         cuentas: d.cuentas, totales: totalAdeudado(d.cuentas), sinProveedor: d.sinProveedor,
-        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal),
+        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal), imputaciones,
       };
     } catch (e) {
       provError = e instanceof Error ? e.message : String(e);

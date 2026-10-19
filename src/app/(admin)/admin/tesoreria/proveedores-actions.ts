@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import { registrarHistorial } from "@/lib/tesoreria/historial";
-import { validarMovimientoProveedor, type MovimientoEntrada } from "@/lib/tesoreria/proveedores-cuenta";
+import { validarMovimientoProveedor, validarImputaciones, type ImputacionEntrada, type MovimientoEntrada } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCuentaDe } from "@/lib/tesoreria/proveedores-consultas";
 import { fechaHoyAR } from "@/lib/fecha";
 
@@ -26,8 +26,9 @@ type Admin = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const esTablaFaltante = (m: string) => m.includes("proveedor_cuenta") && /does not exist|schema cache|no existe/i.test(m);
 
-// Un pago a cuenta o un saldo inicial. El saldo inicial es único por proveedor y local; si se cargó mal, se anula y se vuelve a cargar.
-export async function registrarMovimientoProveedor(entrada: MovimientoEntrada, confirmarExceso = false): Promise<Resultado> {
+// Un pago o un saldo inicial. El saldo inicial es único por proveedor y local; si se cargó mal, se anula y se vuelve a cargar.
+// Un pago puede imputarse a remitos o facturas concretos (`imputaciones`, migración 112); lo que no se imputa queda a cuenta.
+export async function registrarMovimientoProveedor(entrada: MovimientoEntrada, confirmarExceso = false, imputaciones: ImputacionEntrada[] = []): Promise<Resultado> {
   const permisos = await permisosTesoreria();
   if (!permisos?.puedeCargar) return { error: SIN_PERMISO };
 
@@ -45,9 +46,13 @@ export async function registrarMovimientoProveedor(entrada: MovimientoEntrada, c
   if (!prov) return { error: m.tipo === "pago" ? "Ese proveedor no existe" : "Ese proveedor no existe o está desactivado" };
   if (!suc)  return { error: "Ese local no entra en Tesorería" };
 
+  let imputar: ImputacionEntrada[] = [];
   if (m.tipo === "pago") {
-    const { saldo, fechaCorte } = await cargarCuentaDe(admin, m.proveedor_id, m.sucursal_id);
+    const { saldo, fechaCorte, resta } = await cargarCuentaDe(admin, m.proveedor_id, m.sucursal_id);
     if (fechaCorte && m.fecha <= fechaCorte) return { error: msgCorte(fechaCorte) };
+    const imp = validarImputaciones(imputaciones, m.monto, resta);
+    if ("error" in imp) return { error: imp.error };
+    imputar = imp.valor;
     // Pagar de más (o por adelantado) es posible, pero tiene que ser a propósito: un cero de más no puede pasar sin aviso.
     if (!confirmarExceso && m.monto > saldo) {
       const debe = Math.max(saldo, 0);
@@ -69,11 +74,24 @@ export async function registrarMovimientoProveedor(entrada: MovimientoEntrada, c
     return { error: msg || "No se pudo guardar" };
   }
 
+  if (imputar.length > 0) {
+    const { error: errImp } = await admin.from("proveedor_pago_imputaciones")
+      .insert(imputar.map((i) => ({ pago_id: creado.id, egreso_id: i.egreso_id, monto: i.monto })));
+    if (errImp) {
+      // Compensación: un pago que debía quedar imputado no se deja a medias; se borra y se avisa.
+      await admin.from("proveedor_cuenta").delete().eq("id", creado.id);
+      return { error: /proveedor_pago_imputaciones/.test(errImp.message) && /does not exist|schema cache/i.test(errImp.message) ? "Falta aplicar la migración 112 de la base de datos" : errImp.message };
+    }
+  }
+
   const historial = await registrarHistorial(admin, {
     usuario_id: permisos.userId,
     accion: m.tipo === "pago" ? "proveedor_pago" : "proveedor_saldo_inicial",
     entidad_id: creado.id,
-    detalle: { monto: m.monto, proveedor: prov.nombre, sucursal: suc.nombre, origen: m.origen, fecha: m.fecha },
+    detalle: {
+      monto: m.monto, proveedor: prov.nombre, sucursal: suc.nombre, origen: m.origen, fecha: m.fecha,
+      ...(imputar.length > 0 ? { imputado_a: imputar.length, monto_imputado: imputar.reduce((t, i) => t + i.monto, 0) } : {}),
+    },
     motivo: m.nota,
   });
   revalidatePath("/admin/tesoreria");
