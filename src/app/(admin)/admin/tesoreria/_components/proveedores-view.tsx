@@ -245,6 +245,8 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
   const cargarCompra = (proveedor_id = "", sucursal_id = "") =>
     setCompra({ categoria: "mercaderia", pagado: false, proveedor_id: proveedor_id || null, sucursal_id: sucursal_id || null });
   const [abierta, setAbierta] = useState<string | null>(null);
+  // Los remitos ya cubiertos por pagos se esconden para que la lista muestre lo que falta pagar; se pueden ver cuenta por cuenta.
+  const [conCubiertas, setConCubiertas] = useState<string | null>(null);
   const local = (id: string | null) => (id ? nombreLocal[id] ?? "—" : "Sin local");
   // Un proveedor dado de baja con deuda pendiente tiene que poder cobrarse/pagarse: se suma a los selects, marcado.
   const opcionesProveedor: Opcion[] = [
@@ -331,11 +333,16 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                             className="rounded-lg border border-tierra-700 px-3 py-1.5 text-sm font-semibold text-tierra-700 hover:bg-tierra-50">Registrar un pago a {nombre}</button>
                         </div>
                       )}
-                      {c.detalleCompras.length > 0 && (
+                      {c.detalleCompras.length > 0 && (() => {
+                        const cubiertas = c.detalleCompras.filter((d) => d.estado === "cubierta").length;
+                        const verTodas = conCubiertas === c.clave;
+                        const lista = verTodas ? c.detalleCompras : c.detalleCompras.filter((d) => d.estado !== "cubierta");
+                        return (
                         <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
-                          <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100">Compras que se deben</p>
+                          <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100">Remitos y facturas que se deben</p>
+                          {lista.length === 0 && <p className="px-4 py-3 text-sm text-neutral-500">Todos los remitos y facturas están cubiertos por pagos.</p>}
                           <ul className="divide-y divide-neutral-100">
-                            {c.detalleCompras.map((d) => (
+                            {lista.map((d) => (
                               <li key={d.compra.id} className="px-4 py-2 text-sm flex justify-between gap-3 flex-wrap">
                                 <span>
                                   {AR.format(d.compra.monto)} · {d.compra.descripcion}
@@ -354,8 +361,15 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                               </li>
                             ))}
                           </ul>
+                          {cubiertas > 0 && (
+                            <button type="button" onClick={() => setConCubiertas(verTodas ? null : c.clave)}
+                              className="w-full border-t border-neutral-100 px-4 py-2 text-left text-xs text-neutral-500 underline hover:text-neutral-800">
+                              {verTodas ? "Esconder los cubiertos por pagos" : `Ver ${cubiertas} ${cubiertas === 1 ? "cubierto" : "cubiertos"} por pagos`}
+                            </button>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
                       {c.movimientos.length > 0 && (
                         <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
                           <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100">Pagos y saldo inicial</p>
