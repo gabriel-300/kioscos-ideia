@@ -48,6 +48,16 @@ async function anotar(admin: ReturnType<typeof createAdminClient>, e: EntradaHis
 // Puede venir de un retiro de caja y/o de entregas que cargó el kiosco: en ese caso el egreso las "toma" (les
 // pone egreso_id) y dejan de aparecer en "Para registrar".
 export async function registrarEgreso(entrada: EgresoEntrada): Promise<Resultado> {
+  // Next.js oculta el mensaje de un throw en producción: se atrapa para que el formulario muestre la causa real.
+  try {
+    return await guardarEgreso(entrada);
+  } catch (e) {
+    console.error("[tesoreria] registrarEgreso falló:", e);
+    return { error: `No se pudo guardar: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+async function guardarEgreso(entrada: EgresoEntrada): Promise<Resultado> {
   const permisos = await exigirCargar();
   if (!permisos) return { error: SIN_PERMISO };
 
