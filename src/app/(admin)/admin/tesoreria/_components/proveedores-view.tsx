@@ -57,6 +57,14 @@ function Formulario({ borrador, proveedores, sucursales, cuentas, onClose }: {
     setImp(nuevo);
     if (montoActual === 0 || montoActual === suma(imp)) setF({ ...f, monto: suma(nuevo) > 0 ? String(suma(nuevo)) : "" });
   }
+  // Pago parcial: con un solo remito marcado, lo imputado acompaña al monto que se escribe (sin pasarse de lo que le falta).
+  function cambiarMonto(e: React.ChangeEvent<HTMLInputElement>) {
+    const texto = e.target.value;
+    const marcados = abiertas.filter((d) => d.compra.id in imp);
+    const nuevo = numero(texto);
+    if (marcados.length === 1 && nuevo > 0) setImp({ [marcados[0].compra.id]: String(Math.min(nuevo, marcados[0].resta)) });
+    setF({ ...f, monto: texto });
+  }
   function marcar(d: (typeof abiertas)[number]) {
     const n = { ...imp };
     if (d.compra.id in n) delete n[d.compra.id]; else n[d.compra.id] = String(d.resta);
@@ -110,7 +118,7 @@ function Formulario({ borrador, proveedores, sucursales, cuentas, onClose }: {
         </div>
         <div>
           <label className={etiqueta}>Monto</label>
-          <input inputMode="decimal" value={f.monto} onChange={set("monto")} placeholder="0" className={campo} />
+          <input inputMode="decimal" value={f.monto} onChange={esPago ? cambiarMonto : set("monto")} placeholder="0" className={campo} />
         </div>
         {esPago && (
           <div>
@@ -154,7 +162,7 @@ function Formulario({ borrador, proveedores, sucursales, cuentas, onClose }: {
             <p className="text-xs text-neutral-600">
               Imputado a remitos y facturas: <b>{AR.format(imputado)}</b>
               {numero(f.monto) > imputado ? <> · el resto (<b>{AR.format(numero(f.monto) - imputado)}</b>) queda a cuenta</> : null}
-              {numero(f.monto) > 0 && numero(f.monto) < imputado ? <span className="text-danger"> · supera el monto del pago</span> : null}
+              {numero(f.monto) > 0 && numero(f.monto) < imputado ? <span className="text-danger"> · supera el monto del pago: bajá lo imputado a algún remito o subí el monto</span> : null}
             </p>
           )}
         </div>
