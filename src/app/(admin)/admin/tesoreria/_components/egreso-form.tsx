@@ -76,6 +76,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const [descripcion, setDescripcion] = useState(b.descripcion ?? "");
   const [comprobante, setComprobante] = useState<"con" | "sin" | null>((b.comprobante as "con" | "sin" | undefined) ?? null);
   const [numero, setNumero]           = useState(b.comprobante_numero ?? "");
+  const [vence, setVence]             = useState(b.fecha_vencimiento ?? "");
   const [sucursalId, setSucursalId]   = useState(b.sucursal_id ?? "");
   const [origen, setOrigen]           = useState(esRetiro ? "retiro_caja" : (b.origen ?? ""));
   const [nota, setNota]               = useState(b.nota ?? "");
@@ -120,6 +121,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
           fecha, monto: montoNum, sucursal_id: sucursalId || null, categoria,
           proveedor_id: esRetiro ? null : (proveedorId || null), descripcion: desc, comprobante,
           comprobante_numero: numero.trim() || null,
+          fecha_vencimiento: pagado ? null : (vence || null),
           comprobante_path: path, pagado, origen: pagado ? origen : null,
           gasto_fijo_id: b.gasto_fijo_id ?? null, nota: nota.trim() || null,
           retiros_caja_ids: retiros, entregas_ids: esRetiro || categoria !== "mercaderia" ? [] : [...entregasElegidas],
@@ -228,6 +230,14 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
               aria-label="Número de remito o de factura"
               placeholder={comprobante === "con" ? "N° de factura (y de remito, si lo tiene) — opcional" : comprobante === "sin" ? "N° de remito — opcional" : "N° de factura o de remito — opcional"} />
           </div>
+
+          {pagado === false && (
+            <div>
+              <label className={etiqueta}>Vence el (opcional)</label>
+              <input type="date" value={vence} min={fecha} onChange={(e) => setVence(e.target.value)} className={campo} />
+              <p className="mt-1 text-xs text-neutral-400">Si lo cargás, esta compra figura en el listado de deuda vencida y a vencer.</p>
+            </div>
+          )}
 
           <div id="campo-sucursal" className={aviso("sucursal")}>
             <label className={etiqueta}>{conProveedor ? "Kiosco *" : "Kiosco"}</label>

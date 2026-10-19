@@ -8,6 +8,7 @@ import type { Deuda } from "@/lib/tesoreria/calculos";
 import { etiquetaOrigen } from "@/lib/tesoreria/tipos";
 import { registrarMovimientoProveedor, anularMovimientoProveedor } from "../proveedores-actions";
 import { EgresoForm, type Borrador as BorradorEgreso } from "./egreso-form";
+import { DeudaVencimientosView, Vencimiento } from "./deuda-vencimientos-view";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const dma = (f: string) => f.split("-").reverse().join("/");
@@ -21,6 +22,7 @@ export interface ProveedoresData {
   nombreProveedor: Record<string, string>;
   nombreLocal:   Record<string, string>;
   imputaciones:  Imputacion[];                  // a qué remito o factura se imputó cada pago (migración 112)
+  hoy:           string;                        // YYYY-MM-DD, para separar lo vencido de lo que está a tiempo (migración 113)
 }
 
 const etiqueta = "text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5";
@@ -246,7 +248,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
 export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: {
   data: ProveedoresData; proveedores: Opcion[]; sucursales: Opcion[]; puedeCargar: boolean;
 }) {
-  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal, imputaciones } = data;
+  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal, imputaciones, hoy } = data;
   const [form, setForm] = useState<Borrador | null>(null);
   // Remito o factura de un proveedor: es una compra (el mismo formulario de egresos) que se carga «todavía se debe» y suma a su cuenta.
   const [compra, setCompra] = useState<BorradorEgreso | null>(null);
@@ -297,6 +299,8 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
       {form && (
         <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}|${form.egreso_id ?? ""}`} borrador={form} proveedores={opcionesProveedor} sucursales={sucursales} cuentas={cuentas} onClose={() => setForm(null)} />
       )}
+
+      <DeudaVencimientosView cuentas={cuentas} hoy={hoy} nombreProveedor={nombreProveedor} nombreLocal={nombreLocal} puedeCargar={puedeCargar} />
 
       <section className="space-y-2">
         <div>
@@ -355,6 +359,7 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                                 <span>
                                   {AR.format(d.compra.monto)} · {d.compra.descripcion}
                                   {d.compra.comprobante_numero && <span className="text-neutral-500"> · N° {d.compra.comprobante_numero}</span>}
+                                  {d.resta > 0 && <span className="block"><Vencimiento egresoId={d.compra.id} vence={d.compra.fecha_vencimiento ?? null} puedeCargar={puedeCargar} /></span>}
                                 </span>
                                 <span className="text-xs text-neutral-400">
                                   {puedeCargar && c.sucursal_id && d.resta > 0 && (

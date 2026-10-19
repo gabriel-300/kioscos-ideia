@@ -255,7 +255,7 @@ export default async function TesoreriaPage({
       }
       prov = {
         cuentas: d.cuentas, totales: totalAdeudado(d.cuentas), sinProveedor: d.sinProveedor,
-        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal), imputaciones,
+        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal), imputaciones, hoy: fechaHoyAR(),
       };
     } catch (e) {
       provError = e instanceof Error ? e.message : String(e);

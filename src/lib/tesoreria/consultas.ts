@@ -193,7 +193,7 @@ export async function cargarCambiosEfectivoInicial(admin: Admin): Promise<Cambio
 }
 
 // ── Egresos ──
-const COLUMNAS_EGRESO = "id, fecha, monto, sucursal_id, categoria, proveedor_id, descripcion, comprobante, comprobante_numero, comprobante_path, pagado, origen, fecha_pago, gasto_fijo_id, nota, anulado_en, created_by, created_at";
+const COLUMNAS_EGRESO = "id, fecha, monto, sucursal_id, categoria, proveedor_id, descripcion, comprobante, comprobante_numero, comprobante_path, fecha_vencimiento, pagado, origen, fecha_pago, gasto_fijo_id, nota, anulado_en, created_by, created_at";
 
 // La base guarda texto en categoria/comprobante/origen (con CHECK); acá se estrechan a los tipos de ./tipos.
 function aEgreso(e: { monto: number | string } & Record<string, unknown>): Egreso {

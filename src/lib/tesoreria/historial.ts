@@ -17,6 +17,7 @@ export const ACCIONES_HISTORIAL = [
   "mp_saldo_inicial", "mp_retiro", "mp_movimiento_anulado",
   "peya_liquidacion_importada", "peya_liquidacion_confirmada", "peya_acreditacion_registrada", "peya_conciliacion_manual",
   "peya_pedido_revisado",
+  "egreso_vencimiento",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -41,6 +42,7 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   peya_acreditacion_registrada: "Cobro de PedidosYa registrado",
   peya_conciliacion_manual:     "Pedido de PedidosYa cruzado a mano",
   peya_pedido_revisado:         "Pedido de PedidosYa revisado",
+  egreso_vencimiento:           "Vencimiento de un remito o factura",
 };
 
 export interface EntradaHistorial {
@@ -100,6 +102,12 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
     }
     case "egreso_pagado":
       return `Marcó pagado «${texto(d.descripcion) ?? "un egreso"}» de ${plata(d.monto)}${texto(d.origen) ? ` con ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)}` : ""}`;
+    case "egreso_vencimiento": {
+      const fecha = (v: Json | undefined) => (texto(v) ? texto(v)!.split("-").reverse().join("/") : null);
+      const quien = `«${texto(d.descripcion) ?? "un remito"}»`;
+      if (!fecha(d.nuevo)) return `Sacó el vencimiento de ${quien}`;
+      return fecha(d.anterior) ? `Cambió el vencimiento de ${quien} de ${fecha(d.anterior)} a ${fecha(d.nuevo)}` : `Fijó el vencimiento de ${quien} al ${fecha(d.nuevo)}`;
+    }
     case "egreso_anulado":
       return `Anuló «${texto(d.descripcion) ?? "un egreso"}» de ${plata(d.monto)}`;
     case "entrega_descartada":

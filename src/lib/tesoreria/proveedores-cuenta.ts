@@ -26,6 +26,7 @@ export interface MovimientoProveedor {
 export interface CompraAdeudada {
   id: string; proveedor_id: string; sucursal_id: string | null; fecha: string; monto: number;
   descripcion: string; comprobante_numero: string | null;
+  fecha_vencimiento?: string | null;   // migración 113; vacío = sin vencimiento
 }
 
 export type EstadoCompra = "pendiente" | "parcial" | "cubierta";
@@ -36,6 +37,7 @@ export interface CuentaProveedor {
   proveedor_id: string;
   sucursal_id:  string | null;        // null = compras sin local («general»)
   saldoInicial: number;
+  saldoInicialPendiente: number;      // lo que de ese saldo inicial los pagos no a remitos todavía no cubrieron (sin vencimiento)
   compras:      number;               // suma de lo que todavía se debe en compras
   pagos:        number;
   saldo:        number;               // saldoInicial + compras − pagos
@@ -54,7 +56,7 @@ export function calcularCuentas(compras: CompraAdeudada[], movimientos: Movimien
     const k = claveDe(proveedor, sucursal);
     let c = cuentas.get(k);
     if (!c) {
-      c = { clave: k, proveedor_id: proveedor, sucursal_id: sucursal, saldoInicial: 0, compras: 0, pagos: 0, saldo: 0, detalleCompras: [], movimientos: [] };
+      c = { clave: k, proveedor_id: proveedor, sucursal_id: sucursal, saldoInicial: 0, saldoInicialPendiente: 0, compras: 0, pagos: 0, saldo: 0, detalleCompras: [], movimientos: [] };
       cuentas.set(k, c);
     }
     return c;
@@ -90,6 +92,7 @@ export function calcularCuentas(compras: CompraAdeudada[], movimientos: Movimien
     }
     // 2) Lo que de los pagos no se imputó cubre primero el saldo inicial (lo más viejo) y el resto a las compras, de la más vieja a la más nueva.
     let disponible = Math.max(0, c.pagos - imputadoTotal - c.saldoInicial);
+    c.saldoInicialPendiente = redondearMoneda(Math.max(0, c.saldoInicial - Math.max(0, c.pagos - imputadoTotal)));
     for (const d of c.detalleCompras) {
       const aplicar = Math.min(d.compra.monto - d.cubierto, disponible);
       disponible -= aplicar;
@@ -191,7 +194,7 @@ export function validarImputaciones(
 // Las compras sin proveedor de la lista no tienen cuenta y siguen agrupadas por lo que se escribió («lo de Mario»).
 
 export function deudaDelResumen(
-  pendientes: Pick<Egreso, "id" | "proveedor_id" | "sucursal_id" | "descripcion" | "monto" | "fecha" | "comprobante_numero">[],
+  pendientes: (Pick<Egreso, "id" | "proveedor_id" | "sucursal_id" | "descripcion" | "monto" | "fecha" | "comprobante_numero"> & { fecha_vencimiento?: string | null })[],
   movimientos: MovimientoProveedor[],
   nombreProveedor: Map<string, string>,
   nombreLocal: Map<string, string>,
@@ -201,7 +204,7 @@ export function deudaDelResumen(
   const cuentas = calcularCuentas(
     conProveedor.map((p) => ({
       id: p.id, proveedor_id: p.proveedor_id, sucursal_id: p.sucursal_id, fecha: p.fecha, monto: p.monto,
-      descripcion: p.descripcion, comprobante_numero: p.comprobante_numero,
+      descripcion: p.descripcion, comprobante_numero: p.comprobante_numero, fecha_vencimiento: p.fecha_vencimiento ?? null,
     })),
     movimientos,
     imputaciones,

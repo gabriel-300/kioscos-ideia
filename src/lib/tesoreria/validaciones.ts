@@ -80,6 +80,11 @@ export function validarEgreso(e: EgresoEntrada, hoy: string): { error: string } 
   const nota = textoOpcional(e.nota, 500);
   if (nota === "demasiado-largo") return { error: "La nota es demasiado larga (máximo 500 caracteres)" };
 
+  // Vencimiento (migración 113): solo tiene sentido en lo que queda por pagar y no puede ser anterior a la compra.
+  const vence = (e.fecha_vencimiento ?? "").trim() || null;
+  if (vence && !fechaValida(vence)) return { error: "La fecha de vencimiento no es válida" };
+  if (vence && vence < e.fecha) return { error: "El vencimiento no puede ser anterior a la fecha de la compra" };
+
   const path = (e.comprobante_path ?? "").trim() || null;
   if (path && !PATH_RE.test(path)) return { error: "El archivo adjunto no es válido" };
 
@@ -113,6 +118,7 @@ export function validarEgreso(e: EgresoEntrada, hoy: string): { error: string } 
       // Número de remito o de factura: se guarda con o sin factura (migración 110).
       comprobante_numero: numero,
       comprobante_path:   path,
+      fecha_vencimiento:  e.pagado ? null : vence,
       pagado:             e.pagado,
       origen,
       fecha_pago:         e.pagado ? e.fecha : null,

@@ -417,6 +417,7 @@ export type Database = {
           categoria: string
           comprobante: string
           comprobante_numero: string | null
+          fecha_vencimiento: string | null
           comprobante_path: string | null
           created_at: string
           created_by: string | null
@@ -441,6 +442,7 @@ export type Database = {
           categoria: string
           comprobante: string
           comprobante_numero?: string | null
+          fecha_vencimiento?: string | null
           comprobante_path?: string | null
           created_at?: string
           created_by?: string | null
@@ -465,6 +467,7 @@ export type Database = {
           categoria?: string
           comprobante?: string
           comprobante_numero?: string | null
+          fecha_vencimiento?: string | null
           comprobante_path?: string | null
           created_at?: string
           created_by?: string | null

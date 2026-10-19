@@ -289,3 +289,32 @@ describe("migración 111 (retiro como pago a proveedor y remito único)", () => 
     expect(sql).toMatch(/where anulado_en is null and proveedor_id is not null and sucursal_id is not null and comprobante_numero is not null/);
   });
 });
+describe("validarEgreso: vencimiento (migración 113)", () => {
+  const debe: EgresoEntrada = { ...base, pagado: false, origen: null };
+
+  it("guarda el vencimiento de una compra que se debe", () => {
+    const r = validarEgreso({ ...debe, fecha_vencimiento: "2026-11-10" }, HOY);
+    expect("valor" in r && r.valor.fecha_vencimiento).toBe("2026-11-10");
+  });
+
+  it("sin vencimiento queda vacío", () => {
+    const r = validarEgreso({ ...debe, fecha_vencimiento: "  " }, HOY);
+    expect("valor" in r && r.valor.fecha_vencimiento).toBeNull();
+    const r2 = validarEgreso(debe, HOY);
+    expect("valor" in r2 && r2.valor.fecha_vencimiento).toBeNull();
+  });
+
+  it("en una compra ya pagada el vencimiento se ignora", () => {
+    const r = validarEgreso({ ...base, fecha_vencimiento: "2026-11-10" }, HOY);
+    expect("valor" in r && r.valor.fecha_vencimiento).toBeNull();
+  });
+
+  it("rechaza una fecha inválida o anterior a la compra", () => {
+    expect(validarEgreso({ ...debe, fecha_vencimiento: "2026-13-45" }, HOY)).toHaveProperty("error");
+    expect(validarEgreso({ ...debe, fecha_vencimiento: "2026-10-03" }, HOY)).toEqual({ error: expect.stringContaining("anterior") });
+  });
+
+  it("un vencimiento el mismo día de la compra es válido", () => {
+    expect("valor" in validarEgreso({ ...debe, fecha_vencimiento: debe.fecha }, HOY)).toBe(true);
+  });
+});

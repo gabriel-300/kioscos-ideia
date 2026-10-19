@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tesoreria/permisos", () => ({ permisosTesoreria: async () => h.permisos }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
-import { anularEgreso, descartarEntrega, guardarEfectivoInicial, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
+import { anularEgreso, descartarEntrega, fijarVencimiento, guardarEfectivoInicial, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const CARGA = { userId: "damian", puedeVer: true, puedeCargar: true };
@@ -28,6 +28,8 @@ type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?
   fechaCorte?: string;                 // fecha del saldo_inicial de la cuenta proveedor+kiosco
   repetido?: { fecha: string; monto: number };   // otro egreso vigente con el mismo comprobante_numero
   proveedorDelEgreso?: string | null;  // proveedor_id del egreso que se quiere marcar pagado
+  egresoPrevio?: Record<string, unknown> | null;   // fila del egreso al que se le fija el vencimiento
+  sinMigracion113?: boolean;           // la columna fecha_vencimiento no existe
 };
 
 function montar(permisos: unknown, e: Esc = {}) {
@@ -55,6 +57,8 @@ function montar(permisos: unknown, e: Esc = {}) {
         if (q.op === "select") {
           if (q.filters.some((f) => f.col === "comprobante_numero")) return { data: e.repetido ? [{ id: "e0", ...e.repetido }] : [] };   // chequeo de remito repetido
           if (q.filters.some((f) => f.col === "pagado")) return { data: [] };                                                           // compras pendientes de la cuenta
+          if (e.sinMigracion113) return { error: { message: "column egresos.fecha_vencimiento does not exist" } };
+          if (e.egresoPrevio !== undefined) return { data: e.egresoPrevio };                                                              // el egreso al que se le fija el vencimiento
           return { data: e.proveedorDelEgreso ? { proveedor_id: e.proveedorDelEgreso } : null };                                         // el egreso a marcar pagado
         }
         if (q.op === "insert") return e.insertError ? { error: { message: e.insertError } } : { data: { id: "e1" } };
@@ -364,5 +368,63 @@ describe("dos personas cargando el mismo remito a la vez", () => {
     montar(CARGA, { insertError: 'duplicate key value violates unique constraint "egresos_remito_unico"' });
     const r = await registrarEgreso({ ...entrada, origen: "efectivo_tesoreria", retiros_caja_ids: [], comprobante_numero: "2416" });
     expect(r).toEqual({ error: expect.stringContaining("Ya está cargado el remito o factura N° 2416") });
+  });
+});
+describe("fijarVencimiento (migración 113)", () => {
+  const previo = { id: "e1", fecha: "2026-10-01", descripcion: "Remito N° 2264 — Petri", pagado: false, anulado_en: null, fecha_vencimiento: null };
+  const updatesVence = (calls: Q[]) => calls.filter((q) => q.table === "egresos" && q.op === "update");
+
+  it("sin permiso de cargar no escribe nada", async () => {
+    const f = montar(SOLO_VE, { egresoPrevio: previo });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("fija el vencimiento con quién lo hizo y lo anota en el historial (antes y después)", async () => {
+    const f = montar(CARGA, { egresoPrevio: previo });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({});
+    const u = updatesVence(f.calls);
+    expect(u).toHaveLength(1);
+    expect(u[0].payload).toMatchObject({ fecha_vencimiento: "2026-11-10", updated_by: "damian" });
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "egreso_vencimiento", entidad_id: "e1", detalle: { descripcion: "Remito N° 2264 — Petri", anterior: null, nuevo: "2026-11-10" } })]);
+  });
+
+  it("corregirlo guarda el valor anterior; sacarlo lo deja vacío", async () => {
+    let f = montar(CARGA, { egresoPrevio: { ...previo, fecha_vencimiento: "2026-11-10" } });
+    expect(await fijarVencimiento("e1", "2026-11-20")).toEqual({});
+    expect(historialDe(f.calls)[0]).toMatchObject({ detalle: { anterior: "2026-11-10", nuevo: "2026-11-20" } });
+    f = montar(CARGA, { egresoPrevio: { ...previo, fecha_vencimiento: "2026-11-10" } });
+    expect(await fijarVencimiento("e1", null)).toEqual({});
+    expect(updatesVence(f.calls)[0].payload).toMatchObject({ fecha_vencimiento: null });
+  });
+
+  it("si no cambia nada, no escribe ni anota", async () => {
+    const f = montar(CARGA, { egresoPrevio: { ...previo, fecha_vencimiento: "2026-11-10" } });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({});
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("rechaza fecha inválida, anterior a la compra, comprobante pagado, anulado o inexistente", async () => {
+    let f = montar(CARGA, { egresoPrevio: previo });
+    expect(await fijarVencimiento("e1", "2026-99-99")).toHaveProperty("error");
+    expect(await fijarVencimiento("e1", "2026-09-30")).toEqual({ error: expect.stringContaining("anterior") });
+    expect(escrituras(f.calls)).toEqual([]);
+    f = montar(CARGA, { egresoPrevio: { ...previo, pagado: true } });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({ error: expect.stringContaining("pagado") });
+    f = montar(CARGA, { egresoPrevio: { ...previo, anulado_en: "2026-10-05T00:00:00Z" } });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toHaveProperty("error");
+    f = montar(CARGA, { egresoPrevio: null });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("si falta la migración 113, lo dice", async () => {
+    montar(CARGA, { sinMigracion113: true });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({ error: expect.stringContaining("migración 113") });
+  });
+
+  it("si se guardó pero no se pudo anotar en el historial, avisa", async () => {
+    montar(CARGA, { egresoPrevio: previo, historialError: "boom" });
+    expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({ error: expect.stringContaining("historial") });
   });
 });

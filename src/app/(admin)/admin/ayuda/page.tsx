@@ -324,7 +324,9 @@ export default async function AyudaPage() {
               factura): siempre queda como <Campo>todavía se debe</Campo>. Se paga solo desde acá, con{" "}
               <Boton>Registrar un pago</Boton>: marcá los remitos o facturas que ese pago cubre (puede repartirse entre varios, con su monto
               cada uno) o dejalo a cuenta, y cubrirá lo más viejo. Desde cada compra, <Boton>Pagar este</Boton> la deja marcada. Si el pago es
-              mayor al saldo, te pide confirmar. El saldo es lo comprado menos lo pagado. Un retiro de caja que pagó a un proveedor se registra desde{" "}
+              mayor al saldo, te pide confirmar. El saldo es lo comprado menos lo pagado. Al cargar un remito o factura podés anotar cuándo <Campo>vence</Campo> (o fijarlo después con <Boton>Fijar</Boton>): arriba
+              de las cuentas, <Campo>Deuda vencida y a vencer</Campo> muestra lo que falta pagar separado en vencido, a vencer en 7 días, en 30,
+              más adelante y sin fecha, y se baja a Excel con <Boton>Descargar el listado</Boton>. Un retiro de caja que pagó a un proveedor se registra desde{" "}
               <Campo>Para registrar</Campo> con <Boton>Registrar como pago a …</Boton>.
             </Paso>
             <Paso n={4}>

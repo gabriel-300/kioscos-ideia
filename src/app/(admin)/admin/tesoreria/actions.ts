@@ -9,6 +9,7 @@ import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 import { registrarHistorial, type EntradaHistorial } from "@/lib/tesoreria/historial";
 import { fechaHoyAR } from "@/lib/fecha";
+import { fechaValida } from "@/lib/tesoreria/validaciones";
 import { redondearMoneda } from "@/lib/pedidos/pricing";
 
 // Convención del módulo (architecture.md §2 y §9): las acciones devuelven { error } en vez de lanzar, porque
@@ -22,6 +23,8 @@ const dma = (f: string) => f.split("-").reverse().join("/");
 
 const SIN_PERMISO = "Solo el administrativo de Tesorería puede cargar movimientos";
 const SIN_MIGRACION = "Falta aplicar la migración 101 de la base de datos";
+const SIN_MIGRACION_113 = "Falta aplicar la migración 113 de la base de datos (vencimiento de remitos)";
+const falta113 = (m: string | undefined) => !!m && m.includes("fecha_vencimiento");
 
 async function exigirCargar() {
   const permisos = await permisosTesoreria();
@@ -110,6 +113,7 @@ async function guardarEgreso(entrada: EgresoEntrada): Promise<Resultado> {
   if (error?.message.includes("egresos_remito_unico")) {
     return { error: `Ya está cargado el remito o factura N° ${e.comprobante_numero ?? ""} de este proveedor en ese kiosco. Recargá la pantalla para verlo.` };
   }
+  if (falta113(error?.message)) return { error: SIN_MIGRACION_113 };
   if (error || !creado) return { error: error?.message ?? "No se pudo guardar el egreso" };
 
   // Tomar lo del kiosco. El filtro `egreso_id is null` evita pisar a otro administrativo que lo tomó en el medio.
@@ -132,7 +136,7 @@ async function guardarEgreso(entrada: EgresoEntrada): Promise<Resultado> {
     usuario_id: permisos.userId, accion: "egreso_creado", entidad_id: creado.id,
     detalle: {
       monto: e.monto, categoria: e.categoria, descripcion: e.descripcion, comprobante: e.comprobante, pagado: e.pagado,
-      origen: e.origen, sucursal_id: e.sucursal_id, proveedor_id: e.proveedor_id,
+      origen: e.origen, sucursal_id: e.sucursal_id, proveedor_id: e.proveedor_id, vencimiento: e.fecha_vencimiento,
       retiros_de_caja: retiros_caja_ids.length, ingresos_del_kiosco: entregas_ids.length,
     },
   });
@@ -192,6 +196,37 @@ export async function anularEgreso(id: string, motivo: string): Promise<Resultad
   const historial = await anotar(admin, {
     usuario_id: permisos.userId, accion: "egreso_anulado", entidad_id: id, motivo: texto,
     detalle: { monto: Number(data![0].monto), descripcion: data![0].descripcion },
+  });
+  refrescar();
+  return historial;
+}
+
+// ── Vencimiento de un remito o factura (migración 113) ───────────────────────
+// Cargarlo o corregirlo después de que el comprobante ya está en la cuenta. null = sacarlo (sin vencimiento).
+export async function fijarVencimiento(egresoId: string, fecha: string | null): Promise<Resultado> {
+  const permisos = await exigirCargar();
+  if (!permisos) return { error: SIN_PERMISO };
+
+  const nueva = (fecha ?? "").trim() || null;
+  if (nueva && !fechaValida(nueva)) return { error: "La fecha de vencimiento no es válida" };
+
+  const admin = createAdminClient();
+  const { data: previo, error: errLeer } = await admin.from("egresos")
+    .select("id, fecha, descripcion, pagado, anulado_en, fecha_vencimiento").eq("id", egresoId).maybeSingle();
+  if (falta113(errLeer?.message)) return { error: SIN_MIGRACION_113 };
+  if (!previo || previo.anulado_en) return { error: "Ese remito o factura no existe o fue anulado. Recargá la pantalla." };
+  if (previo.pagado) return { error: "Ese remito o factura ya está pagado: el vencimiento no se cambia." };
+  if (nueva && nueva < previo.fecha) return { error: "El vencimiento no puede ser anterior a la fecha de la compra" };
+  if ((previo.fecha_vencimiento ?? null) === nueva) return {};
+
+  const { error } = await admin.from("egresos")
+    .update({ fecha_vencimiento: nueva, updated_by: permisos.userId, updated_at: new Date().toISOString() })
+    .eq("id", egresoId).eq("pagado", false).is("anulado_en", null);
+  if (error) return { error: falta113(error.message) ? SIN_MIGRACION_113 : error.message };
+
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "egreso_vencimiento", entidad_id: egresoId,
+    detalle: { descripcion: previo.descripcion, anterior: previo.fecha_vencimiento ?? null, nuevo: nueva },
   });
   refrescar();
   return historial;

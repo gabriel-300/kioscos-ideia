@@ -54,7 +54,7 @@
     {
       "t": "egresos",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | fecha:date:NN | monto:numeric:NN | sucursal_id:uuid | categoria:text:NN | proveedor_id:uuid | descripcion:text:NN | comprobante:text:NN | comprobante_numero:text | comprobante_path:text | origen:text | gasto_fijo_id:uuid | nota:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF | updated_by:uuid | updated_at:timestamp with time zone | pagado:boolean:NN:DEF | fecha_pago:date | anulado_en:timestamp with time zone | anulado_por:uuid | anulado_motivo:text"
+      "cols": "id:uuid:NN:DEF | fecha:date:NN | monto:numeric:NN | sucursal_id:uuid | categoria:text:NN | proveedor_id:uuid | descripcion:text:NN | comprobante:text:NN | comprobante_numero:text | comprobante_path:text | origen:text | gasto_fijo_id:uuid | nota:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF | updated_by:uuid | updated_at:timestamp with time zone | pagado:boolean:NN:DEF | fecha_pago:date | fecha_vencimiento:date | anulado_en:timestamp with time zone | anulado_por:uuid | anulado_motivo:text"
     },
     {
       "t": "gastos",

@@ -818,7 +818,7 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `proveedor_id` | id → proveedores | Proveedor de la lista (opcional). |
 | `descripcion` | texto · obligatoria | A quién o qué se pagó, en palabras. |
 | `comprobante` | texto · obligatoria | con = tiene factura; sin = compra sin factura. El gasto cuenta igual. |
-| `comprobante_numero` | texto | Número de factura (solo si es con factura). |
+| `comprobante_numero` | texto | Número de factura o de remito (se guarda con o sin factura). |
 | `comprobante_path` | texto | Archivo adjunto en el bucket privado tesoreria (foto o PDF, hasta 1 MB). |
 | `origen` | texto | De dónde salió la plata: retiro_caja, efectivo_tesoreria, transferencia o mercadopago. Vacío si no está pagado. |
 | `gasto_fijo_id` | id → gastos_fijos | Si es el pago del mes de un gasto fijo, cuál. |
@@ -826,6 +826,7 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `created_by` | id | Quién lo cargó. |
 | `pagado` | sí / no | Falso = se compró pero todavía se debe (sin origen ni fecha de pago). Se marca pagado después. |
 | `fecha_pago` | fecha | Cuándo salió la plata; el efectivo en mano de Tesorería cuenta por esta fecha. |
+| `fecha_vencimiento` | fecha | Hasta cuándo hay que pagar el remito o factura. Vacío = sin vencimiento. Nunca anterior a la fecha de la compra; solo importa mientras se debe. |
 | `anulado_en` | fecha y hora | Si tiene fecha, el egreso está anulado: no cuenta en ningún total y libera sus retiros y entregas. |
 | `anulado_por` | id | Quién lo anuló. |
 | `anulado_motivo` | texto | Por qué se anuló. |

@@ -45,6 +45,7 @@ export interface Egreso {
   comprobante:        Comprobante;
   comprobante_numero: string | null;
   comprobante_path:   string | null;
+  fecha_vencimiento:  string | null;   // hasta cuándo hay que pagarlo; null = sin vencimiento (migración 113)
   pagado:             boolean;         // false = se compró pero todavía se debe (migración 102)
   origen:             Origen | null;   // null solo si no está pagado
   fecha_pago:         string | null;   // null solo si no está pagado
@@ -66,6 +67,7 @@ export interface EgresoEntrada {
   comprobante:        string;
   comprobante_numero: string | null;
   comprobante_path:   string | null;
+  fecha_vencimiento?: string | null;   // opcional; se ignora si no queda por pagar
   pagado:             boolean;
   origen:             string | null;   // se ignora si no está pagado
   gasto_fijo_id:      string | null;

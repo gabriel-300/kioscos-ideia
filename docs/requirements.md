@@ -175,7 +175,10 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     cada uno; un pago puede repartirse entre varios. Imputar no cambia el saldo, solo qué comprobante queda cubierto (sin cubrir / en
     parte / cubierto, calculado, no guardado). Lo que no se imputa queda a cuenta y cubre primero el saldo inicial y después lo más
     viejo; los pagos anteriores a la 112 y los retiros de caja registrados como pago quedan así. No se imputa más que el pago ni más de
-    lo que le falta a cada comprobante; si se anula el pago o la compra, la imputación deja de valer. El **pago no es un gasto
+    lo que le falta a cada comprobante; si se anula el pago o la compra, la imputación deja de valer. **Deuda vencida y a vencer**: cada remito o factura puede tener un vencimiento opcional (`egresos.fecha_vencimiento`,
+    migración 113; se carga con la compra o después y cada cambio queda en el historial) y un listado separa lo que falta pagar de cada
+    comprobante en vencida / vence en 7 días / en 30 / más adelante / sin vencimiento (el saldo inicial sin cubrir figura como «saldo
+    anterior», sin vencimiento), con totales por tramo y descarga a Excel; las filas suman lo mismo que «Se debe a proveedores». El **pago no es un gasto
     nuevo** (el gasto es la compra, esté pagada o no) pero sí baja el efectivo de Tesorería cuando sale de ahí. El saldo inicial es
     único por proveedor y local y se carga una vez; un error se anula con motivo. Si un mismo pago cubre a los dos locales se carga como
     dos pagos. Las compras sin proveedor de la lista no tienen cuenta y quedan agrupadas por lo que se escribió.
