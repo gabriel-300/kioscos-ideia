@@ -87,6 +87,13 @@ export function calcularCuentas(compras: CompraAdeudada[], movimientos: Movimien
   return [...cuentas.values()].sort((a, b) => b.saldo - a.saldo);
 }
 
+// Estado de cada compra según los pagos de su cuenta (calculado, nunca guardado): para mostrar lo mismo en todas las pantallas.
+export function estadoPorCompra(cuentas: CuentaProveedor[]): Record<string, { estado: EstadoCompra; resta: number; cubierto: number }> {
+  const out: Record<string, { estado: EstadoCompra; resta: number; cubierto: number }> = {};
+  for (const c of cuentas) for (const d of c.detalleCompras) out[d.compra.id] = { estado: d.estado, resta: d.resta, cubierto: d.cubierto };
+  return out;
+}
+
 export function totalAdeudado(cuentas: Pick<CuentaProveedor, "saldo">[]): { debe: number; aFavor: number; neto: number } {
   let debe = 0, aFavor = 0;
   for (const c of cuentas) { if (c.saldo > 0) debe += c.saldo; else aFavor += -c.saldo; }
@@ -155,7 +162,7 @@ export function deudaDelResumen(
       clave: c.clave,
       nombre: `${nombreProveedor.get(c.proveedor_id) ?? "Proveedor"}${c.sucursal_id ? ` · ${nombreLocal.get(c.sucursal_id) ?? ""}` : ""}`,
       monto: c.saldo,
-      cantidad: c.detalleCompras.length,
+      cantidad: c.detalleCompras.filter((d) => d.estado !== "cubierta").length,   // remitos que todavía no cubren los pagos
     }));
   const sinProveedor = agruparDeuda(pendientes.filter((p) => !p.proveedor_id), nombreProveedor).items;
   const todos = [...items, ...sinProveedor].sort((a, b) => b.monto - a.monto);

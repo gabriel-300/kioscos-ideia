@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) **fue aplicada el 2026-10-16**
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella, cargar el N° de un remito sin factura da un error de la base); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella la bandeja de retiros de Tesorería falla); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -100,7 +100,7 @@ npm run build                # next build (con chequeo de tipos). Si se mueven r
                              # `tsc --noEmit`: quedan tipos viejos de la compilación anterior que dan errores falsos
 npm run build:cloudflare     # build para Workers (lo que corre el CI)
 npm run preview:cloudflare
-npm test                     # vitest run: 37 archivos, 580 tests (verificado 2026-10-05)
+npm test                     # vitest run: 46 archivos, 811 tests (verificado 2026-10-19)
 npm run test:e2e             # Playwright de humo, SOLO LECTURA, contra producción por defecto
                              # (E2E_BASE_URL=http://localhost:3000 para probar local)
 ```
@@ -113,7 +113,7 @@ Saltearlo en una emergencia: `git push --no-verify`. `.gitattributes` fuerza LF 
 en otra máquina).
 
 ### Pruebas automáticas
-- **Unitarias (`tests/unit/`, vitest, 580 tests)**: corren en 6 s y **no tocan la base real**. Usan
+- **Unitarias (`tests/unit/`, vitest, 811 tests)**: corren en 6 s y **no tocan la base real**. Usan
   `tests/helpers/fake-supabase.ts`, un doble en memoria del cliente de Supabase que registra qué se le pidió
   (tabla, filtros, payload) y devuelve lo que decida cada test. Las fronteras de servidor (sesión, `next/cache`, IA) se
   mockean con `vi.mock`; **la lógica que se prueba no se modifica**.
@@ -526,6 +526,18 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   cuenta), que abre el formulario de egresos ya con categoría mercadería y «todavía se debe»; así la compra suma a la cuenta. El
   **N° de remito o de factura** se guarda en `egresos.comprobante_numero` **con o sin factura** (la migración 110 sacó el CHECK que
   lo limitaba a «con factura»; antes el número de un remito sin factura había que escribirlo en la descripción).
+  **Reglas de la cuenta (revisión de lógica del 2026-10-19):** (1) *Regla única*: en la cuenta de un proveedor de la lista los remitos
+  **siempre se deben** y **solo los pagos** (Proveedores → «Registrar un pago») los pagan: `validarEgreso` rechaza «Ya se pagó» y el
+  kiosco vacío cuando hay proveedor (una cuenta «sin local» no se podría pagar), `marcarEgresoPagado` rechaza esas compras y Egresos
+  muestra el estado calculado (`estadoPorCompra`: sin cubrir / en parte / cubierta) en vez de «Se debe» + «Marcar pagado»; así no se
+  descuenta dos veces. (2) *Corte*: no se aceptan remitos ni pagos con fecha ≤ la del saldo inicial de esa cuenta (ya están incluidos
+  en ese saldo; `cargarCuentaDe`). (3) *Remito repetido*: el mismo proveedor + kiosco + N° no se carga dos veces. (4) *Pago de más*:
+  `registrarMovimientoProveedor` devuelve `confirmar` y la pantalla pide confirmación antes de dejar la cuenta a favor. (5) Un
+  proveedor desactivado con deuda se puede pagar (la baja solo impide cargarle compras o un saldo inicial). (6) *Retiro de caja con
+  proveedor* (autorizado, migración 103): `registrarRetiroComoPago` lo registra como **pago** con `origen = 'retiro_caja'`
+  (migración 111; `retiros_caja.proveedor_cuenta_id`, excluyente con `egreso_id`): baja el saldo, no es un gasto nuevo y no toca el
+  efectivo ni Mercado Pago (la plata salió del cajón del kiosco); anular ese pago libera el retiro. El cálculo de saldos coincide con
+  la planilla de Damián (Petri Parque $0, Petri UNAM −$37, Enminutas Parque $1.588.770, Enminutas UNAM $567.160 al 2026-10-19).
 - **Cobros de Mercado Pago** (`mp_cobros` y `mp_importaciones`, migración 105; solapa «Cobros MP»): el administrativo sube el Excel de
   cobros del panel de MP. **El archivo se abre en el navegador** (`importar-mp.tsx`, exceljs en su bundle de navegador: nunca en el
   servidor, por el problema de `fstream/umask` en Workers) y solo viajan las columnas que se guardan. `lib/tesoreria/mp-cobros.ts`

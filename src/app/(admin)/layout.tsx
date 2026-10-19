@@ -92,6 +92,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .select("id, sucursal:sucursales!inner(entra_en_tesoreria)", { count: "exact", head: true })
           .eq("sucursal.entra_en_tesoreria", true)
           .is("egreso_id", null)
+          .is("proveedor_cuenta_id", null)
           .gte("fecha", cfg.fecha_inicio);
       })(),
       // «Para revisar» de Tesorería (ver lib/tesoreria/alertas.ts). Conteos baratos y accionables; las tres tablas pueden no existir todavía

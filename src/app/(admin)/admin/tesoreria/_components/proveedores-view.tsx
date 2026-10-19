@@ -33,6 +33,7 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
   const [error, setError] = useState("");
+  const [exceso, setExceso] = useState(false);   // el pago supera el saldo: se pide confirmación antes de registrarlo
   const [f, setF] = useState({
     proveedor_id: borrador.proveedor_id, sucursal_id: borrador.sucursal_id, fecha: fechaHoyAR(), monto: "",
     origen: "efectivo_tesoreria", nota: "",
@@ -40,15 +41,16 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
   const esPago = borrador.tipo === "pago";
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
-  function guardar() {
+  function guardar(confirmarExceso = false) {
     setError("");
+    setExceso(false);
     const monto = Number(f.monto.replace(",", "."));
     empezar(async () => {
       const r = await registrarMovimientoProveedor({
         tipo: borrador.tipo, proveedor_id: f.proveedor_id, sucursal_id: f.sucursal_id, fecha: f.fecha,
         monto, origen: esPago ? f.origen : null, nota: f.nota || null,
-      });
-      if (r.error) { setError(r.error); return; }
+      }, confirmarExceso);
+      if (r.error) { setError(r.error); setExceso(!!r.confirmar); return; }
       router.refresh();
       onClose();
     });
@@ -100,9 +102,22 @@ function Formulario({ borrador, proveedores, sucursales, onClose }: {
           <input value={f.nota} onChange={set("nota")} maxLength={200} placeholder={esPago ? "Ej.: remitos 204 y 210" : "Ej.: saldo al 30/9"} className={campo} />
         </div>
       </div>
-      {error && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && !exceso && <p role="alert" className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && exceso && (
+        <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 space-y-2">
+          <p>{error}</p>
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" onClick={() => guardar(true)} disabled={pendiente}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+              {pendiente ? "Guardando…" : "Sí, registrar igual"}
+            </button>
+            <button type="button" onClick={() => { setError(""); setExceso(false); }} disabled={pendiente}
+              className="rounded-lg border border-amber-400 px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100">Corregir el monto</button>
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
-        <button type="button" onClick={guardar} disabled={pendiente || !f.proveedor_id || !f.sucursal_id || !f.monto}
+        <button type="button" onClick={() => guardar()} disabled={pendiente || !f.proveedor_id || !f.sucursal_id || !f.monto}
           className="rounded-lg bg-tierra-700 px-4 py-2 text-sm font-semibold text-white hover:bg-tierra-800 disabled:opacity-50">
           {pendiente ? "Guardando…" : esPago ? "Registrar pago" : "Cargar saldo inicial"}
         </button>
@@ -173,6 +188,13 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
     setCompra({ categoria: "mercaderia", pagado: false, proveedor_id: proveedor_id || null, sucursal_id: sucursal_id || null });
   const [abierta, setAbierta] = useState<string | null>(null);
   const local = (id: string | null) => (id ? nombreLocal[id] ?? "—" : "Sin local");
+  // Un proveedor dado de baja con deuda pendiente tiene que poder cobrarse/pagarse: se suma a los selects, marcado.
+  const opcionesProveedor: Opcion[] = [
+    ...proveedores,
+    ...[...new Set(cuentas.map((c) => c.proveedor_id))]
+      .filter((id) => !proveedores.some((p) => p.id === id))
+      .map((id) => ({ id, nombre: `${nombreProveedor[id] ?? "Proveedor"} (desactivado)` })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -205,7 +227,7 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
       </p>
 
       {form && (
-        <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}`} borrador={form} proveedores={proveedores} sucursales={sucursales} onClose={() => setForm(null)} />
+        <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}`} borrador={form} proveedores={opcionesProveedor} sucursales={sucursales} onClose={() => setForm(null)} />
       )}
 
       <section className="space-y-2">

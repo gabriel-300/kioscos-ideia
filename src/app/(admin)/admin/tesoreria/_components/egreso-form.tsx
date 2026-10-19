@@ -67,7 +67,8 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const retiros = b.retiros_caja_ids ?? [];
   const esRetiro = retiros.length > 0;   // plata que ya salió del cajón de un kiosco: siempre pagada
 
-  const [pagado, setPagado]           = useState<boolean | null>(esRetiro ? true : (b.pagado ?? null));
+  // Una compra de un proveedor de la lista siempre se carga «todavía se debe»: el pago se registra en Proveedores.
+  const [pagado, setPagado]           = useState<boolean | null>(esRetiro ? true : b.proveedor_id ? false : (b.pagado ?? null));
   const [monto, setMonto]             = useState(b.monto ? String(b.monto) : "");
   const [fecha, setFecha]             = useState(b.fecha ?? fechaHoyAR());
   const [categoria, setCategoria]     = useState(b.categoria ?? "mercaderia");
@@ -79,6 +80,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const [origen, setOrigen]           = useState(esRetiro ? "retiro_caja" : (b.origen ?? ""));
   const [nota, setNota]               = useState(b.nota ?? "");
   const [entregasElegidas, setEntregasElegidas] = useState<Set<string>>(new Set(b.entregas_ids ?? []));
+  const conProveedor = !esRetiro && proveedorId !== "";
   const [archivo, setArchivo]         = useState<File | null>(null);
   const [subido, setSubido]           = useState<{ nombre: string; path: string } | null>(null);
 
@@ -109,13 +111,14 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
     const nombreProveedor = proveedores.find((p) => p.id === proveedorId)?.nombre ?? "";
     const desc = descripcion.trim() || nombreProveedor;
     if (!desc)                      { fallar("descripcion", "Escribí a quién o qué se pagó (o elegí un proveedor)"); return; }
+    if (conProveedor && !sucursalId) { fallar("sucursal", "Elegí el kiosco de la compra"); return; }
 
     startTransition(async () => {
       try {
         const path = archivo ? await subirArchivo(archivo) : (b.comprobante_path ?? null);
         const r = await registrarEgreso({
           fecha, monto: montoNum, sucursal_id: sucursalId || null, categoria,
-          proveedor_id: proveedorId || null, descripcion: desc, comprobante,
+          proveedor_id: esRetiro ? null : (proveedorId || null), descripcion: desc, comprobante,
           comprobante_numero: numero.trim() || null,
           comprobante_path: path, pagado, origen: pagado ? origen : null,
           gasto_fijo_id: b.gasto_fijo_id ?? null, nota: nota.trim() || null,
@@ -163,9 +166,13 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
             <div id="campo-pagado" className={aviso("pagado")}>
               <label className={etiqueta}>¿Ya se pagó? *</label>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setPagado(true)}  className={opcionBoton(pagado === true)}>Ya se pagó</button>
+                <button type="button" onClick={() => setPagado(true)} disabled={conProveedor}
+                  className={`${opcionBoton(pagado === true)} disabled:opacity-40 disabled:cursor-not-allowed`}>Ya se pagó</button>
                 <button type="button" onClick={() => setPagado(false)} className={opcionBoton(pagado === false)}>Todavía se debe</button>
               </div>
+              {conProveedor && (
+                <p className="text-xs text-neutral-500 mt-1.5">Las compras de un proveedor de la lista se cargan «todavía se debe»: el pago se registra en Proveedores.</p>
+              )}
             </div>
           )}
 
@@ -195,13 +202,15 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
             </div>
           </div>
 
-          <div>
-            <label className={etiqueta}>Proveedor (si está en la lista)</label>
-            <select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)} className={campo}>
-              <option value="">— Ninguno —</option>
-              {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-            </select>
-          </div>
+          {!esRetiro && (
+            <div>
+              <label className={etiqueta}>Proveedor (si está en la lista)</label>
+              <select value={proveedorId} onChange={(e) => { setProveedorId(e.target.value); if (e.target.value) setPagado(false); }} className={campo}>
+                <option value="">— Ninguno —</option>
+                {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            </div>
+          )}
 
           <div id="campo-descripcion" className={aviso("descripcion")}>
             <label className={etiqueta}>A quién / qué se pagó *</label>
@@ -220,10 +229,10 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
               placeholder={comprobante === "con" ? "N° de factura (y de remito, si lo tiene) — opcional" : comprobante === "sin" ? "N° de remito — opcional" : "N° de factura o de remito — opcional"} />
           </div>
 
-          <div>
-            <label className={etiqueta}>Kiosco</label>
+          <div id="campo-sucursal" className={aviso("sucursal")}>
+            <label className={etiqueta}>{conProveedor ? "Kiosco *" : "Kiosco"}</label>
             <select value={sucursalId} onChange={(e) => setSucursalId(e.target.value)} className={campo}>
-              <option value="">General (no es de un kiosco puntual)</option>
+              {conProveedor ? <option value="">— Elegí —</option> : <option value="">General (no es de un kiosco puntual)</option>}
               {sucursales.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>

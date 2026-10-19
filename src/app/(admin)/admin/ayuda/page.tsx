@@ -321,20 +321,26 @@ export default async function AyudaPage() {
             <Paso n={3}>
               La cuenta de cada proveedor se lleva en la solapa <Campo>Proveedores</Campo>: tocá{" "}
               <Boton>Cargar un remito o factura</Boton> por cada comprobante que llega (anotá su <Campo>N° de remito</Campo>, tenga o no
-              factura) y <Boton>Registrar un pago</Boton> a medida que se paga, aunque un pago cubra varios remitos juntos. El saldo es
-              lo comprado menos lo pagado.
+              factura): siempre queda como <Campo>todavía se debe</Campo>. Se paga solo desde acá, con{" "}
+              <Boton>Registrar un pago</Boton>, aunque un pago cubra varios remitos juntos; si el pago es mayor al saldo, te pide
+              confirmar. El saldo es lo comprado menos lo pagado. Un retiro de caja que pagó a un proveedor se registra desde{" "}
+              <Campo>Para registrar</Campo> con <Boton>Registrar como pago a …</Boton>.
             </Paso>
             <Paso n={4}>
-              Completá con el comprobante real: el monto, <Campo>Con factura</Campo> o <Campo>Sin factura</Campo> (el gasto
-              cuenta igual), y si <Campo>ya se pagó</Campo> o <Campo>todavía se debe</Campo>.
+              Para los gastos que no son de un proveedor de la lista (un flete, «lo de Mario», un servicio), completá con el
+              comprobante real: el monto, <Campo>Con factura</Campo> o <Campo>Sin factura</Campo> (el gasto cuenta igual), y si{" "}
+              <Campo>ya se pagó</Campo> o <Campo>todavía se debe</Campo>. Si elegís un proveedor de la lista, la compra siempre queda
+              «todavía se debe» y necesita kiosco.
             </Paso>
             <Paso n={5}>
               Si ya se pagó, indicá de dónde salió la plata: efectivo de Tesorería, transferencia o Mercado Pago.
               Podés adjuntar la foto o el PDF de la factura (hasta 1 MB; las fotos se achican solas).
             </Paso>
             <Paso n={6}>
-              Lo que quedó <Campo>Todavía se debe</Campo> se marca pagado después desde <Campo>Egresos</Campo>. Si te
-              equivocás, <Boton>Anular</Boton> (no se borra; queda el motivo y vuelve a Para registrar si venía del kiosco).
+              Un gasto sin proveedor de la lista que quedó <Campo>Todavía se debe</Campo> se marca pagado después desde{" "}
+              <Campo>Egresos</Campo>; los remitos de proveedores de la lista se pagan desde <Campo>Proveedores</Campo> (Egresos te
+              muestra si están cubiertos). Si te equivocás, <Boton>Anular</Boton> (no se borra; queda el motivo y vuelve a Para
+              registrar si venía del kiosco).
             </Paso>
             <Paso n={7}>
               El alquiler, los sueldos y los servicios se registran en <Campo>Gastos fijos</Campo> (la lista se edita en{" "}

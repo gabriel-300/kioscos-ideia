@@ -100,6 +100,35 @@ describe("validarEgreso", () => {
   });
 });
 
+describe("validarEgreso: compras de un proveedor de la lista", () => {
+  const conProveedor: EgresoEntrada = { ...base, proveedor_id: "p1", sucursal_id: "s1", pagado: false, origen: null };
+
+  it("la compra con proveedor, «se debe» y con kiosco es válida", () => {
+    const r = validarEgreso(conProveedor, HOY);
+    expect("valor" in r && [r.valor.proveedor_id, r.valor.sucursal_id, r.valor.pagado, r.valor.origen, r.valor.fecha_pago]).toEqual(["p1", "s1", false, null, null]);
+  });
+
+  it("con proveedor no se puede marcar «ya se pagó» (se pagaría dos veces): el pago va por Proveedores", () => {
+    const r = validarEgreso({ ...conProveedor, pagado: true, origen: "efectivo_tesoreria" }, HOY);
+    expect(r).toEqual({ error: expect.stringContaining("Proveedores") });
+  });
+
+  it("con proveedor hace falta el kiosco", () => {
+    expect("error" in validarEgreso({ ...conProveedor, sucursal_id: null }, HOY)).toBe(true);
+  });
+
+  it("un retiro de caja con proveedor no es un egreso: es un pago a la cuenta", () => {
+    const r = validarEgreso({ ...conProveedor, pagado: true, origen: "retiro_caja", retiros_caja_ids: ["r1"] }, HOY);
+    expect(r).toEqual({ error: expect.stringContaining("pago a la cuenta") });
+  });
+
+  it("sin proveedor todo sigue igual: «ya se pagó» y kiosco «General» valen", () => {
+    expect("valor" in validarEgreso({ ...base, proveedor_id: null, sucursal_id: null, pagado: true, origen: "efectivo_tesoreria" }, HOY)).toBe(true);
+    expect("valor" in validarEgreso({ ...base, proveedor_id: null, sucursal_id: "s1", pagado: false, origen: null }, HOY)).toBe(true);
+    expect("valor" in validarEgreso({ ...base, proveedor_id: null, origen: "retiro_caja", retiros_caja_ids: ["r1"] }, HOY)).toBe(true);
+  });
+});
+
 describe("validarPago", () => {
   it("acepta transferencia, Mercado Pago y efectivo de Tesorería", () => {
     for (const origen of ["transferencia", "mercadopago", "efectivo_tesoreria"]) {
@@ -241,5 +270,22 @@ describe("tengoMenosDebo", () => {
   it("efectivo menos proveedores menos obligaciones sin registrar; puede dar negativo", () => {
     expect(tengoMenosDebo({ efectivo: 3000000, deudaProveedores: 1000000, obligacionesPendientes: 1500000 })).toBe(500000);
     expect(tengoMenosDebo({ efectivo: 100000, deudaProveedores: 2630000, obligacionesPendientes: 4200000 })).toBe(-6730000);
+  });
+});
+
+describe("migración 111 (retiro como pago a proveedor y remito único)", () => {
+  const sql = readFileSync(resolve(__dirname, "../../supabase/migrations/111_retiro_como_pago_proveedor.sql"), "utf8");
+
+  it("el pago a proveedor admite el retiro de caja como origen", () => {
+    expect(sql).toMatch(/proveedor_cuenta_origen_check[\s\S]*'retiro_caja'/);
+  });
+
+  it("un retiro se imputa a un gasto o a un pago, nunca a los dos", () => {
+    expect(sql).toMatch(/retiros_caja_un_solo_destino[\s\S]*egreso_id is null or proveedor_cuenta_id is null/);
+  });
+
+  it("el remito (proveedor + kiosco + número) es único entre los egresos vigentes", () => {
+    expect(sql).toMatch(/create unique index if not exists egresos_remito_unico/);
+    expect(sql).toMatch(/where anulado_en is null and proveedor_id is not null and sucursal_id is not null and comprobante_numero is not null/);
   });
 });

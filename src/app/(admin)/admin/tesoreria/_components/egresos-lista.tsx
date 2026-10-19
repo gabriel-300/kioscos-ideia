@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { EgresoForm } from "./egreso-form";
@@ -18,8 +19,10 @@ const fechaCorta = (f: string) => new Date(f + "T12:00:00").toLocaleDateString("
 
 type Accion = { tipo: "pagar" | "anular"; egreso: Egreso } | null;
 
-export function EgresosLista({ egresos, pendientes, entregasDisponibles, totalesKiosco, sucursales, proveedores, puedeCargar }: {
-  egresos: Egreso[]; pendientes: Egreso[]; entregasDisponibles: EntregaPendiente[]; totalesKiosco: Record<string, number>;
+type EstadoCompra = Record<string, { estado: "pendiente" | "parcial" | "cubierta"; resta: number; cubierto: number }>;
+
+export function EgresosLista({ egresos, pendientes, estadoCompra, entregasDisponibles, totalesKiosco, sucursales, proveedores, puedeCargar }: {
+  egresos: Egreso[]; pendientes: Egreso[]; estadoCompra: EstadoCompra; entregasDisponibles: EntregaPendiente[]; totalesKiosco: Record<string, number>;
   sucursales: Opcion[]; proveedores: Opcion[]; puedeCargar: boolean;
 }) {
   const router = useRouter();
@@ -74,9 +77,17 @@ export function EgresosLista({ egresos, pendientes, entregasDisponibles, totales
             <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${e.comprobante === "con" ? "border-selva-200 bg-selva-50 text-selva-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
               {e.comprobante === "con" ? `Con factura${e.comprobante_numero ? ` N° ${e.comprobante_numero}` : ""}` : `Sin factura${e.comprobante_numero ? ` · remito N° ${e.comprobante_numero}` : ""}`}
             </span>
-            {!e.pagado && (
-              <span className="inline-flex rounded-full border border-danger/30 bg-danger/5 px-2 py-0.5 text-xs font-semibold text-danger">Se debe</span>
-            )}
+            {!e.pagado && (() => {
+              if (!e.proveedor_id) {
+                return <span className="inline-flex rounded-full border border-danger/30 bg-danger/5 px-2 py-0.5 text-xs font-semibold text-danger">Se debe</span>;
+              }
+              const est = estadoCompra[e.id];
+              const texto = est?.estado === "cubierta" ? "Cubierta por pagos"
+                : est?.estado === "parcial" ? `Cubierta en parte (resta ${AR.format(est.resta)})` : "Sin cubrir";
+              const clase = est?.estado === "cubierta" ? "border-selva-200 bg-selva-50 text-selva-700"
+                : est?.estado === "parcial" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-amber-200 bg-amber-50 text-amber-800";
+              return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${clase}`}>{texto}</span>;
+            })()}
           </div>
           <p className="text-xs text-neutral-400 mt-0.5">
             {fechaCorta(e.fecha)} · {e.sucursal_id ? (nombreSucursal.get(e.sucursal_id) ?? "—") : "General"}
@@ -99,7 +110,9 @@ export function EgresosLista({ egresos, pendientes, entregasDisponibles, totales
           <span className="text-sm font-semibold tabular-nums text-neutral-900">{AR.format(e.monto)}</span>
           <div className="flex items-center gap-3 text-xs">
             {e.comprobante_path && <button onClick={() => verComprobante(e.id)} className="text-tierra-700 hover:underline font-medium">Ver archivo</button>}
-            {puedeCargar && !e.pagado && <button onClick={() => abrirAccion("pagar", e)} className="text-selva-700 hover:underline font-semibold">Marcar pagado</button>}
+            {puedeCargar && !e.pagado && (e.proveedor_id
+              ? <Link href="/admin/tesoreria?vista=proveedores" className="text-selva-700 hover:underline font-semibold">Pagar desde Proveedores</Link>
+              : <button onClick={() => abrirAccion("pagar", e)} className="text-selva-700 hover:underline font-semibold">Marcar pagado</button>)}
             {puedeCargar && <button onClick={() => abrirAccion("anular", e)} className="text-danger hover:underline font-medium">Anular</button>}
           </div>
         </div>

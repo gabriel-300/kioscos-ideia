@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { EgresoForm, type Borrador } from "./egreso-form";
 import { descartarEntrega, restaurarEntrega } from "../actions";
+import { registrarRetiroComoPago } from "../proveedores-actions";
 import type { RetiroPendiente, EntregaPendiente, EntregaDescartada } from "@/lib/tesoreria/consultas";
 import { formatKg, friendlyError } from "@/lib/utils";
 
@@ -45,9 +46,24 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
   const [motivo, setMotivo] = useState("");
   const [error, setError]   = useState<string | null>(null);
 
+  const [comoPago, setComoPago] = useState<string | null>(null);   // retiro con proveedor cuyo panel de confirmación está abierto
+  const [errorPago, setErrorPago] = useState<string | null>(null);
   const nombreSucursal = useMemo(() => new Map(sucursales.map((s) => [s.id, s.nombre])), [sucursales]);
+  const nombreProveedor = useMemo(() => new Map(proveedores.map((p) => [p.id, p.nombre])), [proveedores]);
   const seleccion = entregas.filter((e) => elegidas.has(e.id));
   const totalSeleccion = seleccion.reduce((s, e) => s + e.total, 0);
+
+  function confirmarComoPago(retiroId: string) {
+    setErrorPago(null);
+    startTransition(async () => {
+      try {
+        const r = await registrarRetiroComoPago(retiroId);
+        if (r.error) { setErrorPago(r.error); return; }
+        setComoPago(null);
+        router.refresh();
+      } catch (e) { setErrorPago(friendlyError(e)); }
+    });
+  }
 
   function registrarRetiro(r: RetiroPendiente) {
     setTitulo("Registrar retiro de caja");
@@ -141,10 +157,28 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
               </div>
               <div className="flex items-center gap-4 shrink-0">
                 <span className="text-sm font-semibold tabular-nums text-neutral-900">{AR.format(r.monto)}</span>
-                {puedeCargar && (
+                {puedeCargar && (r.proveedor_id ? (
+                  <button onClick={() => { setComoPago(comoPago === r.id ? null : r.id); setErrorPago(null); }}
+                    className="text-xs font-semibold text-tierra-700 hover:underline">
+                    Registrar como pago a {nombreProveedor.get(r.proveedor_id) ?? "el proveedor"}
+                  </button>
+                ) : (
                   <button onClick={() => registrarRetiro(r)} className="text-xs font-semibold text-tierra-700 hover:underline">Registrar</button>
-                )}
+                ))}
               </div>
+              {puedeCargar && r.proveedor_id && comoPago === r.id && (
+                <div className="basis-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 space-y-2">
+                  <p>
+                    Se registra como un pago de {AR.format(r.monto)} a la cuenta de {nombreProveedor.get(r.proveedor_id) ?? "el proveedor"} en {nombreSucursal.get(r.sucursal_id) ?? "—"}.
+                    No es un gasto nuevo: la compra se carga como remito en Proveedores.
+                  </p>
+                  {errorPago && <p role="alert" className="text-danger">{errorPago}</p>}
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" loading={pending} onClick={() => confirmarComoPago(r.id)}>Confirmar</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setComoPago(null)}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

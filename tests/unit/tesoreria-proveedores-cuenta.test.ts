@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  calcularCuentas, totalAdeudado, validarMovimientoProveedor, deudaDelResumen,
+  calcularCuentas, estadoPorCompra, totalAdeudado, validarMovimientoProveedor, deudaDelResumen,
   type CompraAdeudada, type MovimientoProveedor,
 } from "@/lib/tesoreria/proveedores-cuenta";
 
@@ -101,6 +101,31 @@ describe("validarMovimientoProveedor", () => {
   });
 });
 
+describe("estadoPorCompra", () => {
+  it("devuelve estado, resta y cubierto por id de compra según los pagos de la cuenta", () => {
+    const cuentas = calcularCuentas(
+      [compra({ id: "a", fecha: "2026-10-01", monto: 1000 }), compra({ id: "b", fecha: "2026-10-02", monto: 1000 }), compra({ id: "c", fecha: "2026-10-03", monto: 1000 })],
+      [mov({ monto: 1400 })],
+    );
+    expect(estadoPorCompra(cuentas)).toEqual({
+      a: { estado: "cubierta", resta: 0, cubierto: 1000 },
+      b: { estado: "parcial", resta: 600, cubierto: 400 },
+      c: { estado: "pendiente", resta: 1000, cubierto: 0 },
+    });
+  });
+
+  it("cada cuenta usa solo sus propios pagos y sin cuentas no hay nada", () => {
+    const cuentas = calcularCuentas(
+      [compra({ id: "a", sucursal_id: "parque", monto: 1000 }), compra({ id: "b", sucursal_id: "unam", monto: 1000 })],
+      [mov({ sucursal_id: "parque", monto: 1000 })],
+    );
+    const est = estadoPorCompra(cuentas);
+    expect(est.a.estado).toBe("cubierta");
+    expect(est.b.estado).toBe("pendiente");
+    expect(estadoPorCompra([])).toEqual({});
+  });
+});
+
 describe("deudaDelResumen", () => {
   const nombreProv = new Map([["petri", "Petri"]]);
   const nombreLoc = new Map([["parque", "Parque"]]);
@@ -116,6 +141,16 @@ describe("deudaDelResumen", () => {
     );
     expect(r.total).toBe(2100);   // Petri (3000 − 1200 = 1800) + Lo de Mario (300)
     expect(r.items.map((i) => [i.nombre, i.monto])).toEqual([["Petri · Parque", 1800], ["Lo de Mario", 300]]);
+  });
+
+  it("la cantidad de remitos cuenta solo los que los pagos todavía no cubren", () => {
+    const r = deudaDelResumen(
+      [pend({ id: "a", fecha: "2026-10-01", monto: 1000 }), pend({ id: "b", fecha: "2026-10-02", monto: 1000 }), pend({ id: "c", fecha: "2026-10-03", monto: 1000 })],
+      [mov({ monto: 1500 })],   // cubre «a» entero y la mitad de «b»
+      nombreProv, nombreLoc,
+    );
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({ monto: 1500, cantidad: 2 });
   });
 
   it("un proveedor al día no aparece en lo que se debe", () => {

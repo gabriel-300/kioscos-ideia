@@ -1498,6 +1498,7 @@ export type Database = {
       }
       retiros_caja: {
         Row: {
+          proveedor_cuenta_id: string | null
           autorizado_por: string | null
           proveedor_id: string | null
           egreso_id: string | null
@@ -1511,6 +1512,7 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
+          proveedor_cuenta_id?: string | null
           autorizado_por?: string | null
           proveedor_id?: string | null
           egreso_id?: string | null
@@ -1524,6 +1526,7 @@ export type Database = {
           sucursal_id: string
         }
         Update: {
+          proveedor_cuenta_id?: string | null
           autorizado_por?: string | null
           proveedor_id?: string | null
           egreso_id?: string | null

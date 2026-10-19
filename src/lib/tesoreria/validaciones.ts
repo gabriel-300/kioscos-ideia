@@ -87,6 +87,14 @@ export function validarEgreso(e: EgresoEntrada, hoy: string): { error: string } 
   const entregas = listaDeIds(e.entregas_ids);
   if (!retiros || !entregas) return { error: "La lista de movimientos a registrar no es válida" };
 
+  // Regla única de la cuenta corriente de proveedores: una compra de un proveedor de la lista siempre «se debe» y se paga desde
+  // Proveedores (un pago a cuenta). Si además se marcara pagada acá, se descontaría dos veces (el remito sale de la deuda y el pago
+  // a cuenta lo vuelve a restar). Y necesita un kiosco: una cuenta «sin local» no se puede pagar (los pagos exigen local).
+  const proveedor = e.proveedor_id || null;
+  if (proveedor && retiros.length > 0) return { error: "Un retiro de caja con proveedor se registra como pago a la cuenta del proveedor, no como egreso" };
+  if (proveedor && e.pagado) return { error: "Las compras de un proveedor de la lista se cargan «todavía se debe»: el pago se registra desde Proveedores" };
+  if (proveedor && !e.sucursal_id) return { error: "Elegí a qué kiosco corresponde la compra de este proveedor" };
+
   // Un retiro de caja es plata que ya salió del cajón: no puede quedar "pendiente".
   if (retiros.length > 0 && !e.pagado) return { error: "Un retiro de caja ya está pagado" };
   // Un egreso que viene de un retiro de caja sale, por definición, del cajón del kiosco.
@@ -99,7 +107,7 @@ export function validarEgreso(e: EgresoEntrada, hoy: string): { error: string } 
       monto,
       sucursal_id:        e.sucursal_id || null,
       categoria,
-      proveedor_id:       e.proveedor_id || null,
+      proveedor_id:       proveedor,
       descripcion,
       comprobante,
       // Número de remito o de factura: se guarda con o sin factura (migración 110).

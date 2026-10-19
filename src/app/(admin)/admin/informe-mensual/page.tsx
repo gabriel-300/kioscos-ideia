@@ -119,6 +119,7 @@ export default async function InformeMensualPage({
       .in("sucursal_id", sucursalIds)
       // Un retiro ya registrado en Tesorería está representado por su egreso (migración 101): se cuenta ahí, no acá.
       .is("egreso_id", null)
+      .is("proveedor_cuenta_id", null)   // un retiro imputado a un pago de proveedor ya está en la cuenta del proveedor (migración 111)
       .gte("fecha", mesInicio).lte("fecha", mesFin) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
     (admin as any)
       .from("pagos_proveedor")

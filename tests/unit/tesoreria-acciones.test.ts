@@ -24,7 +24,11 @@ const entrada: EgresoEntrada = {
 };
 
 type Esc = { retirosDisponibles?: string[]; tomaRetiros?: string[]; insertError?: string; anulacionFilas?: number; pagoFilas?: number; descarteFilas?: number;
-  efectivoActual?: number; cambiosPrevios?: number; historialError?: string; historialSinMigracion?: boolean };
+  efectivoActual?: number; cambiosPrevios?: number; historialError?: string; historialSinMigracion?: boolean;
+  fechaCorte?: string;                 // fecha del saldo_inicial de la cuenta proveedor+kiosco
+  repetido?: { fecha: string; monto: number };   // otro egreso vigente con el mismo comprobante_numero
+  proveedorDelEgreso?: string | null;  // proveedor_id del egreso que se quiere marcar pagado
+};
 
 function montar(permisos: unknown, e: Esc = {}) {
   h.permisos = permisos;
@@ -42,7 +46,17 @@ function montar(permisos: unknown, e: Esc = {}) {
         if (q.op === "select") return { data: (e.retirosDisponibles ?? ["r1"]).map((id) => ({ id, sucursal_id: "s1" })) };
         if (q.op === "update" && q.payload?.egreso_id) return { data: (e.tomaRetiros ?? ["r1"]).map((id) => ({ id })) };
         return { data: null };
+      case "proveedor_cuenta":
+        if (q.op === "select" && e.fechaCorte) {
+          return { data: [{ id: "si", tipo: "saldo_inicial", proveedor_id: "p1", sucursal_id: "s1", fecha: e.fechaCorte, monto: 0, origen: null, nota: null, created_at: `${e.fechaCorte}T00:00:00Z`, created_by: null }] };
+        }
+        return { data: q.op === "select" ? [] : null };
       case "egresos":
+        if (q.op === "select") {
+          if (q.filters.some((f) => f.col === "comprobante_numero")) return { data: e.repetido ? [{ id: "e0", ...e.repetido }] : [] };   // chequeo de remito repetido
+          if (q.filters.some((f) => f.col === "pagado")) return { data: [] };                                                           // compras pendientes de la cuenta
+          return { data: e.proveedorDelEgreso ? { proveedor_id: e.proveedorDelEgreso } : null };                                         // el egreso a marcar pagado
+        }
         if (q.op === "insert") return e.insertError ? { error: { message: e.insertError } } : { data: { id: "e1" } };
         if (q.op === "update" && q.payload?.anulado_en) return { data: Array.from({ length: e.anulacionFilas ?? 1 }, () => ({ id: "e1", monto: 1500, descripcion: "Lo de Mario" })) };
         if (q.op === "update" && q.payload?.pagado) return { data: Array.from({ length: e.pagoFilas ?? 1 }, () => ({ id: "e1", monto: 1500, descripcion: "Lo de Mario" })) };
@@ -194,6 +208,70 @@ describe("registrarEgreso", () => {
   });
 });
 
+describe("registrarEgreso: compras de un proveedor de la lista (cuenta corriente)", () => {
+  const compra: EgresoEntrada = {
+    ...entrada, proveedor_id: "p1", sucursal_id: "s1", pagado: false, origen: null, retiros_caja_ids: [],
+    fecha: "2026-10-04", comprobante: "sin", comprobante_numero: "0005-123",
+  };
+  const insertsEgreso = (calls: Q[]) => calls.filter((q) => q.table === "egresos" && q.op === "insert");
+
+  it("una compra con proveedor «se debe» y se guarda con su kiosco y número", async () => {
+    const { calls } = montar(CARGA);
+    expect(await registrarEgreso(compra)).toEqual({});
+    expect(insertsEgreso(calls)).toHaveLength(1);
+    expect(insertsEgreso(calls)[0].payload).toMatchObject({ proveedor_id: "p1", sucursal_id: "s1", pagado: false, origen: null, comprobante_numero: "0005-123" });
+  });
+
+  it("una compra con fecha igual o anterior al corte del saldo inicial se rechaza con la fecha, sin guardar", async () => {
+    for (const [fechaCorte, dma] of [["2026-10-04", "04/10/2026"], ["2026-10-05", "05/10/2026"]]) {
+      const { calls } = montar(CARGA, { fechaCorte });
+      const r = await registrarEgreso(compra);   // compra del 04/10/2026
+      expect(r).toEqual({ error: expect.stringContaining(dma) });
+      expect(insertsEgreso(calls)).toEqual([]);
+    }
+    const { calls } = montar(CARGA, { fechaCorte: "2026-10-01" });
+    expect(await registrarEgreso({ ...compra, fecha: "2026-10-02" })).toEqual({});   // posterior al corte
+    expect(insertsEgreso(calls)).toHaveLength(1);
+  });
+
+  it("un remito con el mismo proveedor, kiosco y número que otro vigente se rechaza con el número, sin guardar", async () => {
+    const { calls } = montar(CARGA, { repetido: { fecha: "2026-10-02", monto: 5000 } });
+    const r = await registrarEgreso(compra);
+    expect(r.error).toContain("0005-123");
+    expect(r.error).toContain("02/10/2026");
+    expect(insertsEgreso(calls)).toEqual([]);
+    const chequeo = calls.find((q) => q.table === "egresos" && q.op === "select" && q.filters.some((f) => f.col === "comprobante_numero"))!;
+    expect(chequeo.filters).toContainEqual(expect.objectContaining({ op: "eq", col: "proveedor_id", val: "p1" }));
+    expect(chequeo.filters).toContainEqual(expect.objectContaining({ op: "eq", col: "sucursal_id", val: "s1" }));
+    expect(chequeo.filters).toContainEqual(expect.objectContaining({ op: "is", col: "anulado_en", val: null }));   // los anulados no cuentan
+  });
+
+  it("con otro número el remito se guarda", async () => {
+    const { calls } = montar(CARGA);   // no hay otro egreso con ese número
+    expect(await registrarEgreso({ ...compra, comprobante_numero: "0005-124" })).toEqual({});
+    expect(insertsEgreso(calls)).toHaveLength(1);
+  });
+
+  it("sin número de comprobante no se chequea repetido", async () => {
+    const { calls } = montar(CARGA, { repetido: { fecha: "2026-10-02", monto: 5000 } });
+    expect(await registrarEgreso({ ...compra, comprobante_numero: null })).toEqual({});
+    expect(calls.some((q) => q.table === "egresos" && q.filters.some((f) => f.col === "comprobante_numero"))).toBe(false);
+  });
+
+  it("una compra con proveedor marcada «ya se pagó», o sin kiosco, no toca la base", async () => {
+    const { calls } = montar(CARGA);
+    expect(await registrarEgreso({ ...compra, pagado: true, origen: "efectivo_tesoreria" })).toHaveProperty("error");
+    expect(await registrarEgreso({ ...compra, sucursal_id: null })).toHaveProperty("error");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("sin proveedor no se consulta la cuenta ni el remito repetido", async () => {
+    const { calls } = montar(CARGA, { repetido: { fecha: "2026-10-02", monto: 5000 }, fechaCorte: "2026-10-05" });
+    expect(await registrarEgreso({ ...compra, proveedor_id: null, comprobante_numero: "0005-123" })).toEqual({});
+    expect(calls.some((q) => q.table === "proveedor_cuenta")).toBe(false);
+  });
+});
+
 describe("anularEgreso", () => {
   it("anula con motivo y libera lo que tenía vinculado (vuelve a «Para registrar»)", async () => {
     const { calls } = montar(CARGA);
@@ -249,6 +327,19 @@ describe("marcarEgresoPagado", () => {
     expect(up.filters.some((f) => f.op === "eq" && f.col === "pagado" && f.val === false)).toBe(true);   // solo las pendientes
   });
 
+  it("una compra de un proveedor de la lista se paga desde Proveedores: manda allá y no actualiza nada", async () => {
+    const { calls } = montar(CARGA, { proveedorDelEgreso: "p1" });
+    const r = await marcarEgresoPagado("e1", { origen: "transferencia", fecha_pago: "2026-10-04" });
+    expect(r).toEqual({ error: expect.stringContaining("Proveedores") });
+    expect(escrituras(calls)).toEqual([]);
+  });
+
+  it("una compra sin proveedor sigue marcándose pagada", async () => {
+    const { calls } = montar(CARGA, { proveedorDelEgreso: null });
+    expect(await marcarEgresoPagado("e1", { origen: "transferencia", fecha_pago: "2026-10-04" })).toEqual({});
+    expect(calls.some((q) => q.table === "egresos" && q.op === "update")).toBe(true);
+  });
+
   it("no acepta retiro de caja como forma de pago, ni una compra que ya estaba pagada", async () => {
     montar(CARGA);
     expect(await marcarEgresoPagado("e1", { origen: "retiro_caja", fecha_pago: "2026-10-04" })).toEqual({ error: expect.any(String) });
@@ -265,5 +356,13 @@ describe("redirecciones de las pantallas que se unificaron en Tesorería", () =>
       expect(r?.destination, source).toBe("/admin/tesoreria?vista=egresos");
       expect(r?.permanent, source).toBe(false);
     }
+  });
+});
+
+describe("dos personas cargando el mismo remito a la vez", () => {
+  it("si la base lo frena por el índice único, se muestra el mismo mensaje claro (no el error crudo)", async () => {
+    montar(CARGA, { insertError: 'duplicate key value violates unique constraint "egresos_remito_unico"' });
+    const r = await registrarEgreso({ ...entrada, origen: "efectivo_tesoreria", retiros_caja_ids: [], comprobante_numero: "2416" });
+    expect(r).toEqual({ error: expect.stringContaining("Ya está cargado el remito o factura N° 2416") });
   });
 });

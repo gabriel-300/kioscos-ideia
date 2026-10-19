@@ -4,7 +4,7 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/paginar";
 import { cargarEgresosPendientes } from "./consultas";
-import type { CompraAdeudada, MovimientoProveedor, TipoMovimiento } from "./proveedores-cuenta";
+import { calcularCuentas, type CompraAdeudada, type MovimientoProveedor, type TipoMovimiento } from "./proveedores-cuenta";
 import type { Origen } from "./tipos";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -29,6 +29,32 @@ export async function cargarMovimientosProveedor(admin: Admin, tolerarSinTabla =
     fecha: String(f.fecha), monto: Number(f.monto), origen: (f.origen as Origen | null) ?? null,
     nota: (f.nota as string | null) ?? null, created_at: String(f.created_at), created_by: (f.created_by as string | null) ?? null,
   }));
+}
+
+// La cuenta de UN proveedor en UN local: su saldo hoy y la fecha de corte del saldo inicial (null si no se cargó uno). La usan las
+// acciones para (a) no aceptar remitos ni pagos anteriores al corte, que ya están incluidos en el saldo inicial, y (b) pedir
+// confirmación cuando un pago deja la cuenta a favor.
+export async function cargarCuentaDe(admin: Admin, proveedor_id: string, sucursal_id: string): Promise<{ saldo: number; fechaCorte: string | null }> {
+  const [filas, compras] = await Promise.all([
+    fetchAll<Record<string, unknown>>((d, h) =>
+      tabla(admin, "proveedor_cuenta")
+        .select("id, tipo, proveedor_id, sucursal_id, fecha, monto, origen, nota, created_at, created_by", { count: "exact" })
+        .eq("proveedor_id", proveedor_id).eq("sucursal_id", sucursal_id).is("anulado_en", null).order("id").range(d, h)),
+    fetchAll<{ id: string; fecha: string; monto: number | string; descripcion: string; comprobante_numero: string | null }>((d, h) =>
+      admin.from("egresos")
+        .select("id, fecha, monto, descripcion, comprobante_numero", { count: "exact" })
+        .eq("proveedor_id", proveedor_id).eq("sucursal_id", sucursal_id).eq("pagado", false).is("anulado_en", null).order("id").range(d, h)),
+  ]);
+  const movimientos: MovimientoProveedor[] = filas.map((f) => ({
+    id: String(f.id), tipo: f.tipo as TipoMovimiento, proveedor_id: String(f.proveedor_id), sucursal_id: String(f.sucursal_id),
+    fecha: String(f.fecha), monto: Number(f.monto), origen: (f.origen as Origen | null) ?? null,
+    nota: (f.nota as string | null) ?? null, created_at: String(f.created_at), created_by: (f.created_by as string | null) ?? null,
+  }));
+  const cuenta = calcularCuentas(
+    compras.map((c) => ({ id: c.id, proveedor_id, sucursal_id, fecha: c.fecha, monto: Number(c.monto), descripcion: c.descripcion, comprobante_numero: c.comprobante_numero })),
+    movimientos,
+  )[0];
+  return { saldo: cuenta?.saldo ?? 0, fechaCorte: movimientos.find((m) => m.tipo === "saldo_inicial")?.fecha ?? null };
 }
 
 // Compras que todavía se deben y tienen proveedor de la lista (las que no, no tienen cuenta corriente: se muestran aparte).

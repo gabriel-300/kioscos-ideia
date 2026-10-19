@@ -119,6 +119,18 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   - Hay compras **con factura y sin factura**; el gasto se registra igual en los dos casos.
   - Un egreso puede estar **pagado o "todavía se debe"**; lo que se debe se marca pagado después.
   - Nada se borra: un error se **anula** con motivo, y lo que venía del kiosco vuelve a «Para registrar».
+  - **Cuenta corriente por proveedor y kiosco** (saldo = saldo inicial + compras que se deben − pagos):
+    - Los remitos y facturas de un proveedor de la lista **siempre se cargan «todavía se debe»**; **solo los pagos** (Proveedores →
+      «Registrar un pago») los pagan. No se marca pagado un remito de proveedor desde Egresos ni se carga «Ya se pagó».
+    - Una compra con proveedor de la lista **necesita kiosco** (una cuenta «sin local» no se puede pagar).
+    - No se aceptan remitos ni pagos con fecha **anterior o igual a la fecha de corte** del saldo inicial de esa cuenta (ya están
+      incluidos en ese saldo).
+    - **El mismo remito** (proveedor + kiosco + N°) **no se puede cargar dos veces**.
+    - Un pago **mayor al saldo pide confirmación** («la cuenta quedaría con $X a favor»).
+    - Se puede **pagar a un proveedor desactivado** que tenga deuda.
+    - Un **retiro de caja que pagó a un proveedor** (autorizado por un administrador) se registra desde «Para registrar» como **pago a
+      la cuenta del proveedor** («Registrar como pago a …»), no como egreso: no duplica el gasto ni toca efectivo ni Mercado Pago
+      (migración 111).
   - Tesorería rige desde el **2026-10-01**; lo anterior no se pide registrar. Villa Sarita (consignación) queda afuera.
   - «Entró menos salió» no es la ganancia; los retiros de socios se muestran aparte del gasto operativo.
   - **Un solo sector**: la barra de solapas de Tesorería reúne Resumen, Cuentas, Para registrar, Egresos, Proveedores, Obligaciones (los gastos fijos), Cierres de caja,

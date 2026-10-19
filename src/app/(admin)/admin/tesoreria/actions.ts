@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import { cargarConfig } from "@/lib/tesoreria/consultas";
+import { cargarCuentaDe } from "@/lib/tesoreria/proveedores-consultas";
 import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 import { registrarHistorial, type EntradaHistorial } from "@/lib/tesoreria/historial";
@@ -15,6 +16,9 @@ import { redondearMoneda } from "@/lib/pedidos/pricing";
 // verifica el permiso acá: cargar = admin con es_administrativo (lib/tesoreria/permisos.ts).
 
 type Resultado = { error?: string };
+
+const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+const dma = (f: string) => f.split("-").reverse().join("/");
 
 const SIN_PERMISO = "Solo el administrativo de Tesorería puede cargar movimientos";
 const SIN_MIGRACION = "Falta aplicar la migración 101 de la base de datos";
@@ -59,10 +63,27 @@ export async function registrarEgreso(entrada: EgresoEntrada): Promise<Resultado
   const idsValidos = new Set<string>((sucursales ?? []).map((s: { id: string }) => s.id));
   if (e.sucursal_id && !idsValidos.has(e.sucursal_id)) return { error: "Esa sucursal no entra en Tesorería" };
 
+  // Cuenta corriente del proveedor: lo anterior al corte del saldo inicial ya está incluido en ese saldo (cargarlo lo contaría dos
+  // veces) y el mismo remito no se carga dos veces. La validación pura ya exigió kiosco cuando hay proveedor.
+  if (e.proveedor_id && e.sucursal_id) {
+    const { fechaCorte } = await cargarCuentaDe(admin, e.proveedor_id, e.sucursal_id);
+    if (fechaCorte && e.fecha <= fechaCorte) {
+      return { error: `El saldo inicial de este proveedor en ese kiosco es del ${dma(fechaCorte)}: lo comprado hasta esa fecha ya está incluido en ese saldo. Cargá solo remitos posteriores.` };
+    }
+    if (e.comprobante_numero) {
+      const { data: repetido } = await admin.from("egresos").select("id, fecha, monto")
+        .eq("proveedor_id", e.proveedor_id).eq("sucursal_id", e.sucursal_id).eq("comprobante_numero", e.comprobante_numero)
+        .is("anulado_en", null).limit(1);
+      if (repetido && repetido.length > 0) {
+        return { error: `Ya está cargado el remito o factura N° ${e.comprobante_numero} de este proveedor en ese kiosco (${dma(repetido[0].fecha)}, ${AR.format(Number(repetido[0].monto))}). Si es otro comprobante, anotalo con otro número.` };
+      }
+    }
+  }
+
   // Lo que se va a tomar tiene que existir, ser de un local de Tesorería y no estar ya registrado.
   if (e.retiros_caja_ids.length > 0) {
     const { data } = await admin.from("retiros_caja").select("id, sucursal_id")
-      .in("id", e.retiros_caja_ids).is("egreso_id", null);
+      .in("id", e.retiros_caja_ids).is("egreso_id", null).is("proveedor_cuenta_id", null);
     const ok = (data ?? []).filter((r: { sucursal_id: string }) => idsValidos.has(r.sucursal_id));
     if (ok.length !== e.retiros_caja_ids.length) return { error: "Algún retiro de caja ya fue registrado o no corresponde. Recargá la pantalla." };
   }
@@ -76,6 +97,9 @@ export async function registrarEgreso(entrada: EgresoEntrada): Promise<Resultado
   const { retiros_caja_ids, entregas_ids, ...fila } = e;
   const { data: creado, error } = await admin.from("egresos")
     .insert({ ...fila, created_by: permisos.userId }).select("id").single();
+  if (error?.message.includes("egresos_remito_unico")) {
+    return { error: `Ya está cargado el remito o factura N° ${e.comprobante_numero ?? ""} de este proveedor en ese kiosco. Recargá la pantalla para verlo.` };
+  }
   if (error || !creado) return { error: error?.message ?? "No se pudo guardar el egreso" };
 
   // Tomar lo del kiosco. El filtro `egreso_id is null` evita pisar a otro administrativo que lo tomó en el medio.
@@ -115,6 +139,12 @@ export async function marcarEgresoPagado(id: string, pago: { origen: string; fec
   if ("error" in validado) return { error: validado.error };
 
   const admin = createAdminClient();
+  // Una compra de un proveedor de la lista se paga desde su cuenta (Proveedores → Registrar un pago): marcarla pagada acá y además
+  // pagarla a cuenta la descontaría dos veces.
+  const { data: previo } = await admin.from("egresos").select("proveedor_id").eq("id", id).maybeSingle();
+  if (previo?.proveedor_id) {
+    return { error: "Esta compra es de un proveedor de la lista: su pago se registra desde Proveedores («Registrar un pago»). Así no se descuenta dos veces." };
+  }
   const { data, error } = await admin.from("egresos")
     .update({ pagado: true, origen: validado.valor.origen, fecha_pago: validado.valor.fecha_pago, updated_by: permisos.userId, updated_at: new Date().toISOString() })
     .eq("id", id).eq("pagado", false).is("anulado_en", null).select("id, monto, descripcion");

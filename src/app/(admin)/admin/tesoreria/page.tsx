@@ -28,7 +28,7 @@ import {
 } from "@/lib/tesoreria/peya-consultas";
 import { cargarCuentaMp } from "@/lib/tesoreria/cuenta-mp-consultas";
 import { cargarMovimientosProveedor } from "@/lib/tesoreria/proveedores-consultas";
-import { deudaDelResumen, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
+import { deudaDelResumen, estadoPorCompra, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
 import { compararPorDia, cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
 import { SolapasTesoreria } from "./_components/solapas";
@@ -134,7 +134,17 @@ export default async function TesoreriaPage({
       };
     }
 
-    datos = { config, sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial };
+    // Estado de cada compra que se debe según los pagos del proveedor (Egresos): las cubiertas dejan de figurar como deuda.
+    let estadoCompra: ReturnType<typeof estadoPorCompra> = {};
+    if (vista === "egresos") {
+      try {
+        const movimientos = await cargarMovimientosProveedor(admin);
+        const { cuentas } = deudaDelResumen(pendientesTodos, movimientos, new Map(), new Map());
+        estadoCompra = estadoPorCompra(cuentas);
+      } catch { /* sin la migración 106 no hay cuenta corriente: todo se muestra como hasta ahora */ }
+    }
+
+    datos = { config, sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial, estadoCompra };
   } catch (e) {
     const detalle = e instanceof Error ? e.message : String(e);
     return (
@@ -236,6 +246,12 @@ export default async function TesoreriaPage({
       const nombreProveedor = new Map(datos.proveedores.map((p) => [p.id, p.nombre]));
       const nombreLocal = new Map(datos.sucursales.map((s) => [s.id, s.nombre]));
       const d = deudaDelResumen(pendientes, movimientos, nombreProveedor, nombreLocal);
+      // Proveedores dados de baja que todavía tienen cuenta: se busca su nombre para poder mostrarlos y pagarles.
+      const faltantes = [...new Set(d.cuentas.map((c) => c.proveedor_id))].filter((id) => !nombreProveedor.has(id));
+      if (faltantes.length > 0) {
+        const { data: desactivados } = await admin.from("proveedores").select("id, nombre").in("id", faltantes);
+        for (const p of desactivados ?? []) nombreProveedor.set(p.id, p.nombre);
+      }
       prov = {
         cuentas: d.cuentas, totales: totalAdeudado(d.cuentas), sinProveedor: d.sinProveedor,
         nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal),
@@ -245,7 +261,7 @@ export default async function TesoreriaPage({
     }
   }
 
-  const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial } = datos;
+  const { sucursales, proveedores, retiros, entregas, descartadas, totalesKiosco, resumen, egresosMes, fijos, pendientesTodos, historial, estadoCompra } = datos;
   // El contador cuenta solo los retiros de caja (son la tarea). Los ingresos del kiosco son un control, no una deuda.
   const pendientesDeRegistrar = retiros.length;
   const enlace = (v: string, m: string = mes) => `/admin/tesoreria?vista=${v}&mes=${m}`;
@@ -292,7 +308,8 @@ export default async function TesoreriaPage({
         <ParaRegistrar retiros={retiros} entregas={entregas} descartadas={descartadas} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
       {vista === "egresos" && (
-        <EgresosLista egresos={egresosMes} pendientes={pendientesTodos} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+        <EgresosLista egresos={egresosMes} pendientes={pendientesTodos.filter((e) => !e.proveedor_id || estadoCompra[e.id]?.estado !== "cubierta")}
+          estadoCompra={estadoCompra} entregasDisponibles={entregas} totalesKiosco={totalesKiosco} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
       {vista === "pedidosya" && peya && <PeyaView data={peya} puedeCargar={permisos.puedeCargar} />}
       {vista === "pedidosya" && peyaError && (

@@ -79,7 +79,7 @@ export async function cargarRetirosPendientes(admin: Admin, sucursalIds: string[
   const filas = await fetchAll((d, h) =>
     admin.from("retiros_caja")
       .select("id, sucursal_id, fecha, monto, motivo, comprobante_image_url, created_at, created_by, proveedor_id, autorizado_por", { count: "exact" })
-      .in("sucursal_id", sucursalIds).is("egreso_id", null).gte("fecha", desde)
+      .in("sucursal_id", sucursalIds).is("egreso_id", null).is("proveedor_cuenta_id", null).gte("fecha", desde)
       .order("id").range(d, h));
   const nombres = await nombresDe(admin, filas.flatMap((r) => [r.created_by, r.autorizado_por]));
   return filas
