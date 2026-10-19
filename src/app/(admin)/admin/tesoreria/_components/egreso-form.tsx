@@ -107,7 +107,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
         const r = await registrarEgreso({
           fecha, monto: montoNum, sucursal_id: sucursalId || null, categoria,
           proveedor_id: proveedorId || null, descripcion: desc, comprobante,
-          comprobante_numero: comprobante === "con" ? (numero.trim() || null) : null,
+          comprobante_numero: numero.trim() || null,
           comprobante_path: path, pagado, origen: pagado ? origen : null,
           gasto_fijo_id: b.gasto_fijo_id ?? null, nota: nota.trim() || null,
           retiros_caja_ids: retiros, entregas_ids: esRetiro || categoria !== "mercaderia" ? [] : [...entregasElegidas],
@@ -206,9 +206,9 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
               <button type="button" onClick={() => setComprobante("con")} className={opcionBoton(comprobante === "con")}>Con factura</button>
               <button type="button" onClick={() => setComprobante("sin")} className={opcionBoton(comprobante === "sin")}>Sin factura</button>
             </div>
-            {comprobante === "con" && (
-              <input type="text" maxLength={40} placeholder="Número de factura (opcional)" value={numero}
-                onChange={(e) => setNumero(e.target.value)} className={`${campo} mt-2`} />
+            {comprobante !== null && (
+              <input type="text" maxLength={40} value={numero} onChange={(e) => setNumero(e.target.value)} className={`${campo} mt-2`}
+                placeholder={comprobante === "con" ? "N° de factura (y de remito, si lo tiene) — opcional" : "N° de remito — opcional"} />
             )}
           </div>
 

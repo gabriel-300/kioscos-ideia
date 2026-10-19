@@ -72,7 +72,7 @@ export function EgresosLista({ egresos, pendientes, entregasDisponibles, totales
               {etiquetaCategoria(e.categoria)}
             </span>
             <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${e.comprobante === "con" ? "border-selva-200 bg-selva-50 text-selva-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-              {e.comprobante === "con" ? `Con factura${e.comprobante_numero ? ` ${e.comprobante_numero}` : ""}` : "Sin factura"}
+              {e.comprobante === "con" ? `Con factura${e.comprobante_numero ? ` N° ${e.comprobante_numero}` : ""}` : `Sin factura${e.comprobante_numero ? ` · remito N° ${e.comprobante_numero}` : ""}`}
             </span>
             {!e.pagado && (
               <span className="inline-flex rounded-full border border-danger/30 bg-danger/5 px-2 py-0.5 text-xs font-semibold text-danger">Se debe</span>

@@ -319,18 +319,24 @@ export default async function AyudaPage() {
               <Boton>No corresponde</Boton> y no afectan el stock.
             </Paso>
             <Paso n={3}>
+              La cuenta de cada proveedor se lleva en la solapa <Campo>Proveedores</Campo>: tocá{" "}
+              <Boton>Cargar un remito o factura</Boton> por cada comprobante que llega (anotá su <Campo>N° de remito</Campo>, tenga o no
+              factura) y <Boton>Registrar un pago</Boton> a medida que se paga, aunque un pago cubra varios remitos juntos. El saldo es
+              lo comprado menos lo pagado.
+            </Paso>
+            <Paso n={4}>
               Completá con el comprobante real: el monto, <Campo>Con factura</Campo> o <Campo>Sin factura</Campo> (el gasto
               cuenta igual), y si <Campo>ya se pagó</Campo> o <Campo>todavía se debe</Campo>.
             </Paso>
-            <Paso n={4}>
+            <Paso n={5}>
               Si ya se pagó, indicá de dónde salió la plata: efectivo de Tesorería, transferencia o Mercado Pago.
               Podés adjuntar la foto o el PDF de la factura (hasta 1 MB; las fotos se achican solas).
             </Paso>
-            <Paso n={4}>
+            <Paso n={6}>
               Lo que quedó <Campo>Todavía se debe</Campo> se marca pagado después desde <Campo>Egresos</Campo>. Si te
               equivocás, <Boton>Anular</Boton> (no se borra; queda el motivo y vuelve a Para registrar si venía del kiosco).
             </Paso>
-            <Paso n={5}>
+            <Paso n={7}>
               El alquiler, los sueldos y los servicios se registran en <Campo>Gastos fijos</Campo> (la lista se edita en{" "}
               <Campo>/admin/gastos</Campo>). Un retiro de un socio se carga como categoría <Campo>Retiro de socio</Campo>.
             </Paso>

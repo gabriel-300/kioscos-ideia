@@ -7,6 +7,7 @@ import { ORIGENES_PAGO, type CuentaProveedor, type MovimientoProveedor } from "@
 import type { Deuda } from "@/lib/tesoreria/calculos";
 import { etiquetaOrigen } from "@/lib/tesoreria/tipos";
 import { registrarMovimientoProveedor, anularMovimientoProveedor } from "../proveedores-actions";
+import { EgresoForm, type Borrador as BorradorEgreso } from "./egreso-form";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const dma = (f: string) => f.split("-").reverse().join("/");
@@ -166,6 +167,10 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
 }) {
   const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal } = data;
   const [form, setForm] = useState<Borrador | null>(null);
+  // Remito o factura de un proveedor: es una compra (el mismo formulario de egresos) que se carga «todavía se debe» y suma a su cuenta.
+  const [compra, setCompra] = useState<BorradorEgreso | null>(null);
+  const cargarCompra = (proveedor_id = "", sucursal_id = "") =>
+    setCompra({ categoria: "mercaderia", pagado: false, proveedor_id: proveedor_id || null, sucursal_id: sucursal_id || null });
   const [abierta, setAbierta] = useState<string | null>(null);
   const local = (id: string | null) => (id ? nombreLocal[id] ?? "—" : "Sin local");
 
@@ -184,13 +189,20 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
         </div>
         {puedeCargar && (
           <div className="col-span-2 lg:col-span-1 rounded-xl border border-neutral-200 bg-white p-4 flex flex-col gap-2 justify-center">
+            <button type="button" onClick={() => cargarCompra()}
+              className="rounded-lg bg-tierra-700 px-4 py-2 text-sm font-semibold text-white hover:bg-tierra-800">Cargar un remito o factura</button>
             <button type="button" onClick={() => setForm({ tipo: "pago", proveedor_id: "", sucursal_id: "" })}
-              className="rounded-lg bg-tierra-700 px-4 py-2 text-sm font-semibold text-white hover:bg-tierra-800">Registrar un pago</button>
+              className="rounded-lg border border-tierra-700 px-4 py-2 text-sm font-semibold text-tierra-700 hover:bg-tierra-50">Registrar un pago</button>
             <button type="button" onClick={() => setForm({ tipo: "saldo_inicial", proveedor_id: "", sucursal_id: "" })}
               className="rounded-lg border border-neutral-300 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">Cargar un saldo inicial</button>
           </div>
         )}
       </div>
+
+      <p className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-xs text-neutral-600">
+        <b>Cómo se lleva la cuenta de un proveedor:</b> 1) <b>cargá cada remito o factura</b> que llega (suma a lo que se le debe, con su número);
+        2) <b>registrá los pagos</b> a medida que se hacen, aunque cubran varios remitos juntos (se restan del saldo).
+      </p>
 
       {form && (
         <Formulario key={`${form.tipo}|${form.proveedor_id}|${form.sucursal_id}`} borrador={form} proveedores={proveedores} sucursales={sucursales} onClose={() => setForm(null)} />
@@ -232,8 +244,12 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
                         Saldo inicial {AR.format(c.saldoInicial)} + compras {AR.format(c.compras)} − pagos {AR.format(c.pagos)}
                       </p>
                       {puedeCargar && c.sucursal_id && (
-                        <button type="button" onClick={() => setForm({ tipo: "pago", proveedor_id: c.proveedor_id, sucursal_id: c.sucursal_id as string })}
-                          className="rounded-lg bg-tierra-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-tierra-800">Registrar un pago a {nombre}</button>
+                        <div className="flex gap-2 flex-wrap">
+                          <button type="button" onClick={() => cargarCompra(c.proveedor_id, c.sucursal_id as string)}
+                            className="rounded-lg bg-tierra-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-tierra-800">Cargar un remito o factura de {nombre}</button>
+                          <button type="button" onClick={() => setForm({ tipo: "pago", proveedor_id: c.proveedor_id, sucursal_id: c.sucursal_id as string })}
+                            className="rounded-lg border border-tierra-700 px-3 py-1.5 text-sm font-semibold text-tierra-700 hover:bg-tierra-50">Registrar un pago a {nombre}</button>
+                        </div>
                       )}
                       {c.detalleCompras.length > 0 && (
                         <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
@@ -272,6 +288,9 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
           </div>
         )}
       </section>
+
+      <EgresoForm open={!!compra} titulo="Remito o factura de proveedor" borrador={compra} sucursales={sucursales} proveedores={proveedores}
+        onClose={() => setCompra(null)} />
 
       {sinProveedor.length > 0 && (
         <section className="space-y-2">

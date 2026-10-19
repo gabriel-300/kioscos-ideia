@@ -68,7 +68,7 @@ lo importa ningún módulo.
   `098_rls_rendimiento.sql` (optimización de las policies de RLS, sin cambio de accesos; ver §3) **fue aplicada el 2026-10-16**
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
-  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
+  (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella, cargar el N° de un remito sin factura da un error de la base); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
   columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -522,6 +522,10 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   inicial y después las más viejas. Los pagos en efectivo de Tesorería se suman a `cargarSalidasEfectivo` (el efectivo en mano), y
   si la tabla no existe se ignoran solo en ese cálculo y en el Resumen (el resto avisa). Trampa: una compra marcada pagada a mano
   **y** cubierta por un pago a cuenta se descuenta dos veces; por eso el saldo puede dar negativo y se muestra «a favor».
+  **Remito o factura**: se cargan desde la misma solapa «Proveedores» (botón «Cargar un remito o factura», arriba y dentro de cada
+  cuenta), que abre el formulario de egresos ya con categoría mercadería y «todavía se debe»; así la compra suma a la cuenta. El
+  **N° de remito o de factura** se guarda en `egresos.comprobante_numero` **con o sin factura** (la migración 110 sacó el CHECK que
+  lo limitaba a «con factura»; antes el número de un remito sin factura había que escribirlo en la descripción).
 - **Cobros de Mercado Pago** (`mp_cobros` y `mp_importaciones`, migración 105; solapa «Cobros MP»): el administrativo sube el Excel de
   cobros del panel de MP. **El archivo se abre en el navegador** (`importar-mp.tsx`, exceljs en su bundle de navegador: nunca en el
   servidor, por el problema de `fstream/umask` en Workers) y solo viajan las columnas que se guardan. `lib/tesoreria/mp-cobros.ts`

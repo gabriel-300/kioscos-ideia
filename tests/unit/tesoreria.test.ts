@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
 import { agruparDeuda, diferenciaConKiosco, efectivoDeTesoreria, montoSobre, obligacionesDelMes, rangoDelMes, mesAnteriorYSiguiente, resumirEgresos, tengoMenosDebo, type FijoParaObligaciones } from "@/lib/tesoreria/calculos";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
@@ -17,11 +19,18 @@ describe("validarEgreso", () => {
     expect("valor" in r && r.valor.comprobante).toBe("sin");
   });
 
-  it("con factura guarda el número; sin factura lo descarta (lo exige un CHECK de la base)", () => {
+  it("guarda el número de remito o de factura, con o sin factura (se lleva cada compra por su remito)", () => {
     const con = validarEgreso({ ...base, comprobante: "con", comprobante_numero: " 0005-00019355 " }, HOY);
     expect("valor" in con && con.valor.comprobante_numero).toBe("0005-00019355");
-    const sin = validarEgreso({ ...base, comprobante: "sin", comprobante_numero: "123" }, HOY);
-    expect("valor" in sin && sin.valor.comprobante_numero).toBeNull();
+    const sin = validarEgreso({ ...base, comprobante: "sin", comprobante_numero: " 2264 " }, HOY);
+    expect("valor" in sin && [sin.valor.comprobante, sin.valor.comprobante_numero]).toEqual(["sin", "2264"]);
+    const sinNumero = validarEgreso({ ...base, comprobante: "sin", comprobante_numero: "  " }, HOY);
+    expect("valor" in sinNumero && sinNumero.valor.comprobante_numero).toBeNull();
+  });
+
+  it("la migración 110 saca el CHECK que impedía guardar el número en compras sin factura", () => {
+    const sql = readFileSync(resolve(__dirname, "../../supabase/migrations/110_numero_de_remito_sin_factura.sql"), "utf8");
+    expect(sql).toMatch(/drop constraint if exists egresos_numero_solo_con_comprobante/);
   });
 
   it("redondea el monto a centavos", () => {

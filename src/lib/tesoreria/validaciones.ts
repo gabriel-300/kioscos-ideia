@@ -102,8 +102,8 @@ export function validarEgreso(e: EgresoEntrada, hoy: string): { error: string } 
       proveedor_id:       e.proveedor_id || null,
       descripcion,
       comprobante,
-      // El número solo tiene sentido con factura (la base lo exige con un CHECK).
-      comprobante_numero: comprobante === "con" ? numero : null,
+      // Número de remito o de factura: se guarda con o sin factura (migración 110).
+      comprobante_numero: numero,
       comprobante_path:   path,
       pagado:             e.pagado,
       origen,
