@@ -450,5 +450,3 @@ export async function asignarTiendaPeya(tiendaId: string, sucursalId: string): P
   revalidatePath("/admin/tesoreria");
   return {};
 }
-
-export type { LiquidacionPeya };
