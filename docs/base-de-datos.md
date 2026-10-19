@@ -1,8 +1,8 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-16) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-19) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **54 tablas y vistas**, **153 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **54 tablas y vistas**, **154 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -600,6 +600,7 @@ Cómo se cuadra la plata de cada turno. Un turno empieza con una apertura y term
 ```mermaid
 erDiagram
   egresos |o--o{ retiros_caja : "egreso_id"
+  proveedor_cuenta |o--o{ retiros_caja : "proveedor_cuenta_id"
   proveedores |o--o{ retiros_caja : "proveedor_id"
   aperturas_caja ||--o{ traspasos_caja : "apertura_id"
   aperturas_caja {
@@ -615,6 +616,9 @@ erDiagram
     uuid id PK
   }
   egresos {
+    uuid id PK
+  }
+  proveedor_cuenta {
     uuid id PK
   }
   proveedores {
@@ -705,10 +709,11 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_by`, `created_at`.
 | `egreso_id` | id → egresos | Egreso de Tesorería al que se imputó. Vacío = todavía sin registrar. |
 | `proveedor_id` | id → proveedores | Pago esporádico a un proveedor en efectivo desde la caja. Vacío = compra puntual de emergencia. |
 | `autorizado_por` | id | Administrador que autorizó el pago a proveedor (obligatorio si hay proveedor). |
+| `proveedor_cuenta_id` | id → proveedor_cuenta | Pago a la cuenta del proveedor al que se imputó un retiro con proveedor (no es un gasto). Vacío = no imputado. Excluyente con egreso_id. |
 
 Otras columnas: `id`, `sucursal_id`, `created_by`, `created_at`.
 
-**Apunta a:** `egreso_id` → `egresos` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
+**Apunta a:** `egreso_id` → `egresos` · `proveedor_cuenta_id` → `proveedor_cuenta` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `autorizado_por`, `created_by`
 
 ## Tesorería
@@ -994,7 +999,7 @@ Otras columnas: `id`.
 | `sucursal_id` | id · obligatoria → sucursales | De qué local es la cuenta. |
 | `fecha` | fecha · obligatoria | Del pago (cuándo salió la plata) o, en el saldo inicial, la fecha de corte. |
 | `monto` | número · obligatoria | Siempre positivo. |
-| `origen` | texto | De dónde salió la plata del pago: efectivo_tesoreria, transferencia o mercadopago. El efectivo de Tesorería baja el efectivo en mano. Vacío en el saldo inicial. |
+| `origen` | texto | De dónde salió la plata del pago: efectivo_tesoreria, transferencia, mercadopago o retiro_caja (salió del cajón de un kiosco). El efectivo de Tesorería y Mercado Pago bajan sus saldos; el retiro de caja no toca ninguno. Vacío en el saldo inicial. |
 | `nota` | texto | Referencia libre, por ejemplo los remitos que cubre. |
 | `anulado_en` | fecha y hora | Si tiene fecha, el movimiento está anulado y no cuenta. |
 | `anulado_por` | id | Quién lo anuló. |
@@ -1004,7 +1009,8 @@ Otras columnas: `id`.
 Otras columnas: `id`, `created_at`.
 
 **Apunta a:** `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
-**Personas (auth.users):** `anulado_por`, `created_by`
+**Personas (auth.users):** `anulado_por`, `created_by`  
+**La usan:** `retiros_caja` (proveedor_cuenta_id)
 
 ### `mp_cobros`
 

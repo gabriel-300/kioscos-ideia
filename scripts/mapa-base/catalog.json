@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-16",
+  "generado": "2026-10-19",
   "tablas": [
     {
       "t": "alertas_precio",
@@ -219,7 +219,7 @@
     {
       "t": "retiros_caja",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | monto:numeric(12,2):NN | motivo:text:NN | created_by:uuid | created_at:timestamp with time zone:NN:DEF | comprobante_image_url:text | egreso_id:uuid | proveedor_id:uuid | autorizado_por:uuid"
+      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | fecha:date:NN:DEF | monto:numeric(12,2):NN | motivo:text:NN | created_by:uuid | created_at:timestamp with time zone:NN:DEF | comprobante_image_url:text | egreso_id:uuid | proveedor_id:uuid | autorizado_por:uuid | proveedor_cuenta_id:uuid"
     },
     {
       "t": "stock_sucursal",
@@ -927,6 +927,11 @@
       "retiros_caja",
       "egreso_id",
       "egresos"
+    ],
+    [
+      "retiros_caja",
+      "proveedor_cuenta_id",
+      "proveedor_cuenta"
     ],
     [
       "retiros_caja",
