@@ -54,6 +54,14 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Qué dato falta: se marca en rojo y se trae a la vista (el formulario es más alto que la pantalla y, si no, el aviso quedaba afuera).
+  const [faltante, setFaltante] = useState<string | null>(null);
+  function fallar(campo: string, mensaje: string) {
+    setError(mensaje);
+    setFaltante(campo);
+    document.getElementById(`campo-${campo}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  const aviso = (campo: string) => (faltante === campo ? "rounded-lg ring-2 ring-danger/50 p-2 -m-2" : "");
 
   const b = borrador ?? {};
   const retiros = b.retiros_caja_ids ?? [];
@@ -92,14 +100,15 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
 
   function guardar() {
     setError(null);
+    setFaltante(null);
     const montoNum = parseFloat(monto);
-    if (!montoNum || montoNum <= 0) { setError("Ingresá un monto válido"); return; }
-    if (pagado === null)            { setError("Indicá si ya se pagó o todavía se debe"); return; }
-    if (comprobante === null)       { setError("Indicá si tiene factura o no"); return; }
-    if (pagado && !origen)          { setError("Indicá de dónde salió la plata"); return; }
+    if (!montoNum || montoNum <= 0) { fallar("monto", "Ingresá el monto"); return; }
+    if (pagado === null)            { fallar("pagado", "Indicá si ya se pagó o todavía se debe"); return; }
+    if (comprobante === null)       { fallar("comprobante", "Indicá si tiene factura o no"); return; }
+    if (pagado && !origen)          { fallar("origen", "Indicá de dónde salió la plata"); return; }
     const nombreProveedor = proveedores.find((p) => p.id === proveedorId)?.nombre ?? "";
     const desc = descripcion.trim() || nombreProveedor;
-    if (!desc)                      { setError("Escribí a quién o qué se pagó"); return; }
+    if (!desc)                      { fallar("descripcion", "Escribí a quién o qué se pagó (o elegí un proveedor)"); return; }
 
     startTransition(async () => {
       try {
@@ -151,7 +160,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
               Esta plata ya salió del cajón del kiosco: se registra como pagada con origen «Retiro de caja».
             </p>
           ) : (
-            <div>
+            <div id="campo-pagado" className={aviso("pagado")}>
               <label className={etiqueta}>¿Ya se pagó? *</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setPagado(true)}  className={opcionBoton(pagado === true)}>Ya se pagó</button>
@@ -161,7 +170,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div id="campo-monto" className={aviso("monto")}>
               <label className={etiqueta}>Monto *</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">$</span>
@@ -194,22 +203,21 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
             </select>
           </div>
 
-          <div>
+          <div id="campo-descripcion" className={aviso("descripcion")}>
             <label className={etiqueta}>A quién / qué se pagó *</label>
             <input type="text" maxLength={200} placeholder="Ej: Lo de Mario - fiambre, Alquiler octubre" value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)} className={campo} />
           </div>
 
-          <div>
+          <div id="campo-comprobante" className={aviso("comprobante")}>
             <label className={etiqueta}>¿Tiene factura? *</label>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setComprobante("con")} className={opcionBoton(comprobante === "con")}>Con factura</button>
               <button type="button" onClick={() => setComprobante("sin")} className={opcionBoton(comprobante === "sin")}>Sin factura</button>
             </div>
-            {comprobante !== null && (
-              <input type="text" maxLength={40} value={numero} onChange={(e) => setNumero(e.target.value)} className={`${campo} mt-2`}
-                placeholder={comprobante === "con" ? "N° de factura (y de remito, si lo tiene) — opcional" : "N° de remito — opcional"} />
-            )}
+            <input type="text" maxLength={40} value={numero} onChange={(e) => setNumero(e.target.value)} className={`${campo} mt-2`}
+              aria-label="Número de remito o de factura"
+              placeholder={comprobante === "con" ? "N° de factura (y de remito, si lo tiene) — opcional" : comprobante === "sin" ? "N° de remito — opcional" : "N° de factura o de remito — opcional"} />
           </div>
 
           <div>
@@ -248,7 +256,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
           )}
 
           {pagado === true && !esRetiro && (
-            <div>
+            <div id="campo-origen" className={aviso("origen")}>
               <label className={etiqueta}>¿De dónde salió la plata? *</label>
               <select value={origen} onChange={(e) => setOrigen(e.target.value)} className={campo}>
                 <option value="">— Elegí —</option>
@@ -270,13 +278,14 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
             <textarea rows={2} maxLength={500} value={nota} onChange={(e) => setNota(e.target.value)}
               className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:border-tierra-700 resize-none" />
           </div>
-
-          {error && <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{error}</p>}
         </div>
 
-        <div className="px-6 py-4 border-t border-neutral-200 flex gap-3 shrink-0">
-          <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button variant="primary" size="sm" loading={pending} onClick={guardar} className="flex-1">Guardar</Button>
+        <div className="px-6 py-4 border-t border-neutral-200 space-y-3 shrink-0">
+          {error && <p role="alert" className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex gap-3">
+            <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">Cancelar</Button>
+            <Button variant="primary" size="sm" loading={pending} onClick={guardar} className="flex-1">Guardar</Button>
+          </div>
         </div>
       </aside>
     </>
