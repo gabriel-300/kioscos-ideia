@@ -306,7 +306,8 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
   return (
     <>
       <StoreHeader config={config} horario={horario} />
-      <div className="mx-auto max-w-[1100px] px-4 empty:hidden"><PedidoEnCurso className="mt-3" /></div>
+      {/* Mismo ancho y márgenes que el buscador de abajo (px-4 por fuera, max-w por dentro). */}
+      <div className="px-4"><div className="mx-auto max-w-[1100px] empty:hidden"><PedidoEnCurso className="mt-3" /></div></div>
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
