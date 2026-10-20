@@ -11,6 +11,7 @@ import type {
   RestriccionesCatalogo,
   ResultadoVenta,
 } from "./puerto-kiosco";
+import { leerOcultosOnline } from "@/lib/pedidos/catalogo-online";
 
 // Implementación del puerto con consultas directas a la base del kiosco. Las
 // consultas son las MISMAS que antes estaban repartidas en lib/pedidos
@@ -25,12 +26,16 @@ type Admin = ReturnType<typeof createAdminClient>;
 export function kioscoDirecto(admin: Admin): PuertoKiosco {
   return {
     async restricciones(sucursalId): Promise<RestriccionesCatalogo> {
-      const { data } = await (admin as any)
-        .from("sucursales")
-        .select("categorias_habilitadas, promos_habilitadas")
-        .eq("id", sucursalId)
-        .single();
-      return { categoriasHabilitadas: data?.categorias_habilitadas ?? null, promosHabilitadas: data?.promos_habilitadas ?? true };
+      const [{ data }, ocultos] = await Promise.all([
+        (admin as any).from("sucursales").select("categorias_habilitadas, promos_habilitadas").eq("id", sucursalId).single(),
+        leerOcultosOnline(admin, sucursalId),
+      ]);
+      return {
+        categoriasHabilitadas: data?.categorias_habilitadas ?? null,
+        promosHabilitadas:     data?.promos_habilitadas ?? true,
+        productosOcultos:      ocultos.productos,
+        promosOcultas:         ocultos.promos,
+      };
     },
 
     async datosCatalogo(sucursalId): Promise<DatosCatalogo> {

@@ -1,6 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { normalizarHorario } from "@/lib/pedidos/horario";
 import { cargarCatalogoSucursal } from "@/lib/pedidos/catalogo";
+import { leerOcultosOnline } from "@/lib/pedidos/catalogo-online";
 import { clienteDeLaSesion, esPrimeraCompra, leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import type { CategoriaCatalogo, ConfigTienda } from "@/app/pedir/[sucursal]/_lib/tipos";
 
@@ -31,10 +32,13 @@ export async function cargarTienda(
 
   if (!sucursal || !sucursal.is_active) return null;
 
+  const ocultos = await leerOcultosOnline(admin, sucursalId);
   const [catalogoSucursal, { data: zonasRaw }, beneficio, primeraCompra] = await Promise.all([
     cargarCatalogoSucursal(admin, sucursalId, {
       categoriasHabilitadas: sucursal.categorias_habilitadas ?? null,
       promosHabilitadas: sucursal.promos_habilitadas ?? true,
+      productosOcultos: ocultos.productos,
+      promosOcultas: ocultos.promos,
     }),
     (admin as any)
       .from("zonas_entrega")

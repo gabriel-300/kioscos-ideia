@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/require-role";
 import { normalizarHorario, validarHorario, type TramoHorario } from "@/lib/pedidos/horario";
 import { parsearCoordenadas } from "@/lib/geo";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
+import { normalizarOcultos } from "@/lib/pedidos/catalogo-online";
 
 // Solo admin: define qué sucursales aceptan pedidos online, qué zonas de
 // envío tienen y a qué precio, y el horario que ve el cliente. Nada de esto
@@ -170,6 +171,24 @@ export async function eliminarZona(zonaId: string): Promise<{ error?: string }> 
   const admin = createAdminClient();
   const { error } = await (admin as any).from("zonas_entrega").delete().eq("id", zonaId);
   if (error) return { error: error.message };
+  refrescar();
+  return {};
+}
+
+// Qué productos y promos de esta sucursal NO se ofrecen en los pedidos online (migración 119). Solo
+// cambia lo que ve el cliente en la tienda y en el bot; la caja del kiosco no se entera.
+export async function guardarCatalogoOnline(sucursalId: string, productosOcultos: string[], promosOcultas: string[]): Promise<{ error?: string }> {
+  await requireAdmin();
+
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({ productos_ocultos_online: normalizarOcultos(productosOcultos), promos_ocultas_online: normalizarOcultos(promosOcultas) })
+    .eq("id", sucursalId);
+  if (error) {
+    return { error: /productos_ocultos_online|promos_ocultas_online/.test(error.message) ? "Falta aplicar la migración 119 en la base" : error.message };
+  }
+
   refrescar();
   return {};
 }

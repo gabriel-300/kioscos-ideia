@@ -11,6 +11,7 @@ export type { DatosCatalogo, RestriccionesCatalogo };
 // parte de ids que manda el cliente, otro problema), pero la regla de qué es
 // "pedible" es esta:
 //   - producto/promo activo, y producto con vendible_pos distinto de false
+//   - que la sucursal no lo haya escondido de sus pedidos online (productosOcultos / promosOcultas)
 //   - si la sucursal restringe categorías, solo las habilitadas
 //   - promos solo si promos_habilitadas
 //   - con precio > 0 en ESA sucursal (promo: el de la sucursal o el global)
@@ -63,11 +64,14 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
   const componentesDe = new Map<string, Fila[]>();
   for (const c of datos.componentes) componentesDe.set(c.promo_id, [...(componentesDe.get(c.promo_id) ?? []), c]);
 
+  const productosOcultos = new Set(restricciones.productosOcultos ?? []);
+  const promosOcultas = new Set(restricciones.promosOcultas ?? []);
+
   const categorias = datos.categorias.filter((c) => categoriaPermitida(c.id));
 
   const productos: ItemCatalogo[] = [];
   for (const p of datos.productos) {
-    if (p.vendible_pos === false || !categoriaPermitida(p.category_id ?? null)) continue;
+    if (p.vendible_pos === false || productosOcultos.has(p.id) || !categoriaPermitida(p.category_id ?? null)) continue;
     const price = precioProducto.get(p.id) ?? 0;
     if (!(price > 0) || !hayStock(p.id, p.unit_label === "kg" ? STOCK_MINIMO_KG : 1)) continue;
     productos.push({
@@ -80,7 +84,7 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
   const promos: ItemCatalogo[] = [];
   if (restricciones.promosHabilitadas) {
     for (const p of datos.promos) {
-      if (!categoriaPermitida(p.category_id ?? null)) continue;
+      if (promosOcultas.has(p.id) || !categoriaPermitida(p.category_id ?? null)) continue;
       const price = precioPromo.get(p.id) ?? p.price ?? 0;
       if (!(price > 0)) continue;
       if (!(componentesDe.get(p.id) ?? []).every((c) => hayStock(c.product_id, Number(c.cantidad) || 1))) continue;

@@ -29,6 +29,8 @@ type Fila = Record<string, any>;
 export type RestriccionesCatalogo = {
   categoriasHabilitadas: string[] | null; // null o vacío = sin restricción
   promosHabilitadas:     boolean;
+  productosOcultos?:     string[]; // lo que esta sucursal esconde de sus pedidos online (migración 119)
+  promosOcultas?:        string[];
 };
 
 export type DatosCatalogo = {

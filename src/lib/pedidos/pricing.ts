@@ -56,7 +56,7 @@ export async function resolverItemsPedido(
 
   // Los datos del kiosco (catálogo, precios, costos) se leen por el puerto.
   const kiosco = puertoKiosco(admin);
-  const { categoriasHabilitadas, promosHabilitadas } = await kiosco.restricciones(sucursalId);
+  const { categoriasHabilitadas, promosHabilitadas, productosOcultos = [], promosOcultas = [] } = await kiosco.restricciones(sucursalId);
 
   const productInputs = itemsCarrito.filter((i): i is { product_id: string; cantidad: number } => !esPromoItem(i));
   const promoInputs   = itemsCarrito.filter(esPromoItem);
@@ -79,7 +79,7 @@ export async function resolverItemsPedido(
 
     for (const input of productInputs) {
       const producto = productMap.get(input.product_id) as { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null } | undefined;
-      if (!producto || !producto.is_active || producto.vendible_pos === false) {
+      if (!producto || !producto.is_active || producto.vendible_pos === false || productosOcultos.includes(producto.id)) {
         return { error: "Uno de los productos del carrito ya no está disponible" };
       }
       if (categoriasHabilitadas && categoriasHabilitadas.length > 0) {
@@ -109,7 +109,7 @@ export async function resolverItemsPedido(
 
     for (const input of promoInputs) {
       const promo = promoMap.get(input.promo_id);
-      if (!promo || !promo.is_active) return { error: "Una de las promos del carrito ya no está disponible" };
+      if (!promo || !promo.is_active || promosOcultas.includes(promo.id)) return { error: "Una de las promos del carrito ya no está disponible" };
       if (categoriasHabilitadas && categoriasHabilitadas.length > 0) {
         if (!promo.category_id || !categoriasHabilitadas.includes(promo.category_id)) {
           return { error: "Una de las promos del carrito ya no está disponible en esta sucursal" };

@@ -14,11 +14,11 @@ const SUC = "suc-1";
 describe("puerto: catálogo y restricciones", () => {
   it("restricciones: lee las dos columnas de la sucursal; por defecto sin restricción y promos habilitadas", async () => {
     const f = fakeAdmin(() => ({ data: { categorias_habilitadas: ["c1"], promos_habilitadas: false } }));
-    expect(await puertoKiosco(f.admin).restricciones(SUC)).toEqual({ categoriasHabilitadas: ["c1"], promosHabilitadas: false });
+    expect(await puertoKiosco(f.admin).restricciones(SUC)).toMatchObject({ categoriasHabilitadas: ["c1"], promosHabilitadas: false, productosOcultos: [], promosOcultas: [] });
     expect(eqDe(f.calls[0], "id")).toBe(SUC);
 
     const vacia = fakeAdmin(() => ({ data: null }));
-    expect(await puertoKiosco(vacia.admin).restricciones(SUC)).toEqual({ categoriasHabilitadas: null, promosHabilitadas: true });
+    expect(await puertoKiosco(vacia.admin).restricciones(SUC)).toMatchObject({ categoriasHabilitadas: null, promosHabilitadas: true, productosOcultos: [], promosOcultas: [] });
   });
 
   it("datosCatalogo: pide categorías, productos (sin MULTA-TERMO), precios, promos, stock y componentes", async () => {

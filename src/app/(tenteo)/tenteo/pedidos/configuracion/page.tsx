@@ -9,6 +9,10 @@ import { CoordenadasForm } from "./_components/coordenadas-form";
 import { leerCoordenadasSucursal } from "@/lib/pedidos/locales";
 import { ConfigSucursalForm } from "./_components/config-sucursal-form";
 import { ZonasManager } from "./_components/zonas-manager";
+import { CatalogoOnlineForm, type GrupoElegible } from "./_components/catalogo-online-form";
+import { armarCatalogo } from "@/lib/pedidos/catalogo";
+import { leerOcultosOnline } from "@/lib/pedidos/catalogo-online";
+import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Configuración de pedidos online — Kioscos IDEIA" };
@@ -48,6 +52,24 @@ export default async function ConfiguracionPedidosOnlinePage({
     leerCoordenadasSucursal(admin, seleccionada.id),
   ]);
 
+  // Lo que se podría ofrecer (activo, con precio, categorías permitidas) aunque hoy no tenga stock,
+  // marcando lo que hoy no tiene. Sirve para elegir qué se esconde.
+  const kiosco = puertoKiosco(admin);
+  const [restricciones, datosCatalogo, ocultos] = await Promise.all([
+    kiosco.restricciones(seleccionada.id),
+    kiosco.datosCatalogo(seleccionada.id),
+    leerOcultosOnline(admin, seleccionada.id),
+  ]);
+  const sinEsconder = { ...restricciones, productosOcultos: [], promosOcultas: [] };
+  const hoyConStock = new Set(armarCatalogo(datosCatalogo, sinEsconder).items.map((i) => i.id));
+  const elegibles = armarCatalogo({ ...datosCatalogo, stock: null }, sinEsconder);
+  const grupos: GrupoElegible[] = elegibles.grupos.map((g) => ({
+    id: g.id,
+    nombre: g.name,
+    items: g.items.map((i) => ({ id: i.id, esPromo: i.esPromo, nombre: i.name, precio: i.price, sinStock: !hoyConStock.has(i.id) })),
+  }));
+  const ocultosInicial = [...ocultos.productos.map((id) => `p:${id}`), ...ocultos.promos.map((id) => `m:${id}`)];
+
   return (
     <div className="p-4 md:p-8 max-w-[900px]">
       <div className="mb-5">
@@ -84,6 +106,7 @@ export default async function ConfiguracionPedidosOnlinePage({
             horario_pedidos:           normalizarHorario(cfg?.horario_pedidos),
           }}
         />
+        <CatalogoOnlineForm sucursalId={seleccionada.id} grupos={grupos} ocultosInicial={ocultosInicial} />
         <BeneficioForm sucursalId={seleccionada.id} inicial={beneficio} />
         <CoordenadasForm sucursalId={seleccionada.id} inicial={coordenadas} />
         <ZonasManager

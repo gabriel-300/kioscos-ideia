@@ -54,6 +54,30 @@ describe("armarCatalogo: stock", () => {
   });
 });
 
+describe("armarCatalogo: productos y promos escondidos de los pedidos online", () => {
+  const conStock = [{ product_id: "p1", stock_actual: 5 }, { product_id: "p2", stock_actual: 5 }];
+  const ids = (restr: Partial<{ productosOcultos: string[]; promosOcultas: string[] }>) =>
+    armarCatalogo(datos({ stock: conStock }), { ...libre, ...restr }).items.map((i) => i.id);
+
+  it("sin nada escondido se ofrece todo lo que tiene stock", () => {
+    expect(ids({})).toEqual(expect.arrayContaining(["p1", "p2", "m1"]));
+  });
+  it("un producto escondido no se ofrece aunque tenga stock; los demás siguen", () => {
+    const r = ids({ productosOcultos: ["p1"] });
+    expect(r).not.toContain("p1");
+    expect(r).toEqual(expect.arrayContaining(["p2", "m1"]));
+  });
+  it("una promo escondida no se ofrece; los productos siguen", () => {
+    const r = ids({ promosOcultas: ["m1"] });
+    expect(r).not.toContain("m1");
+    expect(r).toEqual(expect.arrayContaining(["p1", "p2"]));
+  });
+  it("esconder todos los productos de una categoría hace desaparecer la categoría", () => {
+    const { grupos } = armarCatalogo(datos({ stock: conStock }), { ...libre, productosOcultos: ["p1"] });
+    expect(grupos.map((g) => g.id)).not.toContain("c1");
+  });
+});
+
 describe("armarCatalogo", () => {
   it("agrupa: 'Promos' (promos sin categoría) primero y después cada categoría con contenido", () => {
     const { grupos } = armarCatalogo(datos(), libre);
