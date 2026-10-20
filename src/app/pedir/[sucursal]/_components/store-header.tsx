@@ -1,5 +1,5 @@
 import type { ConfigTienda } from "../_lib/tipos";
-import { fmt, lineasLogo } from "../_lib/tema";
+import { fmt, lineasLogo, LOGO_MARCA } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
 
 // Cabecera del local: fondo brand-ink con halo ember, logo generado a partir
@@ -21,14 +21,19 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
         style={{ background: "radial-gradient(circle at 40% 40%, rgba(217,63,30,.75), rgba(217,63,30,0) 68%)" }}
       />
       <div className="relative mx-auto max-w-[1100px]">
-      <div className="relative flex items-start gap-3.5">
-        <div
-          className="shrink-0 size-16 rounded-[18px] flex flex-col items-center justify-center text-center text-white leading-[1.05] pd-display font-extrabold text-[11px] tracking-[0.02em] shadow-lg"
-          style={{ background: "linear-gradient(145deg, #E8552F, #C2381A)" }}
-          aria-hidden
-        >
-          {lineas.map((l, i) => <span key={i}>{l}</span>)}
-        </div>
+      <div className={LOGO_MARCA ? "relative" : "relative flex items-start gap-3.5"}>
+        {LOGO_MARCA ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={LOGO_MARCA.src} alt={LOGO_MARCA.alt} width={LOGO_MARCA.ancho} height={LOGO_MARCA.alto} className="mb-3 h-[58px] w-auto" />
+        ) : (
+          <div
+            className="shrink-0 size-16 rounded-[18px] flex flex-col items-center justify-center text-center text-white leading-[1.05] pd-display font-extrabold text-[11px] tracking-[0.02em] shadow-lg"
+            style={{ background: "linear-gradient(145deg, #E8552F, #C2381A)" }}
+            aria-hidden
+          >
+            {lineas.map((l, i) => <span key={i}>{l}</span>)}
+          </div>
+        )}
         <div className="min-w-0 pt-0.5">
           <h1 className="text-[27px] text-pd-paper break-words">{config.nombre}</h1>
           {direccion && <p className="mt-1.5 text-[13px] text-pd-cream/75">{direccion}</p>}

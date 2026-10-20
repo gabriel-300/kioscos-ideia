@@ -50,6 +50,12 @@ export function estiloGradiente(nombreCategoria: string): CSSProperties {
 const ARTICULOS = new Set(["de", "del", "la", "las", "los", "el", "y", "e"]);
 
 // "Parque de las Fiestas" -> ["PARQUE", "FIESTAS"] para el logo generado.
+// Logo de la marca para la cabecera de la tienda (blanco sobre transparente, para el fondo oscuro).
+// null = se usa el cuadrado generado con el nombre del local.
+export const LOGO_MARCA: { src: string; alt: string; ancho: number; alto: number } | null = {
+  src: "/marca/angiru-food-logo.png", alt: "Angiru Food", ancho: 640, alto: 211,
+};
+
 export function lineasLogo(nombre: string): string[] {
   const palabras = nombre.trim().split(/\s+/).filter((w) => !ARTICULOS.has(w.toLowerCase()));
   const base = palabras.length > 0 ? palabras : nombre.trim().split(/\s+/);
