@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ItemCatalogo } from "../_lib/tipos";
 import { estiloGradiente, fmt } from "../_lib/tema";
 import { IconMas, IconMenos } from "./iconos";
+import { textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 // Foto del producto. Si no tiene (o falla la carga) se usa el degradé de la
 // categoría con el nombre centrado -- nunca un círculo con iniciales.
@@ -31,8 +32,8 @@ export function Foto({ item, className = "", eager = false, textoClase = "text-[
   );
 }
 
-export function QtyStepper({ qty, onInc, onDec, alto = 44, className = "" }: {
-  qty: number; onInc: () => void; onDec: () => void; alto?: number; className?: string;
+export function QtyStepper({ qty, onInc, onDec, alto = 44, className = "", porPeso = false }: {
+  qty: number; onInc: () => void; onDec: () => void; alto?: number; className?: string; porPeso?: boolean;
 }) {
   return (
     <div
@@ -42,7 +43,7 @@ export function QtyStepper({ qty, onInc, onDec, alto = 44, className = "" }: {
       <button type="button" aria-label="Quitar uno" onClick={onDec} className="h-full px-3.5 text-pd-ember">
         <IconMenos className="size-[22px]" />
       </button>
-      <span className="pd-display text-[17px] font-bold tabular-nums text-pd-ink-900" aria-live="polite">{qty}</span>
+      <span className="pd-display whitespace-nowrap text-[17px] font-bold tabular-nums text-pd-ink-900" aria-live="polite">{textoCantidad(qty, porPeso)}</span>
       <button type="button" aria-label="Agregar uno" onClick={onInc} className="h-full px-3.5 text-pd-ember">
         <IconMas className="size-[22px]" />
       </button>
@@ -74,7 +75,7 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
         {puedePedir && (
           <div className="mt-2.5">
             {qty > 0 ? (
-              <QtyStepper qty={qty} onInc={onAdd} onDec={onDec} />
+              <QtyStepper qty={qty} onInc={onAdd} onDec={onDec} porPeso={!!item.unit} />
             ) : (
               <button
                 type="button"

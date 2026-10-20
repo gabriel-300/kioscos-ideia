@@ -6,6 +6,7 @@ import { fmt } from "../_lib/tema";
 import { Foto, QtyStepper } from "./producto-ui";
 import { IconAtras, IconChevron } from "./iconos";
 import { Panel } from "./panel";
+import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
 
 // Detalle de producto: foto grande, precio y "Agregar $X". No hay variantes
 // (cada tamaño es un producto propio en este sistema, con su stock y precio
@@ -13,7 +14,8 @@ import { Panel } from "./panel";
 export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
   item: ItemCatalogo; puedePedir: boolean; onCerrar: () => void; onAgregar: (cantidad: number) => void;
 }) {
-  const [cantidad, setCantidad] = useState(1);
+  const porPeso = !!item.unit;
+  const [cantidad, setCantidad] = useState(porPeso ? INICIAL_KG : 1);
 
   return (
     <Panel z="z-50"><div role="dialog" aria-modal="true" aria-label={item.name} className="flex min-h-0 flex-1 flex-col">
@@ -44,8 +46,9 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
         <div className="flex gap-3 border-t border-pd-line bg-white px-4 pb-6 pt-3.5">
           <QtyStepper
             qty={cantidad}
-            onInc={() => setCantidad((c) => Math.min(c + 1, 50))}
-            onDec={() => setCantidad((c) => Math.max(c - 1, 1))}
+            porPeso={porPeso}
+            onInc={() => setCantidad((c) => Math.min(porPeso ? sumarKg(c, PASO_KG) : c + 1, 50))}
+            onDec={() => setCantidad((c) => Math.max(porPeso ? sumarKg(c, -PASO_KG) : c - 1, porPeso ? PASO_KG : 1))}
             alto={56}
             className="w-[132px] shrink-0"
           />

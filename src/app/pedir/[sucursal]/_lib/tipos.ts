@@ -53,7 +53,7 @@ export type PedidoConfirmado = {
   etaMax:      number | null;
   medioPago:   "efectivo" | "mercadopago_link";
   pagoCon:     number | null;
-  lineas:      { nombre: string; cantidad: number; subtotal: number }[];
+  lineas:      { nombre: string; cantidad: number; cantidadTexto: string; subtotal: number }[];
   cliente:     { nombre: string; whatsapp: string };
   direccion:   string | null;
   referencia:  string | null;

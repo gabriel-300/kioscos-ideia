@@ -13,7 +13,7 @@ function mensajeWhatsApp(config: ConfigTienda, p: PedidoConfirmado): string {
   const l: string[] = [];
   l.push(`*Pedido #${p.numero}* — ${config.nombre}`);
   l.push("");
-  for (const x of p.lineas) l.push(`${x.cantidad}× ${x.nombre} — ${fmt(x.subtotal)}`);
+  for (const x of p.lineas) l.push(`${x.cantidadTexto} ${x.nombre} — ${fmt(x.subtotal)}`);
   l.push("");
   l.push(`Subtotal: ${fmt(p.subtotal)}`);
   if (p.tipoEntrega === "delivery") l.push(`Envío${p.zonaNombre ? ` (${p.zonaNombre})` : ""}: ${fmt(p.costoEnvio)}`);

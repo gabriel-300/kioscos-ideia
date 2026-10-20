@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
+import { STOCK_MINIMO_KG } from "./cantidad-peso";
 import { puertoKiosco, type DatosCatalogo, type RestriccionesCatalogo } from "@/lib/tenteo/puerto-kiosco";
 
 export type { DatosCatalogo, RestriccionesCatalogo };
@@ -16,6 +17,7 @@ export type { DatosCatalogo, RestriccionesCatalogo };
 //   - con stock en ESA sucursal: lo agotado (0 o negativo) no se ofrece, así el cliente no arma
 //     un carrito que después se le rechaza. Sin fila de stock en la sucursal = el producto nunca
 //     se movió ahí = no lo tiene, y tampoco se ofrece (cada local tiene su propio surtido).
+//     Un producto por peso (kg) se ofrece si queda al menos 100 g, no 1 kg entero.
 //     Misma regla que chequearStockLiviano (stock.ts). Una promo se ofrece si alcanza el stock
 //     de TODOS sus componentes. Única excepción: si el stock no se pudo leer (null) se ofrece todo.
 // Nunca se lee costo ni margen.
@@ -67,7 +69,7 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
   for (const p of datos.productos) {
     if (p.vendible_pos === false || !categoriaPermitida(p.category_id ?? null)) continue;
     const price = precioProducto.get(p.id) ?? 0;
-    if (!(price > 0) || !hayStock(p.id)) continue;
+    if (!(price > 0) || !hayStock(p.id, p.unit_label === "kg" ? STOCK_MINIMO_KG : 1)) continue;
     productos.push({
       id: p.id, esPromo: false, name: p.name, price,
       image: p.cover_image_url ?? null, categoriaId: p.category_id ?? null,

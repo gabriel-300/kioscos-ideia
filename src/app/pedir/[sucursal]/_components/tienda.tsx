@@ -15,6 +15,7 @@ import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
+import { INICIAL_KG, PASO_KG, prefijoCantidad, sumarKg } from "@/lib/pedidos/cantidad-peso";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
 const MAX_POR_ITEM = 50;
@@ -134,15 +135,23 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     [cantidades, itemsPorId]
   );
   const subtotal = lineas.reduce((s, l) => s + l.item.price * l.qty, 0);
-  const cantidadTotal = lineas.reduce((s, l) => s + l.qty, 0);
+  // Cuenta productos: lo que se pesa (0,5 kg) es un producto, no medio.
+  const cantidadTotal = lineas.reduce((s, l) => s + (l.item.unit ? 1 : l.qty), 0);
 
-  function cambiar(id: string, delta: number) {
+  // Suma una cantidad real (unidades, o kilos si se pesa); la que llega a cero sale del carrito.
+  function agregarCantidad(id: string, cantidad: number) {
     setCantidades((prev) => {
-      const nueva = Math.max(0, Math.min(MAX_POR_ITEM, (prev[id] ?? 0) + delta));
+      const nueva = Math.max(0, Math.min(MAX_POR_ITEM, sumarKg(prev[id] ?? 0, cantidad)));
       const copia = { ...prev };
-      if (nueva === 0) delete copia[id]; else copia[id] = nueva;
+      if (nueva < (itemsPorId.get(id)?.unit ? PASO_KG / 2 : 0.5)) delete copia[id]; else copia[id] = nueva;
       return copia;
     });
+  }
+
+  // Los botones +/-: de a una unidad, o de a 100 g si se pesa (el primer "Agregar" arranca en 500 g).
+  function cambiar(id: string, delta: number) {
+    if (!itemsPorId.get(id)?.unit) return agregarCantidad(id, delta);
+    agregarCantidad(id, delta > 0 && !cantidades[id] ? INICIAL_KG : delta * PASO_KG);
   }
 
   // Si se vacía el carrito estando en carrito/checkout, se vuelve al catálogo.
@@ -255,7 +264,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       etaMax:      res.eta_max ?? null,
       medioPago:   form.pago,
       pagoCon,
-      lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, subtotal: l.item.price * l.qty })),
+      lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, cantidadTexto: prefijoCantidad(l.qty, !!l.item.unit), subtotal: l.item.price * l.qty })),
       cliente:     { nombre: form.nombre.trim(), whatsapp: form.whatsapp.trim() },
       direccion:   form.modo === "envio" ? form.calle.trim() : null,
       referencia:  form.modo === "envio" ? form.referencia.trim() : null,
@@ -326,7 +335,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
                     <div key={item.id} className="flex items-center gap-3 rounded-[18px] border border-pd-line bg-white p-2.5">
                       <button type="button" onClick={() => setProductoAbierto(item.id)} className="relative size-[66px] shrink-0 overflow-hidden rounded-[14px]" aria-label={`Ver ${item.name}`}>
                         <Foto item={item} className="size-full" textoClase="text-[9px]" />
-                        {qty > 0 && <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-pd-ember text-[11px] font-bold text-white">{qty}</span>}
+                        {qty > 0 && <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-pd-ember text-[11px] font-bold text-white">{item.unit ? 1 : qty}</span>}
                       </button>
                       <button type="button" onClick={() => setProductoAbierto(item.id)} className="min-w-0 flex-1 text-left">
                         <p className="text-[14.5px] font-semibold leading-tight">{item.name}</p>
@@ -376,7 +385,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
           item={productoDetalle}
           puedePedir={puedePedir}
           onCerrar={() => setProductoAbierto(null)}
-          onAgregar={(n) => { cambiar(productoDetalle.id, n); setProductoAbierto(null); }}
+          onAgregar={(n) => { agregarCantidad(productoDetalle.id, n); setProductoAbierto(null); }}
         />
       )}
 
