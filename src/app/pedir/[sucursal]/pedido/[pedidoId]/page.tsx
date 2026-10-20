@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { armarSeguimiento } from "@/lib/pedidos/seguimiento";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
+import { enlaceDePagoDelPedido } from "@/lib/pedidos/checkout-mercadopago";
 import { fmt } from "../../_lib/tema";
 import { AutoRefrescar } from "./auto-refrescar";
 
@@ -36,6 +37,8 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   const lineas = (await cargarLineasDePedidos(admin, [pedidoId])).get(pedidoId) ?? [];
 
   const seg = armarSeguimiento(pedido);
+  // Si el pago todavía no entró, el botón para pagar (el enlace se generó al hacer el pedido).
+  const enlacePago = pedido.estado === "pendiente_pago" ? await enlaceDePagoDelPedido(admin, pedidoId) : null;
   const delivery = pedido.tipo_entrega === "delivery";
   const primerNombre = (pedido.cliente_nombre as string | null)?.trim().split(/\s+/)[0];
   const telefonoLocal = (pedido.sucursales?.whatsapp_pedidos as string | null)?.replace(/\D/g, "");
@@ -78,6 +81,17 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
             </li>
           ))}
         </ol>
+      )}
+
+      {enlacePago && (
+        <a
+          href={enlacePago}
+          // Color en línea: la regla global `a { color: inherit }` le gana a las clases text-*.
+          style={{ color: "#fff" }}
+          className="pd-display mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-pd-ember text-[16px] font-bold active:bg-pd-ember-dark"
+        >
+          Pagar {fmt(pedido.total)}
+        </a>
       )}
 
       <section className="mt-8 rounded-2xl border border-pd-line bg-white p-5">

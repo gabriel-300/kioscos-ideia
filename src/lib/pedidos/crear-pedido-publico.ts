@@ -6,6 +6,7 @@ import { telefonoValido } from "./validaciones";
 import { estadoHorario, normalizarHorario } from "./horario";
 import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
 import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
+import { crearCheckoutMercadoPago } from "./checkout-mercadopago";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -17,7 +18,7 @@ import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 // zonas_entrega, y el mínimo de envío se compara contra el subtotal
 // calculado acá, no contra un número que mande el browser.
 
-const EXPIRACION_MP_LINK_MS = 2 * 60 * 60 * 1000; // el local manda el link por WhatsApp, hace falta más margen que con QR automático
+const EXPIRACION_MP_LINK_MS = 2 * 60 * 60 * 1000; // margen para pagar; también es el vencimiento del enlace de Mercado Pago
 
 export type DatosPedidoPublico = {
   sucursal_id:          string;
@@ -45,6 +46,7 @@ export type ResultadoPedidoPublico = {
   zona_nombre?: string | null;
   eta_min?:     number | null;
   eta_max?:     number | null;
+  checkout_url?: string | null; // enlace de pago de Mercado Pago (null si es efectivo o no se pudo generar)
   error?:       string;
 };
 
@@ -204,6 +206,17 @@ export async function crearPedidoPublico(
     return { error: itemsError.message };
   }
 
+  // Mercado Pago: el cliente paga con un checkout propio, sin que el local mande ningún link.
+  // Si no se puede generar, el pedido queda esperando el pago y el local lo confirma a mano.
+  let checkoutUrl: string | null = null;
+  if (!esEfectivo) {
+    const checkout = await crearCheckoutMercadoPago(admin, {
+      id: pedido.id, numero: Number(pedido.numero), sucursal_id: data.sucursal_id, total, expira_en: fila.expira_en,
+    });
+    checkoutUrl = checkout.url;
+    if (checkout.error) console.error("[pedidos] checkout de Mercado Pago:", checkout.error);
+  }
+
   return {
     pedido_id:   pedido.id,
     numero:      Number(pedido.numero),
@@ -216,5 +229,6 @@ export async function crearPedidoPublico(
     zona_nombre: zonaNombre,
     eta_min:     etaMin,
     eta_max:     etaMax,
+    checkout_url: checkoutUrl,
   };
 }

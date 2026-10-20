@@ -80,7 +80,9 @@ export function textoConfirmacion(
 
   lineas.push(pago === "efectivo"
     ? (tipo === "delivery" ? "Pagás en efectivo cuando lo recibís." : "Pagás en efectivo cuando lo retirás.")
-    : "Pagás con Mercado Pago: el local te manda el link de pago por este chat en unos minutos.");
+    : r.checkout_url
+      ? `Pagá con tarjeta o Mercado Pago acá: ${r.checkout_url}`
+      : "Pagás con Mercado Pago: el local te manda el link de pago por este chat en unos minutos.");
   lineas.push("", `Seguí tu pedido acá: ${enlaceSeguimiento}`);
   return lineas.join("\n");
 }

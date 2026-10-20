@@ -17,7 +17,7 @@ export type PedidoParaSeguimiento = { estado: string; tipo_entrega: string; medi
 type Clave = "pago" | "recibido" | "preparando" | "salida" | "entregado";
 
 const TEXTOS: Record<string, { titulo: string; detalle: string }> = {
-  pendiente_pago: { titulo: "Esperando tu pago",       detalle: "El local te manda el link de pago por WhatsApp. Cuando lo pagues, empezamos con tu pedido." },
+  pendiente_pago: { titulo: "Esperando tu pago",       detalle: "Pagalo con Mercado Pago y empezamos con tu pedido. Si no ves el botón de pago, el local te manda el link por WhatsApp." },
   confirmado:     { titulo: "Recibimos tu pedido",     detalle: "El local lo va a empezar a preparar en breve." },
   pagado:         { titulo: "Pago confirmado",         detalle: "Recibimos tu pago. El local lo va a empezar a preparar en breve." },
   en_preparacion: { titulo: "Estamos preparando tu pedido", detalle: "Ya se está armando." },

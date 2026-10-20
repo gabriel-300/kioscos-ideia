@@ -97,6 +97,11 @@ describe("mensajes del bot", () => {
     expect(paginar(items, 0).pagina).toHaveLength(9);
     expect(paginar(items, 18)).toMatchObject({ pagina: [18, 19], siguiente: null });
   });
+  it("con Mercado Pago y checkout armado, la confirmación trae el enlace para pagar (no espera al local)", () => {
+    const t = textoConfirmacion({ numero: 9, subtotal: 1000, total: 1000, checkout_url: "https://mp.test/pagar" }, "Ana", "retiro_local", "mercadopago_link", "https://x/seg/1");
+    expect(t).toContain("https://mp.test/pagar");
+    expect(t).not.toContain("el local te manda el link");
+  });
   it("la confirmación dice número, total, envío y cómo se paga", () => {
     const t = textoConfirmacion({ numero: 7, subtotal: 1000, costo_envio: 800, total: 1800, zona_nombre: "Centro", eta_min: 30, eta_max: 45 }, "Ana", "delivery", "mercadopago_link", "https://x/seg/1");
     expect(t).toContain("#7");

@@ -220,7 +220,7 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
             activa={form.pago === "mercadopago_link"}
             onClick={() => setForm({ pago: "mercadopago_link" })}
             titulo="Mercado Pago"
-            detalle="Te mandamos el link por WhatsApp"
+            detalle="Pagás online con tarjeta o dinero en cuenta, al terminar el pedido"
           />
           {form.pago === "efectivo" && (
             <div>

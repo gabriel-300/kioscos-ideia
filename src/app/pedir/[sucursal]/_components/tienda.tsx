@@ -264,6 +264,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       etaMax:      res.eta_max ?? null,
       medioPago:   form.pago,
       pagoCon,
+      checkoutUrl: res.checkout_url ?? null,
       lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, cantidadTexto: prefijoCantidad(l.qty, !!l.item.unit), subtotal: l.item.price * l.qty })),
       cliente:     { nombre: form.nombre.trim(), whatsapp: form.whatsapp.trim() },
       direccion:   form.modo === "envio" ? form.calle.trim() : null,
