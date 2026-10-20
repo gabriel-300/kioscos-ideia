@@ -58,9 +58,12 @@ interface Props {
   // La sucursal se elige DENTRO de este form (no es fija como en la venta
   // rápida), así que necesita el costo de todas, no solo de una.
   costosPorSucursal?: Record<string, Record<string, number>>;
+  // Recepción de mercadería por el personal del kiosco: solo stock (producto y cantidad). Sin costos, importes ni número de remito:
+  // los precios los carga después el administrativo en Tesorería, mirando la factura (el personal tiende a cargarlos mal).
+  soloStock?:         boolean;
 }
 
-export function MovimientoForm({ open, sucursales, products, promos = [], proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap, costosPorSucursal = {} }: Props) {
+export function MovimientoForm({ open, sucursales, products, promos = [], proveedores = [], onClose, defaultSucursalId, defaultTipo, formTitle, stockMap, costosPorSucursal = {}, soloStock = false }: Props) {
   const [pending, startTransition] = useTransition();
   const [sucursalId, setSucursalId] = useState(defaultSucursalId ?? "");
   const [fecha,      setFecha]      = useState(fechaHoyAR());
@@ -175,7 +178,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
       const nuevosItems: LineItem[] = lineas.map((l) => ({
         product_id:      l.productIdMatch ?? "",
         cantidad:        String(l.cantidad),
-        precio_unitario: String(Math.round(l.precio * factor * 100) / 100),
+        precio_unitario: soloStock ? "" : String(Math.round(l.precio * factor * 100) / 100),
       }));
       const nuevosHints: Record<number, string> = {};
       lineas.forEach((l, i) => { if (!l.productIdMatch) nuevosHints[i] = l.producto; });
@@ -222,7 +225,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
         ...lineas.map((l) => ({
           product_id:      l.productIdMatch ?? "",
           cantidad:        String(l.cantidad),
-          precio_unitario: String(Math.round(l.precio * factor * 100) / 100),
+          precio_unitario: soloStock ? "" : String(Math.round(l.precio * factor * 100) / 100),
         })),
       ]);
       setOcrHints((h) => ({ ...h, ...nuevosHints }));
@@ -263,7 +266,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
     // En entregas el precio es el COSTO real pagado al proveedor, no el precio de
     // venta -- se sugiere el costo ya cargado en el producto (si hay), pero queda
     // en blanco (pendiente) si todavía no se cargó, en vez de asumir cualquier valor.
-    const precio = tipo === "entrega" ? costoDe(productId) : null;
+    const precio = tipo === "entrega" && !soloStock ? costoDe(productId) : null;
     setItems((p) => p.map((item, idx) =>
       idx === i ? { ...item, product_id: productId, precio_unitario: precio != null ? String(precio) : "" } : item
     ));
@@ -307,6 +310,8 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
     updateLine(i, "cantidad", String(unidades));
   }
 
+  const sinPrecios = soloStock && tipo === "entrega";
+
   const total = items.reduce((sum, item) => {
     const q = parseFloat(item.cantidad)        || 0;
     const p = parseFloat(item.precio_unitario) || 0;
@@ -327,7 +332,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
         : {
             product_id:      i.product_id,
             cantidad:        parseFloat(i.cantidad) * signo,
-            precio_unitario: i.precio_unitario ? parseFloat(i.precio_unitario) : null,
+            precio_unitario: !soloStock && i.precio_unitario ? parseFloat(i.precio_unitario) : null,
           }
     );
 
@@ -346,7 +351,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
           notas:            notas     || null,
           proveedor:        proveedor || null,
           proveedor_id:     proveedores.find((p) => p.nombre === proveedor)?.id ?? null,
-          nro_remito:       nroRemito || null,
+          nro_remito:       soloStock ? null : nroRemito || null,
           remito_image_url: remitoImageUrl,
           items:            parsed,
         });
@@ -486,7 +491,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                   <div
                     key={i}
                     className={`grid gap-2 items-end grid-cols-2 ${
-                      tipo === "merma" ? "sm:grid-cols-[1fr_140px_auto]" : "sm:grid-cols-[1fr_110px_100px_100px_auto]"
+                      tipo === "merma" || sinPrecios ? "sm:grid-cols-[1fr_140px_auto]" : "sm:grid-cols-[1fr_110px_100px_100px_auto]"
                     }`}
                   >
                     <div className="col-span-2 sm:col-span-1">
@@ -599,7 +604,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                         />
                       )}
                     </div>
-                    {tipo !== "merma" && (
+                    {tipo !== "merma" && !sinPrecios && (
                       <>
                         <div>
                           {i === 0 && (
@@ -654,7 +659,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
               })}
             </div>
 
-            {total > 0 && (
+            {total > 0 && !sinPrecios && (
               <div className="mt-3 flex justify-end">
                 <span className="text-sm font-semibold text-neutral-900">
                   Total: {AR.format(total)}
@@ -667,7 +672,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
           {tipo === "entrega" && (
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
               <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">
-                Datos de factura / remito (opcional)
+                {soloStock ? "Proveedor y foto del remito (opcional)" : "Datos de factura / remito (opcional)"}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -695,6 +700,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                     />
                   )}
                 </div>
+                {!soloStock && (
                 <div>
                   <label className="text-xs font-medium uppercase tracking-wide text-neutral-500 block mb-1.5">
                     N° Remito / Factura
@@ -707,6 +713,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                     className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20"
                   />
                 </div>
+                )}
               </div>
             </div>
           )}
@@ -740,7 +747,7 @@ export function MovimientoForm({ open, sucursales, products, promos = [], provee
                 />
               </label>
               <p className="text-[11px] text-neutral-400 mt-1">
-                Precarga los productos, cantidades y precios abajo — revisá antes de guardar. Para remitos escritos a mano, cargá manual.
+                {soloStock ? "Precarga los productos y cantidades abajo (no los precios) — revisá antes de guardar. Para remitos escritos a mano, cargá manual." : "Precarga los productos, cantidades y precios abajo — revisá antes de guardar. Para remitos escritos a mano, cargá manual."}
               </p>
             </div>
           )}

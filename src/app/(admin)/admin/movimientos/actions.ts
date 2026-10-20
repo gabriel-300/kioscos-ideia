@@ -69,6 +69,12 @@ export async function crearMovimiento(data: {
     return { movimiento_id: null, error: "Solo el encargado o un admin pueden cargar entregas." };
   }
 
+  // La recepción de mercadería del personal del kiosco es solo de stock: los costos y el número de remito los carga después el
+  // administrativo en Tesorería, mirando la factura. Aunque la pantalla no los pida, acá se descartan por si llegaran igual.
+  if (role === "encargado" && data.tipo === "entrega") {
+    data = { ...data, nro_remito: null, items: data.items.map((i) => ("product_id" in i ? { ...i, precio_unitario: null } : i)) };
+  }
+
   // Encargados y vendedores solo pueden registrar en su propia sucursal
   const accesoError = await requireSucursalAccess(supabase, userId, role, data.sucursal_id);
   if (accesoError) return { movimiento_id: null, error: accesoError };

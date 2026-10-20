@@ -35,6 +35,7 @@ export function NuevaEntregaButton({
   termosDisponibles,
   termosPrestados,
   mercadopagoPosId,
+  soloStock = false,
 }: {
   sucursalId:     string;
   sucursalNombre: string;
@@ -55,6 +56,7 @@ export function NuevaEntregaButton({
   termosDisponibles?: TermoDisponible[];
   termosPrestados?:   TermoPrestado[];
   mercadopagoPosId?:  string | null;
+  soloStock?:         boolean;   // recepción del personal: solo stock, sin costos (ver MovimientoForm)
 }) {
   const [open, setOpen] = useState(false);
 
@@ -101,6 +103,7 @@ export function NuevaEntregaButton({
           formTitle={btnLabel}
           stockMap={stockMap}
           costosPorSucursal={{ [sucursalId]: Object.fromEntries(products.map((p) => [p.id, p.costo])) }}
+          soloStock={soloStock}
           onClose={() => setOpen(false)}
         />
       )}

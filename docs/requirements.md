@@ -68,7 +68,12 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 
 ### Stock: entregas, ajustes, mermas y transferencias
 - **Objetivo**: saber cuánto hay en cada local.
-- **Quién**: entregas solo admin/encargado (el costo cargado alimenta márgenes y alertas); ajustes de stock solo admin;
+- **Quién**: entregas solo admin/encargado. **La recepción del encargado es solo de stock** (producto y cantidad, más proveedor y foto
+  del remito si quiere): sin costos, importes ni N° de remito, porque el personal los cargaba mal; el servidor los descarta aunque
+  lleguen. El **administrativo completa el costo unitario** de cada producto en Tesorería (migración 115 para el historial), mirando la
+  factura: desde el detalle de cada ingreso del Control o al armar la compra con esos ingresos; alimenta márgenes y Alertas de precio
+  como siempre (si cambió respecto del costo actual deja un aviso) y queda en el historial. El admin sigue pudiendo cargar costos al
+  cargar una entrega; ajustes de stock solo admin;
   mermas cualquier staff (motivo obligatorio); transferencias: cualquiera del origen envía y cualquiera del destino confirma.
 - **Reglas**: el stock se deriva de los movimientos; una transferencia saca del origen al enviar y el destino suma solo lo
   que confirma haber recibido; anular una transferencia es solo admin.

@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { registrarEgreso, crearUrlSubidaComprobante } from "../actions";
+import { registrarEgreso, crearUrlSubidaComprobante, completarCostosEntrega } from "../actions";
+import { CostosTabla, costosAEnviar, costosIniciales, costosValidos, hayCostosCargados, type ValoresCosto } from "./costos-entrega";
 import { sumarDias } from "@/lib/tesoreria/deuda-vencimientos";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { reducirImagen, formatearPeso } from "@/lib/imagen";
@@ -82,6 +83,8 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const [sucursalId, setSucursalId]   = useState(b.sucursal_id ?? "");
   const [origen, setOrigen]           = useState(esRetiro ? "retiro_caja" : (b.origen ?? ""));
   const [nota, setNota]               = useState(b.nota ?? "");
+  // Costo unitario de lo que ingresó al kiosco (el personal solo carga el stock): se completa acá mirando la factura.
+  const [costos, setCostos] = useState<Record<string, ValoresCosto>>({});
   const [entregasElegidas, setEntregasElegidas] = useState<Set<string>>(new Set(b.entregas_ids ?? []));
   const conProveedor = !esRetiro && proveedorId !== "";
   const plazo = proveedores.find((p) => p.id === proveedorId)?.plazo_pago_dias ?? null;
@@ -120,8 +123,17 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
     if (!desc)                      { fallar("descripcion", "Escribí a quién o qué se pagó (o elegí un proveedor)"); return; }
     if (conProveedor && !sucursalId) { fallar("sucursal", "Elegí el kiosco de la compra"); return; }
 
+    // Los costos de los ingresos elegidos se guardan ANTES que la compra: una vez vinculado, el ingreso sale de la lista y ya no se
+    // podría completar desde acá. Si algo falla, no se registra la compra y se puede reintentar sin duplicar nada.
+    const conCostos = esRetiro || categoria !== "mercaderia" ? [] : entregasDisponibles.filter((e) => entregasElegidas.has(e.id) && costos[e.id] && hayCostosCargados(costos[e.id]));
+    if (conCostos.some((e) => !costosValidos(costos[e.id]))) { fallar("costos", "Cada costo tiene que ser un número mayor o igual a cero"); return; }
+
     startTransition(async () => {
       try {
+        for (const e of conCostos) {
+          const rc = await completarCostosEntrega(e.id, costosAEnviar(e, costos[e.id]));
+          if (rc.error) { setError(`No se pudieron guardar los costos de «${e.proveedor || "Sin proveedor"}» del ${fechaCorta(e.fecha)}: ${rc.error} La compra todavía no se registró.`); return; }
+        }
         const path = archivo ? await subirArchivo(archivo) : (b.comprobante_path ?? null);
         const r = await registrarEgreso({
           fecha, monto: montoNum, sucursal_id: sucursalId || null, categoria,
@@ -273,12 +285,24 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
               </div>
               {elegidas.length > 0 && (
                 <p className="text-xs mt-1.5 text-neutral-500">
-                  El kiosco cargó {totalKiosco > 0 ? AR.format(totalKiosco) : "los productos sin importe"} en {elegidas.length} {elegidas.length === 1 ? "ingreso" : "ingresos"}.
+                  {totalKiosco > 0 ? `Los costos cargados suman ${AR.format(totalKiosco)}` : "Todavía no hay costos cargados"} en {elegidas.length} {elegidas.length === 1 ? "ingreso" : "ingresos"}.
                   {diferencia !== null && diferencia !== 0 && (
                     <span className="font-semibold text-amber-700"> Tu importe difiere en {diferencia > 0 ? "+" : ""}{AR.format(diferencia)}: revisá que estén bien los dos.</span>
                   )}
                   {diferencia === 0 && <span className="font-semibold text-selva-700"> Coincide con tu importe.</span>}
                 </p>
+              )}
+              {elegidas.length > 0 && !esRetiro && categoria === "mercaderia" && (
+                <div id="campo-costos" className={`mt-3 space-y-3 ${aviso("costos")}`}>
+                  <p className="text-xs font-medium tracking-wide uppercase text-neutral-500">Costo de cada producto (opcional, de la factura)</p>
+                  {elegidas.map((e) => (
+                    <div key={e.id} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-neutral-700">{e.proveedor || "Sin proveedor"} · {fechaCorta(e.fecha)}</p>
+                      <CostosTabla entrega={e} valores={costos[e.id] ?? costosIniciales(e)} onChange={(v) => setCostos((c) => ({ ...c, [e.id]: v }))} />
+                    </div>
+                  ))}
+                  <p className="text-xs text-neutral-400">El kiosco solo carga la cantidad. Si el costo cambió respecto del actual, queda un aviso en Alertas de precio.</p>
+                </div>
               )}
             </div>
           )}

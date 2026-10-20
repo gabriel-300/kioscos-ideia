@@ -5,11 +5,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { permisosTesoreria } from "@/lib/tesoreria/permisos";
 import { cargarConfig } from "@/lib/tesoreria/consultas";
 import { cargarCuentaDe } from "@/lib/tesoreria/proveedores-consultas";
-import { validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
+import { MONTO_MAX, fechaValida, validarEgreso, validarPago } from "@/lib/tesoreria/validaciones";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 import { registrarHistorial, type EntradaHistorial } from "@/lib/tesoreria/historial";
 import { fechaHoyAR } from "@/lib/fecha";
-import { fechaValida } from "@/lib/tesoreria/validaciones";
 import { redondearMoneda } from "@/lib/pedidos/pricing";
 
 // Convención del módulo (architecture.md §2 y §9): las acciones devuelven { error } en vez de lanzar, porque
@@ -229,6 +228,83 @@ export async function fijarVencimiento(egresoId: string, fecha: string | null): 
     detalle: { descripcion: previo.descripcion, anterior: previo.fecha_vencimiento ?? null, nuevo: nueva },
   });
   refrescar();
+  return historial;
+}
+
+// ── Costos de una mercadería que ingresó al kiosco ────────────────────────────
+// El personal del kiosco registra la recepción solo para el stock (sin precios); el administrativo completa el costo unitario de
+// cada producto mirando la factura o el remito. Es el mismo dato que antes cargaba el kiosco (movimiento_items.precio_unitario y
+// subtotal) y mantiene el aviso de «el proveedor cambió el precio» (alertas_precio) si difiere del costo actual del producto.
+export async function completarCostosEntrega(
+  movimientoId: string,
+  items: { id: string; precio_unitario: number | null }[],
+): Promise<Resultado> {
+  const permisos = await exigirCargar();
+  if (!permisos) return { error: SIN_PERMISO };
+
+  if (!Array.isArray(items) || items.length === 0) return { error: "No hay costos para guardar" };
+  if (items.length > 200) return { error: "Demasiados productos en una sola carga" };
+  const nuevos = new Map<string, number | null>();
+  for (const i of items) {
+    if (!i || typeof i.id !== "string" || nuevos.has(i.id)) return { error: "La lista de productos no es válida" };
+    if (i.precio_unitario !== null && (typeof i.precio_unitario !== "number" || !Number.isFinite(i.precio_unitario) || i.precio_unitario < 0 || i.precio_unitario > MONTO_MAX)) {
+      return { error: "El costo de cada producto tiene que ser un número mayor o igual a cero" };
+    }
+    nuevos.set(i.id, i.precio_unitario === null ? null : redondearMoneda(i.precio_unitario));
+  }
+
+  const admin = createAdminClient();
+  const { data: mov } = await admin.from("movimientos")
+    .select("id, tipo, sucursal_id, proveedor, anulado_en, movimiento_items(id, product_id, cantidad, precio_unitario)")
+    .eq("id", movimientoId).maybeSingle();
+  if (!mov || mov.tipo !== "entrega" || mov.anulado_en) return { error: "Ese ingreso no existe o fue anulado. Recargá la pantalla." };
+
+  const { data: sucursales } = await admin.from("sucursales").select("id").eq("entra_en_tesoreria", true);
+  if (!(sucursales ?? []).some((s: { id: string }) => s.id === mov.sucursal_id)) return { error: "Ese local no entra en Tesorería" };
+
+  const lineas = new Map((mov.movimiento_items ?? []).map((l: { id: string; product_id: string; cantidad: number | string; precio_unitario: number | string | null }) => [l.id, l]));
+  for (const id of nuevos.keys()) if (!lineas.has(id)) return { error: "Un producto no pertenece a este ingreso. Recargá la pantalla." };
+
+  const cambios = [...nuevos.entries()].filter(([id, precio]) => {
+    const actual = lineas.get(id)!.precio_unitario;
+    return (actual == null ? null : Number(actual)) !== precio;
+  });
+  if (cambios.length === 0) return {};
+
+  for (const [id, precio] of cambios) {
+    const cantidad = Number(lineas.get(id)!.cantidad);
+    const { error } = await admin.from("movimiento_items")
+      .update({ precio_unitario: precio, subtotal: precio === null ? null : redondearMoneda(cantidad * precio) })
+      .eq("id", id).eq("movimiento_id", movimientoId);
+    if (error) return { error: error.message };
+  }
+
+  // Aviso de cambio de precio: contra el costo actual del producto en ese local. Si ya había un aviso sin resolver de esta misma
+  // entrega y producto (se corrigió el costo), se reemplaza para no dejar uno viejo.
+  const productos = [...new Set(cambios.map(([id]) => lineas.get(id)!.product_id))];
+  const { data: precios } = await admin.from("product_prices").select("product_id, costo").eq("sucursal_id", mov.sucursal_id).in("product_id", productos);
+  const costoActual = new Map((precios ?? []).map((p: { product_id: string; costo: number | string | null }) => [p.product_id, p.costo == null ? null : Number(p.costo)]));
+  // alertas_precio todavía no está en src/types/database.ts: se castea como en el resto del repo.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const alertasTabla = () => (admin as any).from("alertas_precio");
+  await alertasTabla().delete().eq("movimiento_id", movimientoId).in("product_id", productos).is("revisado_por", null);
+  const alertas = cambios
+    .map(([id, precio]) => {
+      const anterior = costoActual.get(lineas.get(id)!.product_id) ?? null;
+      if (precio === null || anterior === null || precio === anterior) return null;
+      return { movimiento_id: movimientoId, product_id: lineas.get(id)!.product_id, proveedor: mov.proveedor ?? null, costo_anterior: anterior, costo_nuevo: precio };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+  if (alertas.length > 0) await alertasTabla().insert(alertas);
+
+  const total = cambios.reduce((s, [id, precio]) => s + (precio === null ? 0 : redondearMoneda(Number(lineas.get(id)!.cantidad) * precio)), 0);
+  const historial = await anotar(admin, {
+    usuario_id: permisos.userId, accion: "entrega_costos", entidad_id: movimientoId,
+    detalle: { proveedor: mov.proveedor ?? null, productos: cambios.length, total: redondearMoneda(total), alertas: alertas.length },
+  });
+  refrescar();
+  revalidatePath("/admin/alertas-precio");
+  revalidatePath("/admin/movimientos");
   return historial;
 }
 

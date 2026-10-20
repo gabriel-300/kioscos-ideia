@@ -23,7 +23,7 @@ export interface EntregaDescartada {
   id: string; sucursal_id: string; fecha: string; proveedor: string | null; lineas: number;
   descartado_en: string; descartado_por: string | null; motivo: string | null;
 }
-export interface LineaEntrega { producto: string; unidad: string | null; cantidad: number; precio_unitario: number | null; subtotal: number | null }
+export interface LineaEntrega { id: string; product_id: string; producto: string; unidad: string | null; cantidad: number; precio_unitario: number | null; subtotal: number | null }
 export interface EntregaPendiente {
   id: string; sucursal_id: string; fecha: string; proveedor: string | null; proveedor_id: string | null;
   remito_image_url: string | null; nro_remito: string | null; notas: string | null;
@@ -96,7 +96,7 @@ export async function cargarEntregasPendientes(admin: Admin, sucursalIds: string
   if (sucursalIds.length === 0) return [];
   const filas = await fetchAll((d, h) =>
     admin.from("movimientos")
-      .select("id, sucursal_id, fecha, proveedor, proveedor_id, remito_image_url, nro_remito, notas, created_at, created_by, movimiento_items(cantidad, precio_unitario, subtotal, product:products(name, unit_label))", { count: "exact" })
+      .select("id, sucursal_id, fecha, proveedor, proveedor_id, remito_image_url, nro_remito, notas, created_at, created_by, movimiento_items(id, product_id, cantidad, precio_unitario, subtotal, product:products(name, unit_label))", { count: "exact" })
       .in("sucursal_id", sucursalIds).eq("tipo", "entrega").is("egreso_id", null).is("tesoreria_descartado_en", null).is("anulado_en", null).gte("fecha", desde)
       .order("id").range(d, h));
   const nombres = await nombresDe(admin, filas.map((e) => e.created_by));
@@ -106,6 +106,8 @@ export async function cargarEntregasPendientes(admin: Admin, sucursalIds: string
       creado_por: created_by ? (nombres.get(created_by) ?? null) : null,
       total: movimiento_items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0),
       lineas: movimiento_items.map((i) => ({
+        id: i.id,
+        product_id: i.product_id,
         producto: i.product?.name ?? "Producto sin nombre",
         unidad: i.product?.unit_label ?? null,
         cantidad: Number(i.cantidad),

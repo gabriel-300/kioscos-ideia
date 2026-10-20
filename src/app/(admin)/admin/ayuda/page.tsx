@@ -193,7 +193,7 @@ export default async function AyudaPage() {
         <p className="text-sm text-neutral-600">Para cargar lo que llega de un proveedor y que sume al stock.</p>
         <div className="space-y-3">
           <Paso n={1}>Tocá <Boton>Registrar recepción</Boton>.</Paso>
-          <Paso n={2}>Elegí el proveedor, los productos y las cantidades que llegaron.</Paso>
+          <Paso n={2}>Elegí los productos y las cantidades que llegaron (y, si querés, el proveedor y una foto del remito). <b>No se cargan precios</b>: eso lo completa después la persona de Tesorería, con la factura.</Paso>
           <Paso n={3}>Guardá. El stock se actualiza al instante.</Paso>
         </div>
         <Nota tipo="ok">
@@ -314,7 +314,8 @@ export default async function AyudaPage() {
             <Paso n={2}>
               La <Campo>mercadería</Campo> se carga con <Boton>Nueva compra de mercadería</Boton>, con la factura o el remito
               en la mano: proveedor, importe real y si tiene factura. Si querés, vinculá los ingresos que cargó el kiosco
-              para ver la diferencia. Abajo, el <Campo>Control</Campo> lista los ingresos del kiosco que todavía no tienen
+              y completá el <Campo>costo de cada producto</Campo> (el kiosco solo carga las cantidades); también se completa desde el
+              detalle de cada ingreso del <Campo>Control</Campo>. Abajo, el <Campo>Control</Campo> lista los ingresos del kiosco que todavía no tienen
               compra; los que no corresponden (una carga duplicada, una transferencia entre kioscos) se marcan{" "}
               <Boton>No corresponde</Boton> y no afectan el stock.
             </Paso>

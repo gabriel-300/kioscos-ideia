@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { EgresoForm, type Borrador } from "./egreso-form";
 import { descartarEntrega, restaurarEntrega } from "../actions";
+import { CostosEditor } from "./costos-entrega";
 import { registrarRetiroComoPago } from "../proveedores-actions";
 import type { RetiroPendiente, EntregaPendiente, EntregaDescartada } from "@/lib/tesoreria/consultas";
 import { formatKg, friendlyError } from "@/lib/utils";
@@ -240,9 +241,9 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
                           </span>
                         </span>
                         {e.total > 0 ? (
-                          <span className="text-sm tabular-nums text-neutral-500 shrink-0" title="Importe que cargó el kiosco (puede estar mal)">{AR.format(e.total)}</span>
+                          <span className="text-sm tabular-nums text-neutral-500 shrink-0" title="Suma de los costos cargados">{AR.format(e.total)}</span>
                         ) : (
-                          <span className="text-xs text-amber-700 shrink-0">Sin importe cargado</span>
+                          <span className="text-xs text-amber-700 shrink-0">Sin costos cargados</span>
                         )}
                       </button>
                       {puedeCargar && (
@@ -253,7 +254,8 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
 
                     {desplegada && (
                       <div className="px-4 pb-4 pt-1 bg-neutral-50 border-t border-neutral-100">
-                        <div className="overflow-x-auto">
+                        {puedeCargar && <div className="pt-2"><CostosEditor entrega={e} /></div>}
+                        {!puedeCargar && <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="text-left text-xs uppercase tracking-wide text-neutral-400">
@@ -274,7 +276,7 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
                               ))}
                             </tbody>
                           </table>
-                        </div>
+                        </div>}
                         <p className="text-xs text-neutral-500 mt-3">
                           {e.creado_por ? `Lo cargó ${e.creado_por}` : "Cargado en el kiosco"} el {fechaCorta(e.fecha)} a las {horaCorta(e.created_at)}
                           {e.nro_remito && ` · Remito N° ${e.nro_remito}`}
@@ -284,7 +286,7 @@ export function ParaRegistrar({ retiros, entregas, descartadas, sucursales, prov
                           )}
                         </p>
                         {e.total === 0 && (
-                          <p className="text-xs text-amber-700 mt-1">El kiosco no cargó importes en este ingreso: el costo hay que tomarlo de la factura.</p>
+                          <p className="text-xs text-amber-700 mt-1">El kiosco solo carga el stock (producto y cantidad): el costo se completa acá, mirando la factura.</p>
                         )}
                       </div>
                     )}

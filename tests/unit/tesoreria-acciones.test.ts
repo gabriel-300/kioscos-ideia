@@ -11,7 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/tesoreria/permisos", () => ({ permisosTesoreria: async () => h.permisos }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
-import { anularEgreso, descartarEntrega, fijarVencimiento, guardarEfectivoInicial, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
+import { anularEgreso, completarCostosEntrega, descartarEntrega, fijarVencimiento, guardarEfectivoInicial, marcarEgresoPagado, registrarEgreso, restaurarEntrega } from "@/app/(admin)/admin/tesoreria/actions";
 import type { EgresoEntrada } from "@/lib/tesoreria/tipos";
 
 const CARGA = { userId: "damian", puedeVer: true, puedeCargar: true };
@@ -426,5 +426,102 @@ describe("fijarVencimiento (migración 113)", () => {
   it("si se guardó pero no se pudo anotar en el historial, avisa", async () => {
     montar(CARGA, { egresoPrevio: previo, historialError: "boom" });
     expect(await fijarVencimiento("e1", "2026-11-10")).toEqual({ error: expect.stringContaining("historial") });
+  });
+});
+
+describe("completarCostosEntrega (costos de una mercadería que ingresó al kiosco)", () => {
+  const entrega = {
+    id: "m1", tipo: "entrega", sucursal_id: "s1", proveedor: "Petri", anulado_en: null,
+    movimiento_items: [
+      { id: "i1", product_id: "pa", cantidad: 10, precio_unitario: null },
+      { id: "i2", product_id: "pb", cantidad: 2.5, precio_unitario: null },
+    ],
+  };
+  const hechos = (calls: Q[], tabla: string, op: Q["op"]) => calls.filter((q) => q.table === tabla && q.op === op);
+
+  function montarCostos(e: { mov?: Record<string, unknown> | null; costosActuales?: { product_id: string; costo: number | null }[]; permisos?: unknown; errorItems?: string; historialError?: string } = {}) {
+    h.permisos = e.permisos === undefined ? CARGA : e.permisos;
+    const f = fakeAdmin((q: Q) => {
+      switch (q.table) {
+        case "movimientos": return { data: e.mov === undefined ? entrega : e.mov };
+        case "sucursales": return { data: [{ id: "s1" }] };
+        case "movimiento_items": return q.op === "update" && e.errorItems ? { error: { message: e.errorItems } } : { data: null };
+        case "product_prices": return { data: e.costosActuales ?? [] };
+        case "tesoreria_historial": return e.historialError ? { error: { message: e.historialError } } : { data: null };
+        default: return { data: null };
+      }
+    });
+    h.admin = f.admin;
+    return f;
+  }
+
+  it("sin permiso de cargar no escribe nada", async () => {
+    const f = montarCostos({ permisos: SOLO_VE });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 100 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("guarda el costo y el importe de cada línea (cantidad × costo) y lo anota en el historial", async () => {
+    const f = montarCostos();
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 120 }, { id: "i2", precio_unitario: 99.99 }])).toEqual({});
+    const upd = hechos(f.calls, "movimiento_items", "update");
+    expect(upd.map((q) => q.payload)).toEqual([{ precio_unitario: 120, subtotal: 1200 }, { precio_unitario: 99.99, subtotal: 249.98 }]);
+    expect(historialDe(f.calls)).toEqual([expect.objectContaining({ accion: "entrega_costos", entidad_id: "m1", detalle: { proveedor: "Petri", productos: 2, total: 1449.98, alertas: 0 } })]);
+  });
+
+  it("un costo vacío deja la línea sin costo", async () => {
+    const f = montarCostos({ mov: { ...entrega, movimiento_items: [{ id: "i1", product_id: "pa", cantidad: 10, precio_unitario: 50 }] } });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: null }])).toEqual({});
+    expect(hechos(f.calls, "movimiento_items", "update")[0].payload).toEqual({ precio_unitario: null, subtotal: null });
+  });
+
+  it("si el costo cambió respecto del actual del producto, deja un aviso de precio (y reemplaza uno viejo sin resolver)", async () => {
+    const f = montarCostos({ costosActuales: [{ product_id: "pa", costo: 100 }, { product_id: "pb", costo: 99.99 }] });
+    await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 120 }, { id: "i2", precio_unitario: 99.99 }]);
+    const nuevas = hechos(f.calls, "alertas_precio", "insert");
+    expect(nuevas).toHaveLength(1);
+    expect(nuevas[0].payload).toEqual([{ movimiento_id: "m1", product_id: "pa", proveedor: "Petri", costo_anterior: 100, costo_nuevo: 120 }]);
+    expect(hechos(f.calls, "alertas_precio", "delete")).toHaveLength(1);
+  });
+
+  it("sin costo actual cargado no hay aviso", async () => {
+    const f = montarCostos({ costosActuales: [{ product_id: "pa", costo: null }] });
+    await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 120 }]);
+    expect(hechos(f.calls, "alertas_precio", "insert")).toEqual([]);
+  });
+
+  it("si no cambia nada, no escribe ni anota", async () => {
+    const f = montarCostos({ mov: { ...entrega, movimiento_items: [{ id: "i1", product_id: "pa", cantidad: 10, precio_unitario: 120 }] } });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 120 }])).toEqual({});
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("rechaza costos inválidos, líneas ajenas, ingresos anulados o inexistentes y locales fuera de Tesorería, sin escribir", async () => {
+    let f = montarCostos();
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: -1 }])).toHaveProperty("error");
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: Number.NaN }])).toHaveProperty("error");
+    expect(await completarCostosEntrega("m1", [])).toHaveProperty("error");
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 1 }, { id: "i1", precio_unitario: 2 }])).toHaveProperty("error");
+    expect(await completarCostosEntrega("m1", [{ id: "ajena", precio_unitario: 5 }])).toHaveProperty("error");
+    expect(escrituras(f.calls)).toEqual([]);
+    f = montarCostos({ mov: { ...entrega, anulado_en: "2026-10-05T00:00:00Z" } });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toHaveProperty("error");
+    f = montarCostos({ mov: null });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toHaveProperty("error");
+    f = montarCostos({ mov: { ...entrega, tipo: "venta" } });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toHaveProperty("error");
+    f = montarCostos({ mov: { ...entrega, sucursal_id: "otra" } });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toEqual({ error: expect.stringContaining("Tesorería") });
+    expect(escrituras(f.calls)).toEqual([]);
+  });
+
+  it("si la base falla al guardar un costo, devuelve el error", async () => {
+    montarCostos({ errorItems: "boom" });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toEqual({ error: "boom" });
+  });
+
+  it("si se guardó pero no se pudo anotar en el historial, avisa", async () => {
+    montarCostos({ historialError: "boom" });
+    expect(await completarCostosEntrega("m1", [{ id: "i1", precio_unitario: 5 }])).toEqual({ error: expect.stringContaining("historial") });
   });
 });

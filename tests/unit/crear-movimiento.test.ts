@@ -413,3 +413,21 @@ describe("crearMovimiento -- alerta de cambio de costo en entregas", () => {
     expect(alertas).toEqual([expect.objectContaining({ product_id: "cambia", costo_anterior: 100, costo_nuevo: 130, movimiento_id: "mov-1" })]);
   });
 });
+
+describe("crearMovimiento -- recepción de mercadería del encargado (solo stock)", () => {
+  it("el encargado carga la entrega sin costos ni número de remito aunque los mande", async () => {
+    const t = montar({ role: "encargado", precios: [P("p1", 100)] });
+    const r = await crearMovimiento(base({ tipo: "entrega", nro_remito: "0001-123", proveedor: "Petri", items: [{ product_id: "p1", cantidad: 3, precio_unitario: 55 }] }));
+    expect(r).toEqual({ movimiento_id: "mov-1" });
+    expect(t.args().p_items[0]).toMatchObject({ product_id: "p1", cantidad: 3, precio_unitario: null, subtotal: null });
+    expect(t.args().p_nro_remito).toBeNull();
+    expect(t.args().p_proveedor).toBe("Petri");
+  });
+
+  it("el admin sigue pudiendo cargar costos y número de remito en una entrega", async () => {
+    const t = montar({ role: "admin", precios: [P("p1", 100)] });
+    await crearMovimiento(base({ tipo: "entrega", nro_remito: "0001-123", items: [{ product_id: "p1", cantidad: 3, precio_unitario: 55 }] }));
+    expect(t.args().p_items[0]).toMatchObject({ precio_unitario: 55, subtotal: 165 });
+    expect(t.args().p_nro_remito).toBe("0001-123");
+  });
+});

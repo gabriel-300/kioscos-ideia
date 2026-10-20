@@ -762,6 +762,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
                     label="Registrar recepción"
                     variant="ghost"
                     proveedores={proveedores}
+                    soloStock
                   />
                 )}
                 <NuevaEntregaButton

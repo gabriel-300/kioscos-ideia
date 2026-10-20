@@ -50,9 +50,9 @@ describe("describirHistorial", () => {
 });
 
 describe("la lista de acciones coincide con la de la base", () => {
-  it("las del CHECK de la base (104, ampliado por la 105 a 109 y la 113) son exactamente las del código", () => {
+  it("las del CHECK de la base (104, ampliado por la 105 a 109, la 113 y la 115) son exactamente las del código", () => {
     // La 105 vuelve a crear el CHECK con las acciones nuevas: vale el de la migración más reciente que lo define.
-    const sql = readFileSync(resolve(__dirname, "../../supabase/migrations/113_vencimiento_de_remitos.sql"), "utf8");
+    const sql = readFileSync(resolve(__dirname, "../../supabase/migrations/115_historial_costos_de_entrega.sql"), "utf8");
     const bloque = sql.match(/check \(accion in \(([\s\S]*?)\)\)/)?.[1] ?? "";
     const enLaBase = [...bloque.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(enLaBase).toEqual([...ACCIONES_HISTORIAL].sort());

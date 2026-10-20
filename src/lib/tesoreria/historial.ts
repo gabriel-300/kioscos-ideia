@@ -18,6 +18,7 @@ export const ACCIONES_HISTORIAL = [
   "peya_liquidacion_importada", "peya_liquidacion_confirmada", "peya_acreditacion_registrada", "peya_conciliacion_manual",
   "peya_pedido_revisado",
   "egreso_vencimiento",
+  "entrega_costos",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -43,6 +44,7 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   peya_conciliacion_manual:     "Pedido de PedidosYa cruzado a mano",
   peya_pedido_revisado:         "Pedido de PedidosYa revisado",
   egreso_vencimiento:           "Vencimiento de un remito o factura",
+  entrega_costos:               "Costos de una mercadería cargados",
 };
 
 export interface EntradaHistorial {
@@ -108,6 +110,8 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       if (!fecha(d.nuevo)) return `Sacó el vencimiento de ${quien}`;
       return fecha(d.anterior) ? `Cambió el vencimiento de ${quien} de ${fecha(d.anterior)} a ${fecha(d.nuevo)}` : `Fijó el vencimiento de ${quien} al ${fecha(d.nuevo)}`;
     }
+    case "entrega_costos":
+      return `Cargó los costos de ${numero(d.productos) ?? 0} ${numero(d.productos) === 1 ? "producto" : "productos"} de una mercadería${texto(d.proveedor) ? ` de ${texto(d.proveedor)}` : ""} (total ${plata(d.total)})`;
     case "egreso_anulado":
       return `Anuló «${texto(d.descripcion) ?? "un egreso"}» de ${plata(d.monto)}`;
     case "entrega_descartada":
