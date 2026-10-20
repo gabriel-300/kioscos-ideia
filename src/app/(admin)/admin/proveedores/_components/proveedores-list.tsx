@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import { crearProveedor, actualizarProveedor, toggleProveedorActivo } from "../actions";
+import Link from "next/link";
 import { friendlyError } from "@/lib/utils";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -131,6 +132,10 @@ function ProveedorForm({
         />
         <p className="text-[11px] text-neutral-400 mt-1">Al cargar un remito o factura de este proveedor en Tesorería, el vencimiento se propone como la fecha de la compra más estos días.</p>
       </div>
+      <p className="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2 text-[11px] text-neutral-500">
+        Los datos para la contabilidad (CUIT, condición de IVA, si da factura, forma de pago, alias o CBU) se cargan en{" "}
+        <Link href="/admin/tesoreria?vista=proveedores" className="font-medium text-tierra-700 underline">Tesorería → Proveedores → Fichas de proveedores</Link>.
+      </p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={pending} onClick={handleSave}>Guardar</Button>
