@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { armarCatalogo, type DatosCatalogo } from "@/lib/pedidos/catalogo";
-import { INICIAL_KG, PASO_KG, prefijoCantidad, redondearKg, sumarKg, textoCantidad } from "@/lib/pedidos/cantidad-peso";
+import { INICIAL_KG, PASO_KG, redondearKg, sumarKg, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 describe("cantidades por peso", () => {
   it("se suma de a 100 g sin errores de coma flotante", () => {
@@ -17,10 +17,6 @@ describe("cantidades por peso", () => {
   });
   it("lo que se vende por unidad se muestra como número", () => {
     expect(textoCantidad(2, false)).toBe("2");
-  });
-  it("prefijo para frases: '2×' o '300 g de'", () => {
-    expect(prefijoCantidad(2, false)).toBe("2×");
-    expect(prefijoCantidad(0.3, true)).toBe("300 g de");
   });
 });
 

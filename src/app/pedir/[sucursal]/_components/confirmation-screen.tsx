@@ -7,32 +7,9 @@ import type { EstadoHorario } from "@/lib/pedidos/horario";
 import { IconCheck } from "./iconos";
 import { Panel } from "./panel";
 
-// Mensaje pre-armado para avisarle al local por WhatsApp. El pedido ya está
-// guardado en el servidor -- esto es un aviso extra, no la fuente de verdad.
-function mensajeWhatsApp(config: ConfigTienda, p: PedidoConfirmado): string {
-  const l: string[] = [];
-  l.push(`*Pedido #${p.numero}* — ${config.nombre}`);
-  l.push("");
-  for (const x of p.lineas) l.push(`${x.cantidadTexto} ${x.nombre} — ${fmt(x.subtotal)}`);
-  l.push("");
-  l.push(`Subtotal: ${fmt(p.subtotal)}`);
-  if (p.tipoEntrega === "delivery") l.push(`Envío${p.zonaNombre ? ` (${p.zonaNombre})` : ""}: ${fmt(p.costoEnvio)}`);
-  l.push(`*Total: ${fmt(p.total)}*`);
-  l.push("");
-  l.push(`Pago: ${p.medioPago === "efectivo" ? `Efectivo${p.pagoCon ? ` (paga con ${fmt(p.pagoCon)})` : ""}` : "Mercado Pago (mandame el link)"}`);
-  l.push(p.tipoEntrega === "delivery" ? "Entrega: envío a domicilio" : "Entrega: retiro en el local");
-  if (p.direccion) l.push(`Dirección: ${p.direccion}${p.referencia ? ` (${p.referencia})` : ""}`);
-  l.push(`Nombre: ${p.cliente.nombre}`);
-  l.push(`WhatsApp: ${p.cliente.whatsapp}`);
-  if (p.notas) l.push(`Aclaraciones: ${p.notas}`);
-  return l.join("\n");
-}
-
 export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
   config: ConfigTienda; pedido: PedidoConfirmado; horario: EstadoHorario; onVolver: () => void;
 }) {
-  const telefono = config.whatsapp?.replace(/\D/g, "");
-  const enlace = telefono ? `https://wa.me/${telefono}?text=${encodeURIComponent(mensajeWhatsApp(config, pedido))}` : null;
   const eta = pedido.etaMin != null ? `${pedido.etaMin}–${pedido.etaMax} min` : null;
 
   return (
@@ -43,7 +20,7 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
       <h2 className="mt-5 text-[29px]">{pedido.medioPago === "mercadopago_link" ? "Falta pagar" : "Pedido confirmado"}</h2>
       <p className="mt-2 text-[14.5px] leading-snug text-pd-cream/80">
         {pedido.medioPago !== "mercadopago_link"
-          ? "Te escribimos al WhatsApp para confirmar."
+          ? "Ya recibimos tu pedido. Seguilo desde acá y te mostramos cada paso."
           : pedido.checkoutUrl
             ? "Pagalo ahora con tarjeta o Mercado Pago y empezamos a prepararlo."
             : "El local te manda el link de pago por WhatsApp para confirmar."}{" "}
@@ -98,16 +75,6 @@ export function ConfirmationScreen({ config, pedido, horario, onVolver }: {
         >
           Seguir mi pedido
         </Link>
-        {enlace && (
-          <a
-            href={enlace}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="pd-display flex h-14 w-full items-center justify-center rounded-2xl border-[1.5px] border-white/25 text-[16px] font-bold text-pd-paper"
-          >
-            Enviar pedido por WhatsApp
-          </a>
-        )}
         <button
           type="button"
           onClick={onVolver}

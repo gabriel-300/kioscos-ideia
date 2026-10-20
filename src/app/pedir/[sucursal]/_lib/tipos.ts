@@ -54,7 +54,7 @@ export type PedidoConfirmado = {
   medioPago:   "efectivo" | "mercadopago_link";
   pagoCon:     number | null;
   checkoutUrl: string | null;
-  lineas:      { nombre: string; cantidad: number; cantidadTexto: string; subtotal: number }[];
+  lineas:      { nombre: string; cantidad: number; subtotal: number }[];
   cliente:     { nombre: string; whatsapp: string };
   direccion:   string | null;
   referencia:  string | null;

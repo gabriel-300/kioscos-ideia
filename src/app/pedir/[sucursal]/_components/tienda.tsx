@@ -15,7 +15,7 @@ import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
-import { INICIAL_KG, PASO_KG, prefijoCantidad, sumarKg } from "@/lib/pedidos/cantidad-peso";
+import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
 const MAX_POR_ITEM = 50;
@@ -269,7 +269,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       medioPago:   form.pago,
       pagoCon,
       checkoutUrl: res.checkout_url ?? null,
-      lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, cantidadTexto: prefijoCantidad(l.qty, !!l.item.unit), subtotal: l.item.price * l.qty })),
+      lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, subtotal: l.item.price * l.qty })),
       cliente:     { nombre: form.nombre.trim(), whatsapp: form.whatsapp.trim() },
       direccion:   form.modo === "envio" ? form.calle.trim() : null,
       referencia:  form.modo === "envio" ? form.referencia.trim() : null,

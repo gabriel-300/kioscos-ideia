@@ -24,8 +24,3 @@ export function textoCantidad(qty: number, porPeso: boolean): string {
   if (!porPeso) return String(qty);
   return qty < 1 ? `${Math.round(qty * 1000)} g` : `${KILOS.format(qty)} kg`;
 }
-
-// Para frases: "2×" delante del nombre, o "300 g de" para lo que se pesa.
-export function prefijoCantidad(qty: number, porPeso: boolean): string {
-  return porPeso ? `${textoCantidad(qty, true)} de` : `${qty}×`;
-}
