@@ -237,7 +237,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Objetivo**: vender sin depender del empleado: catálogo público, pedido por retiro o envío, pago en efectivo o por link
   de Mercado Pago.
 - **Reglas**: el catálogo **no ofrece lo agotado** (producto con stock menor a 1; promo si falta stock de algún componente; sin fila de stock en esa sucursal = el local no lo tiene y no se ofrece; si el stock no se puede leer se ofrece todo) y el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
-  entregar; Mercado Pago por link = el local confirma el pago a mano; pedido mínimo para envío; horario de atención;
+  entregar; Mercado Pago = el servidor genera un checkout (Checkout Pro, migración 117) y el cliente paga con tarjeta o dinero en cuenta; el aviso de pago pasa el pedido a pagado y registra la venta solo (el local puede confirmarlo a mano si el checkout no se pudo generar); los productos por kg se piden de a 100 g; pedido mínimo para envío; horario de atención;
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
   confirman pagos; el repartidor solo marca sus entregas; la configuración (zonas, horario, delivery) es solo admin.
@@ -414,7 +414,7 @@ Estado verificado el 2026-09-19 en la base y en producción.
 | **Meta Business Manager** (alta de WhatsApp Cloud API) y cargar `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN` | ❌ Sin arrancar |
 | **Token de n8n** (`REPOSICION_API_TOKEN`), armar el workflow y cargar los puntos de pedido y proveedores reales | ❌ Endpoint en 501; 6 puntos cargados |
 | **PedidoYa**: token y payload real | ❌ Sin token; 0 eventos |
-| **Mercado Pago del storefront**: conectar el armado automático del QR (hoy es link con confirmación manual) | ❌ Sin conectar |
+| **Mercado Pago del storefront**: checkout automático (Checkout Pro) | 🟡 Hecho, falta aplicar la migración 117 y probarlo con un pago real |
 | **Dominio de Resend** y **SMTP de Supabase Auth** (`ideia.com.ar`); hoy no hay SMTP propio | ❌ Sin configurar |
 | Prender la protección contra contraseñas filtradas y subir el largo mínimo de contraseña (hoy 6) en Supabase Auth | ❌ Apagado |
 | Usuarios de Damián y Javier | ✅ Hecho (ambos con usuario propio y `es_socio`) |
