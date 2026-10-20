@@ -39,6 +39,28 @@ export function normalizarHorario(raw: unknown): TramoHorario[] | null {
   return tramos.length > 0 ? tramos : null;
 }
 
+// Un día puede tener más de un tramo (turno partido: 08:00–12:00 y 16:00–20:00). Devuelve el
+// primer problema en lenguaje del usuario, o null si está bien. Reglas: cada tramo tiene que
+// abrir y cerrar a horas distintas, los tramos de un mismo día no pueden pisarse, y solo el
+// último tramo del día puede cruzar la medianoche (cerrar de madrugada).
+export function validarHorario(horario: TramoHorario[]): string | null {
+  for (let dia = 0; dia < 7; dia++) {
+    const delDia = horario.filter((t) => t.dia === dia).sort((x, y) => aMinutos(x.abre) - aMinutos(y.abre));
+    const nombre = DIAS[dia].charAt(0).toUpperCase() + DIAS[dia].slice(1);
+    for (let i = 0; i < delDia.length; i++) {
+      const a = aMinutos(delDia[i].abre), c = aMinutos(delDia[i].cierra);
+      if (a === c) return `${nombre}: un horario abre y cierra a la misma hora`;
+      const esUltimo = i === delDia.length - 1;
+      if (c < a && !esUltimo) return `${nombre}: solo el último horario del día puede cerrar pasada la medianoche`;
+      if (i > 0) {
+        const cierraAntes = aMinutos(delDia[i - 1].cierra);
+        if (a < cierraAntes) return `${nombre}: dos horarios se pisan (${formatear(delDia[i - 1].abre)}–${formatear(delDia[i - 1].cierra)} y ${formatear(delDia[i].abre)}–${formatear(delDia[i].cierra)})`;
+      }
+    }
+  }
+  return null;
+}
+
 export function estadoHorario(horario: TramoHorario[] | null, ahora: Date = new Date()): EstadoHorario {
   if (!horario || horario.length === 0) return { abierto: true, hoyTexto: null, proximaApertura: null };
 

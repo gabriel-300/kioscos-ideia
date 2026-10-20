@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
-import { normalizarHorario, type TramoHorario } from "@/lib/pedidos/horario";
+import { normalizarHorario, validarHorario, type TramoHorario } from "@/lib/pedidos/horario";
 import { parsearCoordenadas } from "@/lib/geo";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 
@@ -43,6 +43,8 @@ export async function guardarConfigSucursal(sucursalId: string, data: ConfigSucu
   }
 
   const horario = normalizarHorario(data.horario_pedidos);
+  const errorHorario = horario ? validarHorario(horario) : null;
+  if (errorHorario) return { error: errorHorario };
 
   const admin = createAdminClient();
   const { error } = await (admin as any)
