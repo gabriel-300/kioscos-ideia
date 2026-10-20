@@ -13,6 +13,8 @@ import { CartScreen } from "./cart-screen";
 import { CheckoutScreen } from "./checkout-screen";
 import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
+import { PedidoEnCurso } from "../../_components/pedido-en-curso";
+import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
 const MAX_POR_ITEM = 50;
@@ -259,6 +261,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
       referencia:  form.modo === "envio" ? form.referencia.trim() : null,
       notas:       form.notas.trim() || null,
     });
+    guardarPedidoReciente(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
     guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp, calle: form.calle, referencia: form.referencia } satisfies Contacto);
     setCantidades({});
     setPantalla("confirmacion");
@@ -285,6 +288,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
   return (
     <>
       <StoreHeader config={config} horario={horario} />
+      <div className="mx-auto max-w-[1100px] px-4 empty:hidden"><PedidoEnCurso className="mt-3" /></div>
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">

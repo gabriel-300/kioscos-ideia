@@ -5,6 +5,7 @@ import { cargarLocalesParaPedir } from "@/lib/pedidos/locales";
 import { cargarTienda } from "@/lib/pedidos/tienda-servidor";
 import { ElegirLocal } from "./elegir-local";
 import { FondoMenu } from "./fondo-menu";
+import { PedidoEnCurso } from "./_components/pedido-en-curso";
 
 // "¿Dónde querés pedir?": cada local tiene su propio catálogo, stock y precios, así
 // que quien llega sin un local elegido (la raíz del dominio de clientes) lo elige acá.
@@ -36,6 +37,7 @@ export default async function ElegirLocalPage() {
           aria-labelledby="titulo-elegir-local"
           className="max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-3xl border border-white/60 bg-pd-paper/90 px-5 pb-6 pt-6 shadow-2xl backdrop-blur-md"
         >
+          <PedidoEnCurso className="mb-4" />
           <h1 id="titulo-elegir-local" className="text-[28px] leading-tight">¿Dónde querés pedir?</h1>
           <p className="mt-2 text-[15px] leading-snug text-pd-ink-600">Elegí el local y mirá el menú con lo que hay hoy.</p>
 
