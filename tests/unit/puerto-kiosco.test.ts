@@ -45,7 +45,7 @@ describe("puerto: catálogo y restricciones", () => {
   it("si el stock no se puede leer, el catálogo igual se arma (se muestra todo)", async () => {
     const f = fakeAdmin((q: Q) => (q.table === "stock_sucursal" ? { error: { message: "boom" } } : undefined));
     const d = await puertoKiosco(f.admin).datosCatalogo(SUC);
-    expect(d.stock).toEqual([]);
+    expect(d.stock).toBeNull();
   });
 });
 

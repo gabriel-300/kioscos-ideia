@@ -72,9 +72,9 @@ describe("chequearStockLiviano", () => {
     const dos = [...items(2), ...items(2)];
     expect(await chequearStockLiviano(conStock(3), "s", dos)).toMatch(/stock suficiente/);
   });
-  it("sin fila en la vista = stock desconocido, no bloquea", async () => {
+  it("sin fila en la vista = el local nunca tuvo ese producto, se rechaza", async () => {
     const admin = fakeAdmin(() => ({ data: [] })).admin;
-    expect(await chequearStockLiviano(admin, "s", items(5))).toBeNull();
+    expect(await chequearStockLiviano(admin, "s", items(5))).toMatch(/no está disponible en este local/);
   });
   it("si la consulta falla NO bloquea el pedido (decisión de diseño: best-effort)", async () => {
     const admin = fakeAdmin(() => ({ error: { message: "x" } })).admin;

@@ -13,10 +13,11 @@ export type { DatosCatalogo, RestriccionesCatalogo };
 //   - si la sucursal restringe categorías, solo las habilitadas
 //   - promos solo si promos_habilitadas
 //   - con precio > 0 en ESA sucursal (promo: el de la sucursal o el global)
-//   - con stock: lo agotado no se ofrece, así el cliente no arma un carrito que después
-//     se le rechaza. Misma regla que chequearStockLiviano (stock.ts): sin fila de stock
-//     = stock desconocido = se ofrece; con fila, tiene que alcanzar. Una promo se ofrece
-//     si alcanza el stock de TODOS sus componentes.
+//   - con stock en ESA sucursal: lo agotado (0 o negativo) no se ofrece, así el cliente no arma
+//     un carrito que después se le rechaza. Sin fila de stock en la sucursal = el producto nunca
+//     se movió ahí = no lo tiene, y tampoco se ofrece (cada local tiene su propio surtido).
+//     Misma regla que chequearStockLiviano (stock.ts). Una promo se ofrece si alcanza el stock
+//     de TODOS sus componentes. Única excepción: si el stock no se pudo leer (null) se ofrece todo.
 // Nunca se lee costo ni margen.
 
 export type ItemCatalogo = {
@@ -51,10 +52,11 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
   const precioPromo = new Map<string, number>(datos.preciosPromo.map((p) => [p.promo_id, p.price]));
 
   const stock = new Map<string, number>();
-  for (const r of datos.stock) if (r.stock_actual != null) stock.set(r.product_id, Number(r.stock_actual));
+  for (const r of datos.stock ?? []) if (r.stock_actual != null) stock.set(r.product_id, Number(r.stock_actual));
   const hayStock = (productId: string, necesario = 1) => {
+    if (datos.stock === null) return true; // no se pudo leer: mejor mostrar todo que dejar la tienda vacía
     const disponible = stock.get(productId);
-    return disponible === undefined || disponible >= necesario;
+    return disponible !== undefined && disponible >= necesario;
   };
   const componentesDe = new Map<string, Fila[]>();
   for (const c of datos.componentes) componentesDe.set(c.promo_id, [...(componentesDe.get(c.promo_id) ?? []), c]);

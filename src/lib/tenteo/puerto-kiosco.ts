@@ -37,7 +37,7 @@ export type DatosCatalogo = {
   preciosProducto: Fila[]; // {product_id, precio_dist}
   promos:          Fila[]; // {id, name, price, tipo, cover_image_url, category_id}
   preciosPromo:    Fila[]; // {promo_id, price}
-  stock:           Fila[]; // {product_id, stock_actual} de la sucursal (vista stock_sucursal)
+  stock:           Fila[] | null; // {product_id, stock_actual} de la sucursal (vista stock_sucursal); null = no se pudo leer
   componentes:     Fila[]; // {promo_id, product_id, cantidad} (promo_items)
 };
 

@@ -40,9 +40,9 @@ export function kioscoDirecto(admin: Admin): PuertoKiosco {
         admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
         (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).order("name"),
         (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
-        // Si no se puede leer el stock, se muestra todo (mejor que dejar la tienda vacía):
+        // Si no se puede leer el stock (null), se muestra todo (mejor que dejar la tienda vacía):
         // el chequeo al confirmar sigue ahí.
-        fetchAll((d, h) => (admin as any).from("stock_sucursal").select("product_id, stock_actual", { count: "exact" }).eq("sucursal_id", sucursalId).order("product_id").range(d, h)).catch(() => []),
+        fetchAll((d, h) => (admin as any).from("stock_sucursal").select("product_id, stock_actual", { count: "exact" }).eq("sucursal_id", sucursalId).order("product_id").range(d, h)).catch(() => null),
         (admin as any).from("promo_items").select("promo_id, product_id, cantidad"),
       ]);
 

@@ -236,7 +236,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 ### Pedidos online (Tenteo) — `/pedir/[sucursal]`, `/tenteo/pedidos`, `/tenteo/repartos`
 - **Objetivo**: vender sin depender del empleado: catálogo público, pedido por retiro o envío, pago en efectivo o por link
   de Mercado Pago.
-- **Reglas**: el catálogo **no ofrece lo agotado** (producto con stock menor a 1; promo si falta stock de algún componente; sin fila de stock = se ofrece) y el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
+- **Reglas**: el catálogo **no ofrece lo agotado** (producto con stock menor a 1; promo si falta stock de algún componente; sin fila de stock en esa sucursal = el local no lo tiene y no se ofrece; si el stock no se puede leer se ofrece todo) y el servidor recalcula precios, promos, stock y envío (por zona); efectivo = pedido confirmado y venta al
   entregar; Mercado Pago por link = el local confirma el pago a mano; pedido mínimo para envío; horario de atención;
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y

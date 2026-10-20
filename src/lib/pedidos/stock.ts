@@ -33,9 +33,10 @@ export async function chequearStockLiviano(
 
   for (const [productId, cantidadRequerida] of requeridoPorProducto) {
     const row = stockMap.get(productId) as { product_name: string; stock_actual: number } | undefined;
-    // Sin fila en stock_sucursal = nunca tuvo movimientos = stock desconocido,
-    // no "cero" -- mismo criterio que ya usa el resto del proyecto, no bloquea.
-    if (row && row.stock_actual < cantidadRequerida) {
+    // Sin fila en stock_sucursal = el producto nunca se movió en ESTE local = no lo tiene
+    // (el catálogo tampoco lo ofrece, así que solo llega por un carrito viejo o armado a mano).
+    if (!row) return "Uno de los productos no está disponible en este local";
+    if (row.stock_actual < cantidadRequerida) {
       return `"${row.product_name}" no tiene stock suficiente en este momento`;
     }
   }
