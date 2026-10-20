@@ -183,7 +183,14 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     lo que le falta a cada comprobante; si se anula el pago o la compra, la imputación deja de valer. **Deuda vencida y a vencer**: cada remito o factura puede tener un vencimiento opcional (`egresos.fecha_vencimiento`,
     migración 113; se carga con la compra o después y cada cambio queda en el historial) y un listado separa lo que falta pagar de cada
     comprobante en vencida / vence en 7 días / en 30 / más adelante / sin vencimiento (el saldo inicial sin cubrir figura como «saldo
-    anterior», sin vencimiento), con totales por tramo y descarga a Excel; las filas suman lo mismo que «Se debe a proveedores». Cada proveedor puede tener un
+    anterior», sin vencimiento), con totales por tramo y descarga a Excel; las filas suman lo mismo que «Se debe a proveedores». **Ficha contable del proveedor** (migración 116, solapa
+    Proveedores → «Fichas de proveedores»; la carga solo el administrativo): razón social, CUIT (validado, único), condición frente al IVA, si
+    da factura (siempre / a veces / nunca: precarga «con» o «sin factura» al cargar una compra), rubro, forma de pago habitual, plazo de pago,
+    alias o CBU, contacto, email y notas. Todo es opcional salvo el nombre y nada bloquea cargar ni pagar; la lista marca qué falta
+    completar. El nombre es único sin importar mayúsculas y la pantalla avisa de nombres parecidos antes de crear uno («petri» vs «Panadería
+    Petri»); desde el formulario de una compra se puede dar de alta un proveedor al vuelo. Cada cambio queda en el historial con antes y
+    después. El alta en Catálogo → Proveedores sigue disponible para cualquier admin (decisión: por ahora igual, mientras se hacen pruebas).
+    Cada proveedor puede tener un
     **plazo de pago** en días (`proveedores.plazo_pago_dias`, migración 114, se edita en Catálogo → Proveedores; 0 = contado): al cargar
     un remito o factura el formulario propone como vencimiento la fecha de la compra + ese plazo, y quien carga lo puede cambiar. El **pago no es un gasto
     nuevo** (el gasto es la compra, esté pagada o no) pero sí baja el efectivo de Tesorería cuando sale de ahí. El saldo inicial es

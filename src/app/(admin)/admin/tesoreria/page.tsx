@@ -27,6 +27,7 @@ import {
   cargarArchivosDeLiquidacion, cargarLiquidacionPeya, cargarLiquidacionesPeya, cargarLiquidacionesPeyaSiExiste, cargarPedidosDeLiquidacion, cargarVentasParaCruce, cargarVentasYaCruzadas,
 } from "@/lib/tesoreria/peya-consultas";
 import { cargarCuentaMp } from "@/lib/tesoreria/cuenta-mp-consultas";
+import { cargarFichas } from "@/lib/tesoreria/consultas";
 import { cargarMovimientosProveedor, cargarImputaciones } from "@/lib/tesoreria/proveedores-consultas";
 import { deudaDelResumen, estadoPorCompra, totalAdeudado } from "@/lib/tesoreria/proveedores-cuenta";
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
@@ -243,7 +244,7 @@ export default async function TesoreriaPage({
   let provError = "";
   if (vista === "proveedores") {
     try {
-      const [pendientes, movimientos, imputaciones] = await Promise.all([cargarEgresosPendientes(admin), cargarMovimientosProveedor(admin), cargarImputaciones(admin, true)]);
+      const [pendientes, movimientos, imputaciones, fichas] = await Promise.all([cargarEgresosPendientes(admin), cargarMovimientosProveedor(admin), cargarImputaciones(admin, true), cargarFichas(admin)]);
       const nombreProveedor = new Map(datos.proveedores.map((p) => [p.id, p.nombre]));
       const nombreLocal = new Map(datos.sucursales.map((s) => [s.id, s.nombre]));
       const d = deudaDelResumen(pendientes, movimientos, nombreProveedor, nombreLocal, imputaciones);
@@ -255,7 +256,7 @@ export default async function TesoreriaPage({
       }
       prov = {
         cuentas: d.cuentas, totales: totalAdeudado(d.cuentas), sinProveedor: d.sinProveedor,
-        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal), imputaciones, hoy: fechaHoyAR(),
+        nombreProveedor: Object.fromEntries(nombreProveedor), nombreLocal: Object.fromEntries(nombreLocal), imputaciones, hoy: fechaHoyAR(), fichas,
       };
     } catch (e) {
       provError = e instanceof Error ? e.message : String(e);

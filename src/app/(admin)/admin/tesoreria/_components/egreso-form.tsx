@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { registrarEgreso, crearUrlSubidaComprobante, completarCostosEntrega } from "../actions";
+import { FichaForm } from "./fichas-proveedores-view";
 import { CostosTabla, costosAEnviar, costosIniciales, costosValidos, hayCostosCargados, type ValoresCosto } from "./costos-entrega";
 import { sumarDias } from "@/lib/tesoreria/deuda-vencimientos";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -19,7 +20,7 @@ import type { EntregaPendiente } from "@/lib/tesoreria/consultas";
 // haga falta con la factura o el remito real en la mano.
 
 export type Borrador = Partial<Omit<EgresoEntrada, "monto">> & { monto?: number };
-type Opcion = { id: string; nombre: string; plazo_pago_dias?: number | null };
+type Opcion = { id: string; nombre: string; plazo_pago_dias?: number | null; da_factura?: string | null };
 
 // Tickets y facturas tienen que poder leerse: más grandes que las fotos de productos (1000 px).
 const LADO_COMPROBANTE_PX = 1600;
@@ -85,9 +86,13 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
   const [nota, setNota]               = useState(b.nota ?? "");
   // Costo unitario de lo que ingresó al kiosco (el personal solo carga el stock): se completa acá mirando la factura.
   const [costos, setCostos] = useState<Record<string, ValoresCosto>>({});
+  // Proveedores dados de alta desde este mismo formulario (la lista de la pantalla se actualiza al refrescar).
+  const [extras, setExtras] = useState<Opcion[]>([]);
+  const [altaRapida, setAltaRapida] = useState(false);
+  const lista = [...proveedores, ...extras.filter((x) => !proveedores.some((p) => p.id === x.id))];
   const [entregasElegidas, setEntregasElegidas] = useState<Set<string>>(new Set(b.entregas_ids ?? []));
   const conProveedor = !esRetiro && proveedorId !== "";
-  const plazo = proveedores.find((p) => p.id === proveedorId)?.plazo_pago_dias ?? null;
+  const plazo = lista.find((p) => p.id === proveedorId)?.plazo_pago_dias ?? null;
   const venceSugerido = plazo !== null && fecha ? sumarDias(fecha, plazo) : "";
   const venceFinal = venceManual ?? venceSugerido;
   const [archivo, setArchivo]         = useState<File | null>(null);
@@ -109,6 +114,15 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
     return firma.path;
   }
 
+  // Al elegir un proveedor la compra queda «todavía se debe» y, si su ficha dice que siempre (o nunca) da factura, se propone eso.
+  function elegirProveedor(id: string, recien?: Opcion) {
+    setProveedorId(id);
+    if (!id) return;
+    setPagado(false);
+    const df = (recien ?? lista.find((p) => p.id === id))?.da_factura ?? null;
+    if (comprobante === null && (df === "siempre" || df === "nunca")) setComprobante(df === "siempre" ? "con" : "sin");
+  }
+
   function guardar() {
     setError(null);
     setFaltante(null);
@@ -117,7 +131,7 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
     if (pagado === null)            { fallar("pagado", "Indicá si ya se pagó o todavía se debe"); return; }
     if (comprobante === null)       { fallar("comprobante", "Indicá si tiene factura o no"); return; }
     if (pagado && !origen)          { fallar("origen", "Indicá de dónde salió la plata"); return; }
-    const nombreProveedor = proveedores.find((p) => p.id === proveedorId)?.nombre ?? "";
+    const nombreProveedor = lista.find((p) => p.id === proveedorId)?.nombre ?? "";
     const vence = venceFinal;
     const desc = descripcion.trim() || nombreProveedor;
     if (!desc)                      { fallar("descripcion", "Escribí a quién o qué se pagó (o elegí un proveedor)"); return; }
@@ -225,10 +239,19 @@ function Formulario({ titulo, borrador, sucursales, proveedores, entregasDisponi
           {!esRetiro && (
             <div>
               <label className={etiqueta}>Proveedor (si está en la lista)</label>
-              <select value={proveedorId} onChange={(e) => { setProveedorId(e.target.value); if (e.target.value) setPagado(false); }} className={campo}>
+              <select value={proveedorId} onChange={(e) => elegirProveedor(e.target.value)} className={campo}>
                 <option value="">— Ninguno —</option>
-                {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                {lista.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
+              {!altaRapida && (
+                <button type="button" onClick={() => setAltaRapida(true)} className="mt-1.5 text-xs font-medium text-tierra-700 underline hover:text-tierra-800">¿No está en la lista? Dar de alta un proveedor</button>
+              )}
+              {altaRapida && (
+                <div className="mt-2">
+                  <FichaForm rapido onClose={() => setAltaRapida(false)}
+                    onGuardado={(p) => { setExtras((x) => [...x, p]); elegirProveedor(p.id, p); }} />
+                </div>
+              )}
             </div>
           )}
 

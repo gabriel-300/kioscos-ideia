@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-19",
+  "generado": "2026-10-20",
   "tablas": [
     {
       "t": "alertas_precio",
@@ -214,7 +214,7 @@
     {
       "t": "proveedores",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric | plazo_pago_dias:smallint"
+      "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric | plazo_pago_dias:smallint | razon_social:text | cuit:text | condicion_iva:text | da_factura:text | rubro:text | forma_pago:text | alias_cbu:text | email:text | notas:text"
     },
     {
       "t": "reposicion_marcas_pedido",

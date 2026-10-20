@@ -1472,6 +1472,15 @@ export type Database = {
           is_active: boolean
           modo_facturacion: string
           nombre: string
+          razon_social: string | null
+          cuit: string | null
+          condicion_iva: string | null
+          da_factura: string | null
+          rubro: string | null
+          forma_pago: string | null
+          alias_cbu: string | null
+          email: string | null
+          notas: string | null
           plazo_pago_dias: number | null
           porcentaje_descuento: number | null
           updated_by: string | null
@@ -1484,6 +1493,15 @@ export type Database = {
           is_active?: boolean
           modo_facturacion?: string
           nombre: string
+          razon_social?: string | null
+          cuit?: string | null
+          condicion_iva?: string | null
+          da_factura?: string | null
+          rubro?: string | null
+          forma_pago?: string | null
+          alias_cbu?: string | null
+          email?: string | null
+          notas?: string | null
           plazo_pago_dias?: number | null
           porcentaje_descuento?: number | null
           updated_by?: string | null
@@ -1496,6 +1514,16 @@ export type Database = {
           is_active?: boolean
           modo_facturacion?: string
           nombre?: string
+          razon_social?: string | null
+          cuit?: string | null
+          condicion_iva?: string | null
+          da_factura?: string | null
+          rubro?: string | null
+          forma_pago?: string | null
+          alias_cbu?: string | null
+          email?: string | null
+          notas?: string | null
+          plazo_pago_dias?: number | null
           porcentaje_descuento?: number | null
           updated_by?: string | null
         }

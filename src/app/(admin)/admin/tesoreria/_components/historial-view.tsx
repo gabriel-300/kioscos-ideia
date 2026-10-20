@@ -29,6 +29,7 @@ const COLOR: Record<string, string> = {
   peya_pedido_revisado:         "border-amber-200 bg-amber-50 text-amber-700",
   egreso_vencimiento:           "border-blue-200 bg-blue-50 text-blue-700",
   entrega_costos:               "border-blue-200 bg-blue-50 text-blue-700",
+  proveedor_ficha:              "border-blue-200 bg-blue-50 text-blue-700",
 };
 
 export function HistorialView({ filas }: { filas: FilaHistorial[] }) {

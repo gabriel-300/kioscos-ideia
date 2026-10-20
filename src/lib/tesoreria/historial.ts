@@ -19,6 +19,7 @@ export const ACCIONES_HISTORIAL = [
   "peya_pedido_revisado",
   "egreso_vencimiento",
   "entrega_costos",
+  "proveedor_ficha",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -45,6 +46,7 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   peya_pedido_revisado:         "Pedido de PedidosYa revisado",
   egreso_vencimiento:           "Vencimiento de un remito o factura",
   entrega_costos:               "Costos de una mercadería cargados",
+  proveedor_ficha:              "Ficha de proveedor",
 };
 
 export interface EntradaHistorial {
@@ -87,6 +89,10 @@ const plata  = (v: Json | undefined) => (numero(v) !== null ? AR.format(numero(v
 const ORIGEN: Record<string, string> = {
   retiro_caja: "retiro de caja", efectivo_tesoreria: "efectivo de Tesorería", transferencia: "transferencia", mercadopago: "Mercado Pago",
 };
+const CAMPO_FICHA: Record<string, string> = {
+  nombre: "nombre", razon_social: "razón social", cuit: "CUIT", condicion_iva: "condición de IVA", da_factura: "si da factura", rubro: "rubro",
+  forma_pago: "forma de pago", plazo_pago_dias: "plazo de pago", alias_cbu: "alias o CBU", contacto: "contacto", email: "email", notas: "notas",
+};
 const PERMISO: Record<string, string> = { es_administrativo: "administrativo de Tesorería", es_socio: "socio" };
 
 // Una frase en castellano de lo que pasó, para leer el historial sin abrir cada fila.
@@ -109,6 +115,12 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       const quien = `«${texto(d.descripcion) ?? "un remito"}»`;
       if (!fecha(d.nuevo)) return `Sacó el vencimiento de ${quien}`;
       return fecha(d.anterior) ? `Cambió el vencimiento de ${quien} de ${fecha(d.anterior)} a ${fecha(d.nuevo)}` : `Fijó el vencimiento de ${quien} al ${fecha(d.nuevo)}`;
+    }
+    case "proveedor_ficha": {
+      const quien = `«${texto(d.proveedor) ?? "un proveedor"}»`;
+      if (d.alta === true) return `Dio de alta al proveedor ${quien}`;
+      const campos = d.cambios && typeof d.cambios === "object" && !Array.isArray(d.cambios) ? Object.keys(d.cambios) : [];
+      return `Actualizó la ficha de ${quien}${campos.length > 0 ? ` (${campos.map((c) => CAMPO_FICHA[c] ?? c).join(", ")})` : ""}`;
     }
     case "entrega_costos":
       return `Cargó los costos de ${numero(d.productos) ?? 0} ${numero(d.productos) === 1 ? "producto" : "productos"} de una mercadería${texto(d.proveedor) ? ` de ${texto(d.proveedor)}` : ""} (total ${plata(d.total)})`;

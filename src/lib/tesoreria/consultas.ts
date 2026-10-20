@@ -7,11 +7,12 @@ import { fetchAll } from "@/lib/supabase/paginar";
 import type { Egreso, TesoreriaConfig } from "./tipos";
 import type { SobreRecibido } from "./calculos";
 import type { FilaHistorial, AccionHistorial } from "./historial";
+import type { FichaProveedor } from "./proveedores-ficha";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
 export interface SucursalTesoreria { id: string; nombre: string }
-export interface ProveedorLista    { id: string; nombre: string; plazo_pago_dias: number | null }
+export interface ProveedorLista    { id: string; nombre: string; plazo_pago_dias: number | null; da_factura: string | null }
 
 export interface RetiroPendiente {
   id: string; sucursal_id: string; fecha: string; monto: number; motivo: string | null; comprobante_image_url: string | null;
@@ -61,9 +62,18 @@ export async function cargarSucursales(admin: Admin): Promise<SucursalTesoreria[
 }
 
 export async function cargarProveedores(admin: Admin): Promise<ProveedorLista[]> {
-  const { data, error } = await admin.from("proveedores").select("id, nombre, plazo_pago_dias").eq("is_active", true).order("nombre");
+  const { data, error } = await admin.from("proveedores").select("id, nombre, plazo_pago_dias, da_factura").eq("is_active", true).order("nombre");
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+// Fichas contables de todos los proveedores, activos o no (migración 116): lo que falta completar de cada uno se ve en Tesorería.
+export async function cargarFichas(admin: Admin): Promise<FichaProveedor[]> {
+  const { data, error } = await admin.from("proveedores")
+    .select("id, nombre, is_active, razon_social, cuit, condicion_iva, da_factura, rubro, forma_pago, plazo_pago_dias, alias_cbu, contacto, email, notas")
+    .order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as FichaProveedor[];
 }
 
 export async function cargarGastosFijos(admin: Admin): Promise<GastoFijoLista[]> {

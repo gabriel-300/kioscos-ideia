@@ -9,6 +9,8 @@ import { etiquetaOrigen } from "@/lib/tesoreria/tipos";
 import { registrarMovimientoProveedor, anularMovimientoProveedor } from "../proveedores-actions";
 import { EgresoForm, type Borrador as BorradorEgreso } from "./egreso-form";
 import { DeudaVencimientosView, Vencimiento } from "./deuda-vencimientos-view";
+import { FichasProveedoresView } from "./fichas-proveedores-view";
+import type { FichaProveedor } from "@/lib/tesoreria/proveedores-ficha";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const dma = (f: string) => f.split("-").reverse().join("/");
@@ -23,6 +25,7 @@ export interface ProveedoresData {
   nombreLocal:   Record<string, string>;
   imputaciones:  Imputacion[];                  // a qué remito o factura se imputó cada pago (migración 112)
   hoy:           string;                        // YYYY-MM-DD, para separar lo vencido de lo que está a tiempo (migración 113)
+  fichas:        FichaProveedor[];              // ficha contable de cada proveedor (migración 116)
 }
 
 const etiqueta = "text-xs font-medium tracking-wide uppercase text-neutral-500 block mb-1.5";
@@ -248,7 +251,7 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
 export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: {
   data: ProveedoresData; proveedores: Opcion[]; sucursales: Opcion[]; puedeCargar: boolean;
 }) {
-  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal, imputaciones, hoy } = data;
+  const { cuentas, totales, sinProveedor, nombreProveedor, nombreLocal, imputaciones, hoy, fichas } = data;
   const [form, setForm] = useState<Borrador | null>(null);
   // Remito o factura de un proveedor: es una compra (el mismo formulario de egresos) que se carga «todavía se debe» y suma a su cuenta.
   const [compra, setCompra] = useState<BorradorEgreso | null>(null);
@@ -408,6 +411,8 @@ export function ProveedoresView({ data, proveedores, sucursales, puedeCargar }: 
 
       <EgresoForm open={!!compra} titulo="Remito o factura de proveedor" borrador={compra} sucursales={sucursales} proveedores={proveedores}
         onClose={() => setCompra(null)} />
+
+      <FichasProveedoresView fichas={fichas} puedeCargar={puedeCargar} />
 
       {sinProveedor.length > 0 && (
         <section className="space-y-2">

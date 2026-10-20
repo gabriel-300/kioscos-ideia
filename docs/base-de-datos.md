@@ -1,6 +1,6 @@
 # Base de datos de Kioscos IDEIA: mapa legible
 
-> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-19) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
+> Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-20) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
 Son **55 tablas y vistas**, **156 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
@@ -253,6 +253,15 @@ Otras columnas: `id`, `promo_id`, `sucursal_id`, `updated_at`, `updated_by`.
 | `modo_facturacion` | texto | costo = el costo es lo que se factura; precio_sugerido = el costo se calcula desde el precio de venta. |
 | `porcentaje_descuento` | número | Descuento aplicado al costo en el modo precio_sugerido. |
 | `plazo_pago_dias` | entero | Días de plazo para pagarle (0 = contado). Vacío = sin plazo fijo. Solo sirve para proponer el vencimiento al cargar un remito o factura en Tesorería. |
+| `razon_social` | texto | Nombre legal tal como figura en la factura. Opcional. |
+| `cuit` | texto | CUIT de 11 dígitos, sin guiones. Único entre proveedores. Opcional (los informales no tienen). |
+| `condicion_iva` | texto | responsable_inscripto, monotributo, exento o no_responsable. Opcional. |
+| `da_factura` | texto | siempre, a_veces o nunca: precarga «con factura» o «sin factura» al cargar una compra. Opcional. |
+| `rubro` | texto | Qué se le compra, habitualmente: mercaderia, servicios, alquiler u otro. |
+| `forma_pago` | texto | Cómo se le suele pagar: efectivo_tesoreria, transferencia o mercadopago. |
+| `alias_cbu` | texto | Alias o CBU/CVU para transferirle. |
+| `email` | texto | Email del proveedor. |
+| `notas` | texto | Notas libres sobre el proveedor. |
 
 Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 

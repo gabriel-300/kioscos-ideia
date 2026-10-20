@@ -317,7 +317,10 @@ export default async function AyudaPage() {
               y completá el <Campo>costo de cada producto</Campo> (el kiosco solo carga las cantidades); también se completa desde el
               detalle de cada ingreso del <Campo>Control</Campo>. Abajo, el <Campo>Control</Campo> lista los ingresos del kiosco que todavía no tienen
               compra; los que no corresponden (una carga duplicada, una transferencia entre kioscos) se marcan{" "}
-              <Boton>No corresponde</Boton> y no afectan el stock.
+              <Boton>No corresponde</Boton> y no afectan el stock. Los datos de cada proveedor para la contabilidad (<Campo>CUIT</Campo>,
+              condición de IVA, si da factura, plazo y forma de pago) se cargan en <Campo>Proveedores → Fichas de proveedores</Campo>; la
+              lista marca qué falta de cada uno. Si no está en la lista al cargar una compra, tocá <Boton>Dar de alta un proveedor</Boton> en
+              el mismo formulario: el sistema avisa si el nombre se parece a uno que ya existe, para no duplicarlo.
             </Paso>
             <Paso n={3}>
               La cuenta de cada proveedor se lleva en la solapa <Campo>Proveedores</Campo>: tocá{" "}
