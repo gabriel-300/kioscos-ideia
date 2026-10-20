@@ -13,11 +13,18 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
   const chip = "inline-flex items-center rounded-full px-3 py-1.5 text-[12.5px] font-bold text-pd-cream bg-white/10 whitespace-nowrap";
 
   return (
-    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-14 pb-6 md:pt-10">
+    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-14 pb-6 md:pt-10"
+      style={{
+        backgroundImage:
+          "linear-gradient(90deg, rgba(34,25,15,.92) 0%, rgba(34,25,15,.78) 45%, rgba(34,25,15,.50) 100%), url(/marca/fondo-cabecera.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center 40%",
+      }}
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 -right-20 size-72 rounded-full"
-        style={{ background: "radial-gradient(circle at 40% 40%, rgba(217,63,30,.75), rgba(217,63,30,0) 68%)" }}
+        style={{ background: "radial-gradient(circle at 40% 40%, rgba(217,63,30,.35), rgba(217,63,30,0) 68%)" }}
       />
       <div className="relative mx-auto max-w-[1100px]">
       <div className={LOGO_MARCA ? "relative" : "relative flex items-start gap-3.5"}>
