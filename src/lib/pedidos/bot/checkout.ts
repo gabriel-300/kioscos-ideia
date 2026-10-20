@@ -14,6 +14,7 @@ export type ConfigCheckout = {
   retiro:     boolean;
   delivery:   boolean;
   zonas:      ZonaBot[];
+  efectivo:   boolean; // si se acepta pagar en efectivo; si no, el pago es siempre Mercado Pago y no se pregunta
 };
 
 // Delivery sin ninguna zona cargada no se puede ofrecer (no hay costo ni área).
@@ -31,7 +32,7 @@ export type SiguientePaso =
   | { paso: "no_disponible"; checkout: DatosCheckout };
 
 // Recorre los pasos en orden y devuelve el primero que falta:
-// nombre → entrega → (zona → dirección si es envío) → pago → listo.
+// nombre → entrega → (zona → dirección si es envío) → pago (solo si se acepta efectivo) → listo.
 // Si hay una sola forma de entrega la elige sola.
 export function siguientePaso(cfg: ConfigCheckout, nombre: string | null, checkout: DatosCheckout): SiguientePaso {
   const opciones = opcionesEntrega(cfg);
@@ -51,6 +52,7 @@ export function siguientePaso(cfg: ConfigCheckout, nombre: string | null, checko
     if (!co.direccion) return { paso: "pidiendo_direccion", checkout: co };
   }
 
+  if (!cfg.efectivo && co.pago !== "mercadopago_link") co = { ...co, pago: "mercadopago_link" };
   if (!co.pago) return { paso: "eligiendo_pago", checkout: co };
   return { paso: "listo", checkout: co };
 }

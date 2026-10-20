@@ -15,6 +15,7 @@ import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
+import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
@@ -47,7 +48,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     referencia: "",
     nombre:     "",
     whatsapp:   "",
-    pago:       "efectivo",
+    pago:       aceptaEfectivoOnline() ? "efectivo" : "mercadopago_link",
     pagoCon:    "",
     notas:      "",
   }), [enviosDisponibles, config.zonas]);
@@ -105,6 +106,8 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
         whatsapp: formRestaurado.whatsapp || (config.cliente.telefono ?? ""),
       };
     }
+    // Un formulario guardado antes de sacar el efectivo no puede volver a elegirlo.
+    if (!aceptaEfectivoOnline() && formRestaurado.pago === "efectivo") formRestaurado = { ...formRestaurado, pago: "mercadopago_link", pagoCon: "" };
     setFormEstado(formRestaurado);
     setHidratado(true);
     if (!estadoHorario(config.horario).abierto && !sessionStorage.getItem(`pedir:cerrado:${config.sucursalId}`)) setAvisoCerrado(true);

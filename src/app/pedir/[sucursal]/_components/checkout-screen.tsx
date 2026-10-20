@@ -44,6 +44,7 @@ function Opcion({ activa, onClick, titulo, detalle, derecha, deshabilitada }: {
 import { calcularBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { BeneficioCliente } from "./beneficio-cliente";
 import { pedirUbicacion } from "@/lib/geolocalizar";
+import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 
 export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
@@ -249,12 +250,14 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
         {/* 5. Pago */}
         <section aria-labelledby="pd-pago-t" className="space-y-2.5">
           <h3 id="pd-pago-t" className="text-[13.5px] font-bold !tracking-normal">Pago</h3>
-          <Opcion
-            activa={form.pago === "efectivo"}
-            onClick={() => setForm({ pago: "efectivo" })}
-            titulo="Efectivo"
-            detalle={form.modo === "envio" ? "Avisanos con cuánto pagás y llevamos el vuelto" : "Pagás cuando retirás el pedido"}
-          />
+          {aceptaEfectivoOnline() && (
+            <Opcion
+              activa={form.pago === "efectivo"}
+              onClick={() => setForm({ pago: "efectivo" })}
+              titulo="Efectivo"
+              detalle={form.modo === "envio" ? "Avisanos con cuánto pagás y llevamos el vuelto" : "Pagás cuando retirás el pedido"}
+            />
+          )}
           <Opcion
             activa={form.pago === "mercadopago_link"}
             onClick={() => setForm({ pago: "mercadopago_link" })}

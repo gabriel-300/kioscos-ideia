@@ -3,6 +3,7 @@ import { urlSeguimiento } from "../enlaces";
 import { aItemsPedido } from "./carrito";
 import type { DatosCheckout } from "./estado";
 import { siguientePaso, textoConfirmacion, type ConfigCheckout } from "./checkout";
+import { aceptaEfectivoOnline } from "../medios-pago";
 import { guardarEstado, type Admin, type Ctx } from "./contexto";
 import {
   enviarCarrito, mensaje, preguntarDireccion, preguntarEntrega, preguntarNombre, preguntarPago, preguntarZona,
@@ -33,6 +34,7 @@ async function cargarConfigCheckout(admin: Admin, sucursalId: string): Promise<C
     habilitado: !!sucursal?.is_active && !!sucursal.pedidos_online_habilitado,
     retiro:     sucursal?.retiro_habilitado ?? true,
     delivery:   !!sucursal?.delivery_habilitado,
+    efectivo:   aceptaEfectivoOnline(),
     zonas: ((zonas ?? []) as any[]).map((z) => ({
       id: z.id, nombre: z.nombre, costo: Number(z.costo), etaMin: z.eta_min, etaMax: z.eta_max,
     })),

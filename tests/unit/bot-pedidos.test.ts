@@ -9,6 +9,7 @@ const wa = vi.hoisted(() => ({
   enviarLista:   vi.fn(async (..._a: any[]) => ({ ok: true })),
 }));
 vi.mock("@/lib/whatsapp/enviar-mensaje", () => wa);
+vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => true })); // el recorrido completo prueba el flujo con efectivo
 vi.mock("@/lib/pedidos/interpretar-pedido-ia", () => ({ interpretarPedidoConIA: vi.fn(async () => []) }));
 
 import { estadoInicial, leerEstado, serializarEstado } from "@/lib/pedidos/bot/estado";
@@ -18,7 +19,7 @@ import { paginar } from "@/lib/pedidos/bot/mensajes";
 import { procesarMensajeBot } from "@/lib/pedidos/bot/procesar";
 
 const ZONA = { id: "z1", nombre: "Centro", costo: 800, etaMin: 30, etaMax: 45 };
-const cfg = (over: Partial<ConfigCheckout> = {}): ConfigCheckout => ({ habilitado: true, retiro: true, delivery: true, zonas: [ZONA], ...over });
+const cfg = (over: Partial<ConfigCheckout> = {}): ConfigCheckout => ({ habilitado: true, retiro: true, delivery: true, zonas: [ZONA], efectivo: true, ...over });
 
 describe("estado del bot", () => {
   it("un bot_paso ausente, corrupto o de otra versión arranca de cero", () => {
@@ -53,6 +54,18 @@ describe("carrito del bot", () => {
   it("aItemsPedido nunca lleva precio", () => {
     expect(aItemsPedido([{ id: "a", esPromo: false, cantidad: 1 }, { id: "b", esPromo: true, cantidad: 2 }]))
       .toEqual([{ product_id: "a", cantidad: 1 }, { promo_id: "b", cantidad: 2 }]);
+  });
+});
+
+describe("checkout del bot sin efectivo", () => {
+  it("no pregunta cómo se paga: tras la entrega queda listo con Mercado Pago", () => {
+    expect(siguientePaso(cfg({ efectivo: false }), "Ana", { tipo: "retiro_local" }))
+      .toMatchObject({ paso: "listo", checkout: { pago: "mercadopago_link" } });
+    expect(siguientePaso(cfg({ efectivo: false }), "Ana", { tipo: "delivery", zonaId: "z1", direccion: "Calle 1" }).paso).toBe("listo");
+  });
+  it("una elección vieja de efectivo se corrige a Mercado Pago", () => {
+    expect(siguientePaso(cfg({ efectivo: false }), "Ana", { tipo: "retiro_local", pago: "efectivo" }))
+      .toMatchObject({ paso: "listo", checkout: { pago: "mercadopago_link" } });
   });
 });
 

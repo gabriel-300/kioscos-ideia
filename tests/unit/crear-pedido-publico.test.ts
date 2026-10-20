@@ -3,6 +3,10 @@ import { fakeAdmin, eqDe, type Q } from "../helpers/fake-supabase";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ getAll: () => [], set: () => {} }) }));
 
+// Los tests de siempre prueban el flujo con efectivo; la regla "solo Mercado Pago" tiene los suyos más abajo.
+const medios = vi.hoisted(() => ({ efectivo: true }));
+vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => medios.efectivo }));
+
 import { crearPedidoPublico, type DatosPedidoPublico } from "@/lib/pedidos/crear-pedido-publico";
 
 const SUC = "suc-1";
@@ -29,6 +33,27 @@ function mundo(m: Mundo = {}) {
     }
   });
 }
+
+describe("crearPedidoPublico: solo Mercado Pago", () => {
+  it("con el efectivo apagado rechaza un pedido en efectivo y NO crea nada", async () => {
+    medios.efectivo = false;
+    try {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, datos({ medio_pago: "efectivo" }), "1.1.1.1");
+      expect(r.error).toMatch(/solo con Mercado Pago/);
+      expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+    } finally { medios.efectivo = true; }
+  });
+  it("con el efectivo apagado el pago con Mercado Pago sigue funcionando", async () => {
+    medios.efectivo = false;
+    try {
+      const { admin } = mundo();
+      const r = await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1");
+      expect(r.error).toBeUndefined();
+      expect(r.estado).toBe("pendiente_pago");
+    } finally { medios.efectivo = true; }
+  });
+});
 
 describe("crearPedidoPublico", () => {
   it("efectivo + retiro: queda 'confirmado' y el total sale de los precios de la base", async () => {

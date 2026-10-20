@@ -8,6 +8,7 @@ import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
 import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 import { crearCheckoutMercadoPago } from "./checkout-mercadopago";
 import { coordenadasValidas, DIRECCION_POR_GPS, redondearCoordenada } from "./ubicacion";
+import { aceptaEfectivoOnline } from "./medios-pago";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -76,6 +77,7 @@ export async function crearPedidoPublico(
   if (!telefonoValido(data.cliente_telefono ?? "")) return { error: "Escribí un WhatsApp válido (con característica, 10 dígitos)" };
   if (data.tipo_entrega !== "retiro_local" && data.tipo_entrega !== "delivery") return { error: "Elegí cómo querés recibir el pedido" };
   if (data.medio_pago !== "efectivo" && data.medio_pago !== "mercadopago_link") return { error: "Elegí cómo vas a pagar" };
+  if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline()) return { error: "Por ahora los pedidos online se pagan solo con Mercado Pago" };
   // Un envío lleva la dirección escrita, el punto GPS del celular, o las dos.
   const mandoGps = data.entrega_lat != null || data.entrega_lng != null;
   const conGps = data.tipo_entrega === "delivery" && coordenadasValidas(data.entrega_lat, data.entrega_lng);
