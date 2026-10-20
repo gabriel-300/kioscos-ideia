@@ -1,5 +1,5 @@
 import type { ConfigTienda } from "../_lib/tipos";
-import { fmt, lineasLogo, LOGO_MARCA } from "../_lib/tema";
+import { lineasLogo, LOGO_MARCA } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
 
 // Cabecera del local: fondo brand-ink con halo ember, logo generado a partir
@@ -9,7 +9,6 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
   const lineas = lineasLogo(config.nombre);
   const direccion = [config.direccion, config.localidad].filter(Boolean).join(", ");
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
-  const desde = enviosDisponibles ? Math.min(...config.zonas.map((z) => z.costo)) : null;
 
   const chip = "inline-flex items-center rounded-full px-3 py-1.5 text-[12.5px] font-bold text-pd-cream bg-white/10 whitespace-nowrap";
 
@@ -45,7 +44,7 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
           {horario.abierto ? "Abierto ahora" : "Cerrado ahora"}
         </span>
         {horario.hoyTexto && <span className={chip}>{horario.hoyTexto}</span>}
-        {desde != null && <span className={chip}>Envío desde {fmt(desde)}</span>}
+        {enviosDisponibles && <span className={chip}>Envío a domicilio</span>}
         {!enviosDisponibles && config.retiroHabilitado && <span className={chip}>Retiro en el local</span>}
       </div>
       </div>
