@@ -2,6 +2,7 @@ import type { createAdminClient } from "@/lib/supabase/server";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 import type { PedidoAviso } from "./aviso";
 import { cargarLineasDePedidos } from "./lineas-servidor";
+import { urlMapa } from "./ubicacion";
 
 // Qué pedidos online esperan una acción del local y a qué sucursales puede
 // mirar cada usuario. Lo comparten la pantalla de pedidos online y el aviso de
@@ -98,7 +99,7 @@ export async function detalleDePedidosPorAtender(admin: Admin, userId: string, r
 
   let query = (admin as any)
     .from("pedidos")
-    .select("id, numero, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, zona_nombre, medio_pago, pago_con, notas, total, costo_envio, descuento_total, expira_en, created_at, sucursales(nombre)")
+    .select("id, numero, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, medio_pago, pago_con, notas, total, costo_envio, descuento_total, expira_en, created_at, sucursales(nombre)")
     .in("id", pedidos)
     .order("created_at", { ascending: true });
   if (sucursales) query = query.in("sucursal_id", sucursales);
@@ -119,6 +120,7 @@ export async function detalleDePedidosPorAtender(admin: Admin, userId: string, r
     delivery:   p.tipo_entrega === "delivery",
     direccion:  p.direccion_entrega ?? null,
     referencia: p.direccion_referencia ?? null,
+    mapa:       p.entrega_latitud != null && p.entrega_longitud != null ? urlMapa(Number(p.entrega_latitud), Number(p.entrega_longitud)) : null,
     zona:       p.zona_nombre ?? null,
     medioPago:  p.medio_pago ?? null,
     pagoCon:    p.pago_con == null ? null : Number(p.pago_con),

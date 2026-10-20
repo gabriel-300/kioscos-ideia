@@ -1,6 +1,7 @@
 import type { LineaPedido } from "@/lib/pedidos/lineas";
 import { MINUTOS_DEMORADO, haceTiempo, type GrupoPedido } from "@/lib/pedidos/presentacion";
 import { pesos } from "@/lib/pedidos/aviso";
+import { urlMapa } from "@/lib/pedidos/ubicacion";
 import { PedidoOnlineAcciones } from "./pedido-online-acciones";
 
 // Un pedido online del personal, como tarjeta: lo más importante (qué pidió el cliente
@@ -43,6 +44,7 @@ export type PedidoTarjeta = {
   id: string; numero: number | null; origen: string; estado: string; tipo_entrega: string;
   cliente_nombre: string | null; cliente_telefono: string | null;
   direccion_entrega: string | null; direccion_referencia: string | null; zona_nombre: string | null;
+  entrega_latitud?: number | string | null; entrega_longitud?: number | string | null; // migración 118
   costo_envio: number | null; medio_pago: string | null; pago_con: number | null; notas: string | null;
   eta_min: number | null; eta_max: number | null; total: number; repartidor_id: string | null;
   movimiento_id: string | null; created_at: string; expira_en: string | null; sucursales?: { nombre: string } | null;
@@ -110,6 +112,17 @@ export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeCon
           <div className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
             <p className="font-medium">{p.direccion_entrega ?? "Sin dirección"}</p>
             {p.direccion_referencia && <p className="text-xs text-neutral-500">{p.direccion_referencia}</p>}
+            {p.entrega_latitud != null && p.entrega_longitud != null && (
+              <a
+                href={urlMapa(Number(p.entrega_latitud), Number(p.entrega_longitud))}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#1d4ed8" }}
+                className="mt-1 inline-block text-xs font-semibold underline"
+              >
+                📍 Abrir en el mapa
+              </a>
+            )}
             {Number(p.costo_envio) > 0 && <p className="text-xs text-neutral-500">Envío {pesos(Number(p.costo_envio))}</p>}
           </div>
         )}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { LocalParaPedir } from "@/lib/pedidos/locales";
 import { formatearDistancia, ordenarPorCercania, type Punto } from "@/lib/geo";
+import { pedirUbicacion } from "@/lib/geolocalizar";
 
 // PRIVACIDAD: la ubicación del cliente vive solo en el estado de este componente.
 // No se envía al servidor, no se guarda (ni en localStorage), no va en la URL, no se
@@ -15,17 +16,6 @@ import { formatearDistancia, ordenarPorCercania, type Punto } from "@/lib/geo";
 
 const CLAVE_ULTIMO_LOCAL = "pedir:ultimo-local";
 const VIGENCIA_ULTIMO_LOCAL_MS = 90 * 24 * 60 * 60 * 1000;
-const TIMEOUT_UBICACION_MS = 10_000;
-
-// Navegadores embebidos (WhatsApp, Instagram, Facebook…) suelen bloquear la geolocalización.
-const NAVEGADOR_EMBEBIDO = /FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger|; wv\)/i;
-
-const MENSAJES = {
-  denegado: "No pudimos acceder a tu ubicación. Si querés ordenar por cercanía, habilitá el permiso de ubicación del navegador. Mientras tanto, elegí el local de la lista.",
-  noDisponible: "No pudimos saber dónde estás en este momento. Elegí el local de la lista.",
-  timeout: "Tardó demasiado en encontrar tu ubicación. Probá de nuevo o elegí el local de la lista.",
-  embebido: "Este navegador no deja usar tu ubicación. Abrí esta página en Chrome o Safari para ordenar por cercanía, o elegí el local de la lista.",
-} as const;
 
 function leerUltimoLocal(): string | null {
   try {
@@ -64,32 +54,12 @@ export function ElegirLocal({ locales }: { locales: LocalParaPedir[] }) {
   );
   const recordado = ultimoId ? locales.find((l) => l.id === ultimoId) ?? null : null;
 
-  function usarMiUbicacion() {
-    const embebido = NAVEGADOR_EMBEBIDO.test(navigator.userAgent);
-    if (!navigator.geolocation) {
-      setEstado({ tipo: "error", mensaje: embebido ? MENSAJES.embebido : MENSAJES.noDisponible });
-      return;
-    }
+  async function usarMiUbicacion() {
     setEstado({ tipo: "buscando" });
-    try {
-      navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPunto({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setEstado({ tipo: "listo" });
-      },
-      (err) => {
-        // Si el permiso falla dentro de un navegador embebido, el motivo real es el navegador.
-        const mensaje = err.code === err.PERMISSION_DENIED ? (embebido ? MENSAJES.embebido : MENSAJES.denegado)
-          : err.code === err.TIMEOUT ? MENSAJES.timeout
-          : MENSAJES.noDisponible;
-        setEstado({ tipo: "error", mensaje });
-      },
-      { timeout: TIMEOUT_UBICACION_MS, maximumAge: 60_000 }, // sin enableHighAccuracy: alcanza con aproximada y ahorra batería
-      );
-    } catch {
-      // algunos navegadores embebidos lanzan en vez de avisar por el callback de error
-      setEstado({ tipo: "error", mensaje: embebido ? MENSAJES.embebido : MENSAJES.noDisponible });
-    }
+    const r = await pedirUbicacion("elegí el local de la lista");
+    if ("error" in r) { setEstado({ tipo: "error", mensaje: r.error }); return; }
+    setPunto(r.punto);
+    setEstado({ tipo: "listo" });
   }
 
   return (

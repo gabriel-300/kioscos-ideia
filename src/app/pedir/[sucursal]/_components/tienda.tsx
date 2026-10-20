@@ -60,6 +60,8 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
   const [form, setFormEstado] = useState<FormCheckout>(formInicial);
   const [hidratado, setHidratado] = useState(false);
   const [confirmado, setConfirmado] = useState<PedidoConfirmado | null>(null);
+  // Punto GPS de entrega: solo en memoria, no se guarda en el navegador (a diferencia del resto del formulario).
+  const [ubicacion, setUbicacion] = useState<{ lat: number; lng: number } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => new Date());
@@ -237,6 +239,8 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
         zona_entrega_id:      form.modo === "envio" ? form.zonaId : null,
         direccion_entrega:    form.modo === "envio" ? form.calle : null,
         direccion_referencia: form.modo === "envio" ? form.referencia : null,
+        entrega_lat:          form.modo === "envio" ? (ubicacion?.lat ?? null) : null,
+        entrega_lng:          form.modo === "envio" ? (ubicacion?.lng ?? null) : null,
         medio_pago:           form.pago,
         pago_con:             pagoCon,
         items: lineas.map((l) => (l.item.esPromo ? { promo_id: l.item.id, cantidad: l.qty } : { product_id: l.item.id, cantidad: l.qty })),
@@ -274,6 +278,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     guardarPedidoReciente(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
     guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp, calle: form.calle, referencia: form.referencia } satisfies Contacto);
     setCantidades({});
+    setUbicacion(null);
     setPantalla("confirmacion");
   }
 
@@ -410,6 +415,8 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
           config={config}
           form={form}
           setForm={setForm}
+          ubicacion={ubicacion}
+          setUbicacion={setUbicacion}
           subtotal={subtotal}
           cantidadProductos={cantidadTotal}
           horario={horario}

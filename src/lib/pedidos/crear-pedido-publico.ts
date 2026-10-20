@@ -7,6 +7,7 @@ import { estadoHorario, normalizarHorario } from "./horario";
 import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
 import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 import { crearCheckoutMercadoPago } from "./checkout-mercadopago";
+import { coordenadasValidas, DIRECCION_POR_GPS, redondearCoordenada } from "./ubicacion";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -29,6 +30,8 @@ export type DatosPedidoPublico = {
   zona_entrega_id:      string | null;
   direccion_entrega:    string | null;
   direccion_referencia: string | null;
+  entrega_lat?:         number | null; // punto GPS de entrega (opcional): reemplaza a la dirección escrita
+  entrega_lng?:         number | null;
   medio_pago:           "efectivo" | "mercadopago_link";
   pago_con:             number | null;
   items:                ItemCarritoInput[]; // nunca lleva precio -- el público no lo manda
@@ -73,9 +76,13 @@ export async function crearPedidoPublico(
   if (!telefonoValido(data.cliente_telefono ?? "")) return { error: "Escribí un WhatsApp válido (con característica, 10 dígitos)" };
   if (data.tipo_entrega !== "retiro_local" && data.tipo_entrega !== "delivery") return { error: "Elegí cómo querés recibir el pedido" };
   if (data.medio_pago !== "efectivo" && data.medio_pago !== "mercadopago_link") return { error: "Elegí cómo vas a pagar" };
+  // Un envío lleva la dirección escrita, el punto GPS del celular, o las dos.
+  const mandoGps = data.entrega_lat != null || data.entrega_lng != null;
+  const conGps = data.tipo_entrega === "delivery" && coordenadasValidas(data.entrega_lat, data.entrega_lng);
   if (data.tipo_entrega === "delivery") {
     if (!data.zona_entrega_id) return { error: "Elegí la zona de entrega" };
-    if (!data.direccion_entrega?.trim()) return { error: "Falta la dirección de entrega" };
+    if (mandoGps && !conGps) return { error: "No pudimos tomar tu ubicación. Probá de nuevo o escribí la dirección." };
+    if (!data.direccion_entrega?.trim() && !conGps) return { error: "Falta la dirección de entrega" };
   }
 
   const rateLimitError = await chequearRateLimit(admin, identificadorRateLimit);
@@ -161,7 +168,7 @@ export async function crearPedidoPublico(
       cliente_wa_id:        contexto?.bot?.cliente_wa_id ?? null,
       estado:               esEfectivo ? "confirmado" : "pendiente_pago",
       tipo_entrega:         data.tipo_entrega,
-      direccion_entrega:    data.tipo_entrega === "delivery" ? data.direccion_entrega!.trim() : null,
+      direccion_entrega:    data.tipo_entrega === "delivery" ? (data.direccion_entrega?.trim() || DIRECCION_POR_GPS) : null,
       direccion_referencia: data.tipo_entrega === "delivery" ? (data.direccion_referencia?.trim() || null) : null,
       zona_entrega_id:      data.tipo_entrega === "delivery" ? data.zona_entrega_id : null,
       zona_nombre:          zonaNombre,
@@ -171,6 +178,8 @@ export async function crearPedidoPublico(
       subtotal:             resuelto.subtotal,
       costo_envio:          costoEnvio,
       total,
+      // Columnas de la migración 118: solo se escriben si el cliente compartió su ubicación.
+      ...(conGps ? { entrega_latitud: redondearCoordenada(data.entrega_lat as number), entrega_longitud: redondearCoordenada(data.entrega_lng as number) } : {}),
       // Columnas de la migración 099: solo se escriben si hay cliente registrado.
       ...(contexto?.clienteId ? { cliente_id: contexto.clienteId, descuento_total: beneficio.descuentoProductos } : {}),
       medio_pago:           data.medio_pago,

@@ -14,6 +14,7 @@ export type PedidoAviso = {
   delivery:   boolean;
   direccion:  string | null;
   referencia: string | null;
+  mapa:       string | null; // enlace a Google Maps si el cliente compartió su ubicación
   zona:       string | null;
   medioPago:  string | null;
   pagoCon:    number | null;

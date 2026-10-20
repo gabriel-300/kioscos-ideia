@@ -53,6 +53,11 @@ function Tarjeta({ p }: { p: PedidoAviso }) {
               {p.direccion}{p.referencia ? ` (${p.referencia})` : ""}
             </dd>
           )}
+          {p.delivery && p.mapa && (
+            <dd>
+              <a href={p.mapa} target="_blank" rel="noopener noreferrer" style={{ color: "#1d4ed8" }} className="text-xs font-semibold underline">📍 Abrir en el mapa</a>
+            </dd>
+          )}
         </div>
         <div>
           <dt className="sr-only">Pago</dt>

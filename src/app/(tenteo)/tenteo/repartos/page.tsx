@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
+import { urlMapa } from "@/lib/pedidos/ubicacion";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Mis entregas — Kioscos IDEIA" };
@@ -26,7 +27,7 @@ export default async function RepartosPage() {
 
   let query = (admin as any)
     .from("pedidos")
-    .select("id, numero, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, zona_nombre, medio_pago, pago_con, total, created_at, sucursales(nombre)")
+    .select("id, numero, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, medio_pago, pago_con, total, created_at, sucursales(nombre)")
     .eq("estado", "en_reparto")
     .order("created_at", { ascending: true });
   if (role === "repartidor") query = query.eq("repartidor_id", user.id);
@@ -54,6 +55,17 @@ export default async function RepartosPage() {
                 <p className="font-medium text-neutral-900">{p.cliente_nombre ?? "Sin nombre"}</p>
                 <p className="text-sm text-neutral-600 mt-0.5">{p.direccion_entrega}</p>
                 {p.direccion_referencia && <p className="text-xs text-neutral-500">{p.direccion_referencia}</p>}
+                {p.entrega_latitud != null && p.entrega_longitud != null && (
+                  <a
+                    href={urlMapa(Number(p.entrega_latitud), Number(p.entrega_longitud))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#fff" }}
+                    className="mt-2 inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold"
+                  >
+                    📍 Abrir en el mapa
+                  </a>
+                )}
                 <p className="text-xs text-neutral-400 mt-1">{p.cliente_telefono} · {p.sucursales?.nombre}</p>
                 {(lineasPorPedido.get(p.id) ?? []).length > 0 && (
                   <ul className="mt-2 space-y-0.5">

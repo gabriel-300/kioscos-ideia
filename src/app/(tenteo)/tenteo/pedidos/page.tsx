@@ -29,7 +29,7 @@ export default async function PedidosOnlinePage() {
 
   let query = (admin as any)
     .from("pedidos")
-    .select("id, numero, origen, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, zona_nombre, costo_envio, medio_pago, pago_con, notas, eta_min, eta_max, total, repartidor_id, movimiento_id, expira_en, created_at, sucursales(nombre)")
+    .select("id, numero, origen, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, costo_envio, medio_pago, pago_con, notas, eta_min, eta_max, total, repartidor_id, movimiento_id, expira_en, created_at, sucursales(nombre)")
     .not("estado", "in", "(carrito,cancelado,expirado)")
     .order("created_at", { ascending: false })
     .limit(200);

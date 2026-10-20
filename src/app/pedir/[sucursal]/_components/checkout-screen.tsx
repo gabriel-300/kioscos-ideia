@@ -43,11 +43,14 @@ function Opcion({ activa, onClick, titulo, detalle, derecha, deshabilitada }: {
 
 import { calcularBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { BeneficioCliente } from "./beneficio-cliente";
+import { pedirUbicacion } from "@/lib/geolocalizar";
 
-export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
+export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
   form:              FormCheckout;
   setForm:           (parcial: Partial<FormCheckout>) => void;
+  ubicacion:         { lat: number; lng: number } | null;
+  setUbicacion:      (u: { lat: number; lng: number } | null) => void;
   subtotal:          number;
   cantidadProductos: number;
   horario:           EstadoHorario;
@@ -58,6 +61,18 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
   onConfirmar:       () => void;
 }) {
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [errorUbicacion, setErrorUbicacion] = useState<string | null>(null);
+
+  async function compartirUbicacion() {
+    setErrorUbicacion(null);
+    setBuscandoUbicacion(true);
+    const r = await pedirUbicacion("escribí tu dirección");
+    setBuscandoUbicacion(false);
+    if ("error" in r) { setErrorUbicacion(r.error); return; }
+    setUbicacion(r.punto);
+    setErrores((prev) => { const { ["pd-f-calle"]: _c, ["pd-f-referencia"]: _r, ...resto } = prev; return resto; });
+  }
 
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const zona = form.modo === "envio" ? config.zonas.find((z) => z.id === form.zonaId) ?? null : null;
@@ -85,8 +100,9 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
     const e: Record<string, string> = {};
     if (form.modo === "envio") {
       if (!form.zonaId) e["pd-f-zona"] = "Elegí la zona de entrega";
-      if (!form.calle.trim()) e["pd-f-calle"] = "Escribí la calle y el número";
-      if (!form.referencia.trim()) e["pd-f-referencia"] = "Agregá una referencia (entre calles, portón, color de casa)";
+      // Con la ubicación del GPS no hace falta escribir la calle ni la referencia.
+      if (!ubicacion && !form.calle.trim()) e["pd-f-calle"] = "Escribí la calle y el número, o usá tu ubicación";
+      if (!ubicacion && !form.referencia.trim()) e["pd-f-referencia"] = "Agregá una referencia (entre calles, portón, color de casa)";
     }
     if (form.nombre.trim().length < 2) e["pd-f-nombre"] = "Escribí tu nombre";
     if (!telefonoValido(form.whatsapp)) e["pd-f-whatsapp"] = "Escribí tu WhatsApp con característica (10 dígitos)";
@@ -183,11 +199,34 @@ export function CheckoutScreen({ config, form, setForm, subtotal, cantidadProduc
           <section aria-labelledby="pd-dir-t" className="space-y-2.5">
             <h3 id="pd-dir-t" className="text-[13.5px] font-bold !tracking-normal">Dirección</h3>
             <div>
-              <input id="pd-f-calle" value={form.calle} onChange={(e) => setForm({ calle: e.target.value })} placeholder="Calle y número" autoComplete="street-address" className={`${claseCampo(errores["pd-f-calle"])} h-[50px]`} />
+              {ubicacion ? (
+                <div className="flex items-center justify-between gap-3 rounded-[14px] border border-pd-success/40 bg-pd-success/10 px-3.5 py-3">
+                  <p className="text-[14px] font-semibold text-pd-success">📍 Ubicación guardada</p>
+                  <button type="button" onClick={() => setUbicacion(null)} className="text-[13px] font-semibold text-pd-ink-600 underline">Quitar</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={compartirUbicacion}
+                  disabled={buscandoUbicacion}
+                  className="pd-display flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-pd-ember bg-pd-tint text-[14.5px] font-bold text-pd-ember disabled:opacity-60"
+                >
+                  {buscandoUbicacion ? "Buscando tu ubicación…" : "📍 Usar mi ubicación actual"}
+                </button>
+              )}
+              {errorUbicacion && <p role="status" className="mt-2 rounded-xl bg-pd-warm px-3.5 py-2.5 text-[13px] leading-snug text-pd-ink-600">{errorUbicacion}</p>}
+              <p className="mt-1.5 px-1 text-[12px] leading-snug text-pd-ink-400">
+                {ubicacion
+                  ? "Se la mostramos solo al local y al repartidor, para que te encuentre. Sumá una referencia (portón, color de casa) si querés."
+                  : "Así el repartidor llega exacto. Solo se usa para esta entrega. O escribí tu dirección abajo."}
+              </p>
+            </div>
+            <div>
+              <input id="pd-f-calle" value={form.calle} onChange={(e) => setForm({ calle: e.target.value })} placeholder={ubicacion ? "Calle y número (opcional)" : "Calle y número"} autoComplete="street-address" className={`${claseCampo(errores["pd-f-calle"])} h-[50px]`} />
               <MsgError texto={errores["pd-f-calle"]} />
             </div>
             <div>
-              <input id="pd-f-referencia" value={form.referencia} onChange={(e) => setForm({ referencia: e.target.value })} placeholder="Entre calles / referencia (portón, casa)" className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`} />
+              <input id="pd-f-referencia" value={form.referencia} onChange={(e) => setForm({ referencia: e.target.value })} placeholder={ubicacion ? "Referencia (opcional): portón, color de casa" : "Entre calles / referencia (portón, casa)"} className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`} />
               <MsgError texto={errores["pd-f-referencia"]} />
             </div>
           </section>

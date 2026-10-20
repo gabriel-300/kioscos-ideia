@@ -57,6 +57,45 @@ describe("crearPedidoPublico", () => {
     expect(eqDe(zonaQ, "is_active")).toBe(true);
   });
 
+  describe("ubicación GPS de entrega", () => {
+    const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", ...over });
+
+    it("con GPS y sin calle el pedido entra: guarda el punto y deja la dirección como \"Ubicación compartida por GPS\"", async () => {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, envio({ entrega_lat: -27.3671234567, entrega_lng: -55.8961234567 }), "1.1.1.1");
+      expect(r.error).toBeUndefined();
+      const ins = calls.find((x) => x.table === "pedidos" && x.op === "insert")!;
+      expect(ins.payload).toMatchObject({ direccion_entrega: "Ubicación compartida por GPS", entrega_latitud: -27.367123, entrega_longitud: -55.896123 });
+    });
+    it("con GPS y dirección escrita guarda las dos", async () => {
+      const { admin, calls } = mundo();
+      await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123", entrega_lat: -27.36, entrega_lng: -55.89 }), "1.1.1.1");
+      const ins = calls.find((x) => x.table === "pedidos" && x.op === "insert")!;
+      expect(ins.payload).toMatchObject({ direccion_entrega: "Calle 123", entrega_latitud: -27.36 });
+    });
+    it("sin GPS ni calle se rechaza, y sin GPS no se escriben las columnas de ubicación", async () => {
+      const { admin, calls } = mundo();
+      expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/dirección/);
+      await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123" }), "1.1.1.1");
+      const ins = calls.find((x) => x.table === "pedidos" && x.op === "insert")!;
+      expect(ins.payload).not.toHaveProperty("entrega_latitud");
+    });
+    it("coordenadas inválidas se rechazan aunque haya calle (no se guarda basura)", async () => {
+      for (const [lat, lng] of [[200, -55], [-27, 500], [Number.NaN, -55], [0, 0]] as const) {
+        const { admin, calls } = mundo();
+        const r = await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123", entrega_lat: lat, entrega_lng: lng }), "1.1.1.1");
+        expect(r.error, String([lat, lng])).toMatch(/ubicación/);
+        expect(calls.some((x) => x.table === "pedidos" && x.op === "insert")).toBe(false);
+      }
+    });
+    it("en un retiro en el local la ubicación se ignora", async () => {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, datos({ entrega_lat: -27.36, entrega_lng: -55.89 }), "1.1.1.1");
+      expect(r.error).toBeUndefined();
+      expect(calls.find((x) => x.table === "pedidos" && x.op === "insert")!.payload).not.toHaveProperty("entrega_latitud");
+    });
+  });
+
   it("delivery con zona inexistente/otra sucursal/inactiva se rechaza", async () => {
     const { admin } = mundo({ zona: null });
     const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z-ajena", direccion_entrega: "x" }), "1.1.1.1");
