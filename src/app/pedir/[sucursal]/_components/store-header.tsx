@@ -1,6 +1,7 @@
 import type { ConfigTienda } from "../_lib/tipos";
 import { lineasLogo, LOGO_MARCA } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
+import { BotonCuenta } from "./boton-cuenta";
 
 // Cabecera del local: fondo brand-ink con halo ember, logo generado a partir
 // del nombre de la sucursal (no hace falta subir imágenes -- funciona igual
@@ -27,6 +28,7 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
         style={{ background: "radial-gradient(circle at 40% 40%, rgba(217,63,30,.35), rgba(217,63,30,0) 68%)" }}
       />
       <div className="relative mx-auto max-w-[1100px]">
+      <BotonCuenta config={config} />
       <div className={LOGO_MARCA ? "relative" : "relative flex items-start gap-3.5"}>
         {LOGO_MARCA ? (
           // eslint-disable-next-line @next/next/no-img-element

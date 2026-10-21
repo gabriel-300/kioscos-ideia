@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { cerrarSesionCliente, ingresarConGoogle } from "@/lib/pedidos/acceso-cliente";
 import { calcularBeneficio, describirBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import type { ConfigTienda } from "../_lib/tipos";
 
@@ -21,15 +21,13 @@ export function BeneficioCliente({ config }: { config: ConfigTienda }) {
   async function ingresar() {
     setTrabajando(true);
     setError(null);
-    // El carrito vive en el navegador (localStorage): sobrevive al ida y vuelta con Google.
-    const volver = `${window.location.origin}/auth/cliente/callback?next=${encodeURIComponent(window.location.pathname)}`;
-    const { error: e } = await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: volver } });
-    if (e) { setError("No pudimos abrir el ingreso con Google. Probá de nuevo en un rato."); setTrabajando(false); }
+    const r = await ingresarConGoogle();
+    if (r.error) { setError(r.error); setTrabajando(false); }
   }
 
   async function salir() {
     setTrabajando(true);
-    await createClient().auth.signOut();
+    await cerrarSesionCliente();
     router.refresh();
     setTrabajando(false);
   }
