@@ -286,6 +286,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   A quien pidió por la tienda web no se le escribe (sin plantilla aprobada de Meta no se puede fuera de la ventana de 24 h).
   Con el bot activo en una sucursal, sus mensajes **no** crean contactos en el CRM (cada toque de botón llega como un mensaje y lo
   llenaría de ruido); queda el evento de auditoría y el pedido. En las sucursales sin bot, cada mensaje sigue siendo un contacto.
+- **Productos por peso**: el bot NO los ofrece (ni en menús, ni a la IA, ni en el carrito; un carrito viejo con uno se limpia y se avisa) porque cuenta unidades enteras y podría cobrar 1 kg de más; se piden en la tienda web (el menú principal del bot lo aclara con el enlace).
 
 ### Comandera offline — `/admin/comandera-offline` y `/api/comandera-offline`
 - **Qué es**: un archivo HTML autocontenido (sin internet, sin instalar nada) para vender en un **evento sin conectividad**. Se

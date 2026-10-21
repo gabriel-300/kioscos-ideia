@@ -1,4 +1,4 @@
-import type { ItemCatalogo } from "../catalogo";
+import type { CatalogoSucursal, ItemCatalogo } from "../catalogo";
 import type { ItemCarritoInput } from "../pricing";
 import type { ItemCarrito } from "./estado";
 
@@ -10,6 +10,38 @@ export const formatoPesos = (n: number) => PESOS.format(n);
 // Un id de producto y uno de promo nunca chocan (uuid), pero la clave incluye
 // el tipo para no depender de eso.
 const clave = (id: string, esPromo: boolean) => `${esPromo ? "promo" : "prod"}:${id}`;
+
+// El bot suma cantidades enteras y la IA no entiende de gramos: un producto por
+// peso ("medio kilo de chipa") terminaría cobrado como 1 kg. Por eso el bot NO
+// los ofrece; se piden solo en la tienda web. Único punto donde se filtra:
+// lo usa procesar.ts al armar el catálogo del bot (menús, búsqueda, IA, carrito).
+export const esPorPeso = (i: ItemCatalogo) => i.unidad === "por kg";
+
+export function catalogoSinProductosPorPeso(cat: CatalogoSucursal): CatalogoSucursal {
+  return {
+    items: cat.items.filter((i) => !esPorPeso(i)),
+    grupos: cat.grupos
+      .map((g) => ({ ...g, items: g.items.filter((i) => !esPorPeso(i)) }))
+      .filter((g) => g.items.length > 0), // una categoría solo de productos por peso desaparece
+  };
+}
+
+// Saca del carrito lo que sea un producto por peso (carritos viejos guardados en
+// bot_paso de antes de este filtro). Devuelve los nombres sacados para poder avisar.
+export function sacarProductosPorPeso(
+  carrito: ItemCarrito[],
+  completo: ItemCatalogo[]
+): { carrito: ItemCarrito[]; sacados: string[] } {
+  const porPeso = new Map(completo.filter(esPorPeso).map((i) => [clave(i.id, i.esPromo), i.name]));
+  const sacados: string[] = [];
+  const quedan = carrito.filter((c) => {
+    const nombre = porPeso.get(clave(c.id, c.esPromo));
+    if (nombre === undefined) return true;
+    sacados.push(nombre);
+    return false;
+  });
+  return { carrito: quedan, sacados };
+}
 
 export type IndiceCatalogo = Map<string, ItemCatalogo>;
 

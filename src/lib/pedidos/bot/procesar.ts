@@ -1,6 +1,7 @@
 import { cargarCatalogoSucursal } from "../catalogo";
 import { interpretarPedidoConIA } from "../interpretar-pedido-ia";
-import { agregarAlCarrito, buscarItem, fusionarCarritos, indexarCatalogo } from "./carrito";
+import { agregarAlCarrito, buscarItem, catalogoSinProductosPorPeso, fusionarCarritos, indexarCatalogo, sacarProductosPorPeso } from "./carrito";
+import { urlCatalogo } from "../enlaces";
 import { limpiarDireccion } from "./checkout";
 import { guardarEstado, type Admin, type Ctx, type Conversacion } from "./contexto";
 import { esPasoCheckout, leerEstado, serializarEstado, estadoInicial, type ItemCarrito } from "./estado";
@@ -62,7 +63,8 @@ export async function procesarMensajeBot(admin: Admin, m: MensajeEntrante) {
   const conversacion = await obtenerConversacion(admin, m);
   if (!conversacion) return;
 
-  const catalogo = await cargarCatalogoSucursal(admin, m.sucursalId);
+  const completo = await cargarCatalogoSucursal(admin, m.sucursalId);
+  const catalogo = catalogoSinProductosPorPeso(completo); // el bot no ofrece productos por peso
   const ctx: Ctx = {
     admin,
     chat: { phoneNumberId: m.phoneNumberId, waId: m.waId },
@@ -73,10 +75,22 @@ export async function procesarMensajeBot(admin: Admin, m: MensajeEntrante) {
     indice: indexarCatalogo(catalogo.items),
   };
 
+  // Carrito/propuesta viejos con un producto por peso: se sacan y se avisa (nunca se cobran como unidades).
+  const carritoLimpio = sacarProductosPorPeso(ctx.estado.carrito, completo.items);
+  const propuestaLimpia = ctx.estado.propuesta ? sacarProductosPorPeso(ctx.estado.propuesta, completo.items) : null;
+  const sacados = [...carritoLimpio.sacados, ...(propuestaLimpia?.sacados ?? [])];
+  if (sacados.length > 0) {
+    await guardarEstado(ctx, {
+      carrito: carritoLimpio.carrito,
+      ...(propuestaLimpia ? { propuesta: propuestaLimpia.carrito.length > 0 ? propuestaLimpia.carrito : undefined } : {}),
+    });
+    await mensaje(ctx.chat, `Saqué de tu pedido: ${[...new Set(sacados)].join(", ")}. Los productos por peso se piden desde la tienda: ${urlCatalogo(m.sucursalId)}`);
+  }
+
   const replyId = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? null;
   if (replyId) return manejarBoton(ctx, replyId);
   if (m.texto?.trim()) return manejarTexto(ctx, m.texto.trim());
-  await enviarCategorias(ctx.chat, ctx.catalogo.grupos);
+  await enviarCategorias(ctx.chat, ctx.catalogo.grupos, 0, ctx.sucursalId);
 }
 
 // ── Texto libre ─────────────────────────────────────────────────────────
@@ -109,7 +123,7 @@ async function proponerConIA(ctx: Ctx, texto: string) {
     texto,
     ctx.catalogo.items.map((i) => ({ id: i.id, name: i.name, price: i.price, esPromo: i.esPromo }))
   );
-  if (propuesta.length === 0) return enviarCategorias(ctx.chat, ctx.catalogo.grupos);
+  if (propuesta.length === 0) return enviarCategorias(ctx.chat, ctx.catalogo.grupos, 0, ctx.sucursalId);
 
   const items: ItemCarrito[] = propuesta.map((p) => ({ id: p.id, esPromo: p.esPromo, cantidad: p.cantidad }));
   await guardarEstado(ctx, { paso: "ia_pendiente", propuesta: items });
@@ -130,7 +144,7 @@ async function manejarBoton(ctx: Ctx, id: string) {
     return enviarProductos(chat, ctx.catalogo.grupos.find((g) => g.id === grupoId), 0);
   }
   if (id.startsWith(ID.masCategorias)) {
-    return enviarCategorias(chat, ctx.catalogo.grupos, parseInt(id.slice(ID.masCategorias.length), 10) || 0);
+    return enviarCategorias(chat, ctx.catalogo.grupos, parseInt(id.slice(ID.masCategorias.length), 10) || 0, ctx.sucursalId);
   }
   if (id.startsWith(ID.masProductos)) {
     const resto = id.slice(ID.masProductos.length);
@@ -150,7 +164,7 @@ async function manejarBoton(ctx: Ctx, id: string) {
 
   switch (id) {
     case ID.seguir:
-      return enviarCategorias(chat, ctx.catalogo.grupos);
+      return enviarCategorias(chat, ctx.catalogo.grupos, 0, ctx.sucursalId);
     case ID.vaciar:
       await actualizarCarrito(ctx, []);
       return mensaje(chat, "Listo, vacié tu carrito.");

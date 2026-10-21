@@ -13,10 +13,11 @@ vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => true }
 vi.mock("@/lib/pedidos/interpretar-pedido-ia", () => ({ interpretarPedidoConIA: vi.fn(async () => []) }));
 
 import { estadoInicial, leerEstado, serializarEstado } from "@/lib/pedidos/bot/estado";
-import { agregarAlCarrito, fusionarCarritos, formatearCarrito, indexarCatalogo, aItemsPedido } from "@/lib/pedidos/bot/carrito";
+import { agregarAlCarrito, fusionarCarritos, formatearCarrito, indexarCatalogo, aItemsPedido, catalogoSinProductosPorPeso, sacarProductosPorPeso } from "@/lib/pedidos/bot/carrito";
 import { siguientePaso, opcionesEntrega, textoConfirmacion, type ConfigCheckout } from "@/lib/pedidos/bot/checkout";
 import { paginar } from "@/lib/pedidos/bot/mensajes";
 import { procesarMensajeBot } from "@/lib/pedidos/bot/procesar";
+import { interpretarPedidoConIA } from "@/lib/pedidos/interpretar-pedido-ia";
 
 const ZONA = { id: "z1", nombre: "Centro", costo: 800, etaMin: 30, etaMax: 45 };
 const cfg = (over: Partial<ConfigCheckout> = {}): ConfigCheckout => ({ habilitado: true, retiro: true, delivery: true, zonas: [ZONA], efectivo: true, ...over });
@@ -54,6 +55,26 @@ describe("carrito del bot", () => {
   it("aItemsPedido nunca lleva precio", () => {
     expect(aItemsPedido([{ id: "a", esPromo: false, cantidad: 1 }, { id: "b", esPromo: true, cantidad: 2 }]))
       .toEqual([{ product_id: "a", cantidad: 1 }, { promo_id: "b", cantidad: 2 }]);
+  });
+});
+
+describe("productos por peso: el bot no los ofrece", () => {
+  const agua = { id: "p1", esPromo: false, name: "Agua", price: 1000, image: null, categoriaId: "c1" };
+  const chipa = { id: "p2", esPromo: false, name: "Chipa Bocadito", price: 15000, image: null, categoriaId: "c2", unidad: "por kg" };
+  const cat = {
+    items: [agua, chipa],
+    grupos: [{ id: "c1", name: "Bebidas", items: [agua] }, { id: "c2", name: "Panadería", items: [chipa] }],
+  };
+  it("saca el producto por kg de items y grupos, y la categoría que solo tenía de esos desaparece", () => {
+    const r = catalogoSinProductosPorPeso(cat);
+    expect(r.items.map((i) => i.id)).toEqual(["p1"]);
+    expect(r.grupos.map((g) => g.id)).toEqual(["c1"]);
+    expect(indexarCatalogo(r.items).has("prod:p2")).toBe(false);
+  });
+  it("un carrito viejo con un producto por kg lo pierde y avisa cuál era", () => {
+    const r = sacarProductosPorPeso([{ id: "p1", esPromo: false, cantidad: 2 }, { id: "p2", esPromo: false, cantidad: 1 }], cat.items);
+    expect(r.carrito).toEqual([{ id: "p1", esPromo: false, cantidad: 2 }]);
+    expect(r.sacados).toEqual(["Chipa Bocadito"]);
   });
 });
 
@@ -134,20 +155,22 @@ describe("conversación del bot (de punta a punta)", () => {
   let stockAgua = 50;
   let nombre: string | null;
   let pedidoFinal: any;
+  let conChipa = false;
 
   function mundo() {
     stockAgua = 50;
+    conChipa = false;
     botPaso = null; nombre = "Ana"; pedidoFinal = null;
     const sucursal = { is_active: true, pedidos_online_habilitado: true, delivery_habilitado: true, retiro_habilitado: true, pedido_minimo_envio: 0, retiro_eta_min: 15, retiro_eta_max: 25, categorias_habilitadas: null, promos_habilitadas: true };
     return fakeAdmin((q: Q) => {
       switch (q.table) {
-        case "categories":       return { data: [{ id: "c1", name: "Bebidas" }] };
-        case "products":         return { data: [{ id: "p1", name: "Agua", category_id: "c1", cover_image_url: null, unit_label: null, vendible_pos: true, is_active: true }] };
-        case "product_prices":   return { data: [{ product_id: "p1", precio_dist: 1000 }] };
+        case "categories":       return { data: [{ id: "c1", name: "Bebidas" }, ...(conChipa ? [{ id: "c2", name: "Panadería" }] : [])] };
+        case "products":         return { data: [{ id: "p1", name: "Agua", category_id: "c1", cover_image_url: null, unit_label: null, vendible_pos: true, is_active: true }, ...(conChipa ? [{ id: "p2", name: "Chipa Bocadito", category_id: "c2", cover_image_url: null, unit_label: "kg", vendible_pos: true, is_active: true }] : [])] };
+        case "product_prices":   return { data: [{ product_id: "p1", precio_dist: 1000 }, { product_id: "p2", precio_dist: 15000 }] };
         case "promos": case "promo_prices": return { data: [] };
         case "sucursales":       return { data: sucursal };
         case "zonas_entrega":    return { data: [{ id: "z1", nombre: "Centro", costo: 800, eta_min: 30, eta_max: 45 }] };
-        case "stock_sucursal":   return { data: [{ product_id: "p1", product_name: "Agua", stock_actual: stockAgua }] };
+        case "stock_sucursal":   return { data: [{ product_id: "p1", product_name: "Agua", stock_actual: stockAgua }, { product_id: "p2", product_name: "Chipa Bocadito", stock_actual: 20 }] };
         case "pedido_rate_limits": return { count: 0 };
         case "pedido_items":     return { data: null };
         case "pedidos": {
@@ -239,5 +262,33 @@ describe("conversación del bot (de punta a punta)", () => {
     await enviar(admin, { interactive: fila("prod_p1") }); // un botón de una lista vieja
     expect(ultimoTexto()).toContain("ya no está disponible");
     expect(leerEstado(botPaso).carrito).toEqual([]);
+  });
+
+  it("un producto por kg no aparece en el menú, no se le pasa a la IA ni se puede agregar; el menú avisa que se pide en la tienda", async () => {
+    const { admin } = mundo();
+    conChipa = true;
+    await enviar(admin, { interactive: boton("accion_seguir") });
+    const lista = wa.enviarLista.mock.calls.at(-1)!;
+    expect(JSON.stringify(lista[4])).toContain("Bebidas");
+    expect(JSON.stringify(lista[4])).not.toContain("Panader"); // la categoría solo de productos por kg desaparece
+    expect(lista[2]).toContain("se pide desde la tienda");
+    expect(lista[2]).toContain("/pedir/s1");
+
+    await enviar(admin, { texto: "medio kilo de chipa bocadito" });
+    const paraIA = (interpretarPedidoConIA as any).mock.calls.at(-1)[1];
+    expect(paraIA.map((i: any) => i.id)).toEqual(["p1"]);
+
+    await enviar(admin, { interactive: fila("prod_p2") }); // botón viejo de una lista anterior
+    expect(ultimoTexto()).toContain("ya no está disponible");
+    expect(leerEstado(botPaso).carrito).toEqual([]);
+  });
+
+  it("un carrito viejo con un producto por kg no se cobra: se saca y se avisa", async () => {
+    const { admin } = mundo();
+    conChipa = true;
+    botPaso = serializarEstado({ ...estadoInicial(), carrito: [{ id: "p1", esPromo: false, cantidad: 1 }, { id: "p2", esPromo: false, cantidad: 1 }] });
+    await enviar(admin, { interactive: boton("accion_finalizar") });
+    expect(ultimoTexto()).toContain("Saqué de tu pedido: Chipa Bocadito");
+    expect(leerEstado(botPaso).carrito).toEqual([{ id: "p1", esPromo: false, cantidad: 1 }]);
   });
 });

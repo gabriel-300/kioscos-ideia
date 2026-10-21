@@ -1,5 +1,6 @@
 import { enviarBotones, enviarLista, enviarTexto } from "@/lib/whatsapp/enviar-mensaje";
 import type { GrupoCatalogo } from "../catalogo";
+import { urlCatalogo } from "../enlaces";
 import { formatearCarrito, formatoPesos, type IndiceCatalogo } from "./carrito";
 import type { ZonaBot } from "./checkout";
 import type { Chat } from "./contexto";
@@ -40,7 +41,14 @@ const texto = (chat: Chat, cuerpo: string) => enviarTexto(chat.phoneNumberId, ch
 
 // ── Menú ────────────────────────────────────────────────────────────────
 
-export async function enviarCategorias(chat: Chat, grupos: GrupoCatalogo[], offset = 0) {
+// Una línea fija: lo que se vende por peso el bot no lo ofrece (ver esPorPeso).
+const cuerpoBienvenida = (sucursalId?: string) =>
+  "¡Hola! ¿Qué categoría querés ver?" +
+  (sucursalId ? `
+
+Lo que se vende por peso (chipa, bizcochitos, tortas por kilo) se pide desde la tienda: ${urlCatalogo(sucursalId)}` : "");
+
+export async function enviarCategorias(chat: Chat, grupos: GrupoCatalogo[], offset = 0, sucursalId?: string) {
   if (grupos.length === 0) {
     await texto(chat, "Por ahora no hay productos cargados para pedir. Probá de nuevo más tarde.");
     return;
@@ -48,7 +56,7 @@ export async function enviarCategorias(chat: Chat, grupos: GrupoCatalogo[], offs
   const { pagina, siguiente } = paginar(grupos, offset);
   const rows = pagina.map((g) => ({ id: `${ID.categoria}${g.id}`, title: g.name }));
   if (siguiente !== null) rows.push({ id: `${ID.masCategorias}${siguiente}`, title: "Ver más categorías" });
-  await enviarLista(chat.phoneNumberId, chat.waId, offset === 0 ? "¡Hola! ¿Qué categoría querés ver?" : "Más categorías:", "Ver categorías", [{ title: "Categorías", rows }]);
+  await enviarLista(chat.phoneNumberId, chat.waId, offset === 0 ? cuerpoBienvenida(sucursalId) : "Más categorías:", "Ver categorías", [{ title: "Categorías", rows }]);
 }
 
 export async function enviarProductos(chat: Chat, grupo: GrupoCatalogo | undefined, offset: number) {
