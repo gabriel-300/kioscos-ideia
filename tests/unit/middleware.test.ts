@@ -153,6 +153,12 @@ describe("/tenteo exige rol de personal Y el sistema Tenteo", () => {
     como("admin");
     expect((await ir("/tenteo/pedidos")).redirige).toBeNull();
   });
+  it("la pantalla de clientes (datos personales) es solo del admin", async () => {
+    como("encargado", ["tenteo"]);
+    expect((await ir("/tenteo/clientes")).redirige).toBe("/tenteo/pedidos");
+    como("admin");
+    expect((await ir("/tenteo/clientes")).redirige).toBeNull();
+  });
   it("la configuración de Tenteo es solo del admin", async () => {
     como("encargado", ["tenteo"]);
     expect((await ir("/tenteo/pedidos/configuracion")).redirige).toBe("/tenteo/pedidos"); // sin salir de Tenteo

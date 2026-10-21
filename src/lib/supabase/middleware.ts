@@ -24,6 +24,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/movimientos",
   "/admin/productos",
   "/tenteo/pedidos/configuracion",
+  "/tenteo/clientes",
 ];
 
 // Bloqueadas solo para vendedor (encargado sí puede)
