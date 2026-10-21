@@ -385,6 +385,17 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
         )}
       </main>
 
+      {/* Pie con las páginas legales: Google las pide enlazadas desde la página principal para verificar la marca. */}
+      <footer className="mx-auto max-w-[1100px] px-4 pb-28 pt-2 text-center text-[12.5px] text-pd-ink-400">
+        <p>
+          <span className="font-semibold">Angiru Food</span> · Posadas, Misiones
+        </p>
+        <p className="mt-1.5 flex items-center justify-center gap-3">
+          <a href="/privacidad" style={{ color: "var(--color-pd-ink-600)" }} className="underline">Política de privacidad</a>
+          <a href="/terminos" style={{ color: "var(--color-pd-ink-600)" }} className="underline">Condiciones del servicio</a>
+        </p>
+      </footer>
+
       {puedePedir && cantidadTotal > 0 && pantalla === "catalogo" && !productoAbierto && (
         <CartBar cantidad={cantidadTotal} total={subtotal} onAbrir={() => setPantalla("carrito")} />
       )}

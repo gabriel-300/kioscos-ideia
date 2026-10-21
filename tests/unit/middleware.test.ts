@@ -101,10 +101,10 @@ describe("repartidor: contención total a /tenteo/repartos", () => {
 });
 
 describe("staff logueado en páginas públicas", () => {
-  it("lo redirige a su panel, salvo /auth, /login, /api y /pedir (el admin puede mirar el storefront)", async () => {
+  it("lo redirige a su panel, salvo /auth, /login, /api, /pedir y las páginas legales (el admin puede mirar el storefront y la política)", async () => {
     como("vendedor");
     expect((await ir("/")).redirige).toBe("/admin/dashboard");
-    for (const p of ["/pedir/parque", "/api/export/movimientos", "/login", "/auth/set-password"]) {
+    for (const p of ["/pedir/parque", "/api/export/movimientos", "/login", "/auth/set-password", "/privacidad", "/terminos", "/google1078902f8b578bc8.html"]) {
       expect((await ir(p)).redirige, p).toBeNull();
     }
   });
