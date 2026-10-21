@@ -35,6 +35,7 @@ export type ConfigTienda = {
   horario:            TramoHorario[] | null;
   zonas:              ZonaPublica[];
   beneficio:          ConfigBeneficio;
+  sesionActiva?: boolean; // hay alguien con sesión iniciada (cliente o personal): para mostrar "Salir"
   cliente:            ClienteTienda | null;
 };
 

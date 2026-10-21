@@ -31,9 +31,11 @@ export function BotonCuenta({ config }: { config: ConfigTienda }) {
 
   return (
     <div className="absolute right-0 top-0 z-10 flex flex-col items-end gap-1.5">
-      {cliente ? (
+      {cliente || config.sesionActiva ? (
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-black/55 px-3 py-1.5 text-[12.5px] font-semibold text-pd-cream backdrop-blur-sm">Hola, {cliente.nombre?.trim().split(/\s+/)[0] || "bienvenido"}</span>
+          <span className="rounded-full bg-black/55 px-3 py-1.5 text-[12.5px] font-semibold text-pd-cream backdrop-blur-sm">
+            {cliente ? `Hola, ${cliente.nombre?.trim().split(/\s+/)[0] || "bienvenido"}` : "Sesión iniciada"}
+          </span>
           <button type="button" onClick={salir} disabled={trabajando} className={pastilla}>Salir</button>
         </div>
       ) : (

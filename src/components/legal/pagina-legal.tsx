@@ -3,7 +3,7 @@ import PedirLayout from "@/app/pedir/layout";
 // Marco común de las páginas legales públicas (privacidad y términos): mismo estilo que la tienda,
 // sin sesión. Las exigen Google (para publicar el ingreso con Google) y Meta (WhatsApp Business).
 
-export const CONTACTO_LEGAL = "lytwyn.gabriel@gmail.com";
+export const CONTACTO_LEGAL = "info@ideia.com.ar";
 export const FECHA_LEGAL = "21 de octubre de 2026";
 
 export function PaginaLegal({ titulo, children }: { titulo: string; children: React.ReactNode }) {

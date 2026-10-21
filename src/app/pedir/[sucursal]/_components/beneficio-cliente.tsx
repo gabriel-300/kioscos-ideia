@@ -48,6 +48,19 @@ export function BeneficioCliente({ config }: { config: ConfigTienda }) {
     );
   }
 
+  // Una cuenta del personal que entró con Google no es un cliente (no recibe beneficios), pero tiene que poder salir.
+  if (config.sesionActiva) {
+    return (
+      <section className="rounded-2xl border border-pd-line bg-pd-tint px-4 py-3.5">
+        <p className="text-[14px] font-bold">Tenés una sesión iniciada</p>
+        <p className="mt-0.5 text-[13px] text-pd-ink-600">Es una cuenta del personal: no recibe beneficios de cliente.</p>
+        <button type="button" onClick={salir} disabled={trabajando} className="mt-1.5 text-[12.5px] font-semibold text-pd-ink-600 underline disabled:opacity-50">
+          Salir
+        </button>
+      </section>
+    );
+  }
+
   if (!texto) return null;
 
   return (
