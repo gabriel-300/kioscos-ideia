@@ -65,7 +65,8 @@ export async function cargarTienda(
       items: g.items
         .map((i) => ({
           id: i.id, esPromo: i.esPromo, name: nombrePresentable(i.name), price: i.price, image: i.image,
-          badge: i.etiqueta, unit: i.unidad,
+          // "RECETA" es cosa del stock (cómo se descuentan los ingredientes): al cliente le es un producto más.
+          badge: i.etiqueta === "RECETA" ? undefined : i.etiqueta, unit: i.unidad,
           categoriaId: g.id, categoriaNombre: nombreCategoria,
         }))
         .sort((x, y) => Number(!!y.image) - Number(!!x.image)),
