@@ -110,7 +110,7 @@ export function PedidoOnlineAcciones({
       )}
       {anulable && anulando && (
         <div className="w-full max-w-[260px] space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5">
-          <p className="text-[11.5px] leading-snug text-red-900">Se anula el pedido y su venta (queda en el Historial). La plata cobrada hay que devolverla desde Mercado Pago.</p>
+          <p className="text-[11.5px] leading-snug text-red-900">Se anula el pedido y su venta (queda en el Historial). Si el cliente pagó de verdad por Mercado Pago, la plata hay que devolverla desde Mercado Pago (acá no se mueve).</p>
           <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={120} placeholder="Motivo (obligatorio)" className="h-9 w-full rounded-md border border-red-200 bg-white px-2 text-sm" />
           <div className="flex gap-2">
             <button type="button" disabled={pending || motivo.trim().length < 3} onClick={() => ejecutar(() => anularPedidoConVenta(pedidoId, motivo))} className="h-9 flex-1 rounded-md bg-red-600 px-3 text-sm font-semibold text-white disabled:opacity-40">
