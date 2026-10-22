@@ -46,6 +46,7 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
           {horario.hoyTexto && <span className={chip}>{horario.hoyTexto}</span>}
           {enviosDisponibles && <span className={chip}>Envío a domicilio</span>}
           {!enviosDisponibles && config.retiroHabilitado && <span className={chip}>Retiro en el local</span>}
+          {config.retiroHabilitado && config.habilitado && <span className={chip}>Retiro en {config.retiroEtaMin}–{config.retiroEtaMax} min</span>}
         </div>
       </div>
     </header>

@@ -16,6 +16,7 @@ import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { FranjaBeneficio } from "./franja-beneficio";
 import { BannerDestacado } from "./banner-destacado";
+import { PieTienda } from "./pie-tienda";
 import { resolverBanner, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
@@ -420,16 +421,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId
         )}
       </main>
 
-      {/* Pie con las páginas legales: Google las pide enlazadas desde la página principal para verificar la marca. */}
-      <footer className="mx-auto max-w-[1100px] px-4 pb-28 pt-2 text-center text-[12.5px] text-pd-ink-400">
-        <p>
-          <span className="font-semibold">Angiru Food</span> · Posadas, Misiones
-        </p>
-        <p className="mt-1.5 flex items-center justify-center gap-3">
-          <a href="/privacidad" style={{ color: "var(--color-pd-ink-600)" }} className="underline">Política de privacidad</a>
-          <a href="/terminos" style={{ color: "var(--color-pd-ink-600)" }} className="underline">Condiciones del servicio</a>
-        </p>
-      </footer>
+      <PieTienda config={config} horarioHoy={horario.hoyTexto} />
 
       {puedePedir && cantidadTotal > 0 && pantalla === "catalogo" && !productoAbierto && (
         <CartBar cantidad={cantidadTotal} total={subtotal} onAbrir={() => setPantalla("carrito")} />
@@ -494,7 +486,6 @@ export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId
         />
       )}
 
-      <footer className="px-4 pb-28 pt-2 text-center text-[12px] text-pd-ink-300">Kioscos IDEIA</footer>
     </>
   );
 }
