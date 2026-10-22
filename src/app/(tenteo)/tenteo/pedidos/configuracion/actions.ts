@@ -7,7 +7,7 @@ import { normalizarHorario, validarHorario, type TramoHorario } from "@/lib/pedi
 import { parsearCoordenadas } from "@/lib/geo";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { normalizarOcultos } from "@/lib/pedidos/catalogo-online";
-import { normalizarDestacado } from "@/lib/pedidos/destacado-online";
+import { normalizarDestacados } from "@/lib/pedidos/destacado-online";
 
 // Solo admin: define qué sucursales aceptan pedidos online, qué zonas de
 // envío tienen y a qué precio, y el horario que ve el cliente. Nada de esto
@@ -194,20 +194,21 @@ export async function guardarCatalogoOnline(sucursalId: string, productosOcultos
   return {};
 }
 
-// El producto o promo del banner grande de la tienda (migración 121). null = automático (lo más pedido).
-export async function guardarDestacadoOnline(sucursalId: string, itemId: string | null, titulo: string): Promise<{ error?: string }> {
+// Los banners grandes de la tienda (migración 121): hasta 3 productos o promos con su título. Lista vacía = automático
+// (los más pedidos).
+export async function guardarDestacadosOnline(sucursalId: string, destacados: { itemId: string; titulo: string }[]): Promise<{ error?: string }> {
   await requireAdmin();
 
-  const d = normalizarDestacado(itemId, titulo);
-  if (itemId && !d.itemId) return { error: "El producto elegido no es válido" };
+  const lista = normalizarDestacados(destacados);
+  if (Array.isArray(destacados) && destacados.length > 0 && lista.length === 0) return { error: "Los productos elegidos no son válidos" };
 
   const admin = createAdminClient();
   const { error } = await (admin as any)
     .from("sucursales")
-    .update({ destacado_online_item_id: d.itemId, destacado_online_titulo: d.itemId ? d.titulo : null })
+    .update({ destacados_online: lista.map((d) => ({ item_id: d.itemId, titulo: d.titulo })) })
     .eq("id", sucursalId);
   if (error) {
-    return { error: /destacado_online/.test(error.message) ? "Falta aplicar la migración 121 en la base" : error.message };
+    return { error: /destacados_online/.test(error.message) ? "Falta aplicar la migración 121 en la base" : error.message };
   }
 
   refrescar();

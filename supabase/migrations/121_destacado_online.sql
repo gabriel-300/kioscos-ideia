@@ -1,12 +1,11 @@
--- 121: el banner grande de la tienda online (el "combo del día").
+-- 121: los banners grandes de la tienda online (el "combo del día").
 --
--- El administrador elige un producto o promo (con foto) y, si quiere, un título corto ("Combo del día").
--- La tienda lo muestra arriba, a lo grande, con un botón para pedirlo. Sin elegir nada, el banner
--- muestra lo más pedido de la sucursal. El id puede ser de un producto o de una promo (son uuid únicos).
+-- El administrador elige hasta 3 productos o promos (con foto) y, si quiere, un título corto para cada uno
+-- ("Combo del día"). La tienda los muestra arriba, a lo grande y rotando, con un botón para pedirlos. Sin
+-- elegir nada, rotan los más pedidos de la sucursal.
+-- Formato: [{"item_id": "<uuid de producto o promo>", "titulo": "Combo del día"}, ...]
 
 alter table public.sucursales
-  add column if not exists destacado_online_item_id uuid,
-  add column if not exists destacado_online_titulo  text;
+  add column if not exists destacados_online jsonb not null default '[]'::jsonb;
 
-comment on column public.sucursales.destacado_online_item_id is 'Producto o promo del banner grande de la tienda online de esta sucursal; null = automático (lo más pedido).';
-comment on column public.sucursales.destacado_online_titulo  is 'Título corto sobre el banner (ej. "Combo del día"); null = "Lo mejor de hoy".';
+comment on column public.sucursales.destacados_online is 'Hasta 3 banners de la tienda online: [{"item_id": uuid, "titulo": text|null}]; vacío = automático (los más pedidos).';

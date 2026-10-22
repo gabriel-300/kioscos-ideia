@@ -16,8 +16,9 @@ import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { FranjaBeneficio } from "./franja-beneficio";
 import { BannerDestacado } from "./banner-destacado";
+import { CarruselBanners } from "./carrusel-banners";
 import { PieTienda } from "./pie-tienda";
-import { resolverBanner, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
+import { resolverBanners, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
@@ -41,8 +42,8 @@ function guardarJSON(storage: Storage, clave: string, valor: unknown) {
   try { storage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado / cuota: el carrito igual funciona en memoria */ }
 }
 
-export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId: null, titulo: null } }: {
-  config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[]; destacado?: DestacadoOnline;
+export function Tienda({ config, catalogo, masPedidos = [], destacados = [] }: {
+  config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[]; destacados?: DestacadoOnline[];
 }) {
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles);
@@ -294,11 +295,11 @@ export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId
   const productoDetalle = productoAbierto ? itemsPorId.get(productoAbierto) ?? null : null;
   const buscando = consulta.length > 0;
 
-  // El banner grande: el destacado elegido, si no lo más pedido, si no la bienvenida general.
-  const banner = resolverBanner(destacado, masPedidos, catalogo.flatMap((c) => c.items));
-  const bannerItem = banner.itemId ? itemsPorId.get(banner.itemId) ?? null : null;
-  // Lo que ya está en el banner grande no se repite en la tira de abajo.
-  const tira = masPedidos.filter((id) => id !== banner.itemId);
+  // Los banners grandes: los elegidos, si no lo más pedido, si no la bienvenida general.
+  const banners = resolverBanners(destacados, masPedidos, catalogo.flatMap((c) => c.items));
+  // Lo que ya está en un banner no se repite en la tira de abajo.
+  const enBanners = new Set(banners.map((b) => b.itemId));
+  const tira = masPedidos.filter((id) => !enBanners.has(id));
 
   function tarjeta(item: ItemCatalogo, indice: number) {
     return (
@@ -322,13 +323,19 @@ export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId
       <div className="px-4">
         <div className="mx-auto max-w-[1100px]">
           <PedidoEnCurso className="mb-3" />
-          <BannerDestacado
-            config={config}
-            item={bannerItem}
-            kicker={banner.kicker}
-            puedePedir={puedePedir}
-            onPedir={(id) => setProductoAbierto(id)}
-            onVerMenu={() => catalogo[0] && irACategoria(catalogo[0].id)}
+          <CarruselBanners
+            slides={banners.map((b) => (
+              <BannerDestacado
+                key={b.itemId ?? "general"}
+                config={config}
+                item={b.itemId ? itemsPorId.get(b.itemId) ?? null : null}
+                kicker={b.kicker}
+                compacto={banners.length > 1}
+                puedePedir={puedePedir}
+                onPedir={(id) => setProductoAbierto(id)}
+                onVerMenu={() => catalogo[0] && irACategoria(catalogo[0].id)}
+              />
+            ))}
           />
           <FranjaBeneficio config={config} className="mt-3" />
         </div>

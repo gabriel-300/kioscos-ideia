@@ -59,28 +59,44 @@ describe("elegirMasPedidos", () => {
   });
 });
 
-import { normalizarDestacado, resolverBanner } from "@/lib/pedidos/destacado-online";
+import { MAX_BANNERS, normalizarDestacados, resolverBanners } from "@/lib/pedidos/destacado-online";
 
-describe("banner destacado", () => {
+describe("banners destacados", () => {
   const A = "11111111-1111-4111-8111-111111111111";
   const B = "22222222-2222-4222-8222-222222222222";
-  const items = [{ id: A, image: "a.jpg" }, { id: B, image: null }];
+  const C = "33333333-3333-4333-8333-333333333333";
+  const D = "44444444-4444-4444-8444-444444444444";
+  const items = [{ id: A, image: "a.jpg" }, { id: B, image: null }, { id: C, image: "c.jpg" }, { id: D, image: "d.jpg" }];
 
-  it("normaliza: solo un uuid válido y un título corto y limpio", () => {
-    expect(normalizarDestacado(A, "  Combo   del día ")).toEqual({ itemId: A, titulo: "Combo del día" });
-    expect(normalizarDestacado("nada", "x")).toEqual({ itemId: null, titulo: "x" });
-    expect(normalizarDestacado(A, "z".repeat(80)).titulo).toHaveLength(40);
-    expect(normalizarDestacado(A, "").titulo).toBeNull();
+  it("normaliza: ids válidos, sin repetir, hasta 3, títulos limpios (acepta item_id o itemId)", () => {
+    const r = normalizarDestacados([{ itemId: A, titulo: "  Combo   del día " }, { item_id: B, titulo: "" }, { itemId: A, titulo: "repetido" }, { itemId: "nada" }, { itemId: C }, { itemId: D }]);
+    expect(r).toEqual([{ itemId: A, titulo: "Combo del día" }, { itemId: B, titulo: null }, { itemId: C, titulo: null }]);
+    expect(r).toHaveLength(MAX_BANNERS);
+    expect(normalizarDestacados([{ itemId: A, titulo: "z".repeat(80) }])[0].titulo).toHaveLength(40);
+    expect(normalizarDestacados("x")).toEqual([]);
   });
-  it("muestra lo que eligió el administrador, con su título", () => {
-    expect(resolverBanner({ itemId: A, titulo: "Combo del día" }, [B, A], items)).toEqual({ itemId: A, kicker: "Combo del día" });
-    expect(resolverBanner({ itemId: A, titulo: null }, [], items)).toEqual({ itemId: A, kicker: "Lo mejor de hoy" });
+  it("rota lo que eligió el administrador, en ese orden y con su título; ignora lo que hoy no tiene foto", () => {
+    expect(resolverBanners([{ itemId: C, titulo: "Combo del día" }, { itemId: B, titulo: null }, { itemId: A, titulo: null }], [], items))
+      .toEqual([{ itemId: C, kicker: "Combo del día" }, { itemId: A, kicker: "Lo mejor de hoy" }]);
   });
-  it("si lo elegido hoy no se puede pedir o no tiene foto, usa lo más pedido", () => {
-    expect(resolverBanner({ itemId: B, titulo: "x" }, [B, A], items)).toEqual({ itemId: A, kicker: "Lo más pedido" });
-    expect(resolverBanner({ itemId: "otro", titulo: null }, [A], items).itemId).toBe(A);
+  it("sin elegidos válidos rota lo más pedido (hasta 3, con foto)", () => {
+    expect(resolverBanners([], [B, A, C, D], items)).toEqual([
+      { itemId: A, kicker: "Lo más pedido" }, { itemId: C, kicker: "Lo más pedido" }, { itemId: D, kicker: "Lo más pedido" },
+    ]);
+    expect(resolverBanners([{ itemId: B, titulo: "x" }], [A], items)).toEqual([{ itemId: A, kicker: "Lo más pedido" }]);
   });
-  it("sin elegido ni más pedidos con foto, queda el banner general", () => {
-    expect(resolverBanner({ itemId: null, titulo: null }, [B], items)).toEqual({ itemId: null, kicker: "" });
+  it("sin nada con foto queda un solo banner general", () => {
+    expect(resolverBanners([], [B], items)).toEqual([{ itemId: null, kicker: "" }]);
+  });
+});
+
+describe("nombrePresentable: tildes en nombres ya escritos como frase", () => {
+  it("agrega las tildes que suelen faltar, respetando mayúsculas", () => {
+    expect(nombrePresentable("Cafe con leche")).toBe("Café con leche");
+    expect(nombrePresentable("budin limon")).toBe("Budín limón");
+    expect(nombrePresentable("Sandwich de Jamon")).toBe("Sándwich de Jamón");
+  });
+  it("no toca palabras que solo contienen esas letras", () => {
+    expect(nombrePresentable("Cafeteras")).toBe("Cafeteras");
   });
 });

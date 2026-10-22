@@ -56,9 +56,9 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
   onAdd: () => void; onDec: () => void; onOpen: () => void;
 }) {
   return (
-    <article className="flex flex-col overflow-hidden rounded-[20px] border border-pd-line bg-white">
-      <button type="button" onClick={onOpen} className="relative block aspect-square w-full" aria-label={`Ver ${item.name}`}>
-        <Foto item={item} className="absolute inset-0 size-full" eager={eager} />
+    <article className="group/card flex flex-col overflow-hidden rounded-[20px] border border-pd-line bg-white">
+      <button type="button" onClick={onOpen} className="relative block aspect-square w-full overflow-hidden" aria-label={`Ver ${item.name}`}>
+        <Foto item={item} className="absolute inset-0 size-full transition-transform duration-500 ease-out motion-safe:group-hover/card:scale-[1.07]" eager={eager} />
         {item.badge && (
           <span className="absolute left-[9px] top-[9px] rounded-[7px] bg-pd-ink px-2 py-[3px] text-[10.5px] font-bold tracking-[0.07em] text-pd-cream">
             {item.badge}

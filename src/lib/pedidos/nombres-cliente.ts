@@ -47,8 +47,12 @@ export function nombrePresentable(nombre: string): string {
   const casiTodoMayusculas = letras.length >= 3 && mayusculas.length / letras.length >= 0.7;
   if (casiTodoMayusculas) return pasaAFrase(limpio);
 
-  // Ya viene escrito como frase: solo se asegura la primera letra en mayúscula.
-  const i = [...limpio].findIndex(esLetra);
-  if (i < 0) return limpio;
-  return limpio.slice(0, i) + limpio.charAt(i).toUpperCase() + limpio.slice(i + 1);
+  // Ya viene escrito como frase: se le ponen las tildes que suelen faltar ("Cafe" → "Café") y la primera letra en mayúscula.
+  const conTildes = limpio.replace(/\b(cafe|jamon|limon|pacu|mani|azucar|pure|budin|sandwich)\b/gi, (w) => {
+    const buena = ACENTOS[w.toLowerCase()];
+    return w[0] === w[0].toUpperCase() ? buena.charAt(0).toUpperCase() + buena.slice(1) : buena;
+  });
+  const i = [...conTildes].findIndex(esLetra);
+  if (i < 0) return conTildes;
+  return conTildes.slice(0, i) + conTildes.charAt(i).toUpperCase() + conTildes.slice(i + 1);
 }
