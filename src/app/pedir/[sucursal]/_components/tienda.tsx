@@ -374,7 +374,7 @@ export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTi
             {masPedidos.length > 0 && (
               <section aria-labelledby="mas-pedido-t">
                 <h2 id="mas-pedido-t" className="mb-3 text-[23px]">Lo más pedido</h2>
-                <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+                <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {masPedidos.map((id, i) => {
                     const item = itemsPorId.get(id);
                     return item ? <div key={id} className="w-[172px] shrink-0 snap-start">{tarjeta(item, i)}</div> : null;
