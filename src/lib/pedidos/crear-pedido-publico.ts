@@ -8,7 +8,7 @@ import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
 import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 import { crearCheckoutMercadoPago } from "./checkout-mercadopago";
 import { coordenadasValidas, DIRECCION_POR_GPS, redondearCoordenada } from "./ubicacion";
-import { aceptaEfectivoOnline } from "./medios-pago";
+import { aceptaEfectivoOnline, leerEfectivoOnline } from "./medios-pago";
 import { estadoEnvios, estadoPedidos, leerDisponibilidadOnline } from "./disponibilidad-online";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
@@ -78,7 +78,6 @@ export async function crearPedidoPublico(
   if (!telefonoValido(data.cliente_telefono ?? "")) return { error: "Escribí un WhatsApp válido (con característica, 10 dígitos)" };
   if (data.tipo_entrega !== "retiro_local" && data.tipo_entrega !== "delivery") return { error: "Elegí cómo querés recibir el pedido" };
   if (data.medio_pago !== "efectivo" && data.medio_pago !== "mercadopago_link") return { error: "Elegí cómo vas a pagar" };
-  if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline()) return { error: "Por ahora los pedidos online se pagan solo con Mercado Pago" };
   // Un envío lleva la dirección escrita, el punto GPS del celular, o las dos.
   const mandoGps = data.entrega_lat != null || data.entrega_lng != null;
   const conGps = data.tipo_entrega === "delivery" && coordenadasValidas(data.entrega_lat, data.entrega_lng);
@@ -99,6 +98,10 @@ export async function crearPedidoPublico(
     .single();
   if (!sucursal?.is_active || !sucursal.pedidos_online_habilitado) {
     return { error: "Esta sucursal todavía no acepta pedidos online" };
+  }
+  // Efectivo: solo si la sucursal lo habilita y el cliente ingresó (la sesión, no lo que mande el navegador).
+  if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline(await leerEfectivoOnline(admin, data.sucursal_id), !!contexto?.clienteId)) {
+    return { error: "Para pagar en efectivo tenés que ingresar con Google. Si no, pagá con Mercado Pago." };
   }
   // El horario de atención también se valida acá, no solo en la pantalla (auditoría 19/09, H-12).
   // Sin horario cargado la sucursal está siempre abierta.

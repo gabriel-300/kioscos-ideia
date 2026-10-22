@@ -38,7 +38,7 @@ async function cargarConfigCheckout(admin: Admin, sucursalId: string): Promise<C
     habilitado: !!sucursal?.is_active && !!sucursal.pedidos_online_habilitado && !sinPedidos,
     retiro:     sucursal?.retiro_habilitado ?? true,
     delivery:   !!sucursal?.delivery_habilitado && hayEnvio,
-    efectivo:   aceptaEfectivoOnline(),
+    efectivo:   aceptaEfectivoOnline(false, false), // el bot no tiene ingreso de cliente: nunca efectivo
     zonas: ((zonas ?? []) as any[]).map((z) => ({
       id: z.id, nombre: z.nombre, costo: Number(z.costo), etaMin: z.eta_min, etaMax: z.eta_max,
     })),

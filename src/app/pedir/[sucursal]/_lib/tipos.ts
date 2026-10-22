@@ -38,6 +38,7 @@ export type ConfigTienda = {
   beneficio:          ConfigBeneficio;
   sesionActiva?: boolean; // hay alguien con sesión iniciada (cliente o personal): para mostrar "Salir"
   cliente:            ClienteTienda | null;
+  efectivoSucursal:   boolean; // la sucursal acepta efectivo (solo lo puede elegir un cliente que ingresó)
 };
 
 export type Pantalla = "catalogo" | "carrito" | "checkout" | "confirmacion";

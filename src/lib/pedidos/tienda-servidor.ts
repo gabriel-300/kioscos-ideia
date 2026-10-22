@@ -7,6 +7,7 @@ import { nombreCategoriaCliente, ordenarCategoriasCliente } from "@/lib/pedidos/
 import { elegirMasPedidos, leerMasPedidos } from "@/lib/pedidos/mas-pedidos";
 import { leerDestacadosOnline, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
 import { leerDisponibilidadOnline, type DisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
+import { leerEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { clienteDeLaSesion, esPrimeraCompra, leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import type { CategoriaCatalogo, ConfigTienda } from "@/app/pedir/[sucursal]/_lib/tipos";
 
@@ -38,7 +39,7 @@ export async function cargarTienda(
   if (!sucursal || !sucursal.is_active) return null;
 
   const ocultos = await leerOcultosOnline(admin, sucursalId);
-  const [catalogoSucursal, { data: zonasRaw }, beneficio, primeraCompra] = await Promise.all([
+  const [catalogoSucursal, { data: zonasRaw }, beneficio, primeraCompra, efectivoSucursal] = await Promise.all([
     cargarCatalogoSucursal(admin, sucursalId, {
       categoriasHabilitadas: sucursal.categorias_habilitadas ?? null,
       promosHabilitadas: sucursal.promos_habilitadas ?? true,
@@ -54,6 +55,7 @@ export async function cargarTienda(
       .order("costo"),
     leerConfigBeneficio(admin, sucursalId),
     cliente ? esPrimeraCompra(admin, cliente.id) : Promise.resolve(false),
+    leerEfectivoOnline(admin, sucursalId),
   ]);
 
   // Presentación para el cliente: categorías con nombre de comida y en el orden que apetece, y nombres
@@ -96,6 +98,7 @@ export async function cargarTienda(
     })),
     beneficio,
     cliente: cliente ? { nombre: cliente.nombre, telefono: cliente.telefono, primeraCompra } : null,
+    efectivoSucursal: efectivoSucursal,
   };
 
   return { config, catalogo, masPedidos, destacados: await leerDestacadosOnline(admin, sucursalId), disponibilidad: await leerDisponibilidadOnline(admin, sucursalId) };

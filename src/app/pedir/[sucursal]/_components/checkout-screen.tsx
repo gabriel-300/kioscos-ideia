@@ -44,7 +44,7 @@ function Opcion({ activa, onClick, titulo, detalle, derecha, deshabilitada }: {
 import { calcularBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { BeneficioCliente } from "./beneficio-cliente";
 import { pedirUbicacion } from "@/lib/geolocalizar";
-import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
+import { ingresarConGoogle } from "@/lib/pedidos/acceso-cliente";
 
 export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, envioNoDisponible, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
@@ -255,13 +255,22 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
         {/* 5. Pago */}
         <section aria-labelledby="pd-pago-t" className="space-y-2.5">
           <h3 id="pd-pago-t" className="text-[13.5px] font-bold !tracking-normal">Pago</h3>
-          {aceptaEfectivoOnline() && (
-            <Opcion
-              activa={form.pago === "efectivo"}
-              onClick={() => setForm({ pago: "efectivo" })}
-              titulo="Efectivo"
-              detalle={form.modo === "envio" ? "Avisanos con cuánto pagás y llevamos el vuelto" : "Pagás cuando retirás el pedido"}
-            />
+          {config.efectivoSucursal && (
+            config.cliente ? (
+              <Opcion
+                activa={form.pago === "efectivo"}
+                onClick={() => setForm({ pago: "efectivo" })}
+                titulo="Efectivo"
+                detalle={form.modo === "envio" ? "Avisanos con cuánto pagás y llevamos el vuelto" : "Pagás cuando retirás el pedido"}
+              />
+            ) : (
+              <Opcion
+                activa={false}
+                onClick={() => { void ingresarConGoogle(); }}
+                titulo="Efectivo"
+                detalle="Para pagar en efectivo ingresá con Google (tocá acá)"
+              />
+            )
           )}
           <Opcion
             activa={form.pago === "mercadopago_link"}

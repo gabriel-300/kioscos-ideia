@@ -5,7 +5,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: as
 
 // Los tests de siempre prueban el flujo con efectivo; la regla "solo Mercado Pago" tiene los suyos más abajo.
 const medios = vi.hoisted(() => ({ efectivo: true }));
-vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => medios.efectivo }));
+vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => medios.efectivo, leerEfectivoOnline: async () => true }));
 
 import { crearPedidoPublico, type DatosPedidoPublico } from "@/lib/pedidos/crear-pedido-publico";
 
@@ -70,7 +70,7 @@ describe("crearPedidoPublico: solo Mercado Pago", () => {
     try {
       const { admin, calls } = mundo();
       const r = await crearPedidoPublico(admin, datos({ medio_pago: "efectivo" }), "1.1.1.1");
-      expect(r.error).toMatch(/solo con Mercado Pago/);
+      expect(r.error).toMatch(/ingresar con Google/);
       expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
     } finally { medios.efectivo = true; }
   });

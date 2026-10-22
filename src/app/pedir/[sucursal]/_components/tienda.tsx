@@ -57,7 +57,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
     referencia: "",
     nombre:     "",
     whatsapp:   "",
-    pago:       aceptaEfectivoOnline() ? "efectivo" : "mercadopago_link",
+    pago:       "mercadopago_link",
     pagoCon:    "",
     notas:      "",
   }), [enviosDisponibles, config.zonas]);
@@ -127,8 +127,8 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
         whatsapp: formRestaurado.whatsapp || (config.cliente.telefono ?? ""),
       };
     }
-    // Un formulario guardado antes de sacar el efectivo no puede volver a elegirlo.
-    if (!aceptaEfectivoOnline() && formRestaurado.pago === "efectivo") formRestaurado = { ...formRestaurado, pago: "mercadopago_link", pagoCon: "" };
+    // Un formulario guardado con efectivo no vale si ya no hay efectivo (otra sucursal, o sin ingresar).
+    if (!aceptaEfectivoOnline(config.efectivoSucursal, !!config.cliente) && formRestaurado.pago === "efectivo") formRestaurado = { ...formRestaurado, pago: "mercadopago_link", pagoCon: "" };
     setFormEstado(formRestaurado);
     setHidratado(true);
     if (!estadoHorario(config.horario).abierto && !sessionStorage.getItem(`pedir:cerrado:${config.sucursalId}`)) setAvisoCerrado(true);

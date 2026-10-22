@@ -9,7 +9,7 @@ const wa = vi.hoisted(() => ({
   enviarLista:   vi.fn(async (..._a: any[]) => ({ ok: true })),
 }));
 vi.mock("@/lib/whatsapp/enviar-mensaje", () => wa);
-vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => true })); // el recorrido completo prueba el flujo con efectivo
+vi.mock("@/lib/pedidos/medios-pago", () => ({ aceptaEfectivoOnline: () => true, leerEfectivoOnline: async () => true })); // el recorrido completo prueba el flujo con efectivo
 vi.mock("@/lib/pedidos/interpretar-pedido-ia", () => ({ interpretarPedidoConIA: vi.fn(async () => []) }));
 
 import { estadoInicial, leerEstado, serializarEstado } from "@/lib/pedidos/bot/estado";
