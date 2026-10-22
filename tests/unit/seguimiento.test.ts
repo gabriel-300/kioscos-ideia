@@ -109,3 +109,22 @@ describe("avisos al cliente por WhatsApp", () => {
     });
   });
 });
+
+import { estadoDelPago } from "@/lib/pedidos/seguimiento";
+
+describe("estadoDelPago (lo que ve el cliente)", () => {
+  it("Mercado Pago: falta pagar mientras espera el pago y pagado desde que entra", () => {
+    expect(estadoDelPago({ estado: "pendiente_pago", medio_pago: "mercadopago_link" })).toEqual({ texto: "Falta pagar", tono: "aviso" });
+    for (const e of ["pagado", "en_preparacion", "listo_retiro", "en_reparto", "entregado"]) {
+      expect(estadoDelPago({ estado: e, medio_pago: "mercadopago_link" }), e).toEqual({ texto: "Pagado", tono: "ok" });
+    }
+  });
+  it("efectivo (pedidos de antes): se paga al recibir y queda pagado al entregar", () => {
+    expect(estadoDelPago({ estado: "confirmado", medio_pago: "efectivo" })?.texto).toBe("Pagás al recibirlo");
+    expect(estadoDelPago({ estado: "entregado", medio_pago: "efectivo" })?.tono).toBe("ok");
+  });
+  it("un pedido cancelado o vencido no muestra estado de pago", () => {
+    expect(estadoDelPago({ estado: "cancelado", medio_pago: "mercadopago_link" })).toBeNull();
+    expect(estadoDelPago({ estado: "expirado", medio_pago: "mercadopago_link" })).toBeNull();
+  });
+});

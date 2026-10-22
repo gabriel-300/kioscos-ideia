@@ -69,3 +69,15 @@ export function armarSeguimiento(p: PedidoParaSeguimiento): Seguimiento {
 
   return { ...texto, pasos, final: esEstadoFinal(p.estado) };
 }
+
+// Cómo está el pago del pedido, para mostrarlo en la página de seguimiento ("Pagado", "Falta pagar").
+export type EstadoPagoVisible = { texto: string; tono: "ok" | "aviso" | "neutro" };
+
+export function estadoDelPago(p: { estado: string; medio_pago: string | null }): EstadoPagoVisible | null {
+  if (p.estado === "cancelado" || p.estado === "expirado") return null;
+  if (p.medio_pago === "efectivo") {
+    return p.estado === "entregado" ? { texto: "Pagado", tono: "ok" } : { texto: "Pagás al recibirlo", tono: "neutro" };
+  }
+  // Mercado Pago: hasta que el pago entra, el pedido está "esperando pago"; de ahí en adelante ya está pagado.
+  return p.estado === "pendiente_pago" ? { texto: "Falta pagar", tono: "aviso" } : { texto: "Pagado", tono: "ok" };
+}
