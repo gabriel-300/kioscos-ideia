@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { clienteDeLaSesion } from "@/lib/pedidos/beneficio-servidor";
 import { cargarTienda } from "@/lib/pedidos/tienda-servidor";
+import { cargarLocalesParaPedir } from "@/lib/pedidos/locales";
 import { Tienda } from "./_components/tienda";
 
 // Catálogo público de pedidos online. Nadie necesita sesión para entrar acá
@@ -29,5 +30,9 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
   const tienda = await cargarTienda(admin, sucursalId, cliente);
   if (!tienda) notFound();
 
-  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} />;
+  // Si esta sucursal todavía no recibe pedidos online (un QR o enlace viejo), se le muestra al cliente dónde sí puede pedir.
+  // No se lo manda solo a otro local: tendría que retirar en un lugar distinto al que creía.
+  const otrosLocales = tienda.config.habilitado ? [] : (await cargarLocalesParaPedir(admin)).filter((l) => l.id !== sucursalId).map((l) => ({ id: l.id, nombre: l.nombre.trim() }));
+
+  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} otrosLocales={otrosLocales} />;
 }

@@ -42,8 +42,9 @@ function guardarJSON(storage: Storage, clave: string, valor: unknown) {
   try { storage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado / cuota: el carrito igual funciona en memoria */ }
 }
 
-export function Tienda({ config, catalogo, masPedidos = [], destacados = [] }: {
+export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otrosLocales = [] }: {
   config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[]; destacados?: DestacadoOnline[];
+  otrosLocales?: { id: string; nombre: string }[]; // dónde sí se puede pedir, cuando esta sucursal todavía no recibe pedidos
 }) {
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles);
@@ -343,7 +344,20 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [] }: {
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
-          <div className="mx-auto max-w-[1100px]">Los pedidos online de esta sucursal llegan pronto. Mientras tanto podés mirar el menú.</div>
+          <div className="mx-auto max-w-[1100px]">
+            {otrosLocales.length > 0 ? (
+              <>
+                <p>Esta sucursal todavía no recibe pedidos online. Podés mirar el menú, o pedir en:</p>
+                <p className="mt-2 flex flex-wrap gap-2">
+                  {otrosLocales.map((l) => (
+                    <a key={l.id} href={`/pedir/${l.id}`} style={{ color: "#fff" }} className="pd-display inline-flex h-10 items-center rounded-full bg-pd-ember px-5 text-[14px] font-bold">Pedir en {l.nombre}</a>
+                  ))}
+                </p>
+              </>
+            ) : (
+              "Los pedidos online de esta sucursal llegan pronto. Mientras tanto podés mirar el menú."
+            )}
+          </div>
         </div>
       )}
 
