@@ -129,13 +129,13 @@ export function ClosedSheet({ proxima, onCerrar }: { proxima: string | null; onC
       <div className="pd-slideup w-full max-w-[480px] rounded-t-[28px] bg-pd-paper px-5 pb-8 pt-6 md:rounded-[28px]">
         <span className="inline-block rounded-full bg-pd-warn px-3 py-1.5 text-[11.5px] font-bold tracking-[0.06em] text-pd-warn-ink">CERRADO AHORA</span>
         <h2 className="mt-3 text-[26px] text-pd-ink-900">{proxima ? `Abrimos ${proxima}` : "Ahora estamos cerrados"}</h2>
-        <p className="mt-2 text-[14.5px] text-pd-ink-600">Podés mirar el menú y dejar el pedido armado: lo preparamos apenas abrimos.</p>
+        <p className="mt-2 text-[14.5px] text-pd-ink-600">Podés mirar el menú; los pedidos se toman cuando el local está abierto.</p>
         <button
           type="button"
           onClick={onCerrar}
           className="pd-display mt-5 h-14 w-full rounded-2xl bg-pd-ink-900 text-[16px] font-bold text-pd-cream"
         >
-          Ver el menú igual
+          Ver el menú
         </button>
       </div>
     </div>

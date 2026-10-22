@@ -46,12 +46,13 @@ import { BeneficioCliente } from "./beneficio-cliente";
 import { pedirUbicacion } from "@/lib/geolocalizar";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 
-export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
+export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, envioNoDisponible, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
   form:              FormCheckout;
   setForm:           (parcial: Partial<FormCheckout>) => void;
   ubicacion:         { lat: number; lng: number } | null;
   setUbicacion:      (u: { lat: number; lng: number } | null) => void;
+  envioNoDisponible: string | null; // el envío está cortado ahora (fuera de su horario o suspendido): el mensaje para el cliente
   subtotal:          number;
   cantidadProductos: number;
   horario:           EstadoHorario;
@@ -75,7 +76,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
     setErrores((prev) => { const { ["pd-f-calle"]: _c, ["pd-f-referencia"]: _r, ...resto } = prev; return resto; });
   }
 
-  const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
+  const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0 && !envioNoDisponible;
   const zona = form.modo === "envio" ? config.zonas.find((z) => z.id === form.zonaId) ?? null : null;
   // Misma cuenta que hace el servidor al cobrar (beneficio-cliente.ts): esto es solo la vista previa.
   const beneficio = calcularBeneficio({
@@ -152,7 +153,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
             deshabilitada={!enviosDisponibles}
             onClick={() => setForm({ modo: "envio", zonaId: form.zonaId ?? config.zonas[0]?.id ?? null })}
             titulo="Envío"
-            detalle={enviosDisponibles ? "a tu casa" : "no disponible"}
+            detalle={enviosDisponibles ? "a tu casa" : envioNoDisponible ? "no disponible ahora" : "no disponible"}
           />
           <Opcion
             activa={form.modo === "retiro"}
@@ -162,6 +163,10 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
             detalle={config.retiroHabilitado ? "en el local · gratis" : "no disponible"}
           />
         </div>
+
+        {envioNoDisponible && (
+          <p role="status" className="-mt-3 rounded-xl bg-pd-warn px-4 py-3 text-[13.5px] leading-snug text-pd-warn-ink">{envioNoDisponible}</p>
+        )}
 
         {/* 2. Zona / retiro: costo y tiempo ANTES de pedir datos */}
         {form.modo === "envio" ? (

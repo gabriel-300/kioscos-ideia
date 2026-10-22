@@ -14,6 +14,8 @@ import { armarCatalogo } from "@/lib/pedidos/catalogo";
 import { leerOcultosOnline } from "@/lib/pedidos/catalogo-online";
 import { leerDestacadosOnline } from "@/lib/pedidos/destacado-online";
 import { DestacadoForm } from "./_components/destacado-form";
+import { HorarioEnviosForm } from "./_components/horario-envios-form";
+import { leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 
 export const revalidate = 0;
@@ -57,11 +59,12 @@ export default async function ConfiguracionPedidosOnlinePage({
   // Lo que se podría ofrecer (activo, con precio, categorías permitidas) aunque hoy no tenga stock,
   // marcando lo que hoy no tiene. Sirve para elegir qué se esconde.
   const kiosco = puertoKiosco(admin);
-  const [restricciones, datosCatalogo, ocultos, destacados] = await Promise.all([
+  const [restricciones, datosCatalogo, ocultos, destacados, disponibilidad] = await Promise.all([
     kiosco.restricciones(seleccionada.id),
     kiosco.datosCatalogo(seleccionada.id),
     leerOcultosOnline(admin, seleccionada.id),
     leerDestacadosOnline(admin, seleccionada.id),
+    leerDisponibilidadOnline(admin, seleccionada.id),
   ]);
   const sinEsconder = { ...restricciones, productosOcultos: [], promosOcultas: [] };
   const hoyConStock = new Set(armarCatalogo(datosCatalogo, sinEsconder).items.map((i) => i.id));
@@ -109,6 +112,7 @@ export default async function ConfiguracionPedidosOnlinePage({
             horario_pedidos:           normalizarHorario(cfg?.horario_pedidos),
           }}
         />
+        <HorarioEnviosForm sucursalId={seleccionada.id} inicial={disponibilidad.horarioEnvios} />
         <DestacadoForm sucursalId={seleccionada.id} grupos={grupos} inicial={destacados} />
         <CatalogoOnlineForm sucursalId={seleccionada.id} grupos={grupos} ocultosInicial={ocultosInicial} />
         <BeneficioForm sucursalId={seleccionada.id} inicial={beneficio} />

@@ -4,6 +4,7 @@ import { aItemsPedido } from "./carrito";
 import type { DatosCheckout } from "./estado";
 import { siguientePaso, textoConfirmacion, type ConfigCheckout } from "./checkout";
 import { aceptaEfectivoOnline } from "../medios-pago";
+import { estadoEnvios, estadoPedidos, leerDisponibilidadOnline } from "../disponibilidad-online";
 import { guardarEstado, type Admin, type Ctx } from "./contexto";
 import {
   enviarCarrito, mensaje, preguntarDireccion, preguntarEntrega, preguntarNombre, preguntarPago, preguntarZona,
@@ -30,10 +31,13 @@ async function cargarConfigCheckout(admin: Admin, sucursalId: string): Promise<C
       .order("costo")
       .limit(MAX_ZONAS),
   ]);
+  const disponibilidad = await leerDisponibilidadOnline(admin, sucursalId);
+  const sinPedidos = estadoPedidos(disponibilidad).pausado;
+  const hayEnvio = estadoEnvios(disponibilidad).disponible;
   return {
-    habilitado: !!sucursal?.is_active && !!sucursal.pedidos_online_habilitado,
+    habilitado: !!sucursal?.is_active && !!sucursal.pedidos_online_habilitado && !sinPedidos,
     retiro:     sucursal?.retiro_habilitado ?? true,
-    delivery:   !!sucursal?.delivery_habilitado,
+    delivery:   !!sucursal?.delivery_habilitado && hayEnvio,
     efectivo:   aceptaEfectivoOnline(),
     zonas: ((zonas ?? []) as any[]).map((z) => ({
       id: z.id, nombre: z.nombre, costo: Number(z.costo), etaMin: z.eta_min, etaMax: z.eta_max,

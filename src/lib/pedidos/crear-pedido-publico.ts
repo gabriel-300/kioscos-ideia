@@ -9,6 +9,7 @@ import { esPrimeraCompra, leerConfigBeneficio } from "./beneficio-servidor";
 import { crearCheckoutMercadoPago } from "./checkout-mercadopago";
 import { coordenadasValidas, DIRECCION_POR_GPS, redondearCoordenada } from "./ubicacion";
 import { aceptaEfectivoOnline } from "./medios-pago";
+import { estadoEnvios, estadoPedidos, leerDisponibilidadOnline } from "./disponibilidad-online";
 
 // Núcleo de iniciarPedido() (src/lib/pedidos/actions.ts), separado a
 // propósito de la Server Action: no toca next/headers (el identificador del
@@ -104,6 +105,14 @@ export async function crearPedidoPublico(
   const horario = estadoHorario(normalizarHorario(sucursal.horario_pedidos));
   if (!horario.abierto) {
     return { error: `El local está cerrado por ahora${horario.proximaApertura ? `. Abre ${horario.proximaApertura}` : ""}` };
+  }
+  // Pausas que el personal prende desde Tenteo y horario propio del envío (migración 122; sin ella, todo normal).
+  const disponibilidad = await leerDisponibilidadOnline(admin, data.sucursal_id);
+  const pedidos = estadoPedidos(disponibilidad);
+  if (pedidos.pausado) return { error: `Por ahora no estamos tomando pedidos online${pedidos.motivo ? `: ${pedidos.motivo}` : ""}` };
+  if (data.tipo_entrega === "delivery") {
+    const envio = estadoEnvios(disponibilidad);
+    if (!envio.disponible) return { error: envio.mensaje ?? "Ahora no hacemos envíos" };
   }
   if (data.tipo_entrega === "delivery" && !sucursal.delivery_habilitado) return { error: "Esta sucursal no hace envíos por ahora" };
   if (data.tipo_entrega === "retiro_local" && !sucursal.retiro_habilitado) return { error: "Esta sucursal no tiene retiro en el local por ahora" };

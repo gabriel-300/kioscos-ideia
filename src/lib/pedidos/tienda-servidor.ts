@@ -6,6 +6,7 @@ import { nombrePresentable } from "@/lib/pedidos/nombres-cliente";
 import { nombreCategoriaCliente, ordenarCategoriasCliente } from "@/lib/pedidos/categorias-cliente";
 import { elegirMasPedidos, leerMasPedidos } from "@/lib/pedidos/mas-pedidos";
 import { leerDestacadosOnline, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
+import { leerDisponibilidadOnline, type DisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { clienteDeLaSesion, esPrimeraCompra, leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import type { CategoriaCatalogo, ConfigTienda } from "@/app/pedir/[sucursal]/_lib/tipos";
 
@@ -24,7 +25,7 @@ export async function cargarTienda(
   admin: Admin,
   sucursalId: string,
   cliente: ClienteSesion = null,
-): Promise<{ config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos: string[]; destacados: DestacadoOnline[] } | null> {
+): Promise<{ config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos: string[]; destacados: DestacadoOnline[]; disponibilidad: DisponibilidadOnline } | null> {
   // (admin as any): las columnas de config de pedidos online (migración 094)
   // y categorias_habilitadas/promos_habilitadas (088/089) todavía no están en
   // los tipos generados -- mismo patrón que el resto del proyecto.
@@ -97,5 +98,5 @@ export async function cargarTienda(
     cliente: cliente ? { nombre: cliente.nombre, telefono: cliente.telefono, primeraCompra } : null,
   };
 
-  return { config, catalogo, masPedidos, destacados: await leerDestacadosOnline(admin, sucursalId) };
+  return { config, catalogo, masPedidos, destacados: await leerDestacadosOnline(admin, sucursalId), disponibilidad: await leerDisponibilidadOnline(admin, sucursalId) };
 }

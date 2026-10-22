@@ -5,7 +5,11 @@ import { BotonCuenta } from "./boton-cuenta";
 
 // Barra de arriba, clara y baja (como las apps de pedidos): logo de la marca, el ingreso, y debajo el
 // local con sus datos. La foto grande de comida va aparte, en el banner (banner-destacado.tsx).
-export function StoreHeader({ config, horario }: { config: ConfigTienda; horario: EstadoHorario }) {
+export function StoreHeader({ config, horario, envioEtiqueta = null, envioCortado = false }: {
+  config: ConfigTienda; horario: EstadoHorario;
+  envioEtiqueta?: string | null; // lo que dice el cartel del envío (ej. "Envíos hoy 18:00 – 21:00", "Envío suspendido: Sin repartidor")
+  envioCortado?: boolean;        // hoy no hay envío: el cartel va en aviso
+}) {
   const lineas = lineasLogo(config.nombre);
   const direccion = [config.direccion, config.localidad].filter(Boolean).join(", ");
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
@@ -44,7 +48,7 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
             {horario.abierto ? "Abierto ahora" : "Cerrado ahora"}
           </span>
           {horario.hoyTexto && <span className={chip}>{horario.hoyTexto}</span>}
-          {enviosDisponibles && <span className={chip}>Envío a domicilio</span>}
+          {enviosDisponibles && <span className={`${chip} ${envioCortado ? "!bg-pd-warn !text-pd-warn-ink" : ""}`}>{envioEtiqueta ?? "Envío a domicilio"}</span>}
           {!enviosDisponibles && config.retiroHabilitado && <span className={chip}>Retiro en el local</span>}
           {config.retiroHabilitado && config.habilitado && <span className={chip}>Retiro en {config.retiroEtaMin}–{config.retiroEtaMax} min</span>}
         </div>
@@ -58,7 +62,7 @@ export function ClosedBanner({ proxima }: { proxima: string | null }) {
     <div className="bg-pd-warn text-pd-warn-ink px-4 py-3 text-[13px] leading-snug">
       <div className="mx-auto flex max-w-[1100px] items-start gap-2.5">
         <span className="mt-1.5 size-2 shrink-0 rounded-full bg-[#F0A03C]" />
-        <p>Ahora cerrado. Podés armar el pedido y lo preparamos al abrir{proxima ? `, ${proxima}` : ""}.</p>
+        <p>Ahora cerrado{proxima ? `. Abrimos ${proxima}` : ""}. Mientras tanto podés mirar el menú.</p>
       </div>
     </div>
   );

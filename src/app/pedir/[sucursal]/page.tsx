@@ -34,5 +34,5 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
   // No se lo manda solo a otro local: tendría que retirar en un lugar distinto al que creía.
   const otrosLocales = tienda.config.habilitado ? [] : (await cargarLocalesParaPedir(admin)).filter((l) => l.id !== sucursalId).map((l) => ({ id: l.id, nombre: l.nombre.trim() }));
 
-  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} otrosLocales={otrosLocales} />;
+  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} disponibilidad={tienda.disponibilidad} otrosLocales={otrosLocales} />;
 }

@@ -6,6 +6,8 @@ import { TarjetaPedido, type PedidoTarjeta } from "./_components/tarjeta-pedido"
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atender";
 import { GRUPOS, agruparPedidos } from "@/lib/pedidos/presentacion";
+import { ControlDisponibilidad, type ControlSucursal } from "./_components/control-disponibilidad";
+import { leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
@@ -38,9 +40,15 @@ export default async function PedidosOnlinePage() {
   const { data: pedidosRaw } = sinSucursales ? { data: [] } : await query;
 
   // Cartel con QR para pegar en el local: una sucursal por enlace.
-  let sucursalesQr = (admin as any).from("sucursales").select("id, nombre").eq("is_active", true).eq("pedidos_online_habilitado", true).order("nombre");
+  let sucursalesQr = (admin as any).from("sucursales").select("id, nombre, delivery_habilitado").eq("is_active", true).eq("pedidos_online_habilitado", true).order("nombre");
   if (sucursales) sucursalesQr = sucursalesQr.in("id", sucursales);
-  const { data: sucursalesConQr } = sinSucursales ? { data: [] } : await sucursalesQr as { data: { id: string; nombre: string }[] | null };
+  const { data: sucursalesConQr } = sinSucursales ? { data: [] } : await sucursalesQr as { data: { id: string; nombre: string; delivery_habilitado: boolean | null }[] | null };
+
+  // Interruptores del personal: pausar los envíos o todos los pedidos online, con motivo (migración 122).
+  const controles: ControlSucursal[] = await Promise.all((sucursalesConQr ?? []).map(async (s) => {
+    const d = await leerDisponibilidadOnline(admin, s.id);
+    return { id: s.id, nombre: s.nombre, conEnvio: !!s.delivery_habilitado, pausaEnvios: d.pausas.envios, pausaPedidos: d.pausas.pedidos };
+  }));
 
   // Por urgencia: lo que espera al local arriba (el que más espera, primero) y lo ya
   // entregado al final. "pendiente_pago" solo interesa si es un pago por link vigente
@@ -110,6 +118,8 @@ export default async function PedidosOnlinePage() {
           )}
         </div>
       </div>
+
+      <ControlDisponibilidad sucursales={controles} />
 
       {todos.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">

@@ -19,6 +19,7 @@ import { BannerDestacado } from "./banner-destacado";
 import { CarruselBanners } from "./carrusel-banners";
 import { PieTienda } from "./pie-tienda";
 import { resolverBanners, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
+import { DISPONIBILIDAD_NORMAL, estadoEnvios, estadoPedidos, type DisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
@@ -42,12 +43,12 @@ function guardarJSON(storage: Storage, clave: string, valor: unknown) {
   try { storage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado / cuota: el carrito igual funciona en memoria */ }
 }
 
-export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otrosLocales = [] }: {
+export function Tienda({ config, catalogo, masPedidos = [], destacados = [], disponibilidad = DISPONIBILIDAD_NORMAL, otrosLocales = [] }: {
   config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[]; destacados?: DestacadoOnline[];
+  disponibilidad?: DisponibilidadOnline; // horario propio del envío y pausas que el personal prende desde Tenteo
   otrosLocales?: { id: string; nombre: string }[]; // dónde sí se puede pedir, cuando esta sucursal todavía no recibe pedidos
 }) {
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
-  const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles);
 
   const formInicial: FormCheckout = useMemo(() => ({
     modo:       enviosDisponibles ? "envio" : "retiro",
@@ -85,6 +86,18 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otr
 
   const claveStorage = `pedir:${config.sucursalId}`;
   const horario = estadoHorario(config.horario, ahora);
+
+  // Qué se puede pedir AHORA: cerrado o con los pedidos en pausa no se pide (el servidor lo rechazaría igual);
+  // el envío además tiene su propio horario y su propia pausa. Se recalcula cada minuto con `ahora`.
+  const pedidosEstado = estadoPedidos(disponibilidad, ahora);
+  const envioEstado = estadoEnvios(disponibilidad, ahora);
+  const envioNoDisponible = enviosDisponibles && !envioEstado.disponible ? envioEstado.mensaje : null;
+  const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles) && horario.abierto && !pedidosEstado.pausado;
+
+  // Si estaba eligiendo envío y se corta, pasa a retiro (el envío ya no se puede elegir).
+  useEffect(() => {
+    if (envioNoDisponible && form.modo === "envio") setFormEstado((f) => ({ ...f, modo: "retiro" }));
+  }, [envioNoDisponible, form.modo]);
 
   // ── Carrito persistente: solo ids + cantidades (los precios salen siempre del catálogo) ──
   useEffect(() => {
@@ -319,7 +332,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otr
 
   return (
     <>
-      <StoreHeader config={config} horario={horario} />
+      <StoreHeader config={config} horario={horario} envioEtiqueta={envioEstado.etiqueta} envioCortado={enviosDisponibles && !envioEstado.disponible} />
       {/* Mismo ancho y márgenes que el buscador de abajo (px-4 por fuera, max-w por dentro). */}
       <div className="px-4">
         <div className="mx-auto max-w-[1100px]">
@@ -341,8 +354,15 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otr
           <FranjaBeneficio config={config} className="mt-3" />
         </div>
       </div>
-      {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
-      {!puedePedir && (
+      {pedidosEstado.pausado && (
+        <div className="bg-pd-warn px-4 py-3 text-[13.5px] font-medium text-pd-warn-ink">
+          <div className="mx-auto max-w-[1100px]">
+            Por ahora no estamos tomando pedidos{pedidosEstado.motivo ? `: ${pedidosEstado.motivo}` : ""}. Podés mirar el menú y volver en un rato.
+          </div>
+        </div>
+      )}
+      {!horario.abierto && config.habilitado && !pedidosEstado.pausado && <ClosedBanner proxima={horario.proximaApertura} />}
+      {(!config.habilitado || !(config.retiroHabilitado || enviosDisponibles)) && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
           <div className="mx-auto max-w-[1100px]">
             {otrosLocales.length > 0 ? (
@@ -480,6 +500,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otr
           setForm={setForm}
           ubicacion={ubicacion}
           setUbicacion={setUbicacion}
+          envioNoDisponible={envioNoDisponible}
           subtotal={subtotal}
           cantidadProductos={cantidadTotal}
           horario={horario}

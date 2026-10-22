@@ -214,3 +214,25 @@ export async function guardarDestacadosOnline(sucursalId: string, destacados: { 
   refrescar();
   return {};
 }
+
+// Horario del envío a domicilio, aparte del horario del local (migración 122). null = igual al horario del local.
+export async function guardarHorarioEnvios(sucursalId: string, horario: TramoHorario[] | null): Promise<{ error?: string }> {
+  await requireAdmin();
+
+  let valor: TramoHorario[] | null = null;
+  if (horario !== null) {
+    valor = normalizarHorario(horario);
+    if (!valor) return { error: "El horario de envíos no es válido" };
+    const errorHorario = validarHorario(valor);
+    if (errorHorario) return { error: errorHorario };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await (admin as any).from("sucursales").update({ horario_envios: valor }).eq("id", sucursalId);
+  if (error) {
+    return { error: /horario_envios/.test(error.message) ? "Falta aplicar la migración 122 en la base" : error.message };
+  }
+
+  refrescar();
+  return {};
+}

@@ -34,6 +34,36 @@ function mundo(m: Mundo = {}) {
   });
 }
 
+describe("crearPedidoPublico: pausas y horario de envíos", () => {
+  const pausa = (motivo: string) => ({ motivo, desde: new Date(Date.now() - 60_000).toISOString(), hasta: null, por: "u1" });
+  const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "Calle 123", medio_pago: "mercadopago_link", ...over });
+
+  it("con los pedidos en pausa no entra ninguno (ni retiro) y se ve el motivo", async () => {
+    const { admin, calls } = mundo({ sucursal: { pausas_online: { pedidos: pausa("Mucha demanda") } } });
+    const r = await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1");
+    expect(r.error).toBe("Por ahora no estamos tomando pedidos online: Mucha demanda");
+    expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+  });
+  it("con el envío suspendido se rechaza el envío pero el retiro sigue andando", async () => {
+    const { admin } = mundo({ sucursal: { pausas_online: { envios: pausa("Sin repartidor") } } });
+    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toBe("Envío suspendido por ahora: Sin repartidor. Podés retirar en el local.");
+    const retiro = await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1");
+    expect(retiro.error).toBeUndefined();
+  });
+  it("una pausa que ya venció no frena nada", async () => {
+    const vencida = { motivo: "x", desde: "2020-01-01T00:00:00Z", hasta: "2020-01-01T01:00:00Z", por: null };
+    const { admin } = mundo({ sucursal: { pausas_online: { envios: vencida } } });
+    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toBeUndefined();
+  });
+  it("con horario de envíos propio, fuera de la franja se rechaza el envío (el retiro no)", async () => {
+    // una franja que nunca es ahora: todos los días de 03:00 a 03:01
+    const franja = [0, 1, 2, 3, 4, 5, 6].map((dia) => ({ dia, abre: "03:00", cierra: "03:01" }));
+    const { admin } = mundo({ sucursal: { horario_envios: franja } });
+    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/Ahora no hacemos envíos/);
+    expect((await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1")).error).toBeUndefined();
+  });
+});
+
 describe("crearPedidoPublico: solo Mercado Pago", () => {
   it("con el efectivo apagado rechaza un pedido en efectivo y NO crea nada", async () => {
     medios.efectivo = false;
