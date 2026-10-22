@@ -422,7 +422,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], otr
                 <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {tira.map((id, i) => {
                     const item = itemsPorId.get(id);
-                    return item ? <div key={id} className="w-[172px] shrink-0 snap-start">{tarjeta(item, i)}</div> : null;
+                    return item ? <div key={id} className="min-w-[168px] flex-1 shrink-0 basis-[168px] snap-start">{tarjeta(item, i)}</div> : null;
                   })}
                 </div>
               </section>
