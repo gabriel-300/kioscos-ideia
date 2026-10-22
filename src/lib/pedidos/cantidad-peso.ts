@@ -1,10 +1,18 @@
 // Productos que se venden por peso (products.unit_label = "kg"): el cliente no pide "1 chipa",
-// pide 300 g. En la tienda se cambia de a 100 g y el primer "Agregar" arranca en 500 g. La
+// pide 300 g. En la tienda se muestra el precio de 100 g, se elige entre cantidades rápidas (100, 200, 300 g,
+// medio kilo, un kilo) y se ajusta de a 100 g. La
 // cantidad que viaja al servidor es siempre en kilos (0.3 = 300 g), igual que en la caja.
 // Puro: lo usan la tienda (cliente) y el catálogo (servidor).
 
 export const PASO_KG = 0.1;
-export const INICIAL_KG = 0.5;
+export const INICIAL_KG = 0.2;
+// Lo que más se pide: el cliente toca y listo, sin pensar en kilos.
+export const OPCIONES_RAPIDAS_KG = [0.1, 0.2, 0.3, 0.5, 1];
+
+// El precio del kilo asusta ($15.000 por kg); el cliente piensa en 100 g. Solo para mostrar: se cobra sobre el kilo.
+export function precioPor100g(precioKg: number): number {
+  return Math.round(precioKg / 10);
+}
 // Menos de un paso de stock no alcanza para vender nada.
 export const STOCK_MINIMO_KG = PASO_KG;
 

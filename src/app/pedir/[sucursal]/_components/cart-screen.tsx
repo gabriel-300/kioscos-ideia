@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ConfigTienda, ItemCatalogo } from "../_lib/tipos";
+import { precioPor100g } from "@/lib/pedidos/cantidad-peso";
 import { fmt } from "../_lib/tema";
 import { sugerirUpsellPublico } from "@/lib/pedidos/actions";
 import { Foto, QtyStepper } from "./producto-ui";
@@ -57,7 +58,7 @@ export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, o
             <Foto item={item} className="size-[66px] shrink-0 rounded-[14px]" textoClase="text-[9px]" />
             <div className="min-w-0 flex-1">
               <p className="text-[14.5px] font-semibold leading-tight">{item.name}</p>
-              <p className="mt-0.5 text-[12px] text-pd-ink-400">{fmt(item.price)} {item.unit ?? "c/u"}</p>
+              <p className="mt-0.5 text-[12px] text-pd-ink-400">{item.unit ? `${fmt(precioPor100g(item.price))} cada 100 g` : `${fmt(item.price)} c/u`}</p>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <QtyStepper qty={qty} onInc={() => onInc(item.id)} onDec={() => onDec(item.id)} alto={38} className="w-[128px]" porPeso={!!item.unit} />
                 <span className="pd-display text-[18px] font-extrabold tabular-nums">{fmt(item.price * qty)}</span>

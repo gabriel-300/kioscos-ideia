@@ -5,7 +5,7 @@ import { INICIAL_KG, PASO_KG, redondearKg, sumarKg, textoCantidad } from "@/lib/
 describe("cantidades por peso", () => {
   it("se suma de a 100 g sin errores de coma flotante", () => {
     expect(sumarKg(0.2, 0.1)).toBe(0.3);
-    expect(sumarKg(INICIAL_KG, PASO_KG)).toBe(0.6);
+    expect(sumarKg(INICIAL_KG, PASO_KG)).toBe(0.3);
     expect(redondearKg(0.30000000000000004)).toBe(0.3);
     expect(sumarKg(0.3, -PASO_KG)).toBe(0.2);
   });

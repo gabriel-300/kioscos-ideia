@@ -6,7 +6,7 @@ import { fmt } from "../_lib/tema";
 import { Foto, QtyStepper } from "./producto-ui";
 import { IconAtras, IconChevron } from "./iconos";
 import { Panel } from "./panel";
-import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
+import { INICIAL_KG, OPCIONES_RAPIDAS_KG, PASO_KG, precioPor100g, redondearKg, sumarKg, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 // Detalle de producto: foto grande, precio y "Agregar $X". No hay variantes
 // (cada tamaño es un producto propio en este sistema, con su stock y precio
@@ -36,9 +36,39 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
         </div>
         <div className="px-4 pb-8 pt-5">
           <h2 className="text-[25px] text-pd-ink-900">{item.name}</h2>
-          <p className="pd-display mt-2 text-[26px] font-extrabold text-pd-ember">
-            {fmt(item.price)}{item.unit && <span className="ml-1.5 text-[13px] font-medium text-pd-ink-400">{item.unit}</span>}
-          </p>
+          {porPeso ? (
+            <>
+              <p className="pd-display mt-2 text-[26px] font-extrabold text-pd-ember">
+                {fmt(precioPor100g(item.price))}<span className="ml-1.5 text-[13px] font-medium text-pd-ink-400">cada 100 g</span>
+              </p>
+              <p className="text-[12.5px] text-pd-ink-400">({fmt(item.price)} el kilo)</p>
+
+              <p className="mt-5 text-[13.5px] font-bold text-pd-ink-900">¿Cuánto querés?</p>
+              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Cantidad">
+                {OPCIONES_RAPIDAS_KG.map((kg) => {
+                  const activa = redondearKg(cantidad) === kg;
+                  return (
+                    <button
+                      key={kg}
+                      type="button"
+                      onClick={() => setCantidad(kg)}
+                      aria-pressed={activa}
+                      className={`flex min-w-[78px] flex-col items-center rounded-[14px] border-[1.5px] px-3 py-2 ${activa ? "border-pd-ember bg-pd-tint" : "border-pd-line bg-white"}`}
+                    >
+                      <span className="pd-display text-[15px] font-bold text-pd-ink-900">{textoCantidad(kg, true)}</span>
+                      <span className="text-[12px] tabular-nums text-pd-ink-600">{fmt(item.price * kg)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-4 rounded-[14px] bg-pd-tint px-3.5 py-3 text-[14.5px] text-pd-ink-900">
+                Vas a pedir <strong>{textoCantidad(cantidad, true)}</strong> de {item.name}: <strong>{fmt(item.price * cantidad)}</strong>
+              </p>
+              <p className="mt-2 text-[12px] text-pd-ink-400">Podés sumar o restar de a 100 g con los botones de abajo.</p>
+            </>
+          ) : (
+            <p className="pd-display mt-2 text-[26px] font-extrabold text-pd-ember">{fmt(item.price)}</p>
+          )}
         </div>
       </div>
 

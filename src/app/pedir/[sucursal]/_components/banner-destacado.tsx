@@ -2,6 +2,7 @@
 
 import type { ConfigTienda, ItemCatalogo } from "../_lib/tipos";
 import { fmt } from "../_lib/tema";
+import { precioPor100g } from "@/lib/pedidos/cantidad-peso";
 
 // El banner grande de la entrada: el producto destacado con su foto y un botón para pedirlo (como los
 // banners de Rappi). Sin producto destacado muestra una bienvenida general con la foto de la marca.
@@ -33,7 +34,9 @@ export function BannerDestacado({ config, item, kicker, puedePedir, onPedir, onV
             <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-white/80">{kicker}</p>
             <h2 className="mt-1.5 text-[27px] leading-tight text-white [text-wrap:balance] md:text-[36px]">{item.name}</h2>
             <p className="pd-display mt-1.5 text-[21px] font-extrabold md:text-[24px]">
-              {fmt(item.price)}{item.unit && <span className="ml-1.5 text-[13px] font-medium text-white/75">{item.unit}</span>}
+              {item.unit
+                ? <>{fmt(precioPor100g(item.price))}<span className="ml-1.5 text-[13px] font-medium text-white/75">cada 100 g</span></>
+                : fmt(item.price)}
             </p>
             {puedePedir && (
               <button

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ItemCatalogo } from "../_lib/tipos";
 import { estiloGradiente, fmt } from "../_lib/tema";
 import { IconMas, IconMenos } from "./iconos";
-import { textoCantidad } from "@/lib/pedidos/cantidad-peso";
+import { precioPor100g, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 // Foto del producto. Si no tiene (o falla la carga) se usa el degradé de la
 // categoría con el nombre centrado -- nunca un círculo con iniciales.
@@ -70,7 +70,9 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
           <p className="text-[14px] font-semibold leading-[1.25] min-h-[2.5em] line-clamp-2">{item.name}</p>
         </button>
         <p className="pd-display mt-1.5 text-[18px] font-extrabold text-pd-ink-900">
-          {fmt(item.price)}{item.unit && <span className="ml-1 text-[11px] font-medium text-pd-ink-400">{item.unit}</span>}
+          {item.unit
+            ? <>{fmt(precioPor100g(item.price))}<span className="ml-1 text-[11px] font-medium text-pd-ink-400">cada 100 g</span></>
+            : fmt(item.price)}
         </p>
         {puedePedir && (
           <div className="mt-2.5">
@@ -79,10 +81,10 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
             ) : (
               <button
                 type="button"
-                onClick={onAdd}
+                onClick={item.unit ? onOpen : onAdd}
                 className="h-11 w-full rounded-[13px] bg-pd-ember text-[14px] font-bold text-white transition-colors hover:bg-pd-ember-dark active:bg-pd-ember-dark"
               >
-                Agregar
+                {item.unit ? "Elegir cantidad" : "Agregar"}
               </button>
             )}
           </div>
