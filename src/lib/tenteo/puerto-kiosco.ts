@@ -92,6 +92,8 @@ export interface PuertoKiosco {
   stock(sucursalId: string, productIds: string[]): Promise<FilaStock[] | null>;
   /** Registra la venta (movimiento + ítems). Devuelve el id del movimiento. */
   registrarVenta(entrada: EntradaVenta): Promise<ResultadoVenta>;
+  /** Anula una venta (queda en el Historial con quién y por qué). Fuera de un administrador, solo mientras la caja de ese turno sigue abierta. Si ya estaba anulada no hace nada. */
+  anularVenta(p: { movimientoId: string; sucursalId: string; userId: string; motivo: string; esAdmin: boolean }): Promise<{ error?: string }>;
   /** Sucursales que puede ver una persona del personal. null = todas (admin); [] = ninguna. */
   sucursalesDelUsuario(userId: string, rol: string): Promise<string[] | null>;
 }

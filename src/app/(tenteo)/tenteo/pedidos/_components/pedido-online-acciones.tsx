@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { avanzarEstadoPedido, asignarRepartidor, confirmarPagoRecibido, cancelarPedido } from "../actions";
+import { avanzarEstadoPedido, asignarRepartidor, confirmarPagoRecibido, cancelarPedido, anularPedidoConVenta } from "../actions";
 
 const SIGUIENTE_LABEL: Record<string, string> = {
   confirmado:             "Aceptar y preparar",
@@ -35,6 +35,8 @@ export function PedidoOnlineAcciones({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [anulando, setAnulando] = useState(false);
+  const [motivo, setMotivo] = useState("");
 
   const clave = estado === "en_preparacion" ? `en_preparacion_${tipoEntrega === "delivery" ? "delivery" : "retiro"}` : estado;
   const siguienteEstado = SIGUIENTE_ESTADO[clave];
@@ -42,6 +44,8 @@ export function PedidoOnlineAcciones({
   const bloqueadoSinRepartidor = estado === "en_preparacion" && tipoEntrega === "delivery" && !tieneRepartidor;
   const esperandoPagoMP = estado === "pendiente_pago" && medioPago === "mercadopago_link";
   const cancelable = !tieneVenta && !["entregado", "cancelado", "expirado", "carrito"].includes(estado);
+  // Ya cobrado (tiene venta): no se cancela a secas, se anula el pedido y su venta, con motivo.
+  const anulable = tieneVenta && !["cancelado", "expirado", "carrito"].includes(estado);
 
   function ejecutar(fn: () => Promise<{ error?: string }>) {
     setError(null);
@@ -98,6 +102,23 @@ export function PedidoOnlineAcciones({
         >
           Cancelar pedido
         </button>
+      )}
+      {anulable && !anulando && (
+        <button type="button" disabled={pending} onClick={() => setAnulando(true)} className="text-xs text-neutral-400 hover:text-red-600 hover:underline disabled:opacity-40">
+          Anular pedido (ya cobrado)
+        </button>
+      )}
+      {anulable && anulando && (
+        <div className="w-full max-w-[260px] space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-2.5">
+          <p className="text-[11.5px] leading-snug text-red-900">Se anula el pedido y su venta (queda en el Historial). La plata cobrada hay que devolverla desde Mercado Pago.</p>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={120} placeholder="Motivo (obligatorio)" className="h-9 w-full rounded-md border border-red-200 bg-white px-2 text-sm" />
+          <div className="flex gap-2">
+            <button type="button" disabled={pending || motivo.trim().length < 3} onClick={() => ejecutar(() => anularPedidoConVenta(pedidoId, motivo))} className="h-9 flex-1 rounded-md bg-red-600 px-3 text-sm font-semibold text-white disabled:opacity-40">
+              {pending ? "Anulando…" : "Confirmar anulación"}
+            </button>
+            <button type="button" disabled={pending} onClick={() => { setAnulando(false); setMotivo(""); }} className="h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-600">No</button>
+          </div>
+        </div>
       )}
       {error && <p className="max-w-[240px] text-right text-xs text-danger">{error}</p>}
     </div>

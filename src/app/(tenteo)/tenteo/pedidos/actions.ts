@@ -9,6 +9,7 @@ import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
 import { detalleDePedidosPorAtender, idsPedidosPorAtender } from "@/lib/pedidos/por-atender";
 import type { PedidoAviso } from "@/lib/pedidos/aviso";
 import { notificarCambioEstado } from "@/lib/pedidos/notificar-cliente";
+import { anularPedidoCobrado } from "@/lib/pedidos/anular-pedido";
 import { armarPausa, DURACIONES_PAUSA, leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 
 // Fase 5 del storefront (delivery, ver plan): primera pantalla del admin
@@ -191,5 +192,26 @@ export async function reactivarOnline(sucursalId: string, tipo: "envios" | "pedi
 
   revalidatePath("/tenteo/pedidos");
   revalidatePath("/pedir/[sucursal]", "page");
+  return {};
+}
+
+// Anular un pedido que ya se cobró (Mercado Pago): el pedido queda cancelado y su venta anulada (no se
+// borra). Mientras la caja del turno esté abierta lo puede hacer el personal; después, un administrador. La
+// plata hay que devolverla desde Mercado Pago (acá no se mueve).
+export async function anularPedidoConVenta(pedidoId: string, motivo: string): Promise<{ error?: string }> {
+  const { userId, role } = await requireStaffTenteo();
+  const admin = createAdminClient();
+
+  const { data: pedido } = await (admin as any).from("pedidos").select("sucursal_id").eq("id", pedidoId).single();
+  if (!pedido) return { error: "No se encontró el pedido" };
+  const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
+  if (accesoError) return { error: accesoError };
+
+  const res = await anularPedidoCobrado(admin, { pedidoId, motivo, userId, esAdmin: role === "admin" });
+  if (res.error) return { error: res.error };
+
+  await notificarCambioEstado(admin, pedidoId);
+  refrescar();
+  for (const ruta of ["/admin/movimientos", "/admin/stock", "/admin/ventas", "/admin/dashboard", "/admin/cierres", `/admin/sucursales/${pedido.sucursal_id}`]) revalidatePath(ruta);
   return {};
 }

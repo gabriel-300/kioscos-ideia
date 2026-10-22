@@ -163,6 +163,30 @@ export function kioscoDirecto(admin: Admin): PuertoKiosco {
     // admin ve todas (null); encargado/concesionario, la suya; vendedor, las de
     // profile_sucursales (la columna vieja profiles.sucursal_id solo si todavía
     // no tiene filas ahí). Cualquier otro rol: ninguna.
+    async anularVenta({ movimientoId, sucursalId, userId, motivo, esAdmin }): Promise<{ error?: string }> {
+      const { data: venta } = await (admin as any)
+        .from("movimientos").select("id, created_at, anulado_en").eq("id", movimientoId).single();
+      if (!venta) return { error: "No se encontró la venta del pedido" };
+      if (venta.anulado_en) return {};
+
+      // Misma regla que anularVenta del kiosco: la caja del turno tiene que seguir abierta.
+      if (!esAdmin) {
+        const { data: apertura } = await (admin as any)
+          .from("aperturas_caja").select("created_at").eq("sucursal_id", sucursalId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const { data: cierre } = await (admin as any)
+          .from("cierres_caja").select("created_at").eq("sucursal_id", sucursalId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const abierta = !!apertura && (!cierre || apertura.created_at > cierre.created_at) && venta.created_at >= apertura.created_at;
+        if (!abierta) return { error: "La caja de ese turno ya está cerrada: la venta no se puede anular. Pedile a un administrador." };
+      }
+
+      const { error } = await (admin as any)
+        .from("movimientos")
+        .update({ anulado_en: new Date().toISOString(), anulado_por: userId, motivo_anulacion: `Pedido online anulado: ${motivo}` })
+        .eq("id", movimientoId)
+        .is("anulado_en", null);
+      return error ? { error: error.message } : {};
+    },
+
     async sucursalesDelUsuario(userId, rol): Promise<string[] | null> {
       if (rol === "admin") return null;
 
