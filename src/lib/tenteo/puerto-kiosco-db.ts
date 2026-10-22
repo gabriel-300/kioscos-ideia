@@ -41,7 +41,7 @@ export function kioscoDirecto(admin: Admin): PuertoKiosco {
     async datosCatalogo(sucursalId): Promise<DatosCatalogo> {
       const [categorias, productos, preciosProducto, promos, preciosPromo, stock, componentes] = await Promise.all([
         admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-        (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
+        (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos, description, short_description").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
         admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
         (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).order("name"),
         (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),

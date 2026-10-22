@@ -9,6 +9,7 @@ export type ItemCatalogo = {
   image:           string | null;
   badge?:          string;
   unit?:           string;
+  descripcion?:    string;
   categoriaId:     string;
   categoriaNombre: string;
 };

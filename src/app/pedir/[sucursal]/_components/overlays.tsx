@@ -18,27 +18,31 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
   const [cantidad, setCantidad] = useState(porPeso ? INICIAL_KG : 1);
 
   return (
-    <Panel z="z-50"><div role="dialog" aria-modal="true" aria-label={item.name} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="relative h-[300px] w-full">
-          <Foto item={item} className="absolute inset-0 size-full bg-white !object-contain" eager textoClase="text-[26px]" />
-          <button
-            type="button"
-            onClick={onCerrar}
-            aria-label="Volver"
-            className="absolute left-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/95 text-pd-ink-900 shadow-md"
-          >
-            <IconAtras className="size-5" />
-          </button>
-          {item.badge && (
-            <span className="absolute bottom-3 left-4 rounded-[7px] bg-pd-ink px-2.5 py-1 text-[11px] font-bold tracking-[0.07em] text-pd-cream">{item.badge}</span>
-          )}
-        </div>
-        <div className="px-4 pb-8 pt-5">
-          <h2 className="text-[25px] text-pd-ink-900">{item.name}</h2>
+    <Panel z="z-50" ancho="md:max-w-[900px]"><div role="dialog" aria-modal="true" aria-label={item.name} className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* Foto: arriba en celular, a la izquierda en computadora */}
+      <div className="relative h-[250px] w-full shrink-0 md:h-auto md:min-h-[520px] md:w-[46%]">
+        <Foto item={item} className="absolute inset-0 size-full bg-white !object-contain" eager textoClase="text-[26px]" />
+        <button
+          type="button"
+          onClick={onCerrar}
+          aria-label="Volver"
+          className="absolute left-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/95 text-pd-ink-900 shadow-md"
+        >
+          <IconAtras className="size-5" />
+        </button>
+        {item.badge && (
+          <span className="absolute bottom-3 left-4 rounded-[7px] bg-pd-ink px-2.5 py-1 text-[11px] font-bold tracking-[0.07em] text-pd-cream">{item.badge}</span>
+        )}
+      </div>
+
+      {/* Información y botón de agregar */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto px-4 pb-6 pt-5 md:px-8 md:pt-9">
+          <h2 className="text-[25px] text-pd-ink-900 md:text-[30px]">{item.name}</h2>
+          {item.descripcion && <p className="mt-2 text-[14.5px] leading-relaxed text-pd-ink-600">{item.descripcion}</p>}
           {porPeso ? (
             <>
-              <p className="pd-display mt-2 text-[26px] font-extrabold text-pd-ember">
+              <p className="pd-display mt-3 text-[26px] font-extrabold text-pd-ember">
                 {fmt(precioPor100g(item.price))}<span className="ml-1.5 text-[13px] font-medium text-pd-ink-400">cada 100 g</span>
               </p>
               <p className="text-[12.5px] text-pd-ink-400">({fmt(item.price)} el kilo)</p>
@@ -67,30 +71,30 @@ export function ProductSheet({ item, puedePedir, onCerrar, onAgregar }: {
               <p className="mt-2 text-[12px] text-pd-ink-400">Podés sumar o restar de a 100 g con los botones de abajo.</p>
             </>
           ) : (
-            <p className="pd-display mt-2 text-[26px] font-extrabold text-pd-ember">{fmt(item.price)}</p>
+            <p className="pd-display mt-3 text-[26px] font-extrabold text-pd-ember">{fmt(item.price)}</p>
           )}
         </div>
-      </div>
 
-      {puedePedir && (
-        <div className="flex gap-3 border-t border-pd-line bg-white px-4 pb-6 pt-3.5">
-          <QtyStepper
-            qty={cantidad}
-            porPeso={porPeso}
-            onInc={() => setCantidad((c) => Math.min(porPeso ? sumarKg(c, PASO_KG) : c + 1, 50))}
-            onDec={() => setCantidad((c) => Math.max(porPeso ? sumarKg(c, -PASO_KG) : c - 1, porPeso ? PASO_KG : 1))}
-            alto={56}
-            className="w-[132px] shrink-0"
-          />
-          <button
-            type="button"
-            onClick={() => onAgregar(cantidad)}
-            className="pd-display flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-pd-ember text-[16px] font-bold text-white active:bg-pd-ember-dark"
-          >
-            Agregar <span className="tabular-nums">{fmt(item.price * cantidad)}</span>
-          </button>
-        </div>
-      )}
+        {puedePedir && (
+          <div className="flex gap-3 border-t border-pd-line bg-white px-4 pb-6 pt-3.5 md:px-8">
+            <QtyStepper
+              qty={cantidad}
+              porPeso={porPeso}
+              onInc={() => setCantidad((c) => Math.min(porPeso ? sumarKg(c, PASO_KG) : c + 1, 50))}
+              onDec={() => setCantidad((c) => Math.max(porPeso ? sumarKg(c, -PASO_KG) : c - 1, porPeso ? PASO_KG : 1))}
+              alto={56}
+              className="w-[132px] shrink-0"
+            />
+            <button
+              type="button"
+              onClick={() => onAgregar(cantidad)}
+              className="pd-display flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-pd-ember text-[16px] font-bold text-white active:bg-pd-ember-dark"
+            >
+              Agregar <span className="tabular-nums">{fmt(item.price * cantidad)}</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div></Panel>
   );
 }

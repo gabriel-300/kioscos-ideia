@@ -32,6 +32,7 @@ export type ItemCatalogo = {
   categoriaId: string | null;
   unidad?:     string;                 // "por kg"
   etiqueta?:   "PROMO" | "RECETA";
+  descripcion?: string;               // texto del producto para la ficha (las promos no tienen)
 };
 
 export type GrupoCatalogo = { id: string; name: string; items: ItemCatalogo[] };
@@ -78,6 +79,7 @@ export function armarCatalogo(datos: DatosCatalogo, restricciones: Restricciones
       id: p.id, esPromo: false, name: p.name, price,
       image: p.cover_image_url ?? null, categoriaId: p.category_id ?? null,
       unidad: p.unit_label === "kg" ? "por kg" : undefined,
+      descripcion: String(p.description || p.short_description || "").trim() || undefined,
     });
   }
 
