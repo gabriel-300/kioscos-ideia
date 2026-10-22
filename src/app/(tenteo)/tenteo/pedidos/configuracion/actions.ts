@@ -7,6 +7,7 @@ import { normalizarHorario, validarHorario, type TramoHorario } from "@/lib/pedi
 import { parsearCoordenadas } from "@/lib/geo";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { normalizarOcultos } from "@/lib/pedidos/catalogo-online";
+import { normalizarDestacado } from "@/lib/pedidos/destacado-online";
 
 // Solo admin: define qué sucursales aceptan pedidos online, qué zonas de
 // envío tienen y a qué precio, y el horario que ve el cliente. Nada de esto
@@ -187,6 +188,26 @@ export async function guardarCatalogoOnline(sucursalId: string, productosOcultos
     .eq("id", sucursalId);
   if (error) {
     return { error: /productos_ocultos_online|promos_ocultas_online/.test(error.message) ? "Falta aplicar la migración 119 en la base" : error.message };
+  }
+
+  refrescar();
+  return {};
+}
+
+// El producto o promo del banner grande de la tienda (migración 121). null = automático (lo más pedido).
+export async function guardarDestacadoOnline(sucursalId: string, itemId: string | null, titulo: string): Promise<{ error?: string }> {
+  await requireAdmin();
+
+  const d = normalizarDestacado(itemId, titulo);
+  if (itemId && !d.itemId) return { error: "El producto elegido no es válido" };
+
+  const admin = createAdminClient();
+  const { error } = await (admin as any)
+    .from("sucursales")
+    .update({ destacado_online_item_id: d.itemId, destacado_online_titulo: d.itemId ? d.titulo : null })
+    .eq("id", sucursalId);
+  if (error) {
+    return { error: /destacado_online/.test(error.message) ? "Falta aplicar la migración 121 en la base" : error.message };
   }
 
   refrescar();

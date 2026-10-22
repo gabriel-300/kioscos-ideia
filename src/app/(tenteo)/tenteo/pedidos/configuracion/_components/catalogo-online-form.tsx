@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { guardarCatalogoOnline } from "../actions";
 
-export type ItemElegible = { id: string; esPromo: boolean; nombre: string; precio: number; sinStock: boolean };
+export type ItemElegible = { id: string; esPromo: boolean; nombre: string; precio: number; sinStock: boolean; conFoto: boolean };
 export type GrupoElegible = { id: string; nombre: string; items: ItemElegible[] };
 
 const clave = (i: ItemElegible) => `${i.esPromo ? "m" : "p"}:${i.id}`;

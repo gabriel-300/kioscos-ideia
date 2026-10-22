@@ -29,5 +29,5 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
   const tienda = await cargarTienda(admin, sucursalId, cliente);
   if (!tienda) notFound();
 
-  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} />;
+  return <Tienda config={{ ...tienda.config, sesionActiva: !!user }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacado={tienda.destacado} />;
 }

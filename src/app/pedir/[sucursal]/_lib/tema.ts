@@ -52,8 +52,8 @@ const ARTICULOS = new Set(["de", "del", "la", "las", "los", "el", "y", "e"]);
 // "Parque de las Fiestas" -> ["PARQUE", "FIESTAS"] para el logo generado.
 // Logo de la marca para la cabecera de la tienda (blanco sobre transparente, para el fondo oscuro).
 // null = se usa el cuadrado generado con el nombre del local.
-export const LOGO_MARCA: { src: string; alt: string; ancho: number; alto: number } | null = {
-  src: "/marca/angiru-food-logo.png", alt: "Angiru Food", ancho: 640, alto: 211,
+export const LOGO_MARCA: { src: string; srcOscuro: string; alt: string; ancho: number; alto: number } | null = {
+  src: "/marca/angiru-food-logo.png", srcOscuro: "/marca/angiru-food-logo-oscuro.png", alt: "Angiru Food", ancho: 640, alto: 211,
 };
 
 export function lineasLogo(nombre: string): string[] {

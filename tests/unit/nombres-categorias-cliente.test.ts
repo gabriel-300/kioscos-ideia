@@ -58,3 +58,29 @@ describe("elegirMasPedidos", () => {
     expect(elegirMasPedidos(["a", "a", "c", "d", "e", "f"], items, 3, 2)).toEqual(["a", "c", "d"]);
   });
 });
+
+import { normalizarDestacado, resolverBanner } from "@/lib/pedidos/destacado-online";
+
+describe("banner destacado", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const items = [{ id: A, image: "a.jpg" }, { id: B, image: null }];
+
+  it("normaliza: solo un uuid válido y un título corto y limpio", () => {
+    expect(normalizarDestacado(A, "  Combo   del día ")).toEqual({ itemId: A, titulo: "Combo del día" });
+    expect(normalizarDestacado("nada", "x")).toEqual({ itemId: null, titulo: "x" });
+    expect(normalizarDestacado(A, "z".repeat(80)).titulo).toHaveLength(40);
+    expect(normalizarDestacado(A, "").titulo).toBeNull();
+  });
+  it("muestra lo que eligió el administrador, con su título", () => {
+    expect(resolverBanner({ itemId: A, titulo: "Combo del día" }, [B, A], items)).toEqual({ itemId: A, kicker: "Combo del día" });
+    expect(resolverBanner({ itemId: A, titulo: null }, [], items)).toEqual({ itemId: A, kicker: "Lo mejor de hoy" });
+  });
+  it("si lo elegido hoy no se puede pedir o no tiene foto, usa lo más pedido", () => {
+    expect(resolverBanner({ itemId: B, titulo: "x" }, [B, A], items)).toEqual({ itemId: A, kicker: "Lo más pedido" });
+    expect(resolverBanner({ itemId: "otro", titulo: null }, [A], items).itemId).toBe(A);
+  });
+  it("sin elegido ni más pedidos con foto, queda el banner general", () => {
+    expect(resolverBanner({ itemId: null, titulo: null }, [B], items)).toEqual({ itemId: null, kicker: "" });
+  });
+});

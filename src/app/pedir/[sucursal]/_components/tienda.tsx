@@ -15,6 +15,8 @@ import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
 import { FranjaBeneficio } from "./franja-beneficio";
+import { BannerDestacado } from "./banner-destacado";
+import { resolverBanner, type DestacadoOnline } from "@/lib/pedidos/destacado-online";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
@@ -38,7 +40,9 @@ function guardarJSON(storage: Storage, clave: string, valor: unknown) {
   try { storage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado / cuota: el carrito igual funciona en memoria */ }
 }
 
-export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[] }) {
+export function Tienda({ config, catalogo, masPedidos = [], destacado = { itemId: null, titulo: null } }: {
+  config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[]; destacado?: DestacadoOnline;
+}) {
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles);
 
@@ -289,6 +293,12 @@ export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTi
   const productoDetalle = productoAbierto ? itemsPorId.get(productoAbierto) ?? null : null;
   const buscando = consulta.length > 0;
 
+  // El banner grande: el destacado elegido, si no lo más pedido, si no la bienvenida general.
+  const banner = resolverBanner(destacado, masPedidos, catalogo.flatMap((c) => c.items));
+  const bannerItem = banner.itemId ? itemsPorId.get(banner.itemId) ?? null : null;
+  // Lo que ya está en el banner grande no se repite en la tira de abajo.
+  const tira = masPedidos.filter((id) => id !== banner.itemId);
+
   function tarjeta(item: ItemCatalogo, indice: number) {
     return (
       <ProductCard
@@ -308,7 +318,20 @@ export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTi
     <>
       <StoreHeader config={config} horario={horario} />
       {/* Mismo ancho y márgenes que el buscador de abajo (px-4 por fuera, max-w por dentro). */}
-      <div className="px-4"><div className="mx-auto max-w-[1100px] empty:hidden"><PedidoEnCurso className="mt-3" /><FranjaBeneficio config={config} className="mt-3" /></div></div>
+      <div className="px-4">
+        <div className="mx-auto max-w-[1100px]">
+          <PedidoEnCurso className="mb-3" />
+          <BannerDestacado
+            config={config}
+            item={bannerItem}
+            kicker={banner.kicker}
+            puedePedir={puedePedir}
+            onPedir={(id) => setProductoAbierto(id)}
+            onVerMenu={() => catalogo[0] && irACategoria(catalogo[0].id)}
+          />
+          <FranjaBeneficio config={config} className="mt-3" />
+        </div>
+      </div>
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
@@ -371,11 +394,11 @@ export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTi
           </section>
         ) : (
           <div className="space-y-9">
-            {masPedidos.length > 0 && (
+            {tira.length >= 3 && (
               <section aria-labelledby="mas-pedido-t">
                 <h2 id="mas-pedido-t" className="mb-3 text-[23px]">Lo más pedido</h2>
                 <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {masPedidos.map((id, i) => {
+                  {tira.map((id, i) => {
                     const item = itemsPorId.get(id);
                     return item ? <div key={id} className="w-[172px] shrink-0 snap-start">{tarjeta(item, i)}</div> : null;
                   })}
