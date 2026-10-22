@@ -2,6 +2,9 @@ import type { createAdminClient } from "@/lib/supabase/server";
 import { normalizarHorario } from "@/lib/pedidos/horario";
 import { cargarCatalogoSucursal } from "@/lib/pedidos/catalogo";
 import { leerOcultosOnline } from "@/lib/pedidos/catalogo-online";
+import { nombrePresentable } from "@/lib/pedidos/nombres-cliente";
+import { nombreCategoriaCliente, ordenarCategoriasCliente } from "@/lib/pedidos/categorias-cliente";
+import { elegirMasPedidos, leerMasPedidos } from "@/lib/pedidos/mas-pedidos";
 import { clienteDeLaSesion, esPrimeraCompra, leerConfigBeneficio } from "@/lib/pedidos/beneficio-servidor";
 import type { CategoriaCatalogo, ConfigTienda } from "@/app/pedir/[sucursal]/_lib/tipos";
 
@@ -20,7 +23,7 @@ export async function cargarTienda(
   admin: Admin,
   sucursalId: string,
   cliente: ClienteSesion = null,
-): Promise<{ config: ConfigTienda; catalogo: CategoriaCatalogo[] } | null> {
+): Promise<{ config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos: string[] } | null> {
   // (admin as any): las columnas de config de pedidos online (migración 094)
   // y categorias_habilitadas/promos_habilitadas (088/089) todavía no están en
   // los tipos generados -- mismo patrón que el resto del proyecto.
@@ -51,15 +54,26 @@ export async function cargarTienda(
     cliente ? esPrimeraCompra(admin, cliente.id) : Promise.resolve(false),
   ]);
 
-  const catalogo: CategoriaCatalogo[] = catalogoSucursal.grupos.map((g) => ({
-    id: g.id,
-    name: g.name,
-    items: g.items.map((i) => ({
-      id: i.id, esPromo: i.esPromo, name: i.name, price: i.price, image: i.image,
-      badge: i.etiqueta, unit: i.unidad,
-      categoriaId: g.id, categoriaNombre: g.name,
-    })),
-  }));
+  // Presentación para el cliente: categorías con nombre de comida y en el orden que apetece, y nombres
+  // de producto escritos como frase (el nombre real no se toca).
+  const catalogo: CategoriaCatalogo[] = ordenarCategoriasCliente(catalogoSucursal.grupos).map((g) => {
+    const nombreCategoria = nombreCategoriaCliente(g.name);
+    return {
+      id: g.id,
+      name: nombreCategoria,
+      // Lo que tiene foto va primero: una vidriera arranca con lo que da ganas de pedir.
+      items: g.items
+        .map((i) => ({
+          id: i.id, esPromo: i.esPromo, name: nombrePresentable(i.name), price: i.price, image: i.image,
+          badge: i.etiqueta, unit: i.unidad,
+          categoriaId: g.id, categoriaNombre: nombreCategoria,
+        }))
+        .sort((x, y) => Number(!!y.image) - Number(!!x.image)),
+    };
+  });
+
+  // "Lo más pedido": lo más vendido que hoy se puede pedir y tiene foto.
+  const masPedidos = elegirMasPedidos(await leerMasPedidos(admin, sucursalId), catalogo.flatMap((g) => g.items));
 
   const config: ConfigTienda = {
     sucursalId,
@@ -81,5 +95,5 @@ export async function cargarTienda(
     cliente: cliente ? { nombre: cliente.nombre, telefono: cliente.telefono, primeraCompra } : null,
   };
 
-  return { config, catalogo };
+  return { config, catalogo, masPedidos };
 }

@@ -80,7 +80,7 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
               <button
                 type="button"
                 onClick={onAdd}
-                className="h-11 w-full rounded-[13px] bg-pd-ink-900 text-[14px] font-bold text-pd-cream transition-colors hover:bg-pd-ember active:bg-pd-ember-dark"
+                className="h-11 w-full rounded-[13px] bg-pd-ember text-[14px] font-bold text-white transition-colors hover:bg-pd-ember-dark active:bg-pd-ember-dark"
               >
                 Agregar
               </button>

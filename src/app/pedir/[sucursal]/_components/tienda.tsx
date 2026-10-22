@@ -14,6 +14,7 @@ import { CheckoutScreen } from "./checkout-screen";
 import { ConfirmationScreen } from "./confirmation-screen";
 import { IconMas } from "./iconos";
 import { PedidoEnCurso } from "../../_components/pedido-en-curso";
+import { FranjaBeneficio } from "./franja-beneficio";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
@@ -37,7 +38,7 @@ function guardarJSON(storage: Storage, clave: string, valor: unknown) {
   try { storage.setItem(clave, JSON.stringify(valor)); } catch { /* modo privado / cuota: el carrito igual funciona en memoria */ }
 }
 
-export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: CategoriaCatalogo[] }) {
+export function Tienda({ config, catalogo, masPedidos = [] }: { config: ConfigTienda; catalogo: CategoriaCatalogo[]; masPedidos?: string[] }) {
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
   const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles);
 
@@ -307,7 +308,7 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
     <>
       <StoreHeader config={config} horario={horario} />
       {/* Mismo ancho y márgenes que el buscador de abajo (px-4 por fuera, max-w por dentro). */}
-      <div className="px-4"><div className="mx-auto max-w-[1100px] empty:hidden"><PedidoEnCurso className="mt-3" /></div></div>
+      <div className="px-4"><div className="mx-auto max-w-[1100px] empty:hidden"><PedidoEnCurso className="mt-3" /><FranjaBeneficio config={config} className="mt-3" /></div></div>
       {!horario.abierto && puedePedir && <ClosedBanner proxima={horario.proximaApertura} />}
       {!puedePedir && (
         <div className="bg-pd-tint px-4 py-3 text-[13.5px] font-medium text-pd-ink-900">
@@ -370,6 +371,17 @@ export function Tienda({ config, catalogo }: { config: ConfigTienda; catalogo: C
           </section>
         ) : (
           <div className="space-y-9">
+            {masPedidos.length > 0 && (
+              <section aria-labelledby="mas-pedido-t">
+                <h2 id="mas-pedido-t" className="mb-3 text-[23px]">Lo más pedido</h2>
+                <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+                  {masPedidos.map((id, i) => {
+                    const item = itemsPorId.get(id);
+                    return item ? <div key={id} className="w-[172px] shrink-0 snap-start">{tarjeta(item, i)}</div> : null;
+                  })}
+                </div>
+              </section>
+            )}
             {catalogo.map((c, ci) => (
               <section key={c.id} id={`cat-${c.id}`} data-seccion={c.id} aria-labelledby={`cat-t-${c.id}`} className="scroll-mt-[140px]">
                 <div className="mb-3 flex items-baseline justify-between">

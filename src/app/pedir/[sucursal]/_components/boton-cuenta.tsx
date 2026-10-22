@@ -39,8 +39,18 @@ export function BotonCuenta({ config }: { config: ConfigTienda }) {
           <button type="button" onClick={salir} disabled={trabajando} className={pastilla}>Salir</button>
         </div>
       ) : (
-        <button type="button" onClick={ingresar} disabled={trabajando} className={pastilla}>
-          {trabajando ? "Abriendo Google…" : "Ingresar con Google"}
+        <button
+          type="button"
+          onClick={ingresar}
+          disabled={trabajando}
+          aria-label="Ingresar con Google"
+          title="Ingresar con Google"
+          className={`${pastilla} gap-1.5 !px-3`}
+        >
+          <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" />
+          </svg>
+          <span className="hidden sm:inline">{trabajando ? "Abriendo…" : "Ingresar"}</span>
         </button>
       )}
       {error && <p className="max-w-[220px] rounded-lg bg-black/60 px-2.5 py-1.5 text-right text-[11.5px] leading-snug text-pd-cream">{error}</p>}

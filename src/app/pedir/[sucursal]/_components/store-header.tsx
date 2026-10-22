@@ -3,18 +3,20 @@ import { lineasLogo, LOGO_MARCA } from "../_lib/tema";
 import type { EstadoHorario } from "@/lib/pedidos/horario";
 import { BotonCuenta } from "./boton-cuenta";
 
-// Cabecera del local: fondo brand-ink con halo ember, logo generado a partir
-// del nombre de la sucursal (no hace falta subir imágenes -- funciona igual
-// para todas las sucursales), y chips de estado/horario/envío.
+// Cabecera del local: foto de fondo, logo de la marca, el local y chips de estado/horario/envío. Es
+// baja a propósito: lo que vende es el menú, y tiene que empezar lo antes posible.
 export function StoreHeader({ config, horario }: { config: ConfigTienda; horario: EstadoHorario }) {
   const lineas = lineasLogo(config.nombre);
   const direccion = [config.direccion, config.localidad].filter(Boolean).join(", ");
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0;
 
+  // Con el logo de la marca arriba, el nombre no repite "Angiru Food": queda "Costanera".
+  const nombreLocal = LOGO_MARCA && /^angiru food\s+\S/i.test(config.nombre.trim()) ? config.nombre.trim().replace(/^angiru food\s+/i, "") : config.nombre;
+
   const chip = "inline-flex items-center rounded-full px-3 py-1.5 text-[12.5px] font-bold text-pd-cream bg-white/10 whitespace-nowrap";
 
   return (
-    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-14 pb-6 md:pt-10"
+    <header className="relative overflow-hidden bg-pd-ink text-pd-cream px-4 pt-5 pb-5"
       style={{
         backgroundImage:
           "linear-gradient(90deg, rgba(34,25,15,.92) 0%, rgba(34,25,15,.78) 45%, rgba(34,25,15,.50) 100%), url(/marca/fondo-cabecera.jpg)",
@@ -32,7 +34,7 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
       <div className={LOGO_MARCA ? "relative" : "relative flex items-start gap-3.5"}>
         {LOGO_MARCA ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={LOGO_MARCA.src} alt={LOGO_MARCA.alt} width={LOGO_MARCA.ancho} height={LOGO_MARCA.alto} className="mb-3 h-[58px] w-auto" />
+          <img src={LOGO_MARCA.src} alt={LOGO_MARCA.alt} width={LOGO_MARCA.ancho} height={LOGO_MARCA.alto} className="mb-2.5 h-[46px] w-auto" />
         ) : (
           <div
             className="shrink-0 size-16 rounded-[18px] flex flex-col items-center justify-center text-center text-white leading-[1.05] pd-display font-extrabold text-[11px] tracking-[0.02em] shadow-lg"
@@ -43,8 +45,8 @@ export function StoreHeader({ config, horario }: { config: ConfigTienda; horario
           </div>
         )}
         <div className="min-w-0 pt-0.5">
-          <h1 className="text-[27px] text-pd-paper break-words">{config.nombre}</h1>
-          {direccion && <p className="mt-1.5 text-[13px] text-pd-cream/75">{direccion}</p>}
+          <h1 className="text-[24px] text-pd-paper break-words">{nombreLocal}</h1>
+          {direccion && <p className="mt-1 text-[13px] text-pd-cream/80">{direccion}</p>}
         </div>
       </div>
 
