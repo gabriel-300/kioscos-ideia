@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { Bricolage_Grotesque, Archivo } from "next/font/google";
+import { SITIO } from "@/lib/pedidos/seo";
 
 // Tipografía del catálogo público (ver ESPECIFICACION de diseño): Bricolage
 // Grotesque para nombres/precios/títulos, Archivo para el resto. Se carga
@@ -16,6 +18,8 @@ const body = Archivo({
   display: "swap",
   weight: ["400", "500", "600", "700"],
 });
+
+export const metadata: Metadata = { metadataBase: new URL(SITIO) };
 
 export default function PedirLayout({ children }: { children: React.ReactNode }) {
   return <div className={`pd ${display.variable} ${body.variable}`}>{children}</div>;

@@ -21,3 +21,17 @@ export function esDominioClientes(host: string): boolean {
 export function esDominioClientesSinWww(host: string): boolean {
   return host === DOMINIO_CLIENTES_SIN_WWW;
 }
+
+// Direcciones cortas por local (angirufood.com.ar/unam): una sola palabra después de la barra que no sea una
+// zona de la aplicación. En el dominio de clientes se reescriben a /pedir/<dirección corta>.
+export const SEGMENTOS_RESERVADOS = new Set([
+  "admin", "tenteo", "login", "registro", "registro-mayorista", "forgot-password", "pendiente",
+  "elegir-sistema", "auth", "api", "pedir", "privacidad", "terminos",
+]);
+
+export function slugDeRutaCorta(pathname: string): string | null {
+  const m = /^\/([a-z0-9][a-z0-9-]*)\/?$/.exec(pathname);
+  if (!m) return null;
+  const s = m[1];
+  return SEGMENTOS_RESERVADOS.has(s) || s.startsWith("google") ? null : s;
+}

@@ -13,7 +13,7 @@ import {
   sistemaDeRuta,
   sistemaValido,
 } from "@/lib/auth/acceso";
-import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto } from "@/lib/dominios";
+import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto, slugDeRutaCorta } from "@/lib/dominios";
 
 // Las listas de roles y sistemas viven en lib/auth/acceso.ts (una sola fuente).
 
@@ -48,6 +48,11 @@ export async function updateSession(request: NextRequest) {
   if (esDominioClientes(host) && request.nextUrl.pathname === "/") {
     // La raíz muestra "¿Dónde querés pedir?" sin cambiar la dirección que ve el cliente.
     return NextResponse.rewrite(new URL("/pedir", request.url));
+  }
+  const direccionCorta = esDominioClientes(host) ? slugDeRutaCorta(request.nextUrl.pathname) : null;
+  if (direccionCorta) {
+    // angirufood.com.ar/unam muestra el menú de ese local sin cambiar la dirección que ve el cliente.
+    return NextResponse.rewrite(new URL(`/pedir/${direccionCorta}`, request.url));
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

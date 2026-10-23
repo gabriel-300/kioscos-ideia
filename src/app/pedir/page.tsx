@@ -6,6 +6,10 @@ import { cargarTienda } from "@/lib/pedidos/tienda-servidor";
 import { ElegirLocal } from "./elegir-local";
 import { FondoMenu } from "./fondo-menu";
 import { PedidoEnCurso } from "./_components/pedido-en-curso";
+import { Portada } from "./_components/portada";
+import { JsonLd } from "@/components/json-ld";
+import { cargarLocalesSeo } from "@/lib/pedidos/seo-servidor";
+import { DESCRIPCION_MARCA, IMAGEN_COMPARTIR, jsonLdLocal, jsonLdMarca } from "@/lib/pedidos/seo";
 
 // "¿Dónde querés pedir?": cada local tiene su propio catálogo, stock y precios, así
 // que quien llega sin un local elegido (la raíz del dominio de clientes) lo elige acá.
@@ -16,12 +20,24 @@ import { PedidoEnCurso } from "./_components/pedido-en-curso";
 // navegador del cliente) y el atajo al último local viven en ElegirLocal.
 
 export const revalidate = 0;
-export const metadata: Metadata = { title: "Pedí online" };
+const TITULO = "Angiru Food · Panadería, confitería y delicatessen en Posadas";
+export const metadata: Metadata = {
+  title: { absolute: TITULO },
+  description: DESCRIPCION_MARCA,
+  alternates: { canonical: "/" },
+  openGraph: { type: "website", locale: "es_AR", siteName: "Angiru Food", title: TITULO, description: DESCRIPCION_MARCA, url: "/", images: [{ url: IMAGEN_COMPARTIR, width: 1200, height: 630, alt: "Angiru Food" }] },
+  twitter: { card: "summary_large_image", title: TITULO, description: DESCRIPCION_MARCA, images: [IMAGEN_COMPARTIR] },
+};
 
 export default async function ElegirLocalPage() {
   const admin = createAdminClient();
   const locales = await cargarLocalesParaPedir(admin);
-  if (locales.length === 1) redirect(`/pedir/${locales[0].id}`);
+  // Un solo local: portada de la marca con ese local (y datos estructurados). Con dos o más, se elige acá.
+  if (locales.length === 1) {
+    const [local] = (await cargarLocalesSeo(admin)).filter((l) => l.id === locales[0].id);
+    if (local) return <><Portada local={local} /><JsonLd datos={jsonLdMarca()} /><JsonLd datos={jsonLdLocal(local)} /></>;
+    redirect(`/pedir/${locales[0].id}`);
+  }
 
   // El fondo es decoración: si falla o no hay locales, el diálogo se ve igual sobre fondo liso.
   const paraFondo = locales.find((l) => l.abierto) ?? locales[0];
