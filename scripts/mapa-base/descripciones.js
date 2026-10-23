@@ -203,6 +203,9 @@ const DOMINIOS = [
     T("pedido_mensajes", "Chat de cada pedido online", "Un solo hilo por pedido entre el cliente, el local y (en reparto) el repartidor. Nada se borra: al entregar o cancelar el pedido queda solo para leer. Sin acceso desde el navegador: todo va por el servidor.", {
       autor: "Quién escribió: cliente, local o repartidor.", user_id: "Persona del personal o repartidor que escribió (vacío si fue el cliente).", texto: "Mensaje (hasta 500 letras, sin imágenes).", leido_por: "Lados que ya lo leyeron (cliente, local, repartidor); sirve para el indicador de mensajes sin leer.",
     }),
+    T("repartidor_posiciones", "Última ubicación del repartidor de un pedido en reparto", "Una fila por pedido que está en camino, solo con el último punto (no guarda recorridos). Se borra sola cuando el pedido deja de estar en reparto. Solo la toca el servidor de la app: sin acceso desde el navegador.", {
+      pedido_id: "Pedido que lleva (una fila por pedido).", repartidor_id: "Quién reparte (el asignado al pedido).", latitud: "Latitud del último punto compartido.", longitud: "Longitud del último punto compartido.",
+      precision_m: "Precisión del GPS, en metros.", actualizado_en: "Cuándo llegó este punto; pasados unos minutos se considera vieja y no se muestra al cliente." }),
     T("pedido_rate_limits", "Control anti-abuso del catálogo", "Registra intentos de pedido por IP para limitar a 5 cada 10 minutos. Se purga sola.", { identificador: "IP (o teléfono si falta)." }),
   ]),
 

@@ -9,6 +9,7 @@ import { fmt, LOGO_MARCA } from "../../_lib/tema";
 import { AutoRefrescar } from "./auto-refrescar";
 import { ChatPedido } from "@/components/chat-pedido";
 import { cargarChatCliente, enviarChatCliente } from "./chat-actions";
+import { RepartidorEnVivo } from "./repartidor-en-vivo";
 
 // Seguimiento del pedido para el cliente, sin cuenta: el enlace lleva el id del
 // pedido (uuid aleatorio), que solo conoce quien hizo el pedido. Se muestra lo
@@ -142,6 +143,8 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
           {eta && <p className="mt-2 text-[14px] font-semibold text-pd-ink-900">{delivery ? "Llega en" : "Listo en"} unos {eta}</p>}
 
           {seg.pasos.length > 0 && <Pasos pasos={seg.pasos} />}
+
+          {delivery && pedido.estado === "en_reparto" && <RepartidorEnVivo sucursalId={sucursalId} pedidoId={pedidoId} />}
 
           {enlacePago && (
             <a
