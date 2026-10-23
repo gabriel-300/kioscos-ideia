@@ -1,0 +1,15 @@
+node_modules/
+
+# Claves de firma: NUNCA se versionan (van en GitHub Secrets, ver docs/app-repartidor.md)
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
+# Compilaciones
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab

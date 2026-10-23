@@ -1,0 +1,14 @@
+{
+  "appId": "ar.com.angirufood.reparto",
+  "appName": "Angiru Reparto",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.angirufood.com.ar/tenteo/repartos",
+    "allowNavigation": ["angirufood.com.ar", "*.angirufood.com.ar"],
+    "androidScheme": "https",
+    "errorPath": "error.html"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // App Android del repartidor (Capacitor): proyecto aparte, con su propio package.json.
+    "app-repartidor/**",
   ]),
 ]);
 

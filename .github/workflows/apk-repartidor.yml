@@ -1,0 +1,98 @@
+name: APK Repartidor
+
+# Compila la app Android "Angiru Reparto" (app-repartidor/, Capacitor). No toca el despliegue de la web.
+# - A mano: pestaña Actions > "APK Repartidor" > Run workflow.
+# - Con un tag "reparto-v*" (ej. reparto-v1.0.0): además publica el APK en un GitHub Release.
+# Guía para el dueño: docs/app-repartidor.md
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['reparto-v*']
+
+permissions:
+  contents: write # solo para crear el Release cuando se empuja un tag
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app-repartidor
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app-repartidor/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Sincronizar Capacitor con Android
+        run: npx cap sync android
+
+      - name: Decidir firma (estable o debug)
+        id: firma
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/reparto.keystore"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/reparto.keystore" >> "$GITHUB_ENV"
+            echo "modo=release" >> "$GITHUB_OUTPUT"
+            echo "Firma estable encontrada: se compila el APK de RELEASE firmado con tu clave."
+          else
+            echo "modo=debug" >> "$GITHUB_OUTPUT"
+            echo "::warning::No hay clave de firma en los Secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Se compila un APK de DEBUG firmado con la clave de debug: sirve para probar, pero una actualizacion sobre una instalacion previa exige la MISMA firma, y la clave de debug cambia entre compilaciones. Para produccion generá la clave (docs/app-repartidor.md)."
+          fi
+
+      - name: Compilar APK
+        working-directory: app-repartidor/android
+        env:
+          APK_VERSION_CODE: ${{ github.run_number }}
+          APK_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          chmod +x ./gradlew
+          if [ "${{ steps.firma.outputs.modo }}" = "release" ]; then
+            ./gradlew --no-daemon assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/angiru-reparto.apk"
+          else
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/angiru-reparto.apk"
+          fi
+
+      - name: Nombrar el APK
+        run: |
+          mkdir -p "$RUNNER_TEMP/salida"
+          mv "$RUNNER_TEMP/angiru-reparto.apk" "$RUNNER_TEMP/salida/angiru-reparto-${{ steps.firma.outputs.modo }}-${{ github.run_number }}.apk"
+
+      - name: Subir APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: angiru-reparto-apk
+          path: ${{ runner.temp }}/salida/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar en GitHub Release (solo con tag)
+        if: startsWith(github.ref, 'refs/tags/reparto-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/salida/*.apk
+          name: Angiru Reparto ${{ github.ref_name }}
+          body: |
+            APK de la app Android para repartidores (${{ steps.firma.outputs.modo }}).
+            ${{ steps.firma.outputs.modo == 'debug' && 'Firmado con la clave de debug: sirve para probar; para actualizar sobre una instalación previa hace falta la misma firma.' || 'Firmado con la clave estable del proyecto: se puede instalar encima de la versión anterior.' }}

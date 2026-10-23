@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Angiru Reparto</string>
+    <string name="title_activity_main">Angiru Reparto</string>
+    <string name="package_name">ar.com.angirufood.reparto</string>
+    <string name="custom_url_scheme">ar.com.angirufood.reparto</string>
+</resources>

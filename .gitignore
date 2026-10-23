@@ -46,3 +46,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .mcp.json
+
+# app Android del repartidor (Capacitor): ver docs/app-repartidor.md
+app-repartidor/node_modules/
+app-repartidor/android/.gradle/
+app-repartidor/android/app/build/
+*.jks
+*.keystore
