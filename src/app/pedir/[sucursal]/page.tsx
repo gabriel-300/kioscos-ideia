@@ -15,8 +15,12 @@ export const revalidate = 0;
 export async function generateMetadata({ params }: { params: Promise<{ sucursal: string }> }): Promise<Metadata> {
   const { sucursal } = await params;
   const admin = createAdminClient();
-  const { data } = await admin.from("sucursales").select("nombre").eq("id", sucursal).single();
-  return { title: data ? `Pedí en ${data.nombre}` : "Pedí online" };
+  const { data } = await (admin as any).from("sucursales").select("nombre, is_active, pedidos_online_habilitado").eq("id", sucursal).single();
+  return {
+    title: data ? `Pedí en ${data.nombre}` : "Pedí online",
+    // Una sucursal apagada (o que no existe) no debe aparecer en Google: queda solo para quien tenga el enlace.
+    ...(!data?.is_active || !data.pedidos_online_habilitado ? { robots: { index: false, follow: false } } : {}),
+  };
 }
 
 export default async function PedirPage({ params }: { params: Promise<{ sucursal: string }> }) {
