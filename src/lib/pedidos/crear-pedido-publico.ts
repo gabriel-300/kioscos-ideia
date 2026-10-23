@@ -85,8 +85,10 @@ export async function crearPedidoPublico(
   const conGps = data.tipo_entrega === "delivery" && coordenadasValidas(data.entrega_lat, data.entrega_lng);
   if (data.tipo_entrega === "delivery") {
     if (!data.zona_entrega_id) return { error: "Elegí la zona de entrega" };
-    if (mandoGps && !conGps) return { error: "No pudimos tomar tu ubicación. Probá de nuevo o escribí la dirección." };
-    if (!data.direccion_entrega?.trim() && !conGps) return { error: "Falta la dirección de entrega" };
+    // Desde la tienda el envío va siempre a la ubicación GPS. El bot de WhatsApp todavía arma el envío con la dirección escrita.
+    if (mandoGps && !conGps) return { error: "No pudimos tomar tu ubicación. Probá de nuevo." };
+    if (!conGps && !contexto?.bot) return { error: "Compartí tu ubicación para que el repartidor te encuentre" };
+    if (!conGps && !data.direccion_entrega?.trim()) return { error: "Falta la dirección de entrega" };
   }
 
   const rateLimitError = await chequearRateLimit(admin, identificadorRateLimit);

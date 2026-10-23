@@ -68,8 +68,6 @@ export type PedidoConfirmado = {
 export type FormCheckout = {
   modo:       "envio" | "retiro";
   zonaId:     string | null;
-  calle:      string;
-  referencia: string;
   nombre:     string;
   whatsapp:   string;
   pago:       "efectivo" | "mercadopago_link";

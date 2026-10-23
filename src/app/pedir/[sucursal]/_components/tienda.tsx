@@ -28,7 +28,7 @@ const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
 const MAX_POR_ITEM = 50;
 
 type Guardado = { at: number; cantidades: Record<string, number>; form: FormCheckout };
-type Contacto = { nombre: string; whatsapp: string; calle: string; referencia: string };
+type Contacto = { nombre: string; whatsapp: string };
 
 function leerJSON<T>(storage: Storage, clave: string): T | null {
   try {
@@ -53,8 +53,6 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
   const formInicial: FormCheckout = useMemo(() => ({
     modo:       enviosDisponibles ? "envio" : "retiro",
     zonaId:     enviosDisponibles ? config.zonas[0].id : null,
-    calle:      "",
-    referencia: "",
     nombre:     "",
     whatsapp:   "",
     pago:       "mercadopago_link",
@@ -261,8 +259,8 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
         notas:                form.notas || null,
         tipo_entrega:         form.modo === "envio" ? "delivery" : "retiro_local",
         zona_entrega_id:      form.modo === "envio" ? form.zonaId : null,
-        direccion_entrega:    form.modo === "envio" ? form.calle : null,
-        direccion_referencia: form.modo === "envio" ? form.referencia : null,
+        direccion_entrega:    null, // el envío va a la ubicación GPS (el servidor la guarda como "Ubicación compartida por GPS")
+        direccion_referencia: null,
         entrega_lat:          form.modo === "envio" ? (ubicacion?.lat ?? null) : null,
         entrega_lng:          form.modo === "envio" ? (ubicacion?.lng ?? null) : null,
         medio_pago:           form.pago,
@@ -295,12 +293,12 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
       checkoutUrl: res.checkout_url ?? null,
       lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, subtotal: l.item.price * l.qty })),
       cliente:     { nombre: form.nombre.trim(), whatsapp: form.whatsapp.trim() },
-      direccion:   form.modo === "envio" ? form.calle.trim() : null,
-      referencia:  form.modo === "envio" ? form.referencia.trim() : null,
+      direccion:   null,
+      referencia:  null,
       notas:       form.notas.trim() || null,
     });
     guardarPedidoReciente(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
-    guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp, calle: form.calle, referencia: form.referencia } satisfies Contacto);
+    guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp } satisfies Contacto);
     setCantidades({});
     setUbicacion(null);
     setPantalla("confirmacion");

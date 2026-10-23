@@ -69,11 +69,11 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
   async function compartirUbicacion() {
     setErrorUbicacion(null);
     setBuscandoUbicacion(true);
-    const r = await pedirUbicacion("escribí tu dirección");
+    const r = await pedirUbicacion("retirá en el local");
     setBuscandoUbicacion(false);
     if ("error" in r) { setErrorUbicacion(r.error); return; }
     setUbicacion(r.punto);
-    setErrores((prev) => { const { ["pd-f-calle"]: _c, ["pd-f-referencia"]: _r, ...resto } = prev; return resto; });
+    setErrores((prev) => { const { ["pd-f-ubicacion"]: _u, ...resto } = prev; return resto; });
   }
 
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0 && !envioNoDisponible;
@@ -102,9 +102,8 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
     const e: Record<string, string> = {};
     if (form.modo === "envio") {
       if (!form.zonaId) e["pd-f-zona"] = "Elegí la zona de entrega";
-      // Con la ubicación del GPS no hace falta escribir la calle ni la referencia.
-      if (!ubicacion && !form.calle.trim()) e["pd-f-calle"] = "Escribí la calle y el número, o usá tu ubicación";
-      if (!ubicacion && !form.referencia.trim()) e["pd-f-referencia"] = "Agregá una referencia (entre calles, portón, color de casa)";
+      // El envío se hace a la ubicación del GPS: no se escribe dirección.
+      if (!ubicacion) e["pd-f-ubicacion"] = "Compartí tu ubicación para que el repartidor te encuentre";
     }
     if (form.nombre.trim().length < 2) e["pd-f-nombre"] = "Escribí tu nombre";
     if (!telefonoValido(form.whatsapp)) e["pd-f-whatsapp"] = "Escribí tu WhatsApp con característica (10 dígitos)";
@@ -203,8 +202,8 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
         {/* 3. Dirección (solo envío) */}
         {form.modo === "envio" && (
           <section aria-labelledby="pd-dir-t" className="space-y-2.5">
-            <h3 id="pd-dir-t" className="text-[13.5px] font-bold !tracking-normal">Dirección</h3>
-            <div>
+            <h3 id="pd-dir-t" className="text-[13.5px] font-bold !tracking-normal">Tu ubicación</h3>
+            <div id="pd-f-ubicacion">
               {ubicacion ? (
                 <div className="flex items-center justify-between gap-3 rounded-[14px] border border-pd-success/40 bg-pd-success/10 px-3.5 py-3">
                   <p className="text-[14px] font-semibold text-pd-success">📍 Ubicación guardada</p>
@@ -223,17 +222,10 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
               {errorUbicacion && <p role="status" className="mt-2 rounded-xl bg-pd-warm px-3.5 py-2.5 text-[13px] leading-snug text-pd-ink-600">{errorUbicacion}</p>}
               <p className="mt-1.5 px-1 text-[12px] leading-snug text-pd-ink-400">
                 {ubicacion
-                  ? "Se la mostramos solo al local y al repartidor, para que te encuentre. Sumá una referencia (portón, color de casa) si querés."
-                  : "Así el repartidor llega exacto. Solo se usa para esta entrega. O escribí tu dirección abajo."}
+                  ? "Se la mostramos solo al local y al repartidor, para que te encuentre. Si hace falta aclarar algo (portón, color de casa), escribilo en las aclaraciones del pedido."
+                  : "Es obligatoria para el envío: así el repartidor llega exacto. Solo se usa para esta entrega."}
               </p>
-            </div>
-            <div>
-              <input id="pd-f-calle" value={form.calle} onChange={(e) => setForm({ calle: e.target.value })} placeholder={ubicacion ? "Calle y número (opcional)" : "Calle y número"} autoComplete="street-address" className={`${claseCampo(errores["pd-f-calle"])} h-[50px]`} />
-              <MsgError texto={errores["pd-f-calle"]} />
-            </div>
-            <div>
-              <input id="pd-f-referencia" value={form.referencia} onChange={(e) => setForm({ referencia: e.target.value })} placeholder={ubicacion ? "Referencia (opcional): portón, color de casa" : "Entre calles / referencia (portón, casa)"} className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`} />
-              <MsgError texto={errores["pd-f-referencia"]} />
+              <MsgError texto={errores["pd-f-ubicacion"]} />
             </div>
           </section>
         )}

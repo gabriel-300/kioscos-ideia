@@ -36,7 +36,7 @@ function mundo(m: Mundo = {}) {
 
 describe("crearPedidoPublico: pausas y horario de envíos", () => {
   const pausa = (motivo: string) => ({ motivo, desde: new Date(Date.now() - 60_000).toISOString(), hasta: null, por: "u1" });
-  const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "Calle 123", medio_pago: "mercadopago_link", ...over });
+  const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "Calle 123", entrega_lat: -27.37, entrega_lng: -55.9, medio_pago: "mercadopago_link", ...over });
 
   it("con los pedidos en pausa no entra ninguno (ni retiro) y se ve el motivo", async () => {
     const { admin, calls } = mundo({ sucursal: { pausas_online: { pedidos: pausa("Mucha demanda") } } });
@@ -105,7 +105,7 @@ describe("crearPedidoPublico", () => {
 
   it("delivery: el costo de envío sale de la zona de ESA sucursal (nunca del cliente)", async () => {
     const { admin, calls } = mundo();
-    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "Calle 123" }), "1.1.1.1");
+    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", direccion_entrega: "Calle 123" }), "1.1.1.1");
     expect(r).toMatchObject({ costo_envio: 800, total: 2800 });
     const zonaQ = calls.find((c) => c.table === "zonas_entrega")!;
     expect(eqDe(zonaQ, "sucursal_id")).toBe(SUC);
@@ -113,7 +113,7 @@ describe("crearPedidoPublico", () => {
   });
 
   describe("ubicación GPS de entrega", () => {
-    const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", ...over });
+    const envio = (over: Partial<DatosPedidoPublico> = {}) => datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", ...over });
 
     it("con GPS y sin calle el pedido entra: guarda el punto y deja la dirección como \"Ubicación compartida por GPS\"", async () => {
       const { admin, calls } = mundo();
@@ -128,12 +128,19 @@ describe("crearPedidoPublico", () => {
       const ins = calls.find((x) => x.table === "pedidos" && x.op === "insert")!;
       expect(ins.payload).toMatchObject({ direccion_entrega: "Calle 123", entrega_latitud: -27.36 });
     });
-    it("sin GPS ni calle se rechaza, y sin GPS no se escriben las columnas de ubicación", async () => {
+    it("desde la tienda el envío exige la ubicación GPS (no alcanza con escribir la calle) y nada se crea", async () => {
       const { admin, calls } = mundo();
-      expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/dirección/);
-      await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123" }), "1.1.1.1");
-      const ins = calls.find((x) => x.table === "pedidos" && x.op === "insert")!;
-      expect(ins.payload).not.toHaveProperty("entrega_latitud");
+      const sinGps = { entrega_lat: null, entrega_lng: null };
+      expect((await crearPedidoPublico(admin, envio(sinGps), "1.1.1.1")).error).toMatch(/Compartí tu ubicación/);
+      expect(calls.some((x) => x.table === "pedidos" && x.op === "insert")).toBe(false);
+    });
+    it("el bot de WhatsApp sigue pudiendo pedir un envío con la dirección escrita (sin GPS)", async () => {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123", entrega_lat: null, entrega_lng: null }), "1.1.1.1", { bot: { cliente_wa_id: "w1", pedido_existente_id: "p1" } });
+      expect(r.error).toBeUndefined();
+      const ins = calls.find((x) => x.table === "pedidos" && (x.op === "insert" || x.op === "update") && x.payload?.direccion_entrega);
+      expect(ins?.payload).not.toHaveProperty("entrega_latitud");
+      expect(ins?.payload).toMatchObject({ direccion_entrega: "Calle 123" });
     });
     it("coordenadas inválidas se rechazan aunque haya calle (no se guarda basura)", async () => {
       for (const [lat, lng] of [[200, -55], [-27, 500], [Number.NaN, -55], [0, 0]] as const) {
@@ -153,13 +160,13 @@ describe("crearPedidoPublico", () => {
 
   it("delivery con zona inexistente/otra sucursal/inactiva se rechaza", async () => {
     const { admin } = mundo({ zona: null });
-    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z-ajena", direccion_entrega: "x" }), "1.1.1.1");
+    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z-ajena", direccion_entrega: "x" }), "1.1.1.1");
     expect(r.error).toMatch(/zona/i);
   });
 
   it("respeta el mínimo de envío", async () => {
     const { admin } = mundo({ sucursal: { pedido_minimo_envio: 5000 } });
-    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "x" }), "1.1.1.1");
+    const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", direccion_entrega: "x" }), "1.1.1.1");
     expect(r.error).toMatch(/mínimo/);
   });
 
@@ -225,7 +232,7 @@ describe("crearPedidoPublico", () => {
 
     it("el descuento no toca el envío", async () => {
       const { admin } = mundo({ sucursal: conBeneficio });
-      const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "x" }), "ip", cliente);
+      const r = await crearPedidoPublico(admin, datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", direccion_entrega: "x" }), "ip", cliente);
       expect(r).toMatchObject({ descuento: 200, costo_envio: 800, total: 2600 });
     });
 
@@ -237,7 +244,7 @@ describe("crearPedidoPublico", () => {
 
     it("envío gratis en la primera compra: solo en delivery y solo la primera vez", async () => {
       const cfg = { descuento_cliente_pct: 0, descuento_cliente_solo_primera: false, envio_gratis_primera_compra: true };
-      const delivery = datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", direccion_entrega: "x" });
+      const delivery = datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", direccion_entrega: "x" });
       expect(await crearPedidoPublico(mundo({ sucursal: cfg }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 0, envio_bonificado: true, total: 2000 });
       expect(await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 3 }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 800, envio_bonificado: false, total: 2800 });
       expect((await crearPedidoPublico(mundo({ sucursal: cfg }).admin, datos(), "ip", cliente)).envio_bonificado).toBe(false); // retiro: no hay envío que bonificar
