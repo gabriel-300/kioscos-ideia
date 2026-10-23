@@ -1,0 +1,19 @@
+{
+  "name": "angiru-reparto",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App Android (cáscara Capacitor) para repartidores de Angiru Food: ubicación en segundo plano",
+  "scripts": {
+    "sync": "cap sync android",
+    "assets": "capacitor-assets generate --android"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.3.1",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3"
+  }
+}
