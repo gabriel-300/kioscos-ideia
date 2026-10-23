@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { fakeAdmin, eqDe, type Q } from "../helpers/fake-supabase";
 import { armarLineas, formatearCantidad } from "@/lib/pedidos/lineas";
-import { etiquetaEntrega, etiquetaPago, idsNoAvisados, marcarAvisados, podarAvisados, VIDA_AVISADOS_MS } from "@/lib/pedidos/aviso";
+import { decidirTrasFalla, ESPERA_ENTRE_RECARGAS_MS, etiquetaEntrega, etiquetaPago, idsNoAvisados, marcarAvisados, podarAvisados, VIDA_AVISADOS_MS } from "@/lib/pedidos/aviso";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { detalleDePedidosPorAtender, idsPedidosPorAtender } from "@/lib/pedidos/por-atender";
 
@@ -182,5 +182,22 @@ describe("detalleDePedidosPorAtender", () => {
     const [p] = await detalleDePedidosPorAtender(f.admin, "u-det7", "admin", [UUID_A]);
     expect(p.lineas).toEqual([]);
     expect(p.cliente).toBe("Ana");
+  });
+});
+
+describe("decidirTrasFalla (el aviso no queda mudo)", () => {
+  const AHORA = 10_000_000;
+  it("una falla aislada no molesta: ni cartel ni recarga", () => {
+    expect(decidirTrasFalla(1, null, AHORA)).toEqual({ mostrarAviso: false, recargar: false });
+  });
+  it("a la segunda falla seguida avisa en pantalla, sin recargar todavía", () => {
+    expect(decidirTrasFalla(2, null, AHORA)).toEqual({ mostrarAviso: true, recargar: false });
+  });
+  it("a la tercera recarga sola (pestaña vieja tras un despliegue)", () => {
+    expect(decidirTrasFalla(3, null, AHORA)).toEqual({ mostrarAviso: true, recargar: true });
+  });
+  it("pero no entra en un ciclo: si ya recargó hace poco, solo avisa", () => {
+    expect(decidirTrasFalla(5, AHORA - 60_000, AHORA)).toEqual({ mostrarAviso: true, recargar: false });
+    expect(decidirTrasFalla(5, AHORA - ESPERA_ENTRE_RECARGAS_MS, AHORA).recargar).toBe(true);
   });
 });

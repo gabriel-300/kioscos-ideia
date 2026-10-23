@@ -73,3 +73,16 @@ export function marcarAvisados(avisados: Avisados, ids: string[], ahora: number)
 export function podarAvisados(avisados: Avisados, ahora: number, vidaMs = VIDA_AVISADOS_MS): Avisados {
   return Object.fromEntries(Object.entries(avisados).filter(([, cuando]) => typeof cuando === "number" && ahora - cuando < vidaMs));
 }
+
+// Cuando la consulta de pedidos por atender falla (sin red, sesión vencida, o una pestaña que quedó abierta con
+// una versión vieja del sitio después de un despliegue), el aviso no puede quedar mudo: a la segunda falla seguida
+// avisa en pantalla y, si sigue, recarga la página -- pero no más de una vez cada tanto, para no entrar en un ciclo.
+export const FALLAS_PARA_AVISAR = 2;
+export const FALLAS_PARA_RECARGAR = 3;
+export const ESPERA_ENTRE_RECARGAS_MS = 5 * 60 * 1000;
+
+export function decidirTrasFalla(fallasSeguidas: number, ultimaRecarga: number | null, ahora: number): { mostrarAviso: boolean; recargar: boolean } {
+  const mostrarAviso = fallasSeguidas >= FALLAS_PARA_AVISAR;
+  const puedeRecargar = ultimaRecarga === null || ahora - ultimaRecarga >= ESPERA_ENTRE_RECARGAS_MS;
+  return { mostrarAviso, recargar: fallasSeguidas >= FALLAS_PARA_RECARGAR && puedeRecargar };
+}

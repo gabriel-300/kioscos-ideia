@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { consultarPedidosPorAtender, detallePedidosParaAviso } from "@/app/(tenteo)/tenteo/pedidos/actions";
 import { RUTA_TENTEO_PEDIDOS } from "@/lib/auth/acceso";
-import { idsNoAvisados, marcarAvisados, podarAvisados, type Avisados, type PedidoAviso } from "@/lib/pedidos/aviso";
+import { decidirTrasFalla, idsNoAvisados, marcarAvisados, podarAvisados, type Avisados, type PedidoAviso } from "@/lib/pedidos/aviso";
 import { DialogoPedidosNuevos } from "./dialogo-pedidos-nuevos";
 
 // Aviso de pedido nuevo, montado en las dos zonas del personal (kiosco y Tenteo): el
@@ -20,6 +20,8 @@ import { DialogoPedidosNuevos } from "./dialogo-pedidos-nuevos";
 const INTERVALO_MS = 30_000;
 const REPETIR_SONIDO_MS = 20_000;
 const CLAVE_AVISADOS = "tenteo:pedidos-avisados";
+const CLAVE_RECARGA = "tenteo:aviso-recarga"; // cuándo se recargó sola por última vez (sessionStorage)
+const REINTENTO_RAPIDO_MS = 5_000;
 
 const Contexto = createContext(0);
 
@@ -78,6 +80,8 @@ function guardarAvisados(avisados: Avisados) {
 export function AvisoPedidos({ activo, children }: { activo: boolean; children: React.ReactNode }) {
   const [cantidad, setCantidad] = useState(0);
   const [nuevos, setNuevos] = useState<PedidoAviso[]>([]);
+  const [sinConexion, setSinConexion] = useState(false);
+  const fallas = useRef(0);
   const ultimaCantidad = useRef<number | null>(null);
   const yaPedidos = useRef<Set<string>>(new Set());
   const pathname = usePathname();
@@ -93,10 +97,14 @@ export function AvisoPedidos({ activo, children }: { activo: boolean; children: 
     if (!activo) return;
     let cancelado = false;
 
+    let reintento: ReturnType<typeof setTimeout> | undefined;
+
     async function consultar() {
       try {
         const { cantidad: n, ids } = await consultarPedidosPorAtender();
         if (cancelado) return;
+        fallas.current = 0;
+        setSinConexion(false);
         const { bip, router, enPedidos } = alCambiar.current;
 
         // La lista abierta se actualiza sola cuando cambia la cantidad.
@@ -118,12 +126,38 @@ export function AvisoPedidos({ activo, children }: { activo: boolean; children: 
         yaPedidos.current = new Set(pendientes);
         setNuevos(detalle);
         if (detalle.length > 0) bip();
-      } catch { /* sin red o sesión vencida: se reintenta en el próximo ciclo */ }
+      } catch {
+        // Sin red, sesión vencida o una pestaña vieja tras un despliegue. Nunca queda en silencio: se reintenta
+        // enseguida, a la segunda falla se avisa en pantalla y, si sigue, la página se recarga sola (con tope).
+        if (cancelado) return;
+        fallas.current += 1;
+        let ultimaRecarga: number | null = null;
+        try { const g = sessionStorage.getItem(CLAVE_RECARGA); ultimaRecarga = g ? Number(g) : null; } catch { /* sin almacenamiento */ }
+        const { mostrarAviso, recargar } = decidirTrasFalla(fallas.current, Number.isFinite(ultimaRecarga) ? ultimaRecarga : null, Date.now());
+        if (mostrarAviso) setSinConexion(true);
+        if (recargar) {
+          try { sessionStorage.setItem(CLAVE_RECARGA, String(Date.now())); } catch { /* sin almacenamiento */ }
+          window.location.reload();
+          return;
+        }
+        clearTimeout(reintento);
+        reintento = setTimeout(() => void consultar(), REINTENTO_RAPIDO_MS);
+      }
     }
 
+    // Al volver a la pestaña (o recuperar internet) se revisa ya, sin esperar al próximo ciclo.
+    const alVolver = () => { if (document.visibilityState === "visible") void consultar(); };
     void consultar();
     const timer = setInterval(consultar, INTERVALO_MS);
-    return () => { cancelado = true; clearInterval(timer); };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("online", alVolver);
+    return () => {
+      cancelado = true;
+      clearInterval(timer);
+      clearTimeout(reintento);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("online", alVolver);
+    };
   }, [activo]);
 
   // Mientras el cuadro esté abierto, el sonido se repite (hasta que alguien lo atienda).
@@ -155,6 +189,12 @@ export function AvisoPedidos({ activo, children }: { activo: boolean; children: 
   return (
     <Contexto.Provider value={activo ? cantidad : 0}>
       {children}
+      {activo && sinConexion && (
+        <div role="alert" className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg">
+          <span>No podemos revisar si llegaron pedidos nuevos.</span>
+          <button type="button" onClick={() => window.location.reload()} className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white">Recargar</button>
+        </div>
+      )}
       {activo && hayAviso && (
         <DialogoPedidosNuevos pedidos={nuevos} enPedidos={enPedidos} onEntendido={entendido} onVer={ver} />
       )}
