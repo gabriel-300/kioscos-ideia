@@ -38,6 +38,7 @@ export type ConfigTienda = {
   beneficio:          ConfigBeneficio;
   sesionActiva?: boolean; // hay alguien con sesión iniciada (cliente o personal): para mostrar "Salir"
   cliente:            ClienteTienda | null;
+  puedeEfectivo?:     boolean; // quien mira ingresó (cliente con Google o personal de esa sucursal): puede elegir efectivo
   efectivoSucursal:   boolean; // la sucursal acepta efectivo (solo lo puede elegir un cliente que ingresó)
 };
 

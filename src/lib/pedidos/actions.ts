@@ -3,6 +3,7 @@
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { clienteDeLaSesion, recordarContactoCliente } from "./beneficio-servidor";
 import { identificadorCliente } from "./rate-limit";
+import { personalDeSucursal } from "./personal-sesion";
 import { crearPedidoPublico, type DatosPedidoPublico, type ResultadoPedidoPublico } from "./crear-pedido-publico";
 import { sugerirUpsellParaSucursal, type SugerenciaUpsell } from "./sugerir-upsell";
 
@@ -16,7 +17,9 @@ export async function iniciarPedido(data: DatosPedidoPublico): Promise<Resultado
   // es lo que habilita los beneficios.
   const user = await getUser();
   const cliente = await clienteDeLaSesion(admin, user?.id);
-  const resultado = await crearPedidoPublico(admin, data, identificador, cliente ? { clienteId: cliente.id } : undefined);
+  const personal = await personalDeSucursal(admin, user, data.sucursal_id);
+  const contexto = cliente || personal ? { clienteId: cliente?.id, personalId: personal ? user!.id : undefined } : undefined;
+  const resultado = await crearPedidoPublico(admin, data, identificador, contexto);
   if (cliente && !resultado.error) await recordarContactoCliente(admin, cliente, data.cliente_nombre ?? "", data.cliente_telefono ?? "");
   return resultado;
 }

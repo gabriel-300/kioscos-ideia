@@ -128,7 +128,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
       };
     }
     // Un formulario guardado con efectivo no vale si ya no hay efectivo (otra sucursal, o sin ingresar).
-    if (!aceptaEfectivoOnline(config.efectivoSucursal, !!config.cliente) && formRestaurado.pago === "efectivo") formRestaurado = { ...formRestaurado, pago: "mercadopago_link", pagoCon: "" };
+    if (!aceptaEfectivoOnline(config.efectivoSucursal, !!config.puedeEfectivo) && formRestaurado.pago === "efectivo") formRestaurado = { ...formRestaurado, pago: "mercadopago_link", pagoCon: "" };
     setFormEstado(formRestaurado);
     setHidratado(true);
     if (!estadoHorario(config.horario).abierto && !sessionStorage.getItem(`pedir:cerrado:${config.sucursalId}`)) setAvisoCerrado(true);

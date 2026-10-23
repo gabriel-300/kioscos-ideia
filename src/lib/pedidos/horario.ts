@@ -61,6 +61,30 @@ export function validarHorario(horario: TramoHorario[]): string | null {
   return null;
 }
 
+// "08:00" -> "8", "18:30" -> "18:30": para frases ("de 9 a 13").
+function horaCorta(hhmm: string): string {
+  const [h, m] = hhmm.split(":");
+  return m && m !== "00" ? `${parseInt(h, 10)}:${m}` : String(parseInt(h, 10));
+}
+
+// El horario como frase fija: "lunes a viernes de 9 a 13", "todos los días de 18 a 21". Solo si todos los
+// días abiertos tienen el mismo horario; con horarios distintos por día devuelve null (no hay una frase corta).
+export function resumenHorario(horario: TramoHorario[] | null): string | null {
+  if (!horario || horario.length === 0) return null;
+  const porDia = new Map<number, string>();
+  for (const t of [...horario].sort((a, b) => a.dia - b.dia || aMinutos(a.abre) - aMinutos(b.abre))) {
+    const tramo = `de ${horaCorta(t.abre)} a ${horaCorta(t.cierra)}`;
+    porDia.set(t.dia, porDia.has(t.dia) ? `${porDia.get(t.dia)} y ${tramo}` : tramo);
+  }
+  if (new Set(porDia.values()).size !== 1) return null;
+  const dias = [...porDia.keys()].sort((a, b) => a - b);
+  const horas = [...porDia.values()][0];
+  if (dias.length === 7) return `todos los días ${horas}`;
+  const consecutivos = dias.every((d, i) => i === 0 || d === dias[i - 1] + 1);
+  if (consecutivos && dias.length > 2) return `${DIAS[dias[0]]} a ${DIAS[dias[dias.length - 1]]} ${horas}`;
+  return `${dias.map((d) => DIAS[d]).join(" y ")} ${horas}`;
+}
+
 export function estadoHorario(horario: TramoHorario[] | null, ahora: Date = new Date()): EstadoHorario {
   if (!horario || horario.length === 0) return { abierto: true, hoyTexto: null, proximaApertura: null };
 

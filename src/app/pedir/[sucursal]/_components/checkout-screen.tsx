@@ -165,7 +165,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
         </div>
 
         {envioNoDisponible && (
-          <p role="status" className="-mt-3 rounded-xl bg-pd-warn px-4 py-3 text-[13.5px] leading-snug text-pd-warn-ink">{envioNoDisponible}</p>
+          <p role="status" className="-mt-3 rounded-xl border border-pd-line bg-white px-4 py-3 text-[13.5px] leading-snug text-pd-ink-600">{envioNoDisponible}</p>
         )}
 
         {/* 2. Zona / retiro: costo y tiempo ANTES de pedir datos */}
@@ -256,7 +256,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
         <section aria-labelledby="pd-pago-t" className="space-y-2.5">
           <h3 id="pd-pago-t" className="text-[13.5px] font-bold !tracking-normal">Pago</h3>
           {config.efectivoSucursal && (
-            config.cliente ? (
+            config.puedeEfectivo ? (
               <Opcion
                 activa={form.pago === "efectivo"}
                 onClick={() => setForm({ pago: "efectivo" })}

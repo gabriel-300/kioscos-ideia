@@ -65,6 +65,8 @@ export type ContextoPedido = {
   // Cliente registrado: sale de la sesión, nunca de lo que mande el browser.
   // Es lo que habilita los beneficios (descuento / envío gratis).
   clienteId?: string;
+  // Persona del personal logueada en la sucursal del pedido (sale de la sesión): puede pedir en efectivo sin ser cliente.
+  personalId?: string;
 };
 
 export async function crearPedidoPublico(
@@ -100,7 +102,7 @@ export async function crearPedidoPublico(
     return { error: "Esta sucursal todavía no acepta pedidos online" };
   }
   // Efectivo: solo si la sucursal lo habilita y el cliente ingresó (la sesión, no lo que mande el navegador).
-  if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline(await leerEfectivoOnline(admin, data.sucursal_id), !!contexto?.clienteId)) {
+  if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline(await leerEfectivoOnline(admin, data.sucursal_id), !!contexto?.clienteId || !!contexto?.personalId)) {
     return { error: "Para pagar en efectivo tenés que ingresar con Google. Si no, pagá con Mercado Pago." };
   }
   // El horario de atención también se valida acá, no solo en la pantalla (auditoría 19/09, H-12).

@@ -1,5 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
-import { estadoHorario, normalizarHorario, type TramoHorario } from "./horario";
+import { estadoHorario, normalizarHorario, resumenHorario, type TramoHorario } from "./horario";
 
 // Cuándo se pueden pedir envíos y pedidos online: el horario de envíos (aparte del del local) y las pausas
 // temporales que el personal prende desde Tenteo con un motivo (migración 122). Puro, salvo la lectura de la
@@ -85,11 +85,14 @@ export function estadoEnvios(d: DisponibilidadOnline, ahora: Date = new Date()):
 
   if (d.horarioEnvios) {
     const h = estadoHorario(d.horarioEnvios, ahora);
+    const resumen = resumenHorario(d.horarioEnvios);
     if (!h.abierto) {
       return {
         disponible: false,
         razon:      "fuera_de_horario",
-        mensaje:    `Ahora no hacemos envíos${h.proximaApertura ? `; vuelven ${h.proximaApertura}` : ""}. Podés retirar en el local.`,
+        mensaje:    resumen
+          ? `Los envíos son de ${resumen}. Ahora podés retirar en el local.`
+          : `Ahora no hacemos envíos${h.proximaApertura ? `; vuelven ${h.proximaApertura}` : ""}. Podés retirar en el local.`,
         etiqueta:   h.hoyTexto ? h.hoyTexto.replace(/^Hoy/, "Envíos hoy") : "Envíos fuera de horario",
       };
     }

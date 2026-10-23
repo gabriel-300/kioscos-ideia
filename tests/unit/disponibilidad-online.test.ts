@@ -3,6 +3,7 @@ import {
   armarPausa, DISPONIBILIDAD_NORMAL, estadoEnvios, estadoPedidos, leerDisponibilidadOnline, normalizarDisponibilidad, normalizarPausa, pausaVigente,
   type DisponibilidadOnline,
 } from "@/lib/pedidos/disponibilidad-online";
+import { resumenHorario } from "@/lib/pedidos/horario";
 import { fakeAdmin } from "../helpers/fake-supabase";
 
 // Argentina = UTC-3 fijo. Lunes 2026-09-21.
@@ -34,7 +35,7 @@ describe("estadoEnvios", () => {
     expect(estadoEnvios(d, lunesAR("19:00"))).toMatchObject({ disponible: true, etiqueta: "Envíos hoy 18:00 – 21:00" });
     const fuera = estadoEnvios(d, lunesAR("12:00"));
     expect(fuera).toMatchObject({ disponible: false, razon: "fuera_de_horario" });
-    expect(fuera.mensaje).toMatch(/vuelven hoy a las 18:00/);
+    expect(fuera.mensaje).toMatch(/Los envíos son de lunes de 18 a 21/);
     expect(fuera.mensaje).toMatch(/retirar/);
   });
   it("una pausa de envíos lo corta aunque esté en horario, y muestra el motivo", () => {
@@ -83,5 +84,21 @@ describe("leerDisponibilidadOnline", () => {
   it("sin la migración (error de columna) todo sigue normal", async () => {
     const f = fakeAdmin(() => ({ error: { message: "column horario_envios does not exist" } }));
     expect(await leerDisponibilidadOnline(f.admin, "s1")).toEqual(DISPONIBILIDAD_NORMAL);
+  });
+});
+
+describe("resumenHorario", () => {
+  const dias = (ds: number[], abre: string, cierra: string) => ds.map((dia) => ({ dia, abre, cierra }));
+  it("lunes a viernes seguidos, mismo horario", () => {
+    expect(resumenHorario(dias([1, 2, 3, 4, 5], "09:00", "13:00"))).toBe("lunes a viernes de 9 a 13");
+  });
+  it("todos los días, y minutos solo cuando no son :00", () => {
+    expect(resumenHorario(dias([0, 1, 2, 3, 4, 5, 6], "07:00", "19:30"))).toBe("todos los días de 7 a 19:30");
+  });
+  it("días sueltos, turnos partidos y horarios distintos", () => {
+    expect(resumenHorario(dias([2, 5], "10:00", "14:00"))).toBe("martes y viernes de 10 a 14");
+    expect(resumenHorario([{ dia: 1, abre: "09:00", cierra: "13:00" }, { dia: 1, abre: "17:00", cierra: "21:00" }])).toBe("lunes de 9 a 13 y de 17 a 21");
+    expect(resumenHorario([{ dia: 1, abre: "09:00", cierra: "13:00" }, { dia: 2, abre: "10:00", cierra: "14:00" }])).toBeNull();
+    expect(resumenHorario(null)).toBeNull();
   });
 });
