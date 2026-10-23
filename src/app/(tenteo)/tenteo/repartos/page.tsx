@@ -6,6 +6,7 @@ import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
 import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
+import { CompartirUbicacion } from "@/components/tenteo/compartir-ubicacion";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Mis entregas — Kioscos IDEIA" };
@@ -44,6 +45,8 @@ export default async function RepartosPage() {
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Mis entregas</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Pedidos en camino -- marcá cada uno como entregado cuando lo dejes.</p>
       </div>
+
+      <CompartirUbicacion pedidoIds={pedidos.map((p) => p.id)} />
 
       {pedidos.length === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-400">

@@ -3,6 +3,7 @@ import { MINUTOS_DEMORADO, haceTiempo, type GrupoPedido } from "@/lib/pedidos/pr
 import { pesos } from "@/lib/pedidos/aviso";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
 import { PedidoOnlineAcciones } from "./pedido-online-acciones";
+import { PosicionRepartidorPersonal } from "./posicion-repartidor-personal";
 
 // Un pedido online del personal, como tarjeta: lo más importante (qué pidió el cliente
 // y el botón de la siguiente acción) arriba y grande; el detalle, chico.
@@ -124,6 +125,7 @@ export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeCon
               </a>
             )}
             {Number(p.costo_envio) > 0 && <p className="text-xs text-neutral-500">Envío {pesos(Number(p.costo_envio))}</p>}
+            {p.estado === "en_reparto" && <PosicionRepartidorPersonal pedidoId={p.id} />}
           </div>
         )}
       </div>

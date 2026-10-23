@@ -217,6 +217,11 @@
       "cols": "id:uuid:NN:DEF | nombre:text:NN | contacto:text | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | created_by:uuid | updated_by:uuid | modo_facturacion:text:NN:DEF | porcentaje_descuento:numeric | plazo_pago_dias:smallint | razon_social:text | cuit:text | condicion_iva:text | da_factura:text | rubro:text | forma_pago:text | alias_cbu:text | email:text | notas:text"
     },
     {
+      "t": "repartidor_posiciones",
+      "k": "r",
+      "cols": "pedido_id:uuid:NN | repartidor_id:uuid:NN | latitud:double precision:NN | longitud:double precision:NN | precision_m:double precision | actualizado_en:timestamp with time zone:NN:DEF"
+    },
+    {
       "t": "reposicion_marcas_pedido",
       "k": "r",
       "cols": "id:uuid:NN:DEF | product_id:uuid:NN | sucursal_id:uuid:NN | marcado_en:timestamp with time zone:NN:DEF | marcado_por:uuid:NN"
@@ -640,6 +645,11 @@
     ],
     [
       "pedido_items",
+      "pedido_id",
+      "pedidos"
+    ],
+    [
+      "repartidor_posiciones",
       "pedido_id",
       "pedidos"
     ],

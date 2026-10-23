@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-20) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **55 tablas y vistas**, **156 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **56 tablas y vistas**, **157 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -1318,6 +1318,7 @@ Lo que pide el cliente por el catálogo público o por WhatsApp, hasta que se co
 ```mermaid
 erDiagram
   pedidos ||--o{ pedido_items : "pedido_id"
+  pedidos ||--o{ repartidor_posiciones : "pedido_id"
   products |o--o{ pedido_items : "product_id"
   promos |o--o{ pedido_items : "promo_id"
   clientes |o--o{ pedidos : "cliente_id"
@@ -1331,6 +1332,9 @@ erDiagram
     uuid id PK
   }
   pedido_items {
+    uuid id PK
+  }
+  repartidor_posiciones {
     uuid id PK
   }
   zonas_entrega {
@@ -1391,7 +1395,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 
 **Apunta a:** `cliente_id` → `clientes` · `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
 **Personas (auth.users):** `repartidor_id`  
-**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id)
+**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id) · `repartidor_posiciones` (pedido_id)
 
 ### `clientes`
 
@@ -1421,6 +1425,21 @@ Otras columnas: `id`, `created_at`.
 Otras columnas: `id`, `pedido_id`, `product_id`, `promo_id`.
 
 **Apunta a:** `pedido_id` → `pedidos` · `product_id` → `products` · `promo_id` → `promos`
+
+### `repartidor_posiciones`
+
+**Última ubicación del repartidor de un pedido en reparto.** Una fila por pedido que está en camino, solo con el último punto (no guarda recorridos). Se borra sola cuando el pedido deja de estar en reparto. Solo la toca el servidor de la app: sin acceso desde el navegador.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `pedido_id` | id · obligatoria → pedidos | Pedido que lleva (una fila por pedido). |
+| `repartidor_id` | id · obligatoria | Quién reparte (el asignado al pedido). |
+| `latitud` | double precision · obligatoria | Latitud del último punto compartido. |
+| `longitud` | double precision · obligatoria | Longitud del último punto compartido. |
+| `precision_m` | double precision | Precisión del GPS, en metros. |
+| `actualizado_en` | fecha y hora | Cuándo llegó este punto; pasados unos minutos se considera vieja y no se muestra al cliente. |
+
+**Apunta a:** `pedido_id` → `pedidos`
 
 ### `zonas_entrega`
 

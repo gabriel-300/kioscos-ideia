@@ -241,6 +241,17 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   límite de 5 pedidos por 10 minutos por IP.
 - **Quién**: el cliente entra sin cuenta; el staff de la sucursal avanza estados; admin y encargado asignan repartidor y
   confirman pagos; el repartidor solo marca sus entregas; la configuración (zonas, horario, delivery) es solo admin.
+- **Ubicación en vivo del repartidor** (migración 125, `repartidor_posiciones`): en `/tenteo/repartos` el repartidor activa
+  "Compartir mi ubicación" (botón explícito, con aviso de privacidad); mientras la pestaña esté abierta y tenga pedidos en
+  reparto el navegador manda su posición cada ~12 s (se pide Wake Lock para que la pantalla no se apague; una web no puede
+  seguir en segundo plano). Se guarda **solo la última posición** por pedido (upsert, sin historial) y un trigger de la base la
+  borra apenas el pedido deja de estar "en_reparto"; el servidor además nunca la lee si el pedido no está en reparto. Solo
+  escribe el repartidor asignado a ese pedido (un admin tampoco escribe en pedidos ajenos). El cliente la ve en el seguimiento
+  (`/pedir/[sucursal]/pedido/[id]`, con el mismo criterio de enlace secreto: uuid del pedido + sucursal) como mapa
+  OpenStreetMap/Leaflet (cdnjs, sin API key; el proyecto no tiene CSP) y "actualizado hace X s", consultando cada 12 s; solo se
+  le devuelve la posición del repartidor y el punto de entrega redondeado a ~110 m (nada del repartidor: ni nombre ni
+  teléfono). Posición de más de 3 minutos = "vieja": se avisa con amabilidad y no se muestra el punto. El personal la ve en
+  cada pedido en reparto de `/tenteo/pedidos` con un enlace "Ver en el mapa". Reglas en `src/lib/pedidos/posicion-*.ts`.
 - **Aviso de pedido nuevo**: cuando entra un pedido (nuevo en efectivo, Mercado Pago ya pagado o link de pago por
   confirmar) se abre un **cuadro que interrumpe**, con lo que pidió el cliente, las aclaraciones destacadas, cómo
   paga (y el vuelto) y cómo lo recibe. Aparece en cualquier pantalla del personal, también en la venta rápida del

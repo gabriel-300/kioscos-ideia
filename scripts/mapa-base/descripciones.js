@@ -199,7 +199,10 @@ const DOMINIOS = [
       nombre: "Nombre con el que hizo el último pedido.", telefono: "Teléfono con el que hizo el último pedido.", telefono_verificado_at: "Cuándo se verificó el teléfono (lo marca solo el servidor; cambia si el número cambia).",
     }),
     T("pedido_items", "Productos de cada pedido", "Cada línea con el precio que calculó el servidor (el cliente nunca manda precios).", { precio_unitario: "Precio por unidad (vacío en las líneas de un combo).", subtotal: "Importe de la línea." }),
-    T("zonas_entrega", "Zonas de envío y su costo", "Cada sucursal define sus zonas, cuánto cuesta el envío y la demora. Hoy no hay ninguna cargada.", { costo: "Costo del envío a esa zona.", eta_min: "Minutos mínimos de demora.", eta_max: "Minutos máximos de demora.", orden: "Orden en que se muestran." }),
+    T("repartidor_posiciones", "Última ubicación del repartidor de un pedido en reparto", "Una fila por pedido que está en camino, solo con el último punto (no guarda recorridos). Se borra sola cuando el pedido deja de estar en reparto. Solo la toca el servidor de la app: sin acceso desde el navegador.", {
+      pedido_id: "Pedido que lleva (una fila por pedido).", repartidor_id: "Quién reparte (el asignado al pedido).", latitud: "Latitud del último punto compartido.", longitud: "Longitud del último punto compartido.",
+      precision_m: "Precisión del GPS, en metros.", actualizado_en: "Cuándo llegó este punto; pasados unos minutos se considera vieja y no se muestra al cliente." }),
+    T("zonas_entrega","Zonas de envío y su costo", "Cada sucursal define sus zonas, cuánto cuesta el envío y la demora. Hoy no hay ninguna cargada.", { costo: "Costo del envío a esa zona.", eta_min: "Minutos mínimos de demora.", eta_max: "Minutos máximos de demora.", orden: "Orden en que se muestran." }),
     T("pedido_rate_limits", "Control anti-abuso del catálogo", "Registra intentos de pedido por IP para limitar a 5 cada 10 minutos. Se purga sola.", { identificador: "IP (o teléfono si falta)." }),
   ]),
 
