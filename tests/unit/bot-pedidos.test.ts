@@ -250,7 +250,7 @@ describe("conversación del bot (de punta a punta)", () => {
     await enviar(admin, { interactive: boton("pago_efectivo") });
     expect(pedidoFinal).toBeNull();
     expect(leerEstado(botPaso)).toMatchObject({ paso: "menu", carrito: [{ id: "p1", cantidad: 1 }] });
-    expect(ultimoTexto()).toMatch(/stock/i);
+    expect(ultimoTexto()).toMatch(/Quedan solo|se agotó/);
   });
 
   it("un producto agotado ya no se ofrece: no aparece en la lista y no se puede agregar", async () => {

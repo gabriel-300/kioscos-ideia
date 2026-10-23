@@ -11,7 +11,7 @@ import { Panel } from "./panel";
 
 type Upsell = { id: string; name: string; price: number; mensaje: string };
 
-export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, onContinuar, onInc, onDec, onAgregarItem, itemsPorId }: {
+export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, onContinuar, onInc, onDec, onAgregarItem, itemsPorId, aviso = null }: {
   config:        ConfigTienda;
   lineas:        { item: ItemCatalogo; qty: number }[];
   subtotal:      number;
@@ -22,6 +22,7 @@ export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, o
   onDec:         (id: string) => void;
   onAgregarItem: (id: string) => void;
   itemsPorId:    Map<string, ItemCatalogo>;
+  aviso?:        string | null; // algo que se ajustó en el pedido (por ejemplo por falta de stock)
 }) {
   const [upsell, setUpsell] = useState<Upsell | null>(null);
   const idsClave = lineas.map((l) => l.item.id).sort().join(",");
@@ -53,6 +54,7 @@ export function CartScreen({ config, lineas, subtotal, onVolver, onAgregarMas, o
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        {aviso && <p role="status" className="rounded-xl border border-pd-line-strong bg-pd-warm px-3.5 py-2.5 text-[13.5px] font-semibold leading-snug text-pd-ink-900">{aviso}</p>}
         {lineas.map(({ item, qty }) => (
           <div key={item.id} className="flex gap-3 rounded-[18px] border border-pd-line bg-white p-3">
             <Foto item={item} className="size-[66px] shrink-0 rounded-[14px]" textoClase="text-[9px]" />

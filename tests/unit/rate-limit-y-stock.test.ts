@@ -70,7 +70,7 @@ describe("chequearStockLiviano", () => {
   });
   it("suma las líneas repetidas del mismo producto (ej. producto suelto + componente de combo)", async () => {
     const dos = [...items(2), ...items(2)];
-    expect(await chequearStockLiviano(conStock(3), "s", dos)).toMatch(/stock suficiente/);
+    expect(await chequearStockLiviano(conStock(3), "s", dos)).toMatch(/Quedan solo 3/);
   });
   it("sin fila en la vista = el local nunca tuvo ese producto, se rechaza", async () => {
     const admin = fakeAdmin(() => ({ data: [] })).admin;

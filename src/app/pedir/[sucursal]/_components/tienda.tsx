@@ -24,6 +24,7 @@ import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
 import { recordarPedido } from "@/lib/pedidos/mis-pedidos";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
+import { ajusteSinStock, type AjusteSinStock } from "@/lib/pedidos/sin-stock";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
 const MAX_POR_ITEM = 50;
@@ -73,6 +74,9 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
   const [ubicacion, setUbicacion] = useState<{ lat: number; lng: number } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  // Un producto que no alcanzó: qué decirle al cliente y cómo ajustar el carrito con un toque.
+  const [faltaStock, setFaltaStock] = useState<(AjusteSinStock & { itemId: string }) | null>(null);
+  const [avisoCarrito, setAvisoCarrito] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => new Date());
   const [avisoCerrado, setAvisoCerrado] = useState(false);
   const [activaId, setActivaId] = useState(catalogo[0]?.id ?? "");
@@ -114,6 +118,8 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
       formRestaurado = {
         ...formRestaurado,
         ...guardado.form,
+        notas: "",
+        pagoCon: "",
         modo: guardado.form?.modo === "envio" && !enviosDisponibles ? "retiro" : (guardado.form?.modo ?? formRestaurado.modo),
         zonaId: zonaValida ? guardado.form.zonaId : formRestaurado.zonaId,
       };
@@ -136,7 +142,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
 
   useEffect(() => {
     if (!hidratado) return;
-    guardarJSON(localStorage, claveStorage, { at: Date.now(), cantidades, form } satisfies Guardado);
+    guardarJSON(localStorage, claveStorage, { at: Date.now(), cantidades, form: { ...form, notas: "", pagoCon: "" } } satisfies Guardado); // aclaraciones y monto del efectivo son de cada pedido: no se recuerdan
   }, [hidratado, cantidades, form, claveStorage]);
 
   // El estado abierto/cerrado se refresca solo mientras la página está abierta.
@@ -274,7 +280,16 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
     setEnviando(false);
 
     if (res.error || !res.pedido_id) {
-      setErrorServidor(res.error ?? "No pudimos enviar el pedido. Intentá de nuevo.");
+      // Si falta stock de algo que está en el carrito, se explica cuánto queda y se ofrece ajustar el pedido.
+      const item = res.sin_stock ? itemsPorId.get(res.sin_stock.productId) : undefined;
+      if (res.sin_stock && item && cantidades[item.id] != null) {
+        const ajuste = ajusteSinStock({ nombre: item.name, disponible: res.sin_stock.disponible, pedido: res.sin_stock.pedido, porPeso: !!item.unit });
+        setFaltaStock({ ...ajuste, itemId: item.id });
+        setErrorServidor(ajuste.texto);
+      } else {
+        setFaltaStock(null);
+        setErrorServidor(res.error ?? "No pudimos enviar el pedido. Intentá de nuevo.");
+      }
       return;
     }
 
@@ -303,7 +318,23 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
     guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp } satisfies Contacto);
     setCantidades({});
     setUbicacion(null);
+    setForm({ notas: "", pagoCon: "" }); // lo escrito para este pedido no pasa al próximo
     setPantalla("confirmacion");
+  }
+
+  // "Ajustar mi pedido": deja el producto en lo que queda (o lo saca si se agotó) y vuelve al carrito.
+  function ajustarPorStock() {
+    if (!faltaStock) return;
+    const { itemId, maximo, aviso } = faltaStock;
+    setCantidades((prev) => {
+      const copia = { ...prev };
+      if (maximo <= 0) delete copia[itemId]; else copia[itemId] = maximo;
+      return copia;
+    });
+    setFaltaStock(null);
+    setErrorServidor(null);
+    setAvisoCarrito(aviso);
+    setPantalla("carrito");
   }
 
   const productoDetalle = productoAbierto ? itemsPorId.get(productoAbierto) ?? null : null;
@@ -490,6 +521,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
           onInc={(id) => cambiar(id, 1)}
           onDec={(id) => cambiar(id, -1)}
           onAgregarItem={(id) => cambiar(id, 1)}
+          aviso={avisoCarrito}
         />
       )}
 
@@ -506,7 +538,8 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
           horario={horario}
           enviando={enviando}
           errorServidor={errorServidor}
-          onVolver={() => { setErrorServidor(null); setPantalla("carrito"); }}
+          ajusteStock={faltaStock ? { texto: faltaStock.texto, alAjustar: ajustarPorStock } : null}
+          onVolver={() => { setErrorServidor(null); setFaltaStock(null); setPantalla("carrito"); }}
           onAgregarMas={() => setPantalla("catalogo")}
           onConfirmar={confirmar}
         />

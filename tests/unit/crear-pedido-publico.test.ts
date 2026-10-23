@@ -198,7 +198,7 @@ describe("crearPedidoPublico", () => {
 
   it("stock insuficiente rechaza el pedido", async () => {
     const r = await crearPedidoPublico(mundo({ stock: 1 }).admin, datos(), "ip");
-    expect(r.error).toMatch(/stock suficiente/);
+    expect(r.error).toMatch(/Quedan solo 1 de Alfajor y pediste 2/);
   });
 
   it("si falla el insert de ítems borra el pedido huérfano y devuelve el error", async () => {

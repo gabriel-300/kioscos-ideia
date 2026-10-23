@@ -46,7 +46,7 @@ import { BeneficioCliente } from "./beneficio-cliente";
 import { pedirUbicacion } from "@/lib/geolocalizar";
 import { ingresarConGoogle } from "@/lib/pedidos/acceso-cliente";
 
-export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, envioNoDisponible, subtotal, cantidadProductos, horario, enviando, errorServidor, onVolver, onAgregarMas, onConfirmar }: {
+export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, envioNoDisponible, subtotal, cantidadProductos, horario, enviando, errorServidor, ajusteStock = null, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
   form:              FormCheckout;
   setForm:           (parcial: Partial<FormCheckout>) => void;
@@ -58,6 +58,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
   horario:           EstadoHorario;
   enviando:          boolean;
   errorServidor:     string | null;
+  ajusteStock?:      { texto: string; alAjustar: () => void } | null; // un producto no alcanzó: mensaje claro y botón para ajustar
   onVolver:          () => void;
   onAgregarMas:      () => void;
   onConfirmar:       () => void;
@@ -301,7 +302,14 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
 
       {/* 7. Footer fijo */}
       <div className="border-t border-pd-line bg-white px-4 pb-6 pt-3.5">
-        {errorServidor && <p className="mb-2 rounded-xl bg-pd-tint px-3 py-2 text-[13px] font-medium text-pd-ember">{errorServidor}</p>}
+        {ajusteStock ? (
+          <div role="alert" className="mb-2 rounded-xl border border-pd-line-strong bg-pd-warm px-3.5 py-3">
+            <p className="text-[13.5px] font-semibold leading-snug text-pd-ink-900">{ajusteStock.texto}</p>
+            <button type="button" onClick={ajusteStock.alAjustar} className="pd-display mt-2.5 inline-flex h-10 items-center rounded-full bg-pd-ember px-5 text-[13.5px] font-bold" style={{ color: "#fff" }}>
+              Ajustar mi pedido
+            </button>
+          </div>
+        ) : errorServidor && <p className="mb-2 rounded-xl bg-pd-tint px-3 py-2 text-[13px] font-medium text-pd-ember">{errorServidor}</p>}
         {faltaMinimo > 0 ? (
           <div className="rounded-2xl border border-pd-tint-line bg-pd-tint px-4 py-3">
             <p className="text-[14px] font-bold text-pd-ember">Te faltan {fmt(faltaMinimo)} para el mínimo de envío</p>

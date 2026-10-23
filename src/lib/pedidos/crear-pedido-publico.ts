@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { chequearRateLimit } from "./rate-limit";
 import { resolverItemsPedido, redondearMoneda, type ItemCarritoInput } from "./pricing";
-import { chequearStockLiviano } from "./stock";
+import { revisarStock } from "./stock";
 import { telefonoValido } from "./validaciones";
 import { estadoHorario, normalizarHorario } from "./horario";
 import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
@@ -52,6 +52,7 @@ export type ResultadoPedidoPublico = {
   eta_min?:     number | null;
   eta_max?:     number | null;
   checkout_url?: string | null; // enlace de pago de Mercado Pago (null si es efectivo o no se pudo generar)
+  sin_stock?:   { productId: string; disponible: number; pedido: number }; // qué producto no alcanzó y cuánto queda
   error?:       string;
 };
 
@@ -128,8 +129,13 @@ export async function crearPedidoPublico(
   const resuelto = await resolverItemsPedido(admin, data.sucursal_id, data.items);
   if ("error" in resuelto) return { error: resuelto.error };
 
-  const stockError = await chequearStockLiviano(admin, data.sucursal_id, resuelto.items);
-  if (stockError) return { error: stockError };
+  const faltaStock = await revisarStock(admin, data.sucursal_id, resuelto.items);
+  if (faltaStock) {
+    return {
+      error: faltaStock.error,
+      ...(faltaStock.productId ? { sin_stock: { productId: faltaStock.productId, disponible: faltaStock.disponible ?? 0, pedido: faltaStock.pedido ?? 0 } } : {}),
+    };
+  }
 
   // ── Envío: zona y costo salen de la base, nunca del cliente ───────────
   let costoEnvio = 0;
