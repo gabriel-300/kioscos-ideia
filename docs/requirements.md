@@ -252,6 +252,11 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   le devuelve la posición del repartidor y el punto de entrega redondeado a ~110 m (nada del repartidor: ni nombre ni
   teléfono). Posición de más de 3 minutos = "vieja": se avisa con amabilidad y no se muestra el punto. El personal la ve en
   cada pedido en reparto de `/tenteo/pedidos` con un enlace "Ver en el mapa". Reglas en `src/lib/pedidos/posicion-*.ts`.
+  **App Android "Angiru Reparto"** (`app-repartidor/`, Capacitor; guía en `docs/app-repartidor.md`): cáscara que carga
+  `/tenteo/repartos` en un WebView y mantiene el envío de la ubicación con la pantalla apagada (servicio en primer plano con
+  notificación fija); `compartir-ubicacion.tsx` la detecta por `window.Capacitor` y usa el plugin nativo en vez de
+  `navigator.geolocation`, con la misma Server Action y el mismo intervalo. En el navegador común no cambia nada. El APK se
+  compila en GitHub Actions (`apk-repartidor.yml`), no se publica en tiendas.
 - **Aviso de pedido nuevo**: cuando entra un pedido (nuevo en efectivo, Mercado Pago ya pagado o link de pago por
   confirmar) se abre un **cuadro que interrumpe**, con lo que pidió el cliente, las aclaraciones destacadas, cómo
   paga (y el vuelto) y cómo lo recibe. Aparece en cualquier pantalla del personal, también en la venta rápida del
