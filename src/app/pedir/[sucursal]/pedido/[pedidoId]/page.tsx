@@ -10,6 +10,8 @@ import { AutoRefrescar } from "./auto-refrescar";
 import { ChatPedido } from "@/components/chat-pedido";
 import { cargarChatCliente, enviarChatCliente } from "./chat-actions";
 import { RepartidorEnVivo } from "./repartidor-en-vivo";
+import { CalificarPedido } from "./calificar-pedido";
+import { leerCalificacion } from "@/lib/pedidos/calificacion";
 
 // Seguimiento del pedido para el cliente, sin cuenta: el enlace lleva el id del
 // pedido (uuid aleatorio), que solo conoce quien hizo el pedido. Se muestra lo
@@ -86,6 +88,9 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
 
   // Lo que pidió, igual que lo ve el personal (lib/pedidos/lineas).
   const lineas = (await cargarLineasDePedidos(admin, [pedidoId])).get(pedidoId) ?? [];
+
+  // Ya entregado: se agradece y se invita a calificar (si ya calificó, se muestra lo que dejó).
+  const calificacion = pedido.estado === "entregado" ? await leerCalificacion(admin, pedidoId) : null;
 
   const seg = armarSeguimiento(pedido);
   const pago = estadoDelPago(pedido);
@@ -201,6 +206,12 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
             </div>
           </dl>
         </section>
+
+        {pedido.estado === "entregado" && (
+          <div className="md:col-span-2">
+            <CalificarPedido sucursalId={sucursalId} pedidoId={pedidoId} nombre={(pedido.cliente_nombre as string | null)?.trim().split(/\s+/)[0] ?? null} inicial={calificacion} />
+          </div>
+        )}
 
         {/* Chat con el local (y con el repartidor mientras el pedido está en reparto); queda guardado en el pedido */}
         {pedido.estado !== "expirado" && (

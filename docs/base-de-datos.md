@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-20) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **57 tablas y vistas**, **159 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **58 tablas y vistas**, **160 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -1326,6 +1326,7 @@ erDiagram
   contactos_crm |o--o{ pedidos : "contacto_id"
   movimientos |o--o{ pedidos : "movimiento_id"
   zonas_entrega |o--o{ pedidos : "zona_entrega_id"
+  pedidos ||--o{ pedido_calificaciones : "pedido_id"
   pedidos {
     uuid id PK
   }
@@ -1336,6 +1337,9 @@ erDiagram
     uuid id PK
   }
   zonas_entrega {
+    uuid id PK
+  }
+  pedido_calificaciones {
     uuid id PK
   }
   pedido_mensajes {
@@ -1399,7 +1403,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 
 **Apunta a:** `cliente_id` → `clientes` · `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
 **Personas (auth.users):** `repartidor_id`  
-**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id) · `repartidor_posiciones` (pedido_id) · `pedido_mensajes` (pedido_id)
+**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id) · `repartidor_posiciones` (pedido_id) · `pedido_mensajes` (pedido_id) · `pedido_calificaciones` (pedido_id)
 
 ### `clientes`
 
@@ -1447,6 +1451,19 @@ Otras columnas: `id`, `sucursal_id`, `created_at`, `updated_at`.
 
 **Apunta a:** `sucursal_id` → `sucursales`  
 **La usan:** `pedidos` (zona_entrega_id)
+
+### `pedido_calificaciones`
+
+**Calificación del cliente al recibir su pedido.** Una sola por pedido: de 1 a 5 estrellas y un comentario opcional que el cliente deja desde la página de seguimiento cuando el pedido ya fue entregado. Sin acceso desde el navegador: todo va por el servidor.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `estrellas` | entero · obligatoria | Puntaje de 1 a 5. |
+| `comentario` | texto | Lo que escribió el cliente (hasta 500 letras; puede quedar vacío). |
+
+Otras columnas: `pedido_id`, `created_at`.
+
+**Apunta a:** `pedido_id` → `pedidos`
 
 ### `pedido_mensajes`
 

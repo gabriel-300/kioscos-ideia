@@ -117,6 +117,11 @@
       "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | socio_id:uuid:NN | monto_efectivo:numeric:NN:DEF | monto_billetera:numeric:NN:DEF | fecha:date:NN | notas:text | created_by:uuid | created_at:timestamp with time zone:NN:DEF"
     },
     {
+      "t": "pedido_calificaciones",
+      "k": "r",
+      "cols": "pedido_id:uuid:NN | estrellas:smallint:NN | comentario:text | created_at:timestamp with time zone:NN:DEF"
+    },
+    {
       "t": "pedido_items",
       "k": "r",
       "cols": "id:uuid:NN:DEF | pedido_id:uuid:NN | product_id:uuid | promo_id:uuid | cantidad:numeric(10,2):NN | precio_unitario:numeric(12,2) | subtotal:numeric(12,2)"
@@ -1082,6 +1087,11 @@
       "zonas_entrega",
       "sucursal_id",
       "sucursales"
+    ],
+    [
+      "pedido_calificaciones",
+      "pedido_id",
+      "pedidos"
     ]
   ]
 }

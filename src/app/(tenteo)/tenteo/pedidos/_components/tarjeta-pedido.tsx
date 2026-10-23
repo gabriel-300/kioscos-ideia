@@ -6,6 +6,7 @@ import { ChatPedido } from "@/components/chat-pedido";
 import { cargarChatLocal, enviarChatLocal } from "../chat-actions";
 import { PedidoOnlineAcciones } from "./pedido-online-acciones";
 import { PosicionRepartidorPersonal } from "./posicion-repartidor-personal";
+import type { Calificacion } from "@/lib/pedidos/calificacion";
 
 // Un pedido online del personal, como tarjeta: lo más importante (qué pidió el cliente
 // y el botón de la siguiente acción) arriba y grande; el detalle, chico.
@@ -53,13 +54,14 @@ export type PedidoTarjeta = {
   movimiento_id: string | null; created_at: string; expira_en: string | null; sucursales?: { nombre: string } | null;
 };
 
-export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago, mensajesSinLeer = 0 }: {
+export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago, mensajesSinLeer = 0, calificacion = null }: {
   pedido:             PedidoTarjeta;
   grupo:              GrupoPedido;
   lineas:             LineaPedido[];
   repartidores:       { id: string; nombre: string }[];
   puedeConfirmarPago: boolean;
   mensajesSinLeer?:   number;
+  calificacion?:      Calificacion | null; // lo que dejó el cliente al recibir el pedido (migración 126)
 }) {
   const delivery = p.tipo_entrega === "delivery";
   const espera = haceTiempo(p.created_at);
@@ -133,6 +135,15 @@ export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeCon
         )}
       </div>
 
+      {calificacion && (
+        <div className="border-t border-neutral-100 bg-amber-50/60 px-4 py-2.5">
+          <p className="text-sm font-semibold text-amber-700" aria-label={`Calificación: ${calificacion.estrellas} de 5`}>
+            {"★".repeat(calificacion.estrellas)}<span className="text-neutral-300">{"★".repeat(5 - calificacion.estrellas)}</span>
+            <span className="ml-2 text-xs font-medium text-neutral-500">Calificación del cliente</span>
+          </p>
+          {calificacion.comentario && <p className="mt-0.5 whitespace-pre-line text-xs italic text-neutral-600">“{calificacion.comentario}”</p>}
+        </div>
+      )}
       <ChatPedido pedidoId={p.id} cargar={cargarChatLocal} enviar={enviarChatLocal} estilo="panel" desplegable sinLeerInicial={mensajesSinLeer} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-50/70 px-4 py-2.5">

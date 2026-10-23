@@ -10,6 +10,7 @@ import { ControlDisponibilidad, type ControlSucursal } from "./_components/contr
 import { leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
 import { sinLeerPorPedido } from "@/lib/pedidos/chat";
+import { calificacionesPorPedido } from "@/lib/pedidos/calificacion";
 import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
@@ -65,6 +66,9 @@ export default async function PedidosOnlinePage() {
   // Mensajes del chat que el local todavía no leyó, por pedido (migración 124).
   const sinLeer = await sinLeerPorPedido(admin, todos.map((p) => p.id));
 
+  // Calificaciones de los pedidos entregados (migración 126; sin la tabla, vacío).
+  const calificaciones = await calificacionesPorPedido(admin, todos.filter((p) => p.estado === "entregado").map((p) => p.id));
+
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
   // resto de este proyecto para roles de staff). Solo hace falta si hay un envío.
@@ -91,6 +95,7 @@ export default async function PedidosOnlinePage() {
           repartidores={repartidores}
           puedeConfirmarPago={puedeConfirmarPago}
           mensajesSinLeer={sinLeer.get(p.id) ?? 0}
+          calificacion={calificaciones.get(p.id) ?? null}
         />
       ))}
     </div>
