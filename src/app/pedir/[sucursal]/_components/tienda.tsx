@@ -22,6 +22,7 @@ import { resolverBanners, type DestacadoOnline } from "@/lib/pedidos/destacado-o
 import { DISPONIBILIDAD_NORMAL, estadoEnvios, estadoPedidos, type DisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { guardarPedidoReciente } from "@/lib/pedidos/pedido-reciente";
 import { aceptaEfectivoOnline } from "@/lib/pedidos/medios-pago";
+import { recordarPedido } from "@/lib/pedidos/mis-pedidos";
 import { INICIAL_KG, PASO_KG, sumarKg } from "@/lib/pedidos/cantidad-peso";
 
 const VIGENCIA_CARRITO_MS = 24 * 60 * 60 * 1000;
@@ -298,6 +299,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
       notas:       form.notas.trim() || null,
     });
     guardarPedidoReciente(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
+    recordarPedido(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
     guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp } satisfies Contacto);
     setCantidades({});
     setUbicacion(null);
