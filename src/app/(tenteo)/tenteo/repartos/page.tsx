@@ -5,6 +5,9 @@ import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
+import { ChatPedido } from "@/components/chat-pedido";
+import { cargarChatRepartidor, enviarChatRepartidor } from "./chat-actions";
+import { sinLeerPorPedido } from "@/lib/pedidos/chat";
 import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
 
 export const revalidate = 0;
@@ -36,6 +39,8 @@ export default async function RepartosPage() {
   const { data: pedidosRaw } = await query;
   const pedidos = (pedidosRaw ?? []) as any[];
   const lineasPorPedido = await cargarLineasDePedidos(admin, pedidos.map((p) => p.id));
+  // Mensajes del cliente que todavía no leyó quien reparte (chat del pedido, migración 124).
+  const sinLeer = await sinLeerPorPedido(admin, pedidos.map((p) => p.id), role === "repartidor" ? "repartidor" : "local");
 
   return (
     <div className="p-4 md:p-8 max-w-[900px]">
@@ -52,7 +57,8 @@ export default async function RepartosPage() {
       ) : (
         <div className="space-y-3">
           {pedidos.map((p) => (
-            <div key={p.id} className="rounded-xl border border-neutral-200 bg-white p-4 flex items-start justify-between gap-4">
+            <div key={p.id} className="rounded-xl border border-neutral-200 bg-white">
+            <div className="p-4 flex items-start justify-between gap-4">
               <div>
                 <p className="font-medium text-neutral-900">{p.cliente_nombre ?? "Sin nombre"}</p>
                 <p className="text-sm text-neutral-600 mt-0.5">{p.direccion_entrega}</p>
@@ -90,6 +96,8 @@ export default async function RepartosPage() {
                 )}
               </div>
               <MarcarEntregadoButton pedidoId={p.id} />
+            </div>
+              <ChatPedido pedidoId={p.id} cargar={cargarChatRepartidor} enviar={enviarChatRepartidor} estilo="panel" desplegable sinLeerInicial={sinLeer.get(p.id) ?? 0} />
             </div>
           ))}
         </div>

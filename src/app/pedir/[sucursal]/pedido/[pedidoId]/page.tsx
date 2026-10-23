@@ -7,6 +7,8 @@ import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { enlaceDePagoDelPedido } from "@/lib/pedidos/checkout-mercadopago";
 import { fmt, LOGO_MARCA } from "../../_lib/tema";
 import { AutoRefrescar } from "./auto-refrescar";
+import { ChatPedido } from "@/components/chat-pedido";
+import { cargarChatCliente, enviarChatCliente } from "./chat-actions";
 
 // Seguimiento del pedido para el cliente, sin cuenta: el enlace lleva el id del
 // pedido (uuid aleatorio), que solo conoce quien hizo el pedido. Se muestra lo
@@ -196,6 +198,13 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
             </div>
           </dl>
         </section>
+
+        {/* Chat con el local (y con el repartidor mientras el pedido está en reparto); queda guardado en el pedido */}
+        {pedido.estado !== "expirado" && (
+          <div className="md:col-span-2">
+            <ChatPedido pedidoId={pedidoId} cargar={cargarChatCliente} enviar={enviarChatCliente} estilo="tienda" titulo={`Chat con ${nombreLocal}`} />
+          </div>
+        )}
 
         <div className="md:col-span-2">
           <Link

@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-20) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **55 tablas y vistas**, **156 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **56 tablas y vistas**, **158 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -1320,6 +1320,7 @@ erDiagram
   pedidos ||--o{ pedido_items : "pedido_id"
   products |o--o{ pedido_items : "product_id"
   promos |o--o{ pedido_items : "promo_id"
+  pedidos ||--o{ pedido_mensajes : "pedido_id"
   clientes |o--o{ pedidos : "cliente_id"
   contactos_crm |o--o{ pedidos : "contacto_id"
   movimientos |o--o{ pedidos : "movimiento_id"
@@ -1334,6 +1335,9 @@ erDiagram
     uuid id PK
   }
   zonas_entrega {
+    uuid id PK
+  }
+  pedido_mensajes {
     uuid id PK
   }
   pedido_rate_limits {
@@ -1391,7 +1395,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 
 **Apunta a:** `cliente_id` → `clientes` · `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
 **Personas (auth.users):** `repartidor_id`  
-**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id)
+**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id) · `pedido_mensajes` (pedido_id)
 
 ### `clientes`
 
@@ -1439,6 +1443,22 @@ Otras columnas: `id`, `sucursal_id`, `created_at`, `updated_at`.
 
 **Apunta a:** `sucursal_id` → `sucursales`  
 **La usan:** `pedidos` (zona_entrega_id)
+
+### `pedido_mensajes`
+
+**Chat de cada pedido online.** Un solo hilo por pedido entre el cliente, el local y (en reparto) el repartidor. Nada se borra: al entregar o cancelar el pedido queda solo para leer. Sin acceso desde el navegador: todo va por el servidor.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `autor` | texto · obligatoria | Quién escribió: cliente, local o repartidor. |
+| `user_id` | id | Persona del personal o repartidor que escribió (vacío si fue el cliente). |
+| `texto` | texto · obligatoria | Mensaje (hasta 500 letras, sin imágenes). |
+| `leido_por` | lista de textos | Lados que ya lo leyeron (cliente, local, repartidor); sirve para el indicador de mensajes sin leer. |
+
+Otras columnas: `id`, `pedido_id`, `created_at`.
+
+**Apunta a:** `pedido_id` → `pedidos`  
+**Personas (auth.users):** `user_id`
 
 ### `pedido_rate_limits`
 

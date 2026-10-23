@@ -200,6 +200,9 @@ const DOMINIOS = [
     }),
     T("pedido_items", "Productos de cada pedido", "Cada línea con el precio que calculó el servidor (el cliente nunca manda precios).", { precio_unitario: "Precio por unidad (vacío en las líneas de un combo).", subtotal: "Importe de la línea." }),
     T("zonas_entrega", "Zonas de envío y su costo", "Cada sucursal define sus zonas, cuánto cuesta el envío y la demora. Hoy no hay ninguna cargada.", { costo: "Costo del envío a esa zona.", eta_min: "Minutos mínimos de demora.", eta_max: "Minutos máximos de demora.", orden: "Orden en que se muestran." }),
+    T("pedido_mensajes", "Chat de cada pedido online", "Un solo hilo por pedido entre el cliente, el local y (en reparto) el repartidor. Nada se borra: al entregar o cancelar el pedido queda solo para leer. Sin acceso desde el navegador: todo va por el servidor.", {
+      autor: "Quién escribió: cliente, local o repartidor.", user_id: "Persona del personal o repartidor que escribió (vacío si fue el cliente).", texto: "Mensaje (hasta 500 letras, sin imágenes).", leido_por: "Lados que ya lo leyeron (cliente, local, repartidor); sirve para el indicador de mensajes sin leer.",
+    }),
     T("pedido_rate_limits", "Control anti-abuso del catálogo", "Registra intentos de pedido por IP para limitar a 5 cada 10 minutos. Se purga sola.", { identificador: "IP (o teléfono si falta)." }),
   ]),
 

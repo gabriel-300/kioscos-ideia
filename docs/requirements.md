@@ -249,6 +249,20 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   aparecer; una vez visto, no vuelve por el mismo pedido. Además deja el número en el título de la pestaña y en el
   menú de Tenteo, y recarga la lista si está abierta. Consulta cada 30 s. Lo ven admin, encargado, vendedor y
   concesionario **con acceso a Tenteo** (el repartidor no), y cada uno solo de sus sucursales.
+- **Chat del pedido (migración 124)**: un chat interno por pedido, para que lo hablado con el cliente quede registrado en la base en vez
+  de en WhatsApp personales. Un solo hilo por pedido, cada mensaje con su etiqueta (Cliente / Local / Repartidor), solo texto
+  (hasta 500 letras, sin fotos ni adjuntos). Lo ve el cliente en el seguimiento del pedido, el personal en una sección plegable de cada
+  tarjeta de Pedidos online (con el número de mensajes sin leer) y el repartidor en cada entrega de Mis entregas. **Quién puede qué**:
+  el personal, en los pedidos de las sucursales a las que tiene acceso; el repartidor, solo en los pedidos que tiene asignados y
+  **solo mientras están en reparto** (fuera de ese estado ni lee ni escribe; un admin que supervisa escribe como "Local"); el cliente,
+  en el pedido cuyo enlace tiene. **Decisión (cliente sin cuenta)**: el pedido puede hacerse sin Google, así que la única credencial
+  es el id (uuid aleatorio) del pedido, igual que el enlace de seguimiento que ya existía; quien reenvíe ese enlace da acceso al chat.
+  Se aceptó por simple (un token o una cookie rompería el seguimiento desde otro celular) y se compensa con límites: máximo 6
+  mensajes por minuto por lado, 300 por pedido, y el cliente nunca ve teléfonos ni direcciones de nadie. Con el pedido entregado o
+  cancelado el hilo queda **solo de lectura** (el historial se conserva); un pedido vencido (expirado) ni se muestra al cliente. Un
+  solo hilo significa que el repartidor ve también lo que se habló antes con el local. Sin tiempo real: cada chat abierto consulta
+  cada 8 s y la lista del personal se actualiza cada 20 s. **No hecho**: el cuadro/sonido que interrumpe cuando el cliente escribe
+  (hoy solo el número de "sin leer" en la tarjeta; el aviso de pedidos nuevos no cambió).
 - **Lista de pedidos (personal)**: tarjetas agrupadas por urgencia: "Para atender" (el que más espera, primero; en rojo pasados 10 minutos),
   "En preparación", "Listos" y "Entregados" (plegado). Cada tarjeta muestra lo que pidió el cliente, la aclaración destacada, cómo paga y cómo lo
   recibe, y un botón grande con la siguiente acción. La hora "hace X min" es la de la última carga de la pantalla.

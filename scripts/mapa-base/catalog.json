@@ -122,6 +122,11 @@
       "cols": "id:uuid:NN:DEF | pedido_id:uuid:NN | product_id:uuid | promo_id:uuid | cantidad:numeric(10,2):NN | precio_unitario:numeric(12,2) | subtotal:numeric(12,2)"
     },
     {
+      "t": "pedido_mensajes",
+      "k": "r",
+      "cols": "id:uuid:NN:DEF | pedido_id:uuid:NN | autor:text:NN | user_id:uuid | texto:text:NN | leido_por:text[]:NN:DEF | created_at:timestamp with time zone:NN:DEF"
+    },
+    {
       "t": "pedido_rate_limits",
       "k": "r",
       "cols": "id:bigint:NN | identificador:text:NN | created_at:timestamp with time zone:NN:DEF"
@@ -652,6 +657,16 @@
       "pedido_items",
       "promo_id",
       "promos"
+    ],
+    [
+      "pedido_mensajes",
+      "pedido_id",
+      "pedidos"
+    ],
+    [
+      "pedido_mensajes",
+      "user_id",
+      "auth.users"
     ],
     [
       "pedidos",
