@@ -5,6 +5,7 @@ import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
+import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Mis entregas — Kioscos IDEIA" };
@@ -38,6 +39,7 @@ export default async function RepartosPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-[900px]">
+      <ActualizarSolo />
       <div className="mb-6">
         <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Mis entregas</h1>
         <p className="text-sm text-neutral-400 mt-0.5">Pedidos en camino -- marcá cada uno como entregado cuando lo dejes.</p>
