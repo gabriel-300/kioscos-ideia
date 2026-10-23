@@ -151,7 +151,7 @@ export async function updateSession(request: NextRequest) {
     // admin/encargado/vendedor tiene que poder mirarlo igual que un cliente
     // cualquiera, sin que lo manden de vuelta al dashboard.
     // Ni las páginas legales (/privacidad, /terminos) ni el archivo de verificación de Google.
-    if (user && !pathname.startsWith("/privacidad") && !pathname.startsWith("/terminos") && !pathname.startsWith("/google") && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/tenteo") && !pathname.startsWith("/elegir-sistema") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
+    if (user && !pathname.startsWith("/privacidad") && !pathname.startsWith("/terminos") && !pathname.startsWith("/google") && pathname !== "/sitemap.xml" && pathname !== "/robots.txt" && !pathname.startsWith("/auth") && !pathname.startsWith("/login") && !pathname.startsWith("/admin") && !pathname.startsWith("/tenteo") && !pathname.startsWith("/elegir-sistema") && !pathname.startsWith("/api") && !pathname.startsWith("/pedir")) {
       const destino = destinoPorDefecto(user, sistemaValido(request.cookies.get(COOKIE_SISTEMA)?.value));
       if (destino) return NextResponse.redirect(new URL(destino, request.url));
     }
