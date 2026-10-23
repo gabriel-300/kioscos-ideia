@@ -8,6 +8,8 @@ import { pagoPorLinkVigente, sucursalesVisibles } from "@/lib/pedidos/por-atende
 import { GRUPOS, agruparPedidos } from "@/lib/pedidos/presentacion";
 import { ControlDisponibilidad, type ControlSucursal } from "./_components/control-disponibilidad";
 import { leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
+import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
+import { sinLeerPorPedido } from "@/lib/pedidos/chat";
 import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
@@ -60,6 +62,9 @@ export default async function PedidosOnlinePage() {
   // Qué pidió cada cliente (varios pedidos con pocas consultas; si falla, la lista sale igual sin el detalle).
   const lineasPorPedido = await cargarLineasDePedidos(admin, todos.map((p) => p.id));
 
+  // Mensajes del chat que el local todavía no leyó, por pedido (migración 124).
+  const sinLeer = await sinLeerPorPedido(admin, todos.map((p) => p.id));
+
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
   // resto de este proyecto para roles de staff). Solo hace falta si hay un envío.
@@ -85,6 +90,7 @@ export default async function PedidosOnlinePage() {
           lineas={lineasPorPedido.get(p.id) ?? []}
           repartidores={repartidores}
           puedeConfirmarPago={puedeConfirmarPago}
+          mensajesSinLeer={sinLeer.get(p.id) ?? 0}
         />
       ))}
     </div>
@@ -92,6 +98,8 @@ export default async function PedidosOnlinePage() {
 
   return (
     <div className="p-4 md:p-8 max-w-[1300px]">
+      {/* Los mensajes del chat llegan solos: se actualiza el indicador de "sin leer" de cada pedido. */}
+      <ActualizarSolo cadaMs={20_000} />
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Pedidos online</h1>

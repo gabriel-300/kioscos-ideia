@@ -2,6 +2,8 @@ import type { LineaPedido } from "@/lib/pedidos/lineas";
 import { MINUTOS_DEMORADO, haceTiempo, type GrupoPedido } from "@/lib/pedidos/presentacion";
 import { pesos } from "@/lib/pedidos/aviso";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
+import { ChatPedido } from "@/components/chat-pedido";
+import { cargarChatLocal, enviarChatLocal } from "../chat-actions";
 import { PedidoOnlineAcciones } from "./pedido-online-acciones";
 
 // Un pedido online del personal, como tarjeta: lo más importante (qué pidió el cliente
@@ -50,12 +52,13 @@ export type PedidoTarjeta = {
   movimiento_id: string | null; created_at: string; expira_en: string | null; sucursales?: { nombre: string } | null;
 };
 
-export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago }: {
+export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago, mensajesSinLeer = 0 }: {
   pedido:             PedidoTarjeta;
   grupo:              GrupoPedido;
   lineas:             LineaPedido[];
   repartidores:       { id: string; nombre: string }[];
   puedeConfirmarPago: boolean;
+  mensajesSinLeer?:   number;
 }) {
   const delivery = p.tipo_entrega === "delivery";
   const espera = haceTiempo(p.created_at);
@@ -127,6 +130,8 @@ export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeCon
           </div>
         )}
       </div>
+
+      <ChatPedido pedidoId={p.id} cargar={cargarChatLocal} enviar={enviarChatLocal} estilo="panel" desplegable sinLeerInicial={mensajesSinLeer} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-50/70 px-4 py-2.5">
         <div>
