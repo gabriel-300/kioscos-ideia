@@ -11,7 +11,7 @@ import { leerDisponibilidadOnline } from "@/lib/pedidos/disponibilidad-online";
 import { ActualizarSolo } from "@/components/tenteo/actualizar-solo";
 import { sinLeerPorPedido } from "@/lib/pedidos/chat";
 import { calificacionesPorPedido } from "@/lib/pedidos/calificacion";
-import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
+import { ROLES_CON_SUCURSAL, destinoPorDefecto, puedeEntrar, puedeRepartir, rolDe } from "@/lib/auth/acceso";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Pedidos online — Kioscos IDEIA" };
@@ -34,7 +34,7 @@ export default async function PedidosOnlinePage() {
 
   let query = (admin as any)
     .from("pedidos")
-    .select("id, numero, origen, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, costo_envio, medio_pago, pago_con, notas, eta_min, eta_max, total, repartidor_id, movimiento_id, expira_en, created_at, sucursales(nombre)")
+    .select("id, numero, origen, estado, tipo_entrega, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, costo_envio, sucursal_id, medio_pago, pago_con, notas, eta_min, eta_max, total, repartidor_id, movimiento_id, expira_en, created_at, sucursales(nombre)")
     .not("estado", "in", "(carrito,cancelado,expirado)")
     .order("created_at", { ascending: false })
     .limit(200);
@@ -72,13 +72,29 @@ export default async function PedidosOnlinePage() {
   // Lista de repartidores para el selector de asignación -- no hay tabla
   // propia, el rol vive en auth.users.app_metadata (mismo criterio que el
   // resto de este proyecto para roles de staff). Solo hace falta si hay un envío.
-  let repartidores: { id: string; nombre: string }[] = [];
+  // Pueden llevar un envío los repartidores y los vendedores/encargados con Tenteo de esa sucursal.
+  const repartidoresPorSucursal = new Map<string, { id: string; nombre: string }[]>();
   if (todos.some((p) => p.tipo_entrega === "delivery")) {
     const { data: usuarios } = await admin.auth.admin.listUsers({ perPage: 200 });
-    repartidores = (usuarios?.users ?? [])
-      .filter((u) => u.app_metadata?.role === "repartidor")
-      .map((u) => ({ id: u.id, nombre: (u.user_metadata?.full_name as string | undefined) || u.email || "Repartidor" }));
+    const nombreDe = (u: any) => (u.user_metadata?.full_name as string | undefined) || u.email || "Sin nombre";
+    const sucursalesDeLosPedidos = [...new Set(todos.map((p) => p.sucursal_id).filter(Boolean))] as string[];
+    for (const u of usuarios?.users ?? []) {
+      const rolU = u.app_metadata?.role as string | undefined;
+      if (!puedeRepartir(rolU)) continue;
+      if (rolU === "repartidor") {
+        for (const s of sucursalesDeLosPedidos) repartidoresPorSucursal.set(s, [...(repartidoresPorSucursal.get(s) ?? []), { id: u.id, nombre: nombreDe(u) }]);
+        continue;
+      }
+      if (!puedeEntrar(u, "tenteo")) continue;
+      const suyas = await sucursalesVisibles(admin, u.id, rolU as string);
+      for (const s of sucursalesDeLosPedidos) {
+        if (suyas === null || suyas.includes(s)) repartidoresPorSucursal.set(s, [...(repartidoresPorSucursal.get(s) ?? []), { id: u.id, nombre: nombreDe(u) }]);
+      }
+    }
   }
+  // Asignar a otra persona es de administrador y encargado; un vendedor solo se toma el envío él ("Yo lo llevo").
+  const puedeAsignarOtros = role === "admin" || role === "encargado";
+  const soyRepartidor = role === "vendedor" || role === "encargado";
 
   const puedeConfirmarPago = role === "admin" || role === "encargado";
   const activos = GRUPOS.filter((g) => g.clave !== "entregados" && grupos[g.clave].length > 0);
@@ -92,7 +108,8 @@ export default async function PedidosOnlinePage() {
           pedido={p}
           grupo={clave}
           lineas={lineasPorPedido.get(p.id) ?? []}
-          repartidores={repartidores}
+          repartidores={puedeAsignarOtros ? (repartidoresPorSucursal.get((p as any).sucursal_id) ?? []) : []}
+          miId={soyRepartidor ? user.id : null}
           puedeConfirmarPago={puedeConfirmarPago}
           mensajesSinLeer={sinLeer.get(p.id) ?? 0}
           calificacion={calificaciones.get(p.id) ?? null}

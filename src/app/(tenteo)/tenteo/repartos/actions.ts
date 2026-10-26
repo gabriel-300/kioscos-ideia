@@ -19,7 +19,7 @@ export async function marcarEntregadoRepartidor(pedidoId: string): Promise<{ err
     .eq("id", pedidoId)
     .single();
   if (!pedido) return { error: "No se encontró el pedido" };
-  if (role === "repartidor" && pedido.repartidor_id !== userId) return { error: "Este pedido no es tuyo" };
+  if (role !== "admin" && pedido.repartidor_id !== userId) return { error: "Este pedido no es tuyo" };
   if (pedido.estado !== "en_reparto") return { error: "Este pedido no está en reparto" };
 
   const res = await aplicarTransicion(admin, pedido, "entregado");

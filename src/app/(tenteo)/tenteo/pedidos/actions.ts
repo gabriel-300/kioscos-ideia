@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaffTenteo } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { puedeAsignarA, puedeEntrar, puedeRepartir } from "@/lib/auth/acceso";
 import { aplicarTransicion } from "@/lib/pedidos/transiciones";
 import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
 import { detalleDePedidosPorAtender, idsPedidosPorAtender } from "@/lib/pedidos/por-atender";
@@ -63,7 +64,7 @@ export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string)
 // excluir vendedor/concesionario de decisiones de compra.
 export async function asignarRepartidor(pedidoId: string, repartidorUserId: string): Promise<{ error?: string }> {
   const { userId, role } = await requireStaffTenteo();
-  if (role === "vendedor" || role === "concesionario") return { error: "No tenés permisos para asignar repartidor" };
+  if (!puedeAsignarA(role, userId, repartidorUserId)) return { error: "No tenés permisos para asignar a otra persona. Podés tomar el envío vos con \"Yo lo llevo\"." };
   const admin = createAdminClient();
 
   const { data: pedido } = await (admin as any)
@@ -77,8 +78,15 @@ export async function asignarRepartidor(pedidoId: string, repartidorUserId: stri
   const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
   if (accesoError) return { error: accesoError };
 
+  // Puede llevarlo un repartidor, o un vendedor/encargado con Tenteo que trabaje en esa sucursal.
   const { data: repartidorUser } = await admin.auth.admin.getUserById(repartidorUserId);
-  if (repartidorUser?.user?.app_metadata?.role !== "repartidor") return { error: "Ese usuario no es un repartidor" };
+  const destino = repartidorUser?.user;
+  const rolDestino = destino?.app_metadata?.role as string | undefined;
+  const puede = !!destino && puedeRepartir(rolDestino) && (
+    rolDestino === "repartidor" ||
+    (puedeEntrar(destino, "tenteo") && (await requireSucursalAccess(admin, destino.id, rolDestino as string, pedido.sucursal_id)) === null)
+  );
+  if (!puede) return { error: "Esa persona no puede repartir en esta sucursal" };
 
   const { error } = await (admin as any)
     .from("pedidos")

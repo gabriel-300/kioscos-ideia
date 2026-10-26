@@ -22,13 +22,14 @@ const SIGUIENTE_ESTADO: Record<string, string> = {
 };
 
 export function PedidoOnlineAcciones({
-  pedidoId, estado, tipoEntrega, tieneRepartidor, repartidores, medioPago, puedeConfirmarPago, tieneVenta,
+  pedidoId, estado, tipoEntrega, tieneRepartidor, repartidores, miId = null, medioPago, puedeConfirmarPago, tieneVenta,
 }: {
   pedidoId:           string;
   estado:             string;
   tipoEntrega:        string;
   tieneRepartidor:    boolean;
   repartidores:       { id: string; nombre: string }[];
+  miId?:              string | null; // quien mira puede llevar envíos (vendedor/encargado)
   medioPago:          string | null;
   puedeConfirmarPago: boolean;
   tieneVenta:         boolean;
@@ -60,7 +61,17 @@ export function PedidoOnlineAcciones({
   return (
     <div className="flex flex-col items-end gap-1.5">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {tipoEntrega === "delivery" && ["confirmado", "pagado", "en_preparacion"].includes(estado) && (
+        {tipoEntrega === "delivery" && !tieneRepartidor && miId && ["confirmado", "pagado", "en_preparacion"].includes(estado) && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => ejecutar(() => asignarRepartidor(pedidoId, miId))}
+            className="h-10 whitespace-nowrap rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {pending ? "Guardando…" : "Yo lo llevo"}
+          </button>
+        )}
+        {tipoEntrega === "delivery" && repartidores.length > 0 && ["confirmado", "pagado", "en_preparacion"].includes(estado) && (
           <select
             defaultValue=""
             disabled={pending}

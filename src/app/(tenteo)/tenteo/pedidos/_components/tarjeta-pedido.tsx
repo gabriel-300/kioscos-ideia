@@ -49,18 +49,20 @@ export type PedidoTarjeta = {
   cliente_nombre: string | null; cliente_telefono: string | null;
   direccion_entrega: string | null; direccion_referencia: string | null; zona_nombre: string | null;
   entrega_latitud?: number | string | null; entrega_longitud?: number | string | null; // migración 118
+  sucursal_id?: string;
   costo_envio: number | null; medio_pago: string | null; pago_con: number | null; notas: string | null;
   eta_min: number | null; eta_max: number | null; total: number; repartidor_id: string | null;
   movimiento_id: string | null; created_at: string; expira_en: string | null; sucursales?: { nombre: string } | null;
 };
 
-export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago, mensajesSinLeer = 0, calificacion = null }: {
+export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeConfirmarPago, mensajesSinLeer = 0, calificacion = null, miId = null }: {
   pedido:             PedidoTarjeta;
   grupo:              GrupoPedido;
   lineas:             LineaPedido[];
   repartidores:       { id: string; nombre: string }[];
   puedeConfirmarPago: boolean;
   mensajesSinLeer?:   number;
+  miId?:              string | null; // quien mira puede repartir (vendedor/encargado): botón "Yo lo llevo"
   calificacion?:      Calificacion | null; // lo que dejó el cliente al recibir el pedido (migración 126)
 }) {
   const delivery = p.tipo_entrega === "delivery";
@@ -161,6 +163,7 @@ export function TarjetaPedido({ pedido: p, grupo, lineas, repartidores, puedeCon
           tipoEntrega={p.tipo_entrega}
           tieneRepartidor={!!p.repartidor_id}
           repartidores={repartidores}
+          miId={miId}
           medioPago={p.medio_pago}
           puedeConfirmarPago={puedeConfirmarPago}
           tieneVenta={!!p.movimiento_id}

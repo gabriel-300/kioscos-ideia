@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ROLES_CON_SUCURSAL, puedeEntrar, rolDe, type Sistema } from "@/lib/auth/acceso";
+import { ROLES_CON_SUCURSAL, puedeEntrar, puedeRepartir, rolDe, type Sistema } from "@/lib/auth/acceso";
 
 // Sin "use server" a propósito: son guardas internas que llaman las Server
 // Actions, no acciones invocables desde el navegador. Con la directiva quedaban
@@ -51,6 +51,6 @@ export async function requireStaffTenteo(): Promise<{ userId: string; role: stri
 export async function requireRepartidor(): Promise<{ userId: string; role: string }> {
   const user = await usuarioActual();
   const role = rolDe(user);
-  if ((role !== "repartidor" && role !== "admin") || !puedeEntrar(user, "tenteo")) throw new Error("Sin permisos");
-  return { userId: user.id, role };
+  if (!(role === "admin" || puedeRepartir(role)) || !puedeEntrar(user, "tenteo")) throw new Error("Sin permisos");
+  return { userId: user.id, role: role as string };
 }

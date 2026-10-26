@@ -150,9 +150,16 @@ describe("repartidor", () => {
     await escribirEnChat(a, { tipo: "repartidor", userId: "u-admin", role: "admin" }, PEDIDO, "hola");
     expect(calls.find((c) => c.op === "insert")!.payload.autor).toBe("local");
   });
-  it("un rol que no es repartidor ni admin queda afuera", async () => {
+  it("un rol que no reparte (concesionario) queda afuera", async () => {
     const { admin: a } = base({ estado: "en_reparto", repartidorId: "x" });
-    expect((await escribirEnChat(a, { tipo: "repartidor", userId: "x", role: "vendedor" }, PEDIDO, "hola")).error).toBe("Sin permisos");
+    expect((await escribirEnChat(a, { tipo: "repartidor", userId: "x", role: "concesionario" }, PEDIDO, "hola")).error).toBe("Sin permisos");
+  });
+  it("un vendedor que reparte puede escribir en SU envío, como repartidor, y no en el de otro", async () => {
+    const suyo = base({ estado: "en_reparto", repartidorId: "v1" });
+    expect((await escribirEnChat(suyo.admin, { tipo: "repartidor", userId: "v1", role: "vendedor" }, PEDIDO, "ya voy")).error).toBeUndefined();
+    expect(suyo.calls.find((c) => c.op === "insert")!.payload.autor).toBe("repartidor");
+    const ajeno = base({ estado: "en_reparto", repartidorId: "otro" });
+    expect((await escribirEnChat(ajeno.admin, { tipo: "repartidor", userId: "v1", role: "vendedor" }, PEDIDO, "hola")).error).toBe("Este pedido no es tuyo");
   });
 });
 

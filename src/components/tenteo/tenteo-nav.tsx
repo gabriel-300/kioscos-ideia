@@ -19,7 +19,7 @@ const ITEMS: Item[] = [
   { href: RUTA_TENTEO_PEDIDOS,                  label: "Pedidos",       roles: ["admin", "encargado", "vendedor", "concesionario"] },
   { href: "/tenteo/clientes",                   label: "Clientes",      roles: ["admin"] },
   { href: `${RUTA_TENTEO_PEDIDOS}/configuracion`, label: "Configuración", roles: ["admin"] },
-  { href: RUTA_TENTEO_REPARTOS,                 label: "Mis entregas",  roles: ["admin", "repartidor"] },
+  { href: RUTA_TENTEO_REPARTOS,                 label: "Mis entregas",  roles: ["admin", "repartidor", "vendedor", "encargado"] },
 ];
 
 const ROLE_LABEL: Record<string, string> = {

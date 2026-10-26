@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { destinoPorDefecto, puedeEntrar, rolDe } from "@/lib/auth/acceso";
+import { destinoPorDefecto, puedeEntrar, puedeRepartir, rolDe } from "@/lib/auth/acceso";
 import { MarcarEntregadoButton } from "./_components/marcar-entregado-button";
 import { cargarLineasDePedidos } from "@/lib/pedidos/lineas-servidor";
 import { urlMapa } from "@/lib/pedidos/ubicacion";
@@ -28,14 +28,14 @@ export default async function RepartosPage() {
   if (!user) redirect("/login");
 
   const role = rolDe(user);
-  if ((role !== "repartidor" && role !== "admin") || !puedeEntrar(user, "tenteo")) redirect(destinoPorDefecto(user) ?? "/login");
+  if (!(role === "admin" || puedeRepartir(role)) || !puedeEntrar(user, "tenteo")) redirect(destinoPorDefecto(user) ?? "/login");
 
   let query = (admin as any)
     .from("pedidos")
     .select("id, numero, cliente_nombre, cliente_telefono, direccion_entrega, direccion_referencia, entrega_latitud, entrega_longitud, zona_nombre, medio_pago, pago_con, total, created_at, sucursales(nombre)")
     .eq("estado", "en_reparto")
     .order("created_at", { ascending: true });
-  if (role === "repartidor") query = query.eq("repartidor_id", user.id);
+  if (role !== "admin") query = query.eq("repartidor_id", user.id);
 
   const { data: pedidosRaw } = await query;
   const pedidos = (pedidosRaw ?? []) as any[];

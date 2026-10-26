@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { puedeRepartir } from "@/lib/auth/acceso";
 
 // Chat interno de un pedido online (migración 124): un solo hilo por pedido, con la etiqueta de quien
 // escribió. Sin "use server": solo lo llaman Server Actions que ya identificaron a la persona; acá se
@@ -69,10 +70,10 @@ export async function autorizarChat(
     if (err) return { error: err };
     lado = "local";
   } else {
-    if (actor.role !== "repartidor" && actor.role !== "admin") return { error: "Sin permisos" };
-    if (actor.role === "repartidor" && pedido.repartidor_id !== actor.userId) return { error: "Este pedido no es tuyo" };
+    if (actor.role !== "admin" && !puedeRepartir(actor.role)) return { error: "Sin permisos" };
+    if (actor.role !== "admin" && pedido.repartidor_id !== actor.userId) return { error: "Este pedido no es tuyo" };
     if (pedido.estado !== "en_reparto") return { error: "El chat con el repartidor solo está disponible mientras el pedido está en reparto" };
-    lado = actor.role === "repartidor" ? "repartidor" : "local";
+    lado = actor.role === "admin" ? "local" : "repartidor";
   }
 
   if (ESTADOS_ABIERTOS.includes(pedido.estado)) return { lado, escribir: true, aviso: null };

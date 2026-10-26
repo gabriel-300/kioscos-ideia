@@ -134,3 +134,22 @@ export function destinoPorDefecto(user: UsuarioAcceso, preferido?: Sistema | nul
     preferido && sistemas.includes(preferido) ? preferido : sistemas.includes("kiosco") ? "kiosco" : "tenteo";
   return destinoDeSistema(elegido, rolDe(user));
 }
+
+// ── Reparto ──────────────────────────────────────────────────────────────────
+// Además del rol "repartidor" (que solo ve su pantalla de entregas), reparten los vendedores y encargados que
+// tienen Tenteo: en un local chico quien atiende el kiosco también sale a entregar. No hay un rol nuevo: es
+// el mismo usuario, que además puede ser asignado a un envío y verlo en "Mis entregas". El administrador
+// supervisa todo. Estas funciones solo dicen quién PUEDE; que el envío sea suyo y de su sucursal lo valida cada acción.
+export const ROLES_QUE_REPARTEN = ["repartidor", "vendedor", "encargado"] as const;
+
+export function puedeRepartir(rol: string | null | undefined): boolean {
+  return !!rol && (ROLES_QUE_REPARTEN as readonly string[]).includes(rol);
+}
+
+// Quién puede asignar a quién: el administrador y el encargado, a cualquiera que pueda repartir; un vendedor,
+// solo a sí mismo ("Yo lo llevo"); el resto, a nadie.
+export function puedeAsignarA(rolActor: string, actorId: string, destinoId: string): boolean {
+  if (rolActor === "admin" || rolActor === "encargado") return true;
+  if (rolActor === "vendedor") return destinoId === actorId;
+  return false;
+}
