@@ -9,8 +9,8 @@ import { precioPor100g, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 // Foto del producto. Si no tiene (o falla la carga) se usa el degradé de la
 // categoría con el nombre centrado -- nunca un círculo con iniciales.
 //
-// `entera` (tarjetas de producto): las fotos horizontales llenan el recuadro y las verticales se ven completas sobre
-// fondo blanco (como el cono de mandioca), en vez de cortarse y verse ampliadas.
+// `entera` (tarjetas de producto): las fotos horizontales llenan el recuadro; las verticales se ven completas y los
+// costados se rellenan con la misma foto muy difuminada (sin franjas blancas, sin ampliarla ni cortarla).
 export function Foto({ item, className = "", eager = false, textoClase = "text-[15px]", entera = false }: {
   item: ItemCatalogo; className?: string; eager?: boolean; textoClase?: string; entera?: boolean;
 }) {
@@ -20,7 +20,7 @@ export function Foto({ item, className = "", eager = false, textoClase = "text-[
     if (img && img.complete && img.naturalWidth > 0) setVertical(img.naturalHeight > img.naturalWidth * 1.05);
   };
   if (item.image && !fallo) {
-    return (
+    const imagen = (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         ref={entera ? medir : undefined}
@@ -30,8 +30,16 @@ export function Foto({ item, className = "", eager = false, textoClase = "text-[
         decoding="async"
         onLoad={entera ? (e) => medir(e.currentTarget) : undefined}
         onError={() => setFallo(true)}
-        className={`${entera && vertical ? "bg-white object-contain" : "object-cover"} ${className}`}
+        className={entera && vertical ? "relative size-full object-contain" : `object-cover ${className}`}
       />
+    );
+    if (!(entera && vertical)) return imagen;
+    return (
+      <span className={`block overflow-hidden bg-white ${className}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.image} alt="" aria-hidden loading="lazy" decoding="async" className="absolute inset-0 size-full scale-150 object-cover opacity-50 blur-2xl" />
+        {imagen}
+      </span>
     );
   }
   return (
