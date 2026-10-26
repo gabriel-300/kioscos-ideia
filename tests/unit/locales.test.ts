@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { armarLocales, cargarLocalesParaPedir, leerCoordenadasSucursal } from "@/lib/pedidos/locales";
 import { fakeAdmin } from "../helpers/fake-supabase";
-import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto } from "@/lib/dominios";
+import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, esRutaSoloPersonal, hostSinPuerto } from "@/lib/dominios";
 
 const fila = (over: Record<string, unknown> = {}) => ({
   id: "s1", nombre: "Parque de las Fiestas", direccion: "Av. Costanera 123", localidad: "Posadas",
@@ -71,6 +71,8 @@ describe("dominios", () => {
   it("reconoce el dominio de clientes y su versión sin www, y nada parecido", () => {
     expect(esDominioClientes(DOMINIO_CLIENTES)).toBe(true);
     expect(esDominioClientesSinWww("angirufood.com.ar")).toBe(true);
+    expect(["/login", "/admin", "/admin/staff", "/tenteo/pedidos", "/forgot-password"].every(esRutaSoloPersonal)).toBe(true);
+    expect(["/", "/pedir", "/auth/callback", "/auth/cliente/callback", "/unam", "/administracion", "/loginx"].some(esRutaSoloPersonal)).toBe(false);
     for (const h of ["", "angirufood.com", "www.angirufood.com.ar.evil.com", "kioscos-ideia.lytwyn-ideia.workers.dev"]) {
       expect(esDominioClientes(h)).toBe(false);
       expect(esDominioClientesSinWww(h)).toBe(false);

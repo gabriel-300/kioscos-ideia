@@ -22,6 +22,15 @@ export function esDominioClientesSinWww(host: string): boolean {
   return host === DOMINIO_CLIENTES_SIN_WWW;
 }
 
+// Zonas del personal: en el dominio de clientes no existen (404), así el login y los paneles no se
+// ofrecen a quien llega por la tienda. El personal entra por la dirección de workers.dev.
+// /auth queda abierto: lo usan el ingreso con Google de los clientes y los enlaces de los mails.
+const PREFIJOS_SOLO_PERSONAL = ["/login", "/admin", "/tenteo", "/registro", "/registro-mayorista", "/forgot-password", "/pendiente", "/elegir-sistema"];
+
+export function esRutaSoloPersonal(pathname: string): boolean {
+  return PREFIJOS_SOLO_PERSONAL.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 // Direcciones cortas por local (angirufood.com.ar/unam): una sola palabra después de la barra que no sea una
 // zona de la aplicación. En el dominio de clientes se reescriben a /pedir/<dirección corta>.
 export const SEGMENTOS_RESERVADOS = new Set([

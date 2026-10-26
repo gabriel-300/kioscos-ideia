@@ -13,7 +13,7 @@ import {
   sistemaDeRuta,
   sistemaValido,
 } from "@/lib/auth/acceso";
-import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, hostSinPuerto, slugDeRutaCorta } from "@/lib/dominios";
+import { DOMINIO_CLIENTES, esDominioClientes, esDominioClientesSinWww, esRutaSoloPersonal, hostSinPuerto, slugDeRutaCorta } from "@/lib/dominios";
 
 // Las listas de roles y sistemas viven en lib/auth/acceso.ts (una sola fuente).
 
@@ -44,6 +44,10 @@ export async function updateSession(request: NextRequest) {
     url.hostname = DOMINIO_CLIENTES;
     url.port = "";
     return NextResponse.redirect(url);
+  }
+  if (esDominioClientes(host) && esRutaSoloPersonal(request.nextUrl.pathname)) {
+    // El login y los paneles del personal no se ofrecen en la dirección de los clientes.
+    return new NextResponse("Not found", { status: 404 });
   }
   if (esDominioClientes(host) && request.nextUrl.pathname === "/") {
     // La raíz muestra "¿Dónde querés pedir?" sin cambiar la dirección que ve el cliente.
