@@ -13,7 +13,7 @@ import { PedidoEnCurso } from "./pedido-en-curso";
 const DORADO = "#E3B04B";
 
 // Texto principal de la portada. El título que ve Google (<title> y descripción) sigue nombrando Posadas y los rubros.
-const BAJADA = "Cafetería, panadería y confitería con identidad propia, chipas gourmet, empanadas de especialidad y productos a base de mandioca, con materias primas de primera calidad.";
+const BAJADA = "Cafetería, panadería y confitería con identidad propia. Chipas gourmet, empanadas de especialidad y productos de mandioca.";
 
 const CLASE_BOTON = "pd-display inline-flex h-14 items-center justify-center rounded-2xl bg-pd-ember px-8 text-[16px] font-bold active:bg-pd-ember-dark";
 
