@@ -153,7 +153,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
             deshabilitada={!enviosDisponibles}
             onClick={() => setForm({ modo: "envio", zonaId: form.zonaId ?? config.zonas[0]?.id ?? null })}
             titulo="Envío"
-            detalle={enviosDisponibles ? "a tu casa" : envioNoDisponible ? "no disponible ahora" : "no disponible"}
+            detalle={enviosDisponibles ? "a mi ubicación" : envioNoDisponible ? "no disponible ahora" : "no disponible"}
           />
           <Opcion
             activa={form.modo === "retiro"}

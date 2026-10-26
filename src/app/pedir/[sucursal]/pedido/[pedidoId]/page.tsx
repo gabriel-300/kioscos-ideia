@@ -11,6 +11,8 @@ import { ChatPedido } from "@/components/chat-pedido";
 import { cargarChatCliente, enviarChatCliente } from "./chat-actions";
 import { RepartidorEnVivo } from "./repartidor-en-vivo";
 import { CalificarPedido } from "./calificar-pedido";
+import { CancelarPedido } from "./cancelar-pedido";
+import { puedeCancelarElCliente, textoAyudaCancelar } from "@/lib/pedidos/cancelar-por-cliente";
 import { leerCalificacion } from "@/lib/pedidos/calificacion";
 
 // Seguimiento del pedido para el cliente, sin cuenta: el enlace lleva el id del
@@ -79,7 +81,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   const admin = createAdminClient();
   const { data: pedido } = await (admin as any)
     .from("pedidos")
-    .select("id, numero, estado, tipo_entrega, medio_pago, subtotal, costo_envio, descuento_total, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
+    .select("id, numero, estado, movimiento_id, tipo_entrega, medio_pago, subtotal, costo_envio, descuento_total, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
     .eq("id", pedidoId)
     .eq("sucursal_id", sucursalId)
     .maybeSingle();
@@ -211,6 +213,16 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
           <div className="md:col-span-2">
             <CalificarPedido sucursalId={sucursalId} pedidoId={pedidoId} nombre={(pedido.cliente_nombre as string | null)?.trim().split(/\s+/)[0] ?? null} inicial={calificacion} />
           </div>
+        )}
+
+        {/* El cliente puede cancelar mientras el local no empezó; después, por el chat */}
+        {puedeCancelarElCliente(pedido.estado, !!pedido.movimiento_id) && (
+          <div className="md:col-span-2">
+            <CancelarPedido sucursalId={sucursalId} pedidoId={pedidoId} numero={pedido.numero ?? null} pagoPendiente={pedido.estado === "pendiente_pago"} />
+          </div>
+        )}
+        {textoAyudaCancelar(pedido.estado) && (
+          <p className="text-[13.5px] text-pd-ink-600 md:col-span-2 md:text-center">{textoAyudaCancelar(pedido.estado)}</p>
         )}
 
         {/* Chat con el local (y con el repartidor mientras el pedido está en reparto); queda guardado en el pedido */}
