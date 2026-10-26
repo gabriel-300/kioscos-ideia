@@ -6,7 +6,7 @@ import { requireStaffTenteo } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { puedeAsignarA, puedeEntrar, puedeRepartir } from "@/lib/auth/acceso";
 import { aplicarTransicion } from "@/lib/pedidos/transiciones";
-import { crearVentaPublica } from "@/lib/pedidos/crear-venta-publica";
+import { confirmarPagoPedido } from "@/lib/pedidos/confirmar-pago";
 import { detalleDePedidosPorAtender, idsPedidosPorAtender } from "@/lib/pedidos/por-atender";
 import type { PedidoAviso } from "@/lib/pedidos/aviso";
 import { notificarCambioEstado } from "@/lib/pedidos/notificar-cliente";
@@ -98,31 +98,21 @@ export async function asignarRepartidor(pedidoId: string, repartidorUserId: stri
   return {};
 }
 
-// Pedido pagado con Mercado Pago por link (el local manda el link por
-// WhatsApp y confirma acá cuando ve el pago en su cuenta). Reusa
-// crearVentaPublica: hace la transición pendiente_pago -> pagado y la venta.
-// Confirmar que entró plata es una decisión de dueño/encargado, no de turno.
-export async function confirmarPagoRecibido(pedidoId: string): Promise<{ error?: string }> {
+// Pedido pagado con Mercado Pago por link cuyo aviso automático no llegó: se confirma a mano. Solo un
+// ADMINISTRADOR (es plata). Primero se consulta a Mercado Pago si hay un pago aprobado por ese pedido e importe; si no lo
+// hay, solo se confirma con un motivo escrito. En los dos casos queda registrado quién y cómo (migración 127).
+export async function confirmarPagoRecibido(pedidoId: string, motivoManual?: string): Promise<{ error?: string; sinVerificar?: boolean }> {
   const { userId, role } = await requireStaffTenteo();
-  if (role !== "admin" && role !== "encargado") return { error: "No tenés permisos para confirmar pagos" };
+  if (role !== "admin") return { error: "Solo un administrador puede confirmar un pago a mano" };
   const admin = createAdminClient();
 
-  const { data: pedido } = await (admin as any)
-    .from("pedidos")
-    .select("sucursal_id, estado, medio_pago")
-    .eq("id", pedidoId)
-    .single();
+  const { data: pedido } = await (admin as any).from("pedidos").select("sucursal_id").eq("id", pedidoId).single();
   if (!pedido) return { error: "No se encontró el pedido" };
-  if (pedido.medio_pago !== "mercadopago_link") return { error: "Este pedido no se paga por link de Mercado Pago" };
-  if (pedido.estado !== "pendiente_pago") {
-    return { error: pedido.estado === "expirado" ? "El pedido ya venció, hay que cargarlo de nuevo" : "El pedido ya no está esperando el pago" };
-  }
-
   const accesoError = await requireSucursalAccess(admin, userId, role, pedido.sucursal_id);
   if (accesoError) return { error: accesoError };
 
-  const res = await crearVentaPublica(admin, pedidoId);
-  if (res.error) return { error: `No se pudo registrar la venta: ${res.error}` };
+  const res = await confirmarPagoPedido(admin, { pedidoId, userId, motivoManual, accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+  if (res.error) return { error: res.error, sinVerificar: res.sinVerificar };
 
   await notificarCambioEstado(admin, pedidoId);
   refrescar();

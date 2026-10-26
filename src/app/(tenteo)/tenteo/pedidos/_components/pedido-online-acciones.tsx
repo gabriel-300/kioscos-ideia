@@ -38,6 +38,9 @@ export function PedidoOnlineAcciones({
   const [error, setError] = useState<string | null>(null);
   const [anulando, setAnulando] = useState(false);
   const [motivo, setMotivo] = useState("");
+  // Confirmar un pago a mano: si Mercado Pago no lo muestra, se pide el motivo para confirmarlo igual.
+  const [pagoSinVerificar, setPagoSinVerificar] = useState(false);
+  const [motivoPago, setMotivoPago] = useState("");
 
   const clave = estado === "en_preparacion" ? `en_preparacion_${tipoEntrega === "delivery" ? "delivery" : "retiro"}` : estado;
   const siguienteEstado = SIGUIENTE_ESTADO[clave];
@@ -82,14 +85,22 @@ export function PedidoOnlineAcciones({
             {repartidores.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
           </select>
         )}
-        {esperandoPagoMP && puedeConfirmarPago && (
+        {esperandoPagoMP && puedeConfirmarPago && !pagoSinVerificar && (
           <button
             type="button"
             disabled={pending}
-            onClick={() => ejecutar(() => confirmarPagoRecibido(pedidoId))}
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const res = await confirmarPagoRecibido(pedidoId);
+                if (res.sinVerificar) { setPagoSinVerificar(true); setError(res.error ?? null); return; }
+                if (res.error) setError(res.error);
+              });
+            }}
             className="h-10 whitespace-nowrap rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+            title="Verifica el pago en Mercado Pago antes de confirmar"
           >
-            {pending ? "Guardando…" : "Confirmar pago recibido"}
+            {pending ? "Verificando…" : "Confirmar pago recibido"}
           </button>
         )}
         {siguienteLabel && (
@@ -113,6 +124,23 @@ export function PedidoOnlineAcciones({
         >
           Cancelar pedido
         </button>
+      )}
+      {esperandoPagoMP && puedeConfirmarPago && pagoSinVerificar && (
+        <div className="w-full max-w-[260px] space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+          <p className="text-[11.5px] leading-snug text-amber-900">Mercado Pago no muestra este pago. Confirmalo solo si ya tenés la plata (por ejemplo una transferencia directa). Queda registrado a tu nombre, con este motivo.</p>
+          <input value={motivoPago} onChange={(e) => setMotivoPago(e.target.value)} maxLength={160} placeholder="Motivo (mín. 10 letras)" className="h-9 w-full rounded-md border border-amber-300 bg-white px-2 text-sm" />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={pending || motivoPago.trim().length < 10}
+              onClick={() => ejecutar(() => confirmarPagoRecibido(pedidoId, motivoPago))}
+              className="h-9 flex-1 rounded-md bg-amber-600 px-3 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {pending ? "Guardando…" : "Confirmar igual"}
+            </button>
+            <button type="button" disabled={pending} onClick={() => { setPagoSinVerificar(false); setMotivoPago(""); setError(null); }} className="h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-600">No</button>
+          </div>
+        </div>
       )}
       {anulable && !anulando && (
         <button type="button" disabled={pending} onClick={() => setAnulando(true)} className="text-xs text-neutral-400 hover:text-red-600 hover:underline disabled:opacity-40">

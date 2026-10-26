@@ -139,7 +139,7 @@
     {
       "t": "pedidos",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | origen:text:NN | estado:text:NN:DEF | tipo_entrega:text:NN:DEF | cliente_nombre:text | cliente_telefono:text | cliente_wa_id:text | bot_paso:text | notas:text | subtotal:numeric(12,2):NN:DEF | descuento_total:numeric(12,2):NN:DEF | total:numeric(12,2):NN:DEF | medio_pago:text | movimiento_id:uuid | repartidor_id:uuid | contacto_id:uuid | expira_en:timestamp with time zone | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF | direccion_entrega:text | costo_envio:numeric(12,2):NN:DEF | zona_entrega_id:uuid | zona_nombre:text | direccion_referencia:text | pago_con:numeric(12,2) | eta_min:integer | eta_max:integer | numero:bigint:NN | cliente_id:uuid"
+      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | origen:text:NN | estado:text:NN:DEF | tipo_entrega:text:NN:DEF | cliente_nombre:text | cliente_telefono:text | cliente_wa_id:text | bot_paso:text | notas:text | subtotal:numeric(12,2):NN:DEF | descuento_total:numeric(12,2):NN:DEF | total:numeric(12,2):NN:DEF | medio_pago:text | movimiento_id:uuid | repartidor_id:uuid | contacto_id:uuid | expira_en:timestamp with time zone | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF | direccion_entrega:text | costo_envio:numeric(12,2):NN:DEF | zona_entrega_id:uuid | zona_nombre:text | direccion_referencia:text | pago_con:numeric(12,2) | eta_min:integer | eta_max:integer | numero:bigint:NN | cliente_id:uuid | pago_confirmado_por:uuid | pago_confirmado_en:timestamp with time zone | pago_confirmacion:text | pago_confirmacion_motivo:text"
     },
     {
       "t": "pedidoya_webhook_events",

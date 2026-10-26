@@ -1398,6 +1398,10 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `eta_max` | entero | Demora estimada máxima (minutos). |
 | `numero` | entero · obligatoria | Número correlativo visible para el cliente. |
 | `cliente_id` | id → clientes | Cliente registrado (con Google) que hizo el pedido; vacío = pidió sin cuenta. |
+| `pago_confirmado_por` | id | Administrador que confirmó el pago a mano (vacío = lo confirmó solo el aviso de Mercado Pago). |
+| `pago_confirmado_en` | fecha y hora | Cuándo se confirmó a mano. |
+| `pago_confirmacion` | texto | mercadopago (Mercado Pago mostró el pago aprobado) o manual (se confirmó igual, con motivo). |
+| `pago_confirmacion_motivo` | texto | Por qué se confirmó a mano un pago que Mercado Pago no mostraba. |
 
 Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 

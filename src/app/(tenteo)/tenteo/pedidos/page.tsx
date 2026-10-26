@@ -96,7 +96,7 @@ export default async function PedidosOnlinePage() {
   const puedeAsignarOtros = role === "admin" || role === "encargado";
   const soyRepartidor = role === "vendedor" || role === "encargado";
 
-  const puedeConfirmarPago = role === "admin" || role === "encargado";
+  const puedeConfirmarPago = role === "admin"; // confirmar un pago a mano es plata: solo administradores
   const activos = GRUPOS.filter((g) => g.clave !== "entregados" && grupos[g.clave].length > 0);
   const entregados = grupos.entregados;
 
