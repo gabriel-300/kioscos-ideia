@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { LOGO_MARCA } from "../[sucursal]/_lib/tema";
 import { estadoHorario } from "@/lib/pedidos/horario";
-import { DESCRIPCION_MARCA, INSTAGRAM, nombreLimpio, rutaLocal } from "@/lib/pedidos/seo";
+import { INSTAGRAM, nombreLimpio, rutaLocal } from "@/lib/pedidos/seo";
 import type { LocalProximo, LocalSeo } from "@/lib/pedidos/seo-servidor";
 import { PedidoEnCurso } from "./pedido-en-curso";
 
 // Portada de Angiru Food (la raíz del sitio) cuando hay UN solo local habilitado: le dice a Google y a quien
 // llega qué es esto (panadería, confitería y delicatessen en Posadas), muestra el local y lleva a pedir.
 // Con dos o más locales la raíz sigue siendo "¿Dónde querés pedir?".
+
+// Dorado del título de la portada (sobre la foto oscura).
+const DORADO = "#E3B04B";
+
+// Texto principal de la portada. El título que ve Google (<title> y descripción) sigue nombrando Posadas y los rubros.
+const BAJADA = "Cafetería, panadería y confitería con identidad propia, chipas gourmet, empanadas de especialidad y mandioca, con materias primas de primera calidad.";
 
 const CLASE_BOTON = "pd-display inline-flex h-14 items-center justify-center rounded-2xl bg-pd-ember px-8 text-[16px] font-bold active:bg-pd-ember-dark";
 
@@ -41,8 +47,8 @@ export function Portada({ local, proximos = [] }: { local: LocalSeo; proximos?: 
 
         <section className="overflow-hidden rounded-3xl bg-pd-ink text-white" style={{ backgroundImage: "linear-gradient(rgba(34,25,15,.62), rgba(34,25,15,.72)), url(/marca/fondo-cabecera.jpg)", backgroundSize: "cover", backgroundPosition: "center" }}>
           <div className="px-6 py-12 text-center md:px-12 md:py-20">
-            <h1 className="mx-auto max-w-[640px] text-[34px] leading-[1.1] text-white md:text-[48px]">Panadería, confitería y delicatessen en Posadas</h1>
-            <p className="mx-auto mt-4 max-w-[560px] text-[16px] leading-snug text-white/90 md:text-[18px]">{DESCRIPCION_MARCA}</p>
+            <h1 className="mx-auto max-w-[640px] text-[34px] leading-[1.1] text-white md:text-[48px]">Delicias con <span className="whitespace-nowrap" style={{ color: DORADO }}>sabor regional</span></h1>
+            <p className="mx-auto mt-4 max-w-[560px] text-[16px] leading-snug text-white/90 md:text-[18px]">{BAJADA}</p>
             <Link href={ruta} style={{ color: "#fff" }} className={`${CLASE_BOTON} mt-8`}>Pedir online</Link>
           </div>
         </section>
