@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
+import { PASO_KG, redondearKg } from "./cantidad-peso";
 
 // Copia deliberada y acotada del bloque de precio/promos de crearMovimiento
 // (src/app/(admin)/admin/movimientos/actions.ts) -- ese archivo no se toca,
@@ -78,9 +79,15 @@ export async function resolverItemsPedido(
     const precioMap = new Map(datosProductos.precios.map((p) => [p.product_id, p.precio_dist]));
 
     for (const input of productInputs) {
-      const producto = productMap.get(input.product_id) as { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null } | undefined;
+      const producto = productMap.get(input.product_id) as { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null; unit_label?: string | null } | undefined;
       if (!producto || !producto.is_active || producto.vendible_pos === false || productosOcultos.includes(producto.id)) {
         return { error: "Uno de los productos del carrito ya no está disponible" };
+      }
+      // Por unidad solo enteros; por peso (kg) de a 100 g como mínimo. Una cantidad como 0,001 daba un subtotal
+      // de centavos por un producto entero.
+      const porPeso = producto.unit_label === "kg";
+      if (porPeso ? !(input.cantidad >= PASO_KG && redondearKg(input.cantidad) === input.cantidad) : !Number.isInteger(input.cantidad)) {
+        return { error: "Cantidad inválida en el carrito" };
       }
       if (categoriasHabilitadas && categoriasHabilitadas.length > 0) {
         if (!producto.category_id || !categoriasHabilitadas.includes(producto.category_id)) {
@@ -108,6 +115,7 @@ export async function resolverItemsPedido(
     const costoComponenteMap = new Map<string, number>(datosPromos.costosComponentes.map((p) => [p.product_id, p.costo]));
 
     for (const input of promoInputs) {
+      if (!Number.isInteger(input.cantidad)) return { error: "Cantidad inválida en el carrito" };
       const promo = promoMap.get(input.promo_id);
       if (!promo || !promo.is_active || promosOcultas.includes(promo.id)) return { error: "Una de las promos del carrito ya no está disponible" };
       if (categoriasHabilitadas && categoriasHabilitadas.length > 0) {

@@ -72,6 +72,38 @@ describe("webhook de Mercado Pago", () => {
     expect(eqDe(u, "estado")).toBe("pendiente");
   });
 
+  describe("pago que llega sobre un pedido que ya no está esperando (auditoría 26/10)", () => {
+    const mundoConPedido = (pedido: Record<string, unknown>) => base((q) => {
+      if (q.table === "mercadopago_qr_orders" && q.op === "update") return { data: [{ id: "o1", pedido_id: "ped-1" }] };
+      if (q.table === "pedidos" && q.op === "update") return { data: [] }; // ya no estaba en pendiente_pago: no hay transición
+      if (q.table === "pedidos") return { data: pedido };
+      return undefined;
+    });
+
+    it("pedido cancelado: la plata queda en 'pagos sin conciliar' con la sucursal del pedido", async () => {
+      conToken();
+      const f = mundoConPedido({ sucursal_id: "s1", estado: "cancelado", movimiento_id: null });
+      mp(aprobado);
+      await pedir("type=payment&data.id=123");
+      const guardado = f.calls.find((c) => c.table === "mercadopago_transferencias_recibidas" && c.op === "upsert");
+      expect(guardado?.payload).toMatchObject({ mp_payment_id: "123", monto: 1500, sucursal_id: "s1" });
+    });
+    it("pedido vencido: también", async () => {
+      conToken();
+      const f = mundoConPedido({ sucursal_id: "s1", estado: "expirado", movimiento_id: null });
+      mp(aprobado);
+      await pedir("type=payment&data.id=123");
+      expect(f.calls.some((c) => c.table === "mercadopago_transferencias_recibidas" && c.op === "upsert")).toBe(true);
+    });
+    it("pedido que ya tiene su venta (lo confirmó el admin antes del aviso): no hay nada perdido, no se guarda", async () => {
+      conToken();
+      const f = mundoConPedido({ sucursal_id: "s1", estado: "pagado", movimiento_id: "mov-1" });
+      mp(aprobado);
+      await pedir("type=payment&data.id=123");
+      expect(f.calls.some((c) => c.table === "mercadopago_transferencias_recibidas")).toBe(false);
+    });
+  });
+
   it("pago NO aprobado (pendiente, rechazado) no marca nada como pagado", async () => {
     conToken();
     const f = base(() => undefined);

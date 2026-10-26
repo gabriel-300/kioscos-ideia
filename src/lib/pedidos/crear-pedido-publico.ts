@@ -23,6 +23,19 @@ import { estadoEnvios, estadoPedidos, leerDisponibilidadOnline } from "./disponi
 
 const EXPIRACION_MP_LINK_MS = 2 * 60 * 60 * 1000; // margen para pagar; también es el vencimiento del enlace de Mercado Pago
 
+// Topes de lo que escribe el cliente (una Server Action no tiene otro límite que el tamaño del cuerpo).
+const MAX_NOMBRE = 80;
+const MAX_TELEFONO = 30;
+const MAX_NOTAS = 500;
+const MAX_DIRECCION = 200;
+const MAX_PAGO_CON = 10_000_000;
+
+// Contra pedidos falsos en cadena: el rate limit por conexión no frena a quien rota de IP, así que además se
+// limita lo que puede quedar abierto de una sola vez. Un local real no llega ni cerca de estos números.
+const MAX_ESPERANDO_PAGO_POR_LOCAL = 40;     // pedidos con link de Mercado Pago sin pagar y sin vencer
+const MAX_EFECTIVO_EN_CURSO_POR_CLIENTE = 3; // pedidos en efectivo de un mismo cliente que el local todavía no cerró
+const ESTADOS_EN_CURSO = ["confirmado", "en_preparacion", "listo_retiro", "en_reparto"];
+
 export type DatosPedidoPublico = {
   sucursal_id:          string;
   cliente_nombre:       string;
@@ -77,7 +90,18 @@ export async function crearPedidoPublico(
   contexto?: ContextoPedido
 ): Promise<ResultadoPedidoPublico> {
   // ── Validaciones baratas, sin tocar la base ni el rate limit ──────────
-  if (data.cliente_nombre?.trim().length < 2) return { error: "Escribí tu nombre" };
+  // Una Server Action recibe lo que mande el navegador: tipos y largos se controlan acá, no se confían.
+  for (const campo of [data.cliente_nombre, data.cliente_telefono, data.notas, data.direccion_entrega, data.direccion_referencia]) {
+    if (campo != null && typeof campo !== "string") return { error: "Los datos del pedido no son válidos" };
+  }
+  if ((data.cliente_nombre ?? "").length > MAX_NOMBRE) return { error: `El nombre es muy largo (máximo ${MAX_NOMBRE} letras)` };
+  if ((data.cliente_telefono ?? "").length > MAX_TELEFONO) return { error: "El teléfono no es válido" };
+  if ((data.notas ?? "").length > MAX_NOTAS) return { error: `Las notas son muy largas (máximo ${MAX_NOTAS} letras)` };
+  if ((data.direccion_entrega ?? "").length > MAX_DIRECCION || (data.direccion_referencia ?? "").length > MAX_DIRECCION) {
+    return { error: `La dirección es muy larga (máximo ${MAX_DIRECCION} letras)` };
+  }
+  if (data.pago_con != null && !(Number.isFinite(data.pago_con) && data.pago_con <= MAX_PAGO_CON)) return { error: "El monto con el que pagás no es válido" };
+  if ((data.cliente_nombre ?? "").trim().length < 2) return { error: "Escribí tu nombre" };
   if (!telefonoValido(data.cliente_telefono ?? "")) return { error: "Escribí un WhatsApp válido (con característica, 10 dígitos)" };
   if (data.tipo_entrega !== "retiro_local" && data.tipo_entrega !== "delivery") return { error: "Elegí cómo querés recibir el pedido" };
   if (data.medio_pago !== "efectivo" && data.medio_pago !== "mercadopago_link") return { error: "Elegí cómo vas a pagar" };
@@ -107,6 +131,28 @@ export async function crearPedidoPublico(
   // Efectivo: solo si la sucursal lo habilita y el cliente ingresó (la sesión, no lo que mande el navegador).
   if (data.medio_pago === "efectivo" && !aceptaEfectivoOnline(await leerEfectivoOnline(admin, data.sucursal_id), !!contexto?.clienteId || !!contexto?.personalId)) {
     return { error: "Para pagar en efectivo tenés que ingresar con Google. Si no, pagá con Mercado Pago." };
+  }
+  if (data.medio_pago === "efectivo" && contexto?.clienteId) {
+    const { count } = await (admin as any)
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("cliente_id", contexto.clienteId)
+      .eq("medio_pago", "efectivo")
+      .in("estado", ESTADOS_EN_CURSO);
+    if ((count ?? 0) >= MAX_EFECTIVO_EN_CURSO_POR_CLIENTE) {
+      return { error: "Ya tenés pedidos en curso. Esperá a que el local los entregue para hacer otro, o pagá con Mercado Pago." };
+    }
+  }
+  if (data.medio_pago === "mercadopago_link") {
+    const { count } = await (admin as any)
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("sucursal_id", data.sucursal_id)
+      .eq("estado", "pendiente_pago")
+      .gt("expira_en", new Date().toISOString());
+    if ((count ?? 0) >= MAX_ESPERANDO_PAGO_POR_LOCAL) {
+      return { error: "Hay muchos pedidos esperando el pago en este local. Probá de nuevo en unos minutos." };
+    }
   }
   // El horario de atención también se valida acá, no solo en la pantalla (auditoría 19/09, H-12).
   // Sin horario cargado la sucursal está siempre abierta.

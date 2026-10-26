@@ -85,6 +85,27 @@ async function registrarPagoSinOrdenPendiente(
   return true;
 }
 
+// El pago aprobado de una orden que SÍ estaba pendiente, pero cuyo pedido ya no podía pasar a "pagado" porque
+// se canceló o venció antes (el cliente pagó con el link ya abierto): crearVentaPublica no hace nada y la plata
+// quedaba sin venta ni aviso. Se guarda en "pagos sin conciliar" para que alguien la devuelva o la registre.
+// Un pedido que ya tiene venta (confirmado a mano antes de que llegara el aviso) no cuenta: ahí no hay nada perdido.
+async function registrarPagoSobrePedidoCerrado(admin: any, pedidoId: string, mpPaymentId: string, monto: number, raw: unknown) {
+  const { data: pedido } = await admin
+    .from("pedidos")
+    .select("sucursal_id, estado, movimiento_id")
+    .eq("id", pedidoId)
+    .maybeSingle();
+  if (!pedido || pedido.movimiento_id || !["cancelado", "expirado"].includes(pedido.estado)) return;
+
+  await admin
+    .from("mercadopago_transferencias_recibidas")
+    .upsert(
+      { mp_payment_id: mpPaymentId, monto, sucursal_id: pedido.sucursal_id, raw_payload: raw },
+      { onConflict: "mp_payment_id", ignoreDuplicates: true },
+    );
+  console.warn(`[mercadopago webhook] pago ${mpPaymentId} sobre un pedido ${pedido.estado} -- guardado en pagos sin conciliar`);
+}
+
 export async function POST(request: NextRequest) {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!accessToken) {
@@ -171,6 +192,7 @@ export async function POST(request: NextRequest) {
             const { crearVentaPublica } = await import("@/lib/pedidos/crear-venta-publica");
             const res = await crearVentaPublica(admin, actualizados[0].pedido_id);
             if (res.error) console.error("[mercadopago webhook] crearVentaPublica falló:", res.error);
+            else if (!res.movimiento_id) await registrarPagoSobrePedidoCerrado(admin, actualizados[0].pedido_id, String(dataId), payment.transaction_amount, payment);
           }
 
           // Mercado Pago puede reenviar la notificación del MISMO pago más
@@ -246,6 +268,7 @@ export async function POST(request: NextRequest) {
           const { crearVentaPublica } = await import("@/lib/pedidos/crear-venta-publica");
           const res = await crearVentaPublica(admin, actualizados[0].pedido_id);
           if (res.error) console.error("[mercadopago webhook] crearVentaPublica falló (order/qr):", res.error);
+          else if (!res.movimiento_id) await registrarPagoSobrePedidoCerrado(admin, actualizados[0].pedido_id, String(paymentId), Number(order.total_amount ?? 0), order);
         }
       }
     }

@@ -6,7 +6,7 @@ const SUC = "suc-1";
 
 type Catalogo = {
   sucursal?: { categorias_habilitadas: string[] | null; promos_habilitadas: boolean };
-  products?: { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null }[];
+  products?: { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null; unit_label?: string | null }[];
   precios?: { product_id: string; precio_dist: number | null; costo?: number }[];
   promos?: { id: string; price: number; is_active: boolean; category_id: string | null; promo_items: { product_id: string; cantidad: number }[] }[];
   preciosPromo?: { promo_id: string; price: number }[];
@@ -76,8 +76,8 @@ describe("resolverItemsPedido -- productos sueltos", () => {
     expect(await resolverItemsPedido(admin(permitida), SUC, [{ product_id: "p1", cantidad: 1 }])).toHaveProperty("items");
   });
 
-  it("redondea el subtotal de cantidades fraccionarias a centavos", async () => {
-    const c = { ...base, precios: [{ product_id: "p1", precio_dist: 1199.99 }] };
+  it("redondea el subtotal de cantidades fraccionarias (productos por kilo) a centavos", async () => {
+    const c = { ...base, products: base.products!.map((p) => ({ ...p, unit_label: "kg" })), precios: [{ product_id: "p1", precio_dist: 1199.99 }] };
     const r = await resolverItemsPedido(admin(c), SUC, [{ product_id: "p1", cantidad: 0.3 }]);
     expect(r).toMatchObject({ subtotal: 360 });
   });

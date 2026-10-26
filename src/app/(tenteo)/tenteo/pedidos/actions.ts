@@ -147,6 +147,10 @@ export async function cancelarPedido(pedidoId: string): Promise<{ error?: string
   if (error) return { error: error.message };
   if (!actualizado?.length) return { error: "El pedido ya cambió de estado, refrescá la página" };
 
+  // El link de Mercado Pago sigue aceptando pagos hasta que vence: se da de baja la orden, así un pago que
+  // llegue después no se pierde (el webhook lo deja en "pagos sin conciliar").
+  await (admin as any).from("mercadopago_qr_orders").update({ estado: "cancelado" }).eq("pedido_id", pedidoId).eq("estado", "pendiente");
+
   await notificarCambioEstado(admin, pedidoId);
   refrescar();
   return {};

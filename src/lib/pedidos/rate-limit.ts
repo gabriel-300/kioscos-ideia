@@ -11,23 +11,40 @@ import { createAdminClient } from "@/lib/supabase/server";
 const VENTANA_MS = 10 * 60 * 1000; // 10 minutos
 const LIMITE      = 5;             // llamadas a iniciarPedido() por identificador en la ventana
 
+export type OpcionesRateLimit = { limite?: number; ventanaMs?: number };
+
+// Una conexión IPv6 doméstica recibe un bloque /64 entero (millones de direcciones): contar por dirección
+// completa dejaría rotar la IP sin costo. Se cuenta por el bloque /64; una IPv4 queda tal cual.
+export function normalizarIp(ip: string): string {
+  const limpia = ip.trim().split("%")[0].toLowerCase();
+  if (!limpia.includes(":")) return limpia;
+  const mapeada = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(limpia); // IPv4 dentro de IPv6
+  if (mapeada) return mapeada[1];
+  const [izq, der] = limpia.split("::");
+  const antes = izq ? izq.split(":") : [];
+  const despues = der ? der.split(":") : [];
+  const ceros = der === undefined ? [] : Array(Math.max(8 - antes.length - despues.length, 0)).fill("0");
+  return [...antes, ...ceros, ...despues].slice(0, 4).map((g) => g.padStart(4, "0")).join(":") + "::/64";
+}
+
 export async function identificadorCliente(clienteTelefono: string): Promise<string> {
   const ip = (await headers()).get("cf-connecting-ip");
-  return ip ?? `tel:${clienteTelefono.replace(/\D/g, "")}`;
+  return ip ? normalizarIp(ip) : `tel:${clienteTelefono.replace(/\D/g, "")}`;
 }
 
 export async function chequearRateLimit(
   admin: ReturnType<typeof createAdminClient>,
-  identificador: string
+  identificador: string,
+  { limite = LIMITE, ventanaMs = VENTANA_MS }: OpcionesRateLimit = {}
 ): Promise<string | null> {
-  const desde = new Date(Date.now() - VENTANA_MS).toISOString();
+  const desde = new Date(Date.now() - ventanaMs).toISOString();
   const { count } = await (admin as any)
     .from("pedido_rate_limits")
     .select("id", { count: "exact", head: true })
     .eq("identificador", identificador)
     .gte("created_at", desde);
 
-  if ((count ?? 0) >= LIMITE) {
+  if ((count ?? 0) >= limite) {
     return "Demasiados intentos, esperá unos minutos e intentá de nuevo";
   }
 

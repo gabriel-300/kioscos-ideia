@@ -2,7 +2,7 @@
 
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { clienteDeLaSesion, recordarContactoCliente } from "./beneficio-servidor";
-import { identificadorCliente } from "./rate-limit";
+import { chequearRateLimit, identificadorCliente } from "./rate-limit";
 import { personalDeSucursal } from "./personal-sesion";
 import { crearPedidoPublico, type DatosPedidoPublico, type ResultadoPedidoPublico } from "./crear-pedido-publico";
 import { sugerirUpsellParaSucursal, type SugerenciaUpsell } from "./sugerir-upsell";
@@ -56,6 +56,11 @@ export async function consultarEstadoPedidoPublico(pedidoId: string): Promise<{ 
 export async function sugerirUpsellPublico(sucursalId: string, idsEnCarrito: string[]): Promise<SugerenciaUpsell | null> {
   const admin = createAdminClient();
   try {
+    // Cada llamada gasta la cuota de la IA (la comparten los remitos y el bot): tope por conexión, con otra clave
+    // que la de los pedidos para no mezclar los contadores. Pasado el tope, simplemente no hay sugerencia.
+    if (!Array.isArray(idsEnCarrito) || idsEnCarrito.length > 100) return null;
+    const identificador = `upsell:${await identificadorCliente("")}`;
+    if (await chequearRateLimit(admin, identificador, { limite: 30, ventanaMs: 10 * 60 * 1000 })) return null;
     return await sugerirUpsellParaSucursal(admin, sucursalId, idsEnCarrito);
   } catch {
     return null;

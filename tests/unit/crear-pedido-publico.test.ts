@@ -16,14 +16,14 @@ const datos = (over: Partial<DatosPedidoPublico> = {}): DatosPedidoPublico => ({
   medio_pago: "efectivo", pago_con: null, items: [{ product_id: "p1", cantidad: 2 }], ...over,
 });
 
-type Mundo = { sucursal?: any; zona?: any; rateCount?: number; stock?: number; itemsError?: boolean; pedidosPrevios?: number };
+type Mundo = { sucursal?: any; zona?: any; rateCount?: number; stock?: number; itemsError?: boolean; pedidosPrevios?: number; unidad?: string };
 function mundo(m: Mundo = {}) {
   const sucursal = { is_active: true, pedidos_online_habilitado: true, delivery_habilitado: true, retiro_habilitado: true, pedido_minimo_envio: 0, retiro_eta_min: 15, retiro_eta_max: 25, categorias_habilitadas: null, promos_habilitadas: true, ...m.sucursal };
   return fakeAdmin((q: Q) => {
     switch (q.table) {
       case "pedido_rate_limits": return { count: m.rateCount ?? 0 };
       case "sucursales": return { data: sucursal };
-      case "products": return { data: [{ id: "p1", category_id: null, is_active: true, vendible_pos: true }] };
+      case "products": return { data: [{ id: "p1", category_id: null, is_active: true, vendible_pos: true, unit_label: m.unidad ?? null }] };
       case "product_prices": return { data: [{ product_id: "p1", precio_dist: 1000 }] };
       case "stock_sucursal": return { data: [{ product_id: "p1", product_name: "Alfajor", stock_actual: m.stock ?? 100 }] };
       case "zonas_entrega": return { data: m.zona === undefined ? { id: "z1", nombre: "Centro", costo: 800, eta_min: 30, eta_max: 45 } : m.zona };
@@ -61,6 +61,54 @@ describe("crearPedidoPublico: pausas y horario de envíos", () => {
     const { admin } = mundo({ sucursal: { horario_envios: franja } });
     expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/pedir para retirar en el local/);
     expect((await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1")).error).toBeUndefined();
+  });
+});
+
+describe("crearPedidoPublico: entradas y topes (auditoría de seguridad 26/10)", () => {
+  const rechaza = async (over: Partial<DatosPedidoPublico>, m: Mundo = {}) => {
+    const { admin, calls } = mundo(m);
+    const r = await crearPedidoPublico(admin, datos(over), "1.1.1.1");
+    expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+    return r.error;
+  };
+
+  it("un producto por unidad no admite fracciones (0,001 daba un subtotal de centavos)", async () => {
+    expect(await rechaza({ items: [{ product_id: "p1", cantidad: 0.001 }] })).toBe("Cantidad inválida en el carrito");
+    expect(await rechaza({ items: [{ product_id: "p1", cantidad: 1.5 }] })).toBe("Cantidad inválida en el carrito");
+  });
+  it("un producto por kilo admite de a 100 g, no menos ni medidas raras", async () => {
+    const kg = { unidad: "kg" };
+    const { admin } = mundo(kg);
+    expect((await crearPedidoPublico(admin, datos({ items: [{ product_id: "p1", cantidad: 0.3 }] }), "1.1.1.1")).error).toBeUndefined();
+    expect(await rechaza({ items: [{ product_id: "p1", cantidad: 0.01 }] }, kg)).toBe("Cantidad inválida en el carrito");
+    expect(await rechaza({ items: [{ product_id: "p1", cantidad: 0.1234567 }] }, kg)).toBe("Cantidad inválida en el carrito");
+  });
+  it("las promos van de a unidades enteras", async () => {
+    expect(await rechaza({ items: [{ promo_id: "pr1", cantidad: 0.5 }] })).toBe("Cantidad inválida en el carrito");
+  });
+  it("nombre, notas y direcciones tienen largo máximo, y los tipos raros se rechazan", async () => {
+    expect(await rechaza({ cliente_nombre: "A".repeat(81) })).toMatch(/nombre es muy largo/);
+    expect(await rechaza({ notas: "n".repeat(501) })).toMatch(/notas son muy largas/);
+    expect(await rechaza({ tipo_entrega: "delivery", zona_entrega_id: "z1", entrega_lat: -27.37, entrega_lng: -55.9, direccion_entrega: "d".repeat(201) })).toMatch(/dirección es muy larga/);
+    expect(await rechaza({ cliente_nombre: 123 as unknown as string })).toMatch(/no son válidos/);
+    expect(await rechaza({ cliente_telefono: "3764123456" + " ".repeat(40) })).toMatch(/teléfono no es válido/);
+  });
+  it("pago_con tiene que ser un número finito y razonable", async () => {
+    expect(await rechaza({ pago_con: Infinity })).toMatch(/monto con el que pagás/);
+    expect(await rechaza({ pago_con: NaN })).toMatch(/monto con el que pagás/);
+    expect(await rechaza({ pago_con: 1e12 })).toMatch(/monto con el que pagás/);
+  });
+  it("con 40 pedidos de Mercado Pago esperando el pago en el local, no entra otro", async () => {
+    expect(await rechaza({ medio_pago: "mercadopago_link" }, { pedidosPrevios: 40 })).toMatch(/muchos pedidos esperando el pago/);
+    const { admin } = mundo({ pedidosPrevios: 39 });
+    expect((await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1")).error).toBeUndefined();
+  });
+  it("un cliente con 3 pedidos en efectivo en curso no abre otro", async () => {
+    const { admin } = mundo({ pedidosPrevios: 3 });
+    const r = await crearPedidoPublico(admin, datos(), "1.1.1.1", { clienteId: "cli-1" });
+    expect(r.error).toMatch(/pedidos en curso/);
+    const ok = mundo({ pedidosPrevios: 2 });
+    expect((await crearPedidoPublico(ok.admin, datos(), "1.1.1.1", { clienteId: "cli-1" })).error).toBeUndefined();
   });
 });
 
@@ -246,7 +294,7 @@ describe("crearPedidoPublico", () => {
       const cfg = { descuento_cliente_pct: 0, descuento_cliente_solo_primera: false, envio_gratis_primera_compra: true };
       const delivery = datos({ tipo_entrega: "delivery", entrega_lat: -27.37, entrega_lng: -55.9, zona_entrega_id: "z1", direccion_entrega: "x" });
       expect(await crearPedidoPublico(mundo({ sucursal: cfg }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 0, envio_bonificado: true, total: 2000 });
-      expect(await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 3 }).admin, delivery, "ip", cliente)).toMatchObject({ costo_envio: 800, envio_bonificado: false, total: 2800 });
+      expect(await crearPedidoPublico(mundo({ sucursal: cfg, pedidosPrevios: 3 }).admin, { ...delivery, medio_pago: "mercadopago_link" }, "ip", cliente)).toMatchObject({ costo_envio: 800, envio_bonificado: false, total: 2800 });
       expect((await crearPedidoPublico(mundo({ sucursal: cfg }).admin, datos(), "ip", cliente)).envio_bonificado).toBe(false); // retiro: no hay envío que bonificar
     });
 
