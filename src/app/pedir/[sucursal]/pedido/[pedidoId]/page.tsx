@@ -96,6 +96,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   const calificacion = pedido.estado === "entregado" ? await leerCalificacion(admin, pedidoId) : null;
 
   const seg = armarSeguimiento(pedido);
+  const terminado = chatVencidoParaCliente(pedido.estado, pedido.updated_at); // terminó hace más de 24 h
   const pago = estadoDelPago(pedido);
   // Si el pago todavía no entró, el botón para pagar (el enlace se generó al hacer el pedido).
   const enlacePago = pedido.estado === "pendiente_pago" ? await enlaceDePagoDelPedido(admin, pedidoId) : null;
@@ -169,7 +170,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
             <div className="flex items-center justify-between gap-3">
               <div>
                 <dt className="text-[12.5px] text-pd-ink-400">Método de pago</dt>
-                <dd className="text-[15px] font-bold">{MEDIO[pedido.medio_pago] ?? "A confirmar"} · {fmt(pedido.total)}</dd>
+                <dd className="text-[15px] font-bold">{MEDIO[pedido.medio_pago] ?? "A confirmar"}{!terminado && ` · ${fmt(pedido.total)}`}</dd>
               </div>
               {pago && <span className={`shrink-0 rounded-full px-3 py-1 text-[12.5px] font-bold ${tonoPago[pago.tono]}`}>{pago.texto}</span>}
             </div>
@@ -179,7 +180,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
         {/* Resumen del pedido */}
         <section className="rounded-3xl border border-pd-line bg-white p-5 md:p-7">
           <p className="text-[12.5px] text-pd-ink-400">Resumen del pedido</p>
-          <p className="text-[16px] font-bold">{cantidadProductos} {cantidadProductos === 1 ? "producto" : "productos"} · {fmt(pedido.total)}</p>
+          <p className="text-[16px] font-bold">{cantidadProductos} {cantidadProductos === 1 ? "producto" : "productos"}{!terminado && ` · ${fmt(pedido.total)}`}</p>
 
           <ul className="mt-4 space-y-3 border-t border-pd-line pt-4 text-[14px] text-pd-ink-900">
             {lineas.map((l, i) => (
@@ -192,6 +193,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
             ))}
           </ul>
 
+          {!terminado && (
           <dl className="mt-4 space-y-1.5 border-t border-pd-line pt-4 text-[14px]">
             <div className="flex justify-between text-pd-ink-600"><dt>Subtotal</dt><dd className="tabular-nums">{fmt(pedido.subtotal)}</dd></div>
             {Number(pedido.descuento_total) > 0 && (
@@ -208,6 +210,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
               <dd className="tabular-nums">{fmt(pedido.total)}</dd>
             </div>
           </dl>
+          )}
         </section>
 
         {pedido.estado === "entregado" && (
@@ -227,7 +230,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
         )}
 
         {/* Chat con el local (y con el repartidor mientras el pedido está en reparto); queda guardado en el pedido */}
-        {pedido.estado !== "expirado" && !chatVencidoParaCliente(pedido.estado, pedido.updated_at) && (
+        {!terminado && (
           <div className="md:col-span-2">
             <ChatPedido pedidoId={pedidoId} cargar={cargarChatCliente} enviar={enviarChatCliente} estilo="tienda" titulo={`Chat con ${nombreLocal}`} />
           </div>
