@@ -35,14 +35,14 @@ describe("estadoEnvios", () => {
     expect(estadoEnvios(d, lunesAR("19:00"))).toMatchObject({ disponible: true, etiqueta: "Envíos hoy 18:00 – 21:00" });
     const fuera = estadoEnvios(d, lunesAR("12:00"));
     expect(fuera).toMatchObject({ disponible: false, razon: "fuera_de_horario" });
-    expect(fuera.mensaje).toMatch(/Los envíos son de lunes de 18 a 21/);
+    expect(fuera.mensaje).toMatch(/Ahora podés pedir para retirar en el local\. Envíos: lunes de 18 a 21\./);
     expect(fuera.mensaje).toMatch(/retirar/);
   });
   it("una pausa de envíos lo corta aunque esté en horario, y muestra el motivo", () => {
     const d = con({ horarioEnvios: ENVIOS_TARDE, pausas: { envios: pausa(null, "Lluvia fuerte"), pedidos: null } });
     const e = estadoEnvios(d, lunesAR("19:00"));
     expect(e).toMatchObject({ disponible: false, razon: "pausa_envios" });
-    expect(e.mensaje).toBe("Envío suspendido por ahora: Lluvia fuerte. Podés retirar en el local.");
+    expect(e.mensaje).toBe("Los envíos están en pausa (Lluvia fuerte). Podés pedir para retirar en el local.");
   });
   it("la pausa vencida ya no corta nada", () => {
     const d = con({ pausas: { envios: pausa("2026-09-21T11:00:00-03:00"), pedidos: null } });
@@ -98,7 +98,33 @@ describe("resumenHorario", () => {
   it("días sueltos, turnos partidos y horarios distintos", () => {
     expect(resumenHorario(dias([2, 5], "10:00", "14:00"))).toBe("martes y viernes de 10 a 14");
     expect(resumenHorario([{ dia: 1, abre: "09:00", cierra: "13:00" }, { dia: 1, abre: "17:00", cierra: "21:00" }])).toBe("lunes de 9 a 13 y de 17 a 21");
-    expect(resumenHorario([{ dia: 1, abre: "09:00", cierra: "13:00" }, { dia: 2, abre: "10:00", cierra: "14:00" }])).toBeNull();
+    expect(resumenHorario([{ dia: 1, abre: "09:00", cierra: "13:00" }, { dia: 2, abre: "10:00", cierra: "14:00" }])).toBe("lunes de 9 a 13 y martes de 10 a 14");
     expect(resumenHorario(null)).toBeNull();
+  });
+});
+
+describe("resumenHorario: horarios distintos por día (el caso real de la UNAM)", () => {
+  const dias = (ds: number[], abre: string, cierra: string) => ds.map((dia) => ({ dia, abre, cierra }));
+  it("agrupa los días seguidos con el mismo horario", () => {
+    const unam = [...dias([1, 2, 3, 4], "09:00", "13:00"), ...dias([5], "09:00", "22:00")];
+    expect(resumenHorario(unam)).toBe("lunes a jueves de 9 a 13 y viernes de 9 a 22");
+  });
+  it("tres o más tramos se separan con comas, y los días no seguidos no se juntan", () => {
+    expect(resumenHorario([...dias([1, 2, 3], "08:00", "12:00"), ...dias([4], "09:00", "13:00"), ...dias([6], "10:00", "14:00")]))
+      .toBe("lunes a miércoles de 8 a 12, jueves de 9 a 13 y sábado de 10 a 14");
+    expect(resumenHorario([...dias([1], "09:00", "13:00"), ...dias([3], "09:00", "13:00")])).toBe("lunes y miércoles de 9 a 13");
+  });
+  it("con demasiados tramos distintos no hay frase corta", () => {
+    const muchos = [1, 2, 3, 4, 5].map((dia, i) => ({ dia, abre: `0${i + 6}:00`, cierra: "20:00" }));
+    expect(resumenHorario(muchos)).toBeNull();
+  });
+  it("el mensaje del cliente arranca por lo que sí puede hacer", () => {
+    const unam = [...dias([1, 2, 3, 4], "09:00", "13:00"), ...dias([5], "09:00", "22:00")];
+    const d = { ...DISPONIBILIDAD_NORMAL, horarioEnvios: unam };
+    const lunes15 = new Date("2026-10-26T18:00:00Z"); // lunes 15:00 en Argentina: fuera del envío
+    const e = estadoEnvios(d, lunes15);
+    expect(e.disponible).toBe(false);
+    expect(e.mensaje).toBe("Ahora podés pedir para retirar en el local. Envíos: lunes a jueves de 9 a 13 y viernes de 9 a 22.");
+    expect(e.mensaje).not.toMatch(/no hacemos/i);
   });
 });

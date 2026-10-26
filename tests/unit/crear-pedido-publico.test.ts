@@ -46,7 +46,7 @@ describe("crearPedidoPublico: pausas y horario de envíos", () => {
   });
   it("con el envío suspendido se rechaza el envío pero el retiro sigue andando", async () => {
     const { admin } = mundo({ sucursal: { pausas_online: { envios: pausa("Sin repartidor") } } });
-    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toBe("Envío suspendido por ahora: Sin repartidor. Podés retirar en el local.");
+    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toBe("Los envíos están en pausa (Sin repartidor). Podés pedir para retirar en el local.");
     const retiro = await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1");
     expect(retiro.error).toBeUndefined();
   });
@@ -59,7 +59,7 @@ describe("crearPedidoPublico: pausas y horario de envíos", () => {
     // una franja que nunca es ahora: todos los días de 03:00 a 03:01
     const franja = [0, 1, 2, 3, 4, 5, 6].map((dia) => ({ dia, abre: "03:00", cierra: "03:01" }));
     const { admin } = mundo({ sucursal: { horario_envios: franja } });
-    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/envíos/);
+    expect((await crearPedidoPublico(admin, envio(), "1.1.1.1")).error).toMatch(/pedir para retirar en el local/);
     expect((await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link" }), "1.1.1.1")).error).toBeUndefined();
   });
 });

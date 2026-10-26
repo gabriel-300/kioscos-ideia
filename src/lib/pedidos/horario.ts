@@ -67,8 +67,9 @@ function horaCorta(hhmm: string): string {
   return m && m !== "00" ? `${parseInt(h, 10)}:${m}` : String(parseInt(h, 10));
 }
 
-// El horario como frase fija: "lunes a viernes de 9 a 13", "todos los días de 18 a 21". Solo si todos los
-// días abiertos tienen el mismo horario; con horarios distintos por día devuelve null (no hay una frase corta).
+// El horario como frase fija: "lunes a viernes de 9 a 13", "todos los días de 18 a 21", "lunes a jueves de 9 a 13 y
+// viernes de 9 a 22". Agrupa los días seguidos que tienen el mismo horario. Si queda en más de 4 tramos distintos
+// no hay una frase corta y devuelve null.
 export function resumenHorario(horario: TramoHorario[] | null): string | null {
   if (!horario || horario.length === 0) return null;
   const porDia = new Map<number, string>();
@@ -76,13 +77,30 @@ export function resumenHorario(horario: TramoHorario[] | null): string | null {
     const tramo = `de ${horaCorta(t.abre)} a ${horaCorta(t.cierra)}`;
     porDia.set(t.dia, porDia.has(t.dia) ? `${porDia.get(t.dia)} y ${tramo}` : tramo);
   }
-  if (new Set(porDia.values()).size !== 1) return null;
   const dias = [...porDia.keys()].sort((a, b) => a - b);
-  const horas = [...porDia.values()][0];
-  if (dias.length === 7) return `todos los días ${horas}`;
-  const consecutivos = dias.every((d, i) => i === 0 || d === dias[i - 1] + 1);
-  if (consecutivos && dias.length > 2) return `${DIAS[dias[0]]} a ${DIAS[dias[dias.length - 1]]} ${horas}`;
-  return `${dias.map((d) => DIAS[d]).join(" y ")} ${horas}`;
+
+  // los días con el mismo horario van juntos (aunque no sean seguidos), en el orden en que aparecen
+  const grupos: { dias: number[]; horas: string }[] = [];
+  for (const d of dias) {
+    const horas = porDia.get(d)!;
+    const g = grupos.find((x) => x.horas === horas);
+    if (g) g.dias.push(d); else grupos.push({ dias: [d], horas });
+  }
+  if (grupos.length > 4) return null;
+  if (grupos.length === 1 && grupos[0].dias.length === 7) return `todos los días ${grupos[0].horas}`;
+
+  const unir = (items: string[]) => (items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`);
+  const frases = grupos.map(({ dias: ds, horas }) => {
+    // tandas de días seguidos: tres o más se dicen "lunes a jueves"; menos, uno por uno
+    const tandas: number[][] = [];
+    for (const d of ds) {
+      const ultima = tandas[tandas.length - 1];
+      if (ultima && ultima[ultima.length - 1] === d - 1) ultima.push(d); else tandas.push([d]);
+    }
+    const nombres = tandas.flatMap((t) => (t.length >= 3 ? [`${DIAS[t[0]]} a ${DIAS[t[t.length - 1]]}`] : t.map((d) => DIAS[d])));
+    return `${unir(nombres)} ${horas}`;
+  });
+  return unir(frases);
 }
 
 export function estadoHorario(horario: TramoHorario[] | null, ahora: Date = new Date()): EstadoHorario {

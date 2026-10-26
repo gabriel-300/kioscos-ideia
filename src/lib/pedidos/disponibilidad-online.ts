@@ -78,7 +78,7 @@ export function estadoEnvios(d: DisponibilidadOnline, ahora: Date = new Date()):
     return {
       disponible: false,
       razon:      "pausa_envios",
-      mensaje:    `Envío suspendido por ahora${pausa.motivo ? `: ${pausa.motivo}` : ""}. Podés retirar en el local.`,
+      mensaje:    `Los envíos están en pausa${pausa.motivo ? ` (${pausa.motivo})` : ""}. Podés pedir para retirar en el local.`,
       etiqueta:   `Envío suspendido${pausa.motivo ? `: ${pausa.motivo}` : ""}`,
     };
   }
@@ -91,8 +91,8 @@ export function estadoEnvios(d: DisponibilidadOnline, ahora: Date = new Date()):
         disponible: false,
         razon:      "fuera_de_horario",
         mensaje:    resumen
-          ? `Los envíos son de ${resumen}. Ahora podés retirar en el local.`
-          : `Ahora no hacemos envíos${h.proximaApertura ? `; vuelven ${h.proximaApertura}` : ""}. Podés retirar en el local.`,
+          ? `Ahora podés pedir para retirar en el local. Envíos: ${resumen}.`
+          : `Ahora podés pedir para retirar en el local.${h.proximaApertura ? ` Los envíos vuelven ${h.proximaApertura}.` : ""}`,
         etiqueta:   h.hoyTexto ? h.hoyTexto.replace(/^Hoy/, "Envíos hoy") : "Envíos fuera de horario",
       };
     }
