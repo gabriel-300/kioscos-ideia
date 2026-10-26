@@ -8,20 +8,29 @@ import { precioPor100g, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 // Foto del producto. Si no tiene (o falla la carga) se usa el degradé de la
 // categoría con el nombre centrado -- nunca un círculo con iniciales.
-export function Foto({ item, className = "", eager = false, textoClase = "text-[15px]" }: {
-  item: ItemCatalogo; className?: string; eager?: boolean; textoClase?: string;
+//
+// `entera` (tarjetas de producto): las fotos horizontales llenan el recuadro y las verticales se ven completas sobre
+// fondo blanco (como el cono de mandioca), en vez de cortarse y verse ampliadas.
+export function Foto({ item, className = "", eager = false, textoClase = "text-[15px]", entera = false }: {
+  item: ItemCatalogo; className?: string; eager?: boolean; textoClase?: string; entera?: boolean;
 }) {
   const [fallo, setFallo] = useState(false);
+  const [vertical, setVertical] = useState(false);
+  const medir = (img: HTMLImageElement | null) => {
+    if (img && img.complete && img.naturalWidth > 0) setVertical(img.naturalHeight > img.naturalWidth * 1.05);
+  };
   if (item.image && !fallo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={entera ? medir : undefined}
         src={item.image}
         alt={item.name}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
+        onLoad={entera ? (e) => medir(e.currentTarget) : undefined}
         onError={() => setFallo(true)}
-        className={`object-cover ${className}`}
+        className={`${entera && vertical ? "bg-white object-contain" : "object-cover"} ${className}`}
       />
     );
   }
@@ -57,8 +66,8 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
 }) {
   return (
     <article className="group/card flex flex-col overflow-hidden rounded-[20px] border border-pd-line bg-white">
-      <button type="button" onClick={onOpen} className="relative block aspect-square w-full overflow-hidden" aria-label={`Ver ${item.name}`}>
-        <Foto item={item} className="absolute inset-0 size-full transition-transform duration-500 ease-out motion-safe:group-hover/card:scale-[1.07]" eager={eager} />
+      <button type="button" onClick={onOpen} className="relative block aspect-[4/3] w-full overflow-hidden" aria-label={`Ver ${item.name}`}>
+        <Foto item={item} entera className="absolute inset-0 size-full transition-transform duration-500 ease-out motion-safe:group-hover/card:scale-[1.04]" eager={eager} />
         {item.badge && (
           <span className="absolute left-[9px] top-[9px] rounded-[7px] bg-pd-ink px-2 py-[3px] text-[10.5px] font-bold tracking-[0.07em] text-pd-cream">
             {item.badge}
