@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LOGO_MARCA } from "../[sucursal]/_lib/tema";
 import { estadoHorario } from "@/lib/pedidos/horario";
 import { DESCRIPCION_MARCA, INSTAGRAM, nombreLimpio, rutaLocal } from "@/lib/pedidos/seo";
-import type { LocalSeo } from "@/lib/pedidos/seo-servidor";
+import type { LocalProximo, LocalSeo } from "@/lib/pedidos/seo-servidor";
 import { PedidoEnCurso } from "./pedido-en-curso";
 
 // Portada de Angiru Food (la raíz del sitio) cuando hay UN solo local habilitado: le dice a Google y a quien
@@ -17,7 +17,7 @@ const PASOS = [
   { titulo: "Retirá o recibilo", texto: "Pasá por el local o pedí el envío a domicilio. Seguís tu pedido paso a paso." },
 ];
 
-export function Portada({ local }: { local: LocalSeo }) {
+export function Portada({ local, proximos = [] }: { local: LocalSeo; proximos?: LocalProximo[] }) {
   const horario = estadoHorario(local.horario);
   const nombre = nombreLimpio(local.nombre);
   const ruta = rutaLocal(local.nombre);
@@ -48,7 +48,7 @@ export function Portada({ local }: { local: LocalSeo }) {
         </section>
 
         <section aria-labelledby="titulo-local" className="mt-8">
-          <h2 id="titulo-local" className="text-[24px]">Nuestro local</h2>
+          <h2 id="titulo-local" className="text-[24px]">{proximos.length > 0 ? "Nuestros locales" : "Nuestro local"}</h2>
           <div className="mt-3 rounded-3xl border border-pd-line bg-white p-5 md:flex md:items-center md:justify-between md:gap-6 md:p-7">
             <div>
               <p className="pd-display text-[20px] font-bold">{nombre}</p>
@@ -64,6 +64,26 @@ export function Portada({ local }: { local: LocalSeo }) {
             </div>
             <Link href={ruta} style={{ color: "#fff" }} className={`${CLASE_BOTON} mt-5 w-full md:mt-0 md:w-auto md:shrink-0`}>Ver el menú</Link>
           </div>
+          {proximos.map((p) => {
+            const h = estadoHorario(p.horario);
+            return (
+              <div key={p.nombre} className="mt-3 rounded-3xl border border-pd-line bg-white p-5 md:flex md:items-center md:justify-between md:gap-6 md:p-7">
+                <div>
+                  <p className="pd-display text-[20px] font-bold">{nombreLimpio(p.nombre)}</p>
+                  {(p.direccion || p.localidad) && (
+                    <p className="mt-1 text-[14.5px] text-pd-ink-600">{[p.direccion?.trim(), p.localidad?.trim() || "Posadas"].filter(Boolean).join(", ")}</p>
+                  )}
+                  {p.horario && (
+                    <div className="mt-3 flex flex-wrap gap-2 text-[12.5px] font-semibold">
+                      <span className={`rounded-full px-3 py-1 ${h.abierto ? "bg-pd-success text-white" : "bg-pd-warm text-pd-ink-900"}`}>{h.abierto ? "Abierto ahora" : "Cerrado ahora"}</span>
+                      {h.hoyTexto && <span className="rounded-full bg-pd-warm px-3 py-1 text-pd-ink-900">{h.hoyTexto}</span>}
+                    </div>
+                  )}
+                </div>
+                <span className="pd-display mt-4 inline-flex h-11 items-center rounded-full border border-pd-line-strong bg-pd-paper px-5 text-[13px] font-bold text-pd-ink-600 md:mt-0 md:shrink-0">Pedidos online: próximamente</span>
+              </div>
+            );
+          })}
         </section>
 
         <section aria-labelledby="titulo-como" className="mt-10">

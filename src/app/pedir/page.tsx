@@ -8,7 +8,7 @@ import { FondoMenu } from "./fondo-menu";
 import { PedidoEnCurso } from "./_components/pedido-en-curso";
 import { Portada } from "./_components/portada";
 import { JsonLd } from "@/components/json-ld";
-import { cargarLocalesSeo } from "@/lib/pedidos/seo-servidor";
+import { cargarLocalesProximos, cargarLocalesSeo } from "@/lib/pedidos/seo-servidor";
 import { DESCRIPCION_MARCA, IMAGEN_COMPARTIR, jsonLdLocal, jsonLdMarca } from "@/lib/pedidos/seo";
 
 // "¿Dónde querés pedir?": cada local tiene su propio catálogo, stock y precios, así
@@ -35,7 +35,8 @@ export default async function ElegirLocalPage() {
   // Un solo local: portada de la marca con ese local (y datos estructurados). Con dos o más, se elige acá.
   if (locales.length === 1) {
     const [local] = (await cargarLocalesSeo(admin)).filter((l) => l.id === locales[0].id);
-    if (local) return <><Portada local={local} /><JsonLd datos={jsonLdMarca()} /><JsonLd datos={jsonLdLocal(local)} /></>;
+    const proximos = await cargarLocalesProximos(admin).catch(() => []);
+    if (local) return <><Portada local={local} proximos={proximos} /><JsonLd datos={jsonLdMarca()} /><JsonLd datos={jsonLdLocal(local)} /></>;
     redirect(`/pedir/${locales[0].id}`);
   }
 

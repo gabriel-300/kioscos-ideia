@@ -1,5 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
-import { normalizarHorario } from "./horario";
+import { normalizarHorario, type TramoHorario } from "./horario";
 import { slugDeSucursal, type DatosLocalSeo } from "./seo";
 
 // Datos de los locales para el posicionamiento (sitemap, portada, páginas de cada local). Sin "use server".
@@ -43,4 +43,17 @@ export async function resolverSucursalId(admin: Admin, parametro: string): Promi
   if (UUID.test(parametro)) return parametro;
   const locales = await cargarLocalesSeo(admin);
   return locales.find((l) => l.slug === parametro.toLowerCase())?.id ?? null;
+}
+
+export type LocalProximo = { nombre: string; direccion: string | null; localidad: string | null; horario: TramoHorario[] | null };
+
+// Locales de Angiru Food activos que todavía NO reciben pedidos online: la portada los muestra como "Próximamente",
+// sin menú. Solo los que se llaman "Angiru Food ..." (los otros locales activos son de otras marcas del grupo).
+export async function cargarLocalesProximos(admin: Admin): Promise<LocalProximo[]> {
+  const { data } = await (admin as any)
+    .from("sucursales").select("nombre, direccion, localidad, horario_pedidos")
+    .eq("is_active", true).eq("pedidos_online_habilitado", false).ilike("nombre", "angiru food%").order("nombre");
+  return ((data ?? []) as { nombre: string; direccion: string | null; localidad: string | null; horario_pedidos: unknown }[]).map((f) => ({
+    nombre: f.nombre, direccion: f.direccion ?? null, localidad: f.localidad ?? null, horario: normalizarHorario(f.horario_pedidos),
+  }));
 }
