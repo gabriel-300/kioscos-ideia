@@ -12,6 +12,7 @@ import { cargarChatCliente, enviarChatCliente } from "./chat-actions";
 import { RepartidorEnVivo } from "./repartidor-en-vivo";
 import { CalificarPedido } from "./calificar-pedido";
 import { CancelarPedido } from "./cancelar-pedido";
+import { chatVencidoParaCliente } from "@/lib/pedidos/chat";
 import { puedeCancelarElCliente, textoAyudaCancelar } from "@/lib/pedidos/cancelar-por-cliente";
 import { leerCalificacion } from "@/lib/pedidos/calificacion";
 
@@ -81,7 +82,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
   const admin = createAdminClient();
   const { data: pedido } = await (admin as any)
     .from("pedidos")
-    .select("id, numero, estado, movimiento_id, tipo_entrega, medio_pago, subtotal, costo_envio, descuento_total, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
+    .select("id, numero, estado, updated_at, movimiento_id, tipo_entrega, medio_pago, subtotal, costo_envio, descuento_total, total, zona_nombre, eta_min, eta_max, cliente_nombre, sucursal_id, sucursales(nombre, whatsapp_pedidos)")
     .eq("id", pedidoId)
     .eq("sucursal_id", sucursalId)
     .maybeSingle();
@@ -226,7 +227,7 @@ export default async function SeguimientoPage({ params }: { params: Promise<{ su
         )}
 
         {/* Chat con el local (y con el repartidor mientras el pedido está en reparto); queda guardado en el pedido */}
-        {pedido.estado !== "expirado" && (
+        {pedido.estado !== "expirado" && !chatVencidoParaCliente(pedido.estado, pedido.updated_at) && (
           <div className="md:col-span-2">
             <ChatPedido pedidoId={pedidoId} cargar={cargarChatCliente} enviar={enviarChatCliente} estilo="tienda" titulo={`Chat con ${nombreLocal}`} />
           </div>

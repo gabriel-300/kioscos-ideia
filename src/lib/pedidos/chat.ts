@@ -38,7 +38,19 @@ export type EstadoChat = {
   sinLeer: number;
 };
 
-type PedidoChat = { id: string; sucursal_id: string; estado: string; repartidor_id: string | null };
+type PedidoChat = { id: string; sucursal_id: string; estado: string; repartidor_id: string | null; updated_at?: string | null };
+
+// Para el CLIENTE el chat no es eterno: mientras el pedido sigue en marcha y hasta 24 horas después de que termina
+// (entregado, cancelado o vencido), después desaparece. Para el personal del local queda siempre (el historial no se
+// borra nunca). La hora del cierre es la última actualización del pedido.
+export const VIDA_CHAT_CLIENTE_MS = 24 * 60 * 60 * 1000;
+const ESTADOS_TERMINADOS = ["entregado", "cancelado", "expirado"];
+
+export function chatVencidoParaCliente(estado: string, actualizado: string | null | undefined, ahora: number = Date.now()): boolean {
+  if (!ESTADOS_TERMINADOS.includes(estado) || !actualizado) return false;
+  const t = new Date(actualizado).getTime();
+  return Number.isFinite(t) && ahora - t > VIDA_CHAT_CLIENTE_MS;
+}
 
 // Limpia lo que escribe la persona: sin caracteres de control, saltos de línea normalizados, sin más de
 // una línea en blanco seguida. React escapa al mostrar, esto es solo para que no entre basura.
@@ -64,6 +76,7 @@ export async function autorizarChat(
 
   let lado: AutorChat;
   if (actor.tipo === "cliente") {
+    if (chatVencidoParaCliente(pedido.estado, pedido.updated_at)) return { error: "El chat de este pedido ya no está disponible" };
     lado = "cliente";
   } else if (actor.tipo === "personal") {
     const err = await requireSucursalAccess(admin, actor.userId, actor.role, pedido.sucursal_id);
@@ -78,14 +91,14 @@ export async function autorizarChat(
 
   if (ESTADOS_ABIERTOS.includes(pedido.estado)) return { lado, escribir: true, aviso: null };
   if (ESTADOS_SOLO_LECTURA.includes(pedido.estado)) {
-    return { lado, escribir: false, aviso: "El pedido ya terminó: el chat queda solo para consultar." };
+    return { lado, escribir: false, aviso: lado === "cliente" ? "El pedido ya terminó. Vas a poder ver este chat hasta 24 horas después." : "El pedido ya terminó: el chat queda solo para consultar." };
   }
   return { lado, escribir: false, aviso: "Este pedido venció: ya no se puede escribir." };
 }
 
 async function leerPedido(admin: Admin, pedidoId: string): Promise<PedidoChat | null> {
   const { data } = await (admin as any)
-    .from("pedidos").select("id, sucursal_id, estado, repartidor_id").eq("id", pedidoId).maybeSingle();
+    .from("pedidos").select("id, sucursal_id, estado, repartidor_id, updated_at").eq("id", pedidoId).maybeSingle();
   return (data as PedidoChat | null) ?? null;
 }
 

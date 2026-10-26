@@ -5,6 +5,7 @@ import { fakeAdmin, eqDe, type Q } from "../helpers/fake-supabase";
 const PEDIDO = "11111111-1111-4111-8111-111111111111";
 
 type Opciones = {
+  actualizado?: string; // updated_at del pedido (cuándo terminó, si terminó)
   estado?: string;
   repartidorId?: string | null;
   mensajes?: any[];
@@ -17,7 +18,7 @@ type Opciones = {
 // Base falsa con un pedido y su hilo.
 function base(o: Opciones = {}) {
   return fakeAdmin((q: Q) => {
-    if (q.table === "pedidos") return { data: { id: PEDIDO, sucursal_id: "s1", estado: o.estado ?? "confirmado", repartidor_id: o.repartidorId ?? null } };
+    if (q.table === "pedidos") return { data: { id: PEDIDO, sucursal_id: "s1", estado: o.estado ?? "confirmado", repartidor_id: o.repartidorId ?? null, updated_at: o.actualizado ?? null } };
     if (q.table === "profile_sucursales") return { data: o.tieneSucursal === false ? null : { id: "x" } };
     if (q.table === "pedido_mensajes") {
       if (q.op === "insert") return { error: o.errorInsert };
@@ -210,5 +211,43 @@ describe("sinLeerPorPedido", () => {
     const { admin: a, calls } = fakeAdmin(() => ({ data: [] }));
     expect((await sinLeerPorPedido(a, [])).size).toBe(0);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("el chat del cliente dura 24 horas después de terminar el pedido; el del personal, siempre", () => {
+  const HORA = 60 * 60 * 1000;
+  const hace = (h: number) => new Date(Date.now() - h * HORA).toISOString();
+
+  it("chatVencidoParaCliente: solo pedidos terminados, pasadas 24 h", async () => {
+    const { chatVencidoParaCliente } = await import("@/lib/pedidos/chat");
+    expect(chatVencidoParaCliente("entregado", hace(23))).toBe(false);
+    expect(chatVencidoParaCliente("entregado", hace(25))).toBe(true);
+    expect(chatVencidoParaCliente("cancelado", hace(30))).toBe(true);
+    expect(chatVencidoParaCliente("expirado", hace(30))).toBe(true);
+    // un pedido en marcha nunca vence, por viejo que sea; sin fecha tampoco
+    for (const e of ["pendiente_pago", "confirmado", "pagado", "en_preparacion", "en_reparto"]) expect(chatVencidoParaCliente(e, hace(100)), e).toBe(false);
+    expect(chatVencidoParaCliente("entregado", null)).toBe(false);
+    expect(chatVencidoParaCliente("entregado", "no es una fecha")).toBe(false);
+  });
+  it("el cliente ve el chat de un pedido entregado hace menos de 24 h (solo lectura, con el aviso de las 24 h)", async () => {
+    const { admin: a } = base({ estado: "entregado", actualizado: hace(2) });
+    const r = await leerChat(a, cliente, PEDIDO) as { puedeEscribir: boolean; aviso: string | null };
+    expect(r.puedeEscribir).toBe(false);
+    expect(r.aviso).toMatch(/24 horas/);
+  });
+  it("pasadas 24 h el cliente ya no puede ver ni escribir", async () => {
+    const { admin: a } = base({ estado: "entregado", actualizado: hace(25) });
+    expect(await leerChat(a, cliente, PEDIDO)).toEqual({ error: "El chat de este pedido ya no está disponible" });
+    expect((await escribirEnChat(a, cliente, PEDIDO, "hola")).error).toMatch(/ya no está disponible/);
+  });
+  it("el personal y el repartidor siguen viendo el historial aunque hayan pasado semanas", async () => {
+    const { admin: a } = base({ estado: "entregado", actualizado: hace(24 * 30), mensajes: [{ id: "1", autor: "cliente", texto: "hola", created_at: "2026-10-01T10:00:00Z", leido_por: [] }] });
+    const r = await leerChat(a, admin, PEDIDO, { marcarLeidos: false }) as { mensajes: unknown[]; puedeEscribir: boolean; aviso: string | null };
+    expect(r.mensajes).toHaveLength(1);
+    expect(r.aviso).toMatch(/solo para consultar/);
+  });
+  it("un pedido todavía en marcha nunca le oculta el chat al cliente", async () => {
+    const { admin: a } = base({ estado: "en_preparacion", actualizado: hace(24 * 5) });
+    expect((await leerChat(a, cliente, PEDIDO) as { puedeEscribir: boolean }).puedeEscribir).toBe(true);
   });
 });
