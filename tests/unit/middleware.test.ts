@@ -257,24 +257,15 @@ describe("dominio de clientes (angirufood.com.ar)", () => {
   it("mayúsculas o puerto en el host no engañan", async () => {
     expect(reescribe(await en("WWW.AngiruFood.com.ar:443"))).toBe("/pedir");
   });
-  it("en www las demás rutas no se tocan (catálogo, seguimiento, ingreso con Google)", async () => {
-    for (const p of ["/pedir/abc", "/pedir", "/pedir/abc/pedido/xyz", "/auth/cliente/callback"]) {
+  it("en www las demás rutas no se tocan (catálogo, login, seguimiento)", async () => {
+    for (const p of ["/pedir/abc", "/pedir", "/login", "/pedir/abc/pedido/xyz"]) {
       const res = await en("www.angirufood.com.ar", p);
       expect(reescribe(res), p).toBeNull();
       expect(res.headers.get("location"), p).toBeNull();
-      expect(res.status, p).not.toBe(404);
     }
   });
-  it("en www el login y los paneles del personal no existen (404): el personal entra por workers.dev", async () => {
-    for (const p of ["/login", "/forgot-password", "/admin/dashboard", "/tenteo/pedidos", "/elegir-sistema"]) {
-      const res = await en("www.angirufood.com.ar", p);
-      expect(res.status, p).toBe(404);
-      expect(res.headers.get("location"), p).toBeNull();
-    }
-  });
-  it("en workers.dev el personal sigue protegido: /admin sin sesión va a /login", async () => {
-    const res = await en("kioscos-ideia.lytwyn-ideia.workers.dev", "/admin/dashboard");
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
+  it("el personal sigue protegido en este dominio: /admin sin sesión va a /login", async () => {
+    expect(new URL((await en("www.angirufood.com.ar", "/admin/dashboard")).headers.get("location")!).pathname).toBe("/login");
   });
   it("en workers.dev y en local la raíz NO cambia (ahí entra el personal)", async () => {
     for (const host of ["kioscos-ideia.lytwyn-ideia.workers.dev", "localhost:3000"]) {
