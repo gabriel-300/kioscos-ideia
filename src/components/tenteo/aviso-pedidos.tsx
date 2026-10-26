@@ -6,6 +6,7 @@ import { consultarPedidosPorAtender, detallePedidosParaAviso } from "@/app/(tent
 import { RUTA_TENTEO_PEDIDOS } from "@/lib/auth/acceso";
 import { decidirTrasFalla, idsNoAvisados, marcarAvisados, podarAvisados, type Avisados, type PedidoAviso } from "@/lib/pedidos/aviso";
 import { DialogoPedidosNuevos } from "./dialogo-pedidos-nuevos";
+import { GANANCIA_ALARMA, patronAlarma, VIBRACION_ALARMA } from "@/lib/pedidos/alarma-sonido";
 
 // Aviso de pedido nuevo, montado en las dos zonas del personal (kiosco y Tenteo): el
 // cajero suele estar en la venta rápida, no mirando la lista de pedidos.
@@ -18,7 +19,7 @@ import { DialogoPedidosNuevos } from "./dialogo-pedidos-nuevos";
 // lo que ya estaba esperando también se muestra, porque nadie lo atendió.
 
 const INTERVALO_MS = 30_000;
-const REPETIR_SONIDO_MS = 20_000;
+const REPETIR_SONIDO_MS = 12_000; // mientras el cuadro siga abierto, la alarma vuelve a sonar cada tanto
 const CLAVE_AVISADOS = "tenteo:pedidos-avisados";
 const CLAVE_RECARGA = "tenteo:aviso-recarga"; // cuándo se recargó sola por última vez (sessionStorage)
 const REINTENTO_RAPIDO_MS = 5_000;
@@ -47,21 +48,27 @@ function useBip() {
   }, []);
 
   return () => {
+    // El celular vibra aunque el navegador no haya desbloqueado el audio.
+    try { navigator.vibrate?.(VIBRACION_ALARMA); } catch { /* sin vibración */ }
     const ctx = contexto.current;
     if (!ctx) return;
     void ctx.resume();
-    // Tres notas seguidas: se distingue de cualquier otro sonido del navegador.
-    [660, 880, 660].forEach((frecuencia, i) => {
+    // Alarma de dos tonos alternados (ver lib/pedidos/alarma-sonido.ts): se distingue de cualquier otro sonido.
+    for (const nota of patronAlarma()) {
       const osc = ctx.createOscillator();
       const ganancia = ctx.createGain();
-      const inicio = ctx.currentTime + i * 0.22;
-      osc.frequency.value = frecuencia;
-      ganancia.gain.setValueAtTime(0.25, inicio);
-      ganancia.gain.exponentialRampToValueAtTime(0.001, inicio + 0.2);
+      const inicio = ctx.currentTime + nota.inicio;
+      const fin = inicio + nota.duracion;
+      osc.type = "square";
+      osc.frequency.value = nota.frecuencia;
+      ganancia.gain.setValueAtTime(0.0001, inicio);
+      ganancia.gain.linearRampToValueAtTime(GANANCIA_ALARMA, inicio + 0.01);
+      ganancia.gain.setValueAtTime(GANANCIA_ALARMA, fin - 0.03);
+      ganancia.gain.linearRampToValueAtTime(0.0001, fin);
       osc.connect(ganancia).connect(ctx.destination);
       osc.start(inicio);
-      osc.stop(inicio + 0.2);
-    });
+      osc.stop(fin);
+    }
   };
 }
 
