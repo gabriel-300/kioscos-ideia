@@ -32,14 +32,23 @@ describe("nombrePresentable", () => {
 describe("categorías para el cliente", () => {
   it("renombra las internas y deja las desconocidas como están", () => {
     expect(nombreCategoriaCliente("MINUTAS CONG")).toBe("Congelados");
+    expect(nombreCategoriaCliente("MINUTAS")).toBe("Food");
     expect(nombreCategoriaCliente("KIOSKO")).toBe("Kiosco");
-    expect(nombreCategoriaCliente("Confitería")).toBe("Dulces");
+    expect(nombreCategoriaCliente("KIOSCO")).toBe("Kiosco");
+    expect(nombreCategoriaCliente("CONFITERIA")).toBe("Confitería");
+    expect(nombreCategoriaCliente("Confitería")).toBe("Confitería");
+    expect(nombreCategoriaCliente("Cafeteria")).toBe("Cafetería");
     expect(nombreCategoriaCliente("Algo Nuevo")).toBe("Algo Nuevo");
   });
   it("ordena primero lo que apetece y deja al final lo desconocido, sin perder el orden original", () => {
     const g = (name: string) => ({ name });
-    const orden = ordenarCategoriasCliente([g("KIOSKO"), g("BEBIDAS"), g("Zeta"), g("PANADERIA"), g("Promos"), g("Alfa"), g("MINUTAS")]).map((x) => x.name);
-    expect(orden).toEqual(["Promos", "MINUTAS", "PANADERIA", "BEBIDAS", "KIOSKO", "Zeta", "Alfa"]);
+    const orden = ordenarCategoriasCliente([g("KIOSCO"), g("BEBIDAS"), g("Zeta"), g("PANADERIA"), g("Promos"), g("Alfa"), g("MINUTAS")]).map((x) => x.name);
+    expect(orden).toEqual(["Promos", "MINUTAS", "PANADERIA", "BEBIDAS", "KIOSCO", "Zeta", "Alfa"]);
+  });
+  it("la cafetería va después de la confitería y antes de los congelados y las bebidas", () => {
+    const g = (name: string) => ({ name });
+    const orden = ordenarCategoriasCliente([g("BEBIDAS"), g("MINUTAS CONG"), g("Cafeteria"), g("CONFITERIA"), g("PANADERIA"), g("MINUTAS")]).map((x) => x.name);
+    expect(orden).toEqual(["MINUTAS", "PANADERIA", "CONFITERIA", "Cafeteria", "MINUTAS CONG", "BEBIDAS"]);
   });
 });
 

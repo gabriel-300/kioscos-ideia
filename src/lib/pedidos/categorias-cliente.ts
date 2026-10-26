@@ -7,12 +7,14 @@ const sinTildes = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 // Orden de aparición y nombre para el cliente, por el nombre interno (sin tildes ni mayúsculas).
 const PRESENTACION: { interno: string; nombre: string }[] = [
   { interno: "promos",       nombre: "Promos" },
-  { interno: "minutas",      nombre: "Minutas y pizzas" },
+  { interno: "minutas",      nombre: "Food" },
   { interno: "panaderia",    nombre: "Panadería" },
-  { interno: "confiteria",   nombre: "Dulces" },
+  { interno: "confiteria",   nombre: "Confitería" },
+  { interno: "cafeteria",    nombre: "Cafetería" },
   { interno: "minutas cong", nombre: "Congelados" },
   { interno: "bebidas",      nombre: "Bebidas" },
-  { interno: "kiosko",       nombre: "Kiosco" },
+  { interno: "kiosko",       nombre: "Kiosco" }, // el nombre interno se escribió de las dos formas
+  { interno: "kiosco",       nombre: "Kiosco" },
 ];
 
 export function nombreCategoriaCliente(nombreInterno: string): string {
