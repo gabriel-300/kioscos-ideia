@@ -8,38 +8,21 @@ import { precioPor100g, textoCantidad } from "@/lib/pedidos/cantidad-peso";
 
 // Foto del producto. Si no tiene (o falla la carga) se usa el degradé de la
 // categoría con el nombre centrado -- nunca un círculo con iniciales.
-//
-// `entera` (tarjetas de producto): las fotos horizontales llenan el recuadro; las verticales se ven completas y los
-// costados se rellenan con la misma foto muy difuminada (sin franjas blancas, sin ampliarla ni cortarla).
-export function Foto({ item, className = "", eager = false, textoClase = "text-[15px]", entera = false }: {
-  item: ItemCatalogo; className?: string; eager?: boolean; textoClase?: string; entera?: boolean;
+export function Foto({ item, className = "", eager = false, textoClase = "text-[15px]" }: {
+  item: ItemCatalogo; className?: string; eager?: boolean; textoClase?: string;
 }) {
   const [fallo, setFallo] = useState(false);
-  const [vertical, setVertical] = useState(false);
-  const medir = (img: HTMLImageElement | null) => {
-    if (img && img.complete && img.naturalWidth > 0) setVertical(img.naturalHeight > img.naturalWidth * 1.05);
-  };
   if (item.image && !fallo) {
-    const imagen = (
+    return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        ref={entera ? medir : undefined}
         src={item.image}
         alt={item.name}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
-        onLoad={entera ? (e) => medir(e.currentTarget) : undefined}
         onError={() => setFallo(true)}
-        className={entera && vertical ? "relative size-full object-contain" : `object-cover ${className}`}
+        className={`object-cover ${className}`}
       />
-    );
-    if (!(entera && vertical)) return imagen;
-    return (
-      <span className={`block overflow-hidden bg-white ${className}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.image} alt="" aria-hidden loading="lazy" decoding="async" className="absolute inset-0 size-full scale-150 object-cover opacity-50 blur-2xl" />
-        {imagen}
-      </span>
     );
   }
   return (
@@ -74,8 +57,8 @@ export function ProductCard({ item, qty, puedePedir, eager, onAdd, onDec, onOpen
 }) {
   return (
     <article className="group/card flex flex-col overflow-hidden rounded-[20px] border border-pd-line bg-white">
-      <button type="button" onClick={onOpen} className="relative block aspect-[4/3] w-full overflow-hidden" aria-label={`Ver ${item.name}`}>
-        <Foto item={item} entera className="absolute inset-0 size-full transition-transform duration-500 ease-out motion-safe:group-hover/card:scale-[1.04]" eager={eager} />
+      <button type="button" onClick={onOpen} className="relative block aspect-square w-full overflow-hidden" aria-label={`Ver ${item.name}`}>
+        <Foto item={item} className="absolute inset-0 size-full transition-transform duration-500 ease-out motion-safe:group-hover/card:scale-[1.07]" eager={eager} />
         {item.badge && (
           <span className="absolute left-[9px] top-[9px] rounded-[7px] bg-pd-ink px-2 py-[3px] text-[10.5px] font-bold tracking-[0.07em] text-pd-cream">
             {item.badge}
