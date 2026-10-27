@@ -12,6 +12,7 @@ export type Q = {
   single: boolean;
   maybeSingle: boolean;
   head: boolean;
+  cols?: string; // columnas pedidas en el último .select(...)
 };
 export type Resp = { data?: any; error?: any; count?: number | null };
 
@@ -32,7 +33,7 @@ export function fakeAdmin(
     const fijar = (op: Q["op"], payload?: any) => { q.op = op; q.payload = payload; opFijada = true; return b; };
     const filtro = (op: string) => (col: string, val?: unknown, extra?: unknown) => { q.filters.push({ op, col, val, extra }); return b; };
     const b: any = {
-      select: (_cols?: string, opts?: { head?: boolean }) => { if (!opFijada) q.op = "select"; if (opts?.head) q.head = true; return b; },
+      select: (cols?: string, opts?: { head?: boolean }) => { q.cols = cols; if (!opFijada) q.op = "select"; if (opts?.head) q.head = true; return b; },
       insert: (p: any) => fijar("insert", p),
       update: (p: any) => fijar("update", p),
       upsert: (p: any) => fijar("upsert", p),

@@ -61,6 +61,12 @@ describe("puerto: datos para validar un carrito", () => {
     expect(eqDe(precios, "sucursal_id")).toBe(SUC);
     expect(precios.filters).toEqual(expect.arrayContaining([{ op: "in", col: "product_id", val: ["p1"], extra: undefined }]));
   });
+  it("datosProductos: pide unit_label (sin él, la tienda trata un producto por kilo como por unidad y rechaza 0,3 kg)", async () => {
+    const f = fakeAdmin((q: Q) => (q.table === "products" ? { data: [{ id: "p1", category_id: null, is_active: true, vendible_pos: null, unit_label: "kg" }] } : { data: [{ product_id: "p1", precio_dist: 50 }] }));
+    const r = await puertoKiosco(f.admin).datosProductos(SUC, ["p1"]);
+    expect(f.calls.find((c) => c.table === "products")!.cols).toContain("unit_label");
+    expect(r).toMatchObject({ productos: [{ id: "p1", unit_label: "kg" }] });
+  });
   it("datosProductos: un error de la base se devuelve como { error } (el primero que ocurra)", async () => {
     const f = fakeAdmin((q: Q) => (q.table === "products" ? { error: { message: "falló products" } } : { error: { message: "falló precios" } }));
     expect(await puertoKiosco(f.admin).datosProductos(SUC, ["p1"])).toEqual({ error: "falló products" });

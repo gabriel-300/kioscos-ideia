@@ -65,7 +65,7 @@ export function kioscoDirecto(admin: Admin): PuertoKiosco {
     async datosProductos(sucursalId, productIds): Promise<{ error: string } | DatosProductosPedido> {
       const { data: products, error: prodError } = await (admin as any)
         .from("products")
-        .select("id, category_id, is_active, vendible_pos")
+        .select("id, category_id, is_active, vendible_pos, unit_label")
         .in("id", productIds);
       if (prodError) return { error: prodError.message };
 

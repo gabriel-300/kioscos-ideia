@@ -45,7 +45,7 @@ export type DatosCatalogo = {
 
 // Para validar un carrito (ids que manda el cliente): lo que hace falta de cada uno.
 export type DatosProductosPedido = {
-  productos: { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null }[];
+  productos: { id: string; category_id: string | null; is_active: boolean; vendible_pos: boolean | null; unit_label?: string | null }[]; // unit_label "kg" = se vende por peso (cantidades en kilos)
   precios:   { product_id: string; precio_dist: number }[];
 };
 
