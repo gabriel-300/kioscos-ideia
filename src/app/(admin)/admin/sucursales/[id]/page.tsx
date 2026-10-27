@@ -367,7 +367,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // Supabase. Cada resultado se lee más abajo, en el mismo lugar de siempre.
   const turnoAbierto = cajaAbierta && aperturaActual ? aperturaActual : null;
   const rolTurno = user.app_metadata?.role as string | undefined;
-  const [gastosRes, movTurnoRes, auditoriaRes, tenedorRes, miAperturaRes] = await Promise.all([
+  const [gastosRes, movTurnoRes, auditoriaRes, tenedorRes, miAperturaRes, traspasosRecibidosRes] = await Promise.all([
     turnoAbierto
       ? (admin as any).from("gastos").select("id, monto").eq("sucursal_id", id).gte("created_at", turnoAbierto.created_at)
       : null,
@@ -409,6 +409,19 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
+      : null,
+    // Turnos que esta persona RECIBIÓ por traspaso (no los abrió ella): también
+    // son "su turno" -- sin esto quien recibe la caja no veía nada de hoy.
+    // Admin client: el acceso a la sucursal ya lo validó el redirect de arriba
+    // y se filtra por recibido_por = user.id.
+    rolTurno === "encargado" || rolTurno === "vendedor"
+      ? (admin as any)
+          .from("traspasos_caja")
+          .select("apertura:aperturas_caja(created_at)")
+          .eq("sucursal_id", id)
+          .eq("recibido_por", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
       : null,
   ]);
 
@@ -549,7 +562,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const esTenedorActual = !!tenedorActualId && tenedorActualId === user.id;
   const puedeCerrarCaja = role === "admin" || role === "encargado" || role === "concesionario" || esTenedorActual;
 
-  const movs       = movimientos ?? [];
+  let movs         = movimientos ?? [];
   const todosRetiros = retirosHoy ?? []; // ahora trae todos, no solo hoy
   // Lado efectivo de Tesorería (migración 080) -- mismo criterio: se pasa
   // todo, el filtro por turno actual lo hace el modal de cierre.
@@ -574,13 +587,36 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // esta sucursal, sin importar su fecha -- si hace mucho que no abre
     // turno, igual no afecta nada porque enMiTurnoHoy() solo restringe
     // movimientos con fecha = hoy.
-    const miAperturaHoy = miAperturaRes?.data;
-    if (miAperturaHoy?.created_at) {
-      miTurnoInicio = miAperturaHoy.created_at;
+    //
+    // "Mi turno" = el más reciente entre el que ABRÍ yo y los que RECIBÍ por
+    // traspaso de turno (ver 083): quien recibe una caja ya abierta ve el
+    // turno completo, igual que quien la abrió. Antes solo contaba el que
+    // abrí yo, y a quien recibía la caja se le escondía todo lo de hoy.
+    const candidatos = [
+      miAperturaRes?.data?.created_at as string | undefined,
+      ...((traspasosRecibidosRes?.data ?? []) as { apertura: { created_at: string } | null }[])
+        .map((t) => t.apertura?.created_at),
+    ].filter((c): c is string => !!c);
+    const miAperturaInicio = candidatos.sort().at(-1);
+    if (miAperturaInicio) {
+      miTurnoInicio = miAperturaInicio;
       const cierresPosteriores = historicosCierres
-        .filter((c) => c.created_at > miAperturaHoy.created_at)
+        .filter((c) => c.created_at > miAperturaInicio)
         .sort((a, b) => a.created_at.localeCompare(b.created_at));
       miTurnoFin = cierresPosteriores[0]?.created_at ?? null;
+    }
+  }
+  // Quien abrió o recibió (traspaso) el turno abierto: suma a `movs` todo lo del
+  // turno (cliente admin, ya traído arriba). movimiento_visible_por_turno exige
+  // apertura.fecha = fecha del movimiento, así que si el turno cruzó la
+  // medianoche RLS le escondería las ventas de otra persona.
+  if (turnoAbierto && miTurnoInicio === turnoAbierto.created_at) {
+    const yaEsta = new Set(movs.map((m: { id: string }) => m.id));
+    const extras = movimientosDelTurno.filter((m) => !yaEsta.has(m.id));
+    if (extras.length > 0) {
+      movs = [...movs, ...extras].sort((a, b) =>
+        b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at)
+      );
     }
   }
   function enMiTurnoHoy(fecha: string, createdAt: string): boolean {
