@@ -4,7 +4,7 @@ import { CONTACTO_LEGAL, PaginaLegal } from "@/components/legal/pagina-legal";
 export const metadata: Metadata = {
   title: { absolute: "Política de privacidad — Angiru Food" }, // sin el sufijo del sitio general
   description: "Qué datos usa Angiru Food cuando hacés un pedido online, para qué y cómo pedirnos que los borremos.",
-  robots: { index: true, follow: true },
+  robots: { index: false, follow: true }, // públicas para los clientes, pero que no salgan en las búsquedas de Google
 };
 
 export default function PrivacidadPage() {

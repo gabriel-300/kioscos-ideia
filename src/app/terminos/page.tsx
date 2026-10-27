@@ -4,7 +4,7 @@ import { CONTACTO_LEGAL, PaginaLegal } from "@/components/legal/pagina-legal";
 export const metadata: Metadata = {
   title: { absolute: "Condiciones del servicio — Angiru Food" }, // sin el sufijo del sitio general
   description: "Condiciones para pedir online en Angiru Food: pedidos, precios, pagos, entregas y consultas.",
-  robots: { index: true, follow: true },
+  robots: { index: false, follow: true }, // públicas para los clientes, pero que no salgan en las búsquedas de Google
 };
 
 export default function TerminosPage() {
