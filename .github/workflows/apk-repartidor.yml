@@ -33,12 +33,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: app-repartidor/package-lock.json
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # El servidor de GitHub ya trae el SDK de Android instalado (ANDROID_HOME). El paso `setup-android` fallaba buscando el
+      # paquete viejo "tools", así que se saca: alcanza con aceptar las licencias para que Gradle baje lo que le falte.
+      - name: Aceptar licencias del SDK de Android
+        run: |
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | head -1)
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
 
       - name: Instalar dependencias
         run: npm ci
