@@ -7,8 +7,8 @@ o con otra aplicación abierta** (una web no puede; ver `docs/requirements.md`, 
 
 - Carpeta `app-repartidor/`: proyecto Capacitor 8 con su propio `package.json` (no toca las dependencias de la web; el
   `tsconfig` y el `eslint` de la raíz la excluyen y `vitest` solo mira `tests/unit`).
-- Es una **cáscara**: `capacitor.config.json` apunta `server.url` a `https://www.angirufood.com.ar/tenteo/repartos`, con
-  `allowNavigation` limitado a `angirufood.com.ar`. Siempre muestra la versión actual de la web: **cambios en la web no
+- Es una **cáscara**: `capacitor.config.json` apunta `server.url` a `https://kioscos-ideia.lytwyn-ideia.workers.dev/tenteo/repartos`, con
+  `allowNavigation` limitado a `kioscos-ideia.lytwyn-ideia.workers.dev`. Apunta a la dirección del personal (workers.dev) y no a www.angirufood.com.ar, porque en el dominio de los clientes el login y los paneles dan 404 (decisión de seguridad del 26/10/2026). Siempre muestra la versión actual de la web: **cambios en la web no
   exigen reinstalar la app**. El repartidor inicia sesión dentro de la app (la cookie de sesión persiste).
   Sin internet muestra `www/error.html` ("No hay conexión").
 - Datos: `appId` `ar.com.angirufood.reparto`, nombre "Angiru Reparto", orientación vertical, ícono y pantalla de inicio

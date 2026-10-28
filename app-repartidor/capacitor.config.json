@@ -3,8 +3,8 @@
   "appName": "Angiru Reparto",
   "webDir": "www",
   "server": {
-    "url": "https://www.angirufood.com.ar/tenteo/repartos",
-    "allowNavigation": ["angirufood.com.ar", "*.angirufood.com.ar"],
+    "url": "https://kioscos-ideia.lytwyn-ideia.workers.dev/tenteo/repartos",
+    "allowNavigation": ["kioscos-ideia.lytwyn-ideia.workers.dev"],
     "androidScheme": "https",
     "errorPath": "error.html"
   },
