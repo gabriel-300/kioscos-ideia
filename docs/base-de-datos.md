@@ -1450,6 +1450,7 @@ Otras columnas: `id`, `pedido_id`, `product_id`, `promo_id`.
 | `eta_max` | entero | Minutos máximos de demora. |
 | `orden` | entero | Orden en que se muestran. |
 | `is_active` | sí / no | Apagada = no se ofrece. |
+| `radio_km` | número | Hasta cuántos km del local llega la zona (en línea recta); vacío = sin límite. |
 
 Otras columnas: `id`, `sucursal_id`, `created_at`, `updated_at`.
 

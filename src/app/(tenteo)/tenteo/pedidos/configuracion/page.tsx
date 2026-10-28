@@ -21,6 +21,15 @@ import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Configuración de pedidos online — Kioscos IDEIA" };
 
+// Zonas de envío con su radio máximo (migración 128). Sin la columna se leen igual y el campo no se muestra.
+async function leerZonasConRadio(admin: ReturnType<typeof createAdminClient>, sucursalId: string): Promise<{ filas: unknown[]; conRadio: boolean }> {
+  const leer = (columnas: string) => (admin as any).from("zonas_entrega").select(columnas).eq("sucursal_id", sucursalId).order("orden").order("nombre");
+  const conRadio = await leer("id, nombre, costo, eta_min, eta_max, is_active, radio_km");
+  if (!conRadio.error) return { filas: conRadio.data ?? [], conRadio: true };
+  const sinRadio = await leer("id, nombre, costo, eta_min, eta_max, is_active");
+  return { filas: sinRadio.data ?? [], conRadio: false };
+}
+
 export default async function ConfiguracionPedidosOnlinePage({
   searchParams,
 }: {
@@ -40,18 +49,13 @@ export default async function ConfiguracionPedidosOnlinePage({
   const sp = await searchParams;
   const seleccionada = lista.find((s) => s.id === sp.sucursal) ?? lista[0];
 
-  const [{ data: cfg }, { data: zonas }, beneficio, coordenadas] = await Promise.all([
+  const [{ data: cfg }, zonas, beneficio, coordenadas] = await Promise.all([
     (admin as any)
       .from("sucursales")
       .select("pedidos_online_habilitado, delivery_habilitado, retiro_habilitado, pedido_minimo_envio, retiro_eta_min, retiro_eta_max, whatsapp_pedidos, horario_pedidos")
       .eq("id", seleccionada.id)
       .single(),
-    (admin as any)
-      .from("zonas_entrega")
-      .select("id, nombre, costo, eta_min, eta_max, is_active")
-      .eq("sucursal_id", seleccionada.id)
-      .order("orden")
-      .order("nombre"),
+    leerZonasConRadio(admin, seleccionada.id),
     leerConfigBeneficio(admin, seleccionada.id),
     leerCoordenadasSucursal(admin, seleccionada.id),
   ]);
@@ -119,7 +123,8 @@ export default async function ConfiguracionPedidosOnlinePage({
         <CoordenadasForm sucursalId={seleccionada.id} inicial={coordenadas} />
         <ZonasManager
           sucursalId={seleccionada.id}
-          zonas={((zonas ?? []) as any[]).map((z) => ({ id: z.id, nombre: z.nombre, costo: Number(z.costo), eta_min: z.eta_min, eta_max: z.eta_max, is_active: z.is_active }))}
+          conRadio={zonas.conRadio}
+          zonas={(zonas.filas as any[]).map((z) => ({ id: z.id, nombre: z.nombre, costo: Number(z.costo), eta_min: z.eta_min, eta_max: z.eta_max, is_active: z.is_active, radio_km: z.radio_km != null ? Number(z.radio_km) : null }))}
         />
       </div>
     </div>

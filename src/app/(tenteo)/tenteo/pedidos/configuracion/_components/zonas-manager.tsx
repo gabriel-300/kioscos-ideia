@@ -4,11 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { guardarZona, eliminarZona } from "../actions";
 
-export type ZonaFila = { id: string; nombre: string; costo: number; eta_min: number; eta_max: number; is_active: boolean };
+export type ZonaFila = { id: string; nombre: string; costo: number; eta_min: number; eta_max: number; is_active: boolean; radio_km?: number | null };
 
 const inputCls = "h-9 rounded-lg border border-neutral-300 bg-white px-2.5 text-sm focus:outline-none focus:border-tierra-700 focus:ring-2 focus:ring-tierra-700/20";
 
-function FilaZona({ sucursalId, zona, onCambio }: { sucursalId: string; zona: ZonaFila | null; onCambio: () => void }) {
+function FilaZona({ sucursalId, zona, onCambio, conRadio }: { sucursalId: string; zona: ZonaFila | null; onCambio: () => void; conRadio: boolean }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [nombre, setNombre] = useState(zona?.nombre ?? "");
@@ -16,6 +16,7 @@ function FilaZona({ sucursalId, zona, onCambio }: { sucursalId: string; zona: Zo
   const [etaMin, setEtaMin] = useState(zona ? String(zona.eta_min) : "30");
   const [etaMax, setEtaMax] = useState(zona ? String(zona.eta_max) : "45");
   const [activa, setActiva] = useState(zona?.is_active ?? true);
+  const [radio, setRadio] = useState(zona?.radio_km != null ? String(zona.radio_km) : "");
 
   function guardar() {
     setError(null);
@@ -28,9 +29,10 @@ function FilaZona({ sucursalId, zona, onCambio }: { sucursalId: string; zona: Zo
         eta_min:     parseInt(etaMin, 10) || 0,
         eta_max:     parseInt(etaMax, 10) || 0,
         is_active:   activa,
+        ...(conRadio ? { radio_km: radio.trim() ? parseFloat(radio.replace(",", ".")) : null } : {}),
       });
       if (res.error) { setError(res.error); return; }
-      if (!zona) { setNombre(""); setCosto(""); }
+      if (!zona) { setNombre(""); setCosto(""); setRadio(""); }
       onCambio();
     });
   }
@@ -57,6 +59,13 @@ function FilaZona({ sucursalId, zona, onCambio }: { sucursalId: string; zona: Zo
           <input type="number" min="0" value={etaMax} onChange={(e) => setEtaMax(e.target.value)} className={`${inputCls} w-16`} />
           <span className="text-xs text-neutral-400">min</span>
         </div>
+        {conRadio && (
+          <div className="flex items-center gap-1" title="Distancia máxima en línea recta entre el local y la ubicación del cliente. Vacío = sin límite.">
+            <span className="text-xs text-neutral-400">Llega hasta</span>
+            <input type="number" min="0" step="0.1" placeholder="sin límite" value={radio} onChange={(e) => setRadio(e.target.value)} className={`${inputCls} w-24`} />
+            <span className="text-xs text-neutral-400">km</span>
+          </div>
+        )}
         <label className="flex items-center gap-1.5 text-xs text-neutral-600 cursor-pointer">
           <input type="checkbox" checked={activa} onChange={(e) => setActiva(e.target.checked)} className="size-4 rounded border-neutral-300" />
           Activa
@@ -75,19 +84,19 @@ function FilaZona({ sucursalId, zona, onCambio }: { sucursalId: string; zona: Zo
   );
 }
 
-export function ZonasManager({ sucursalId, zonas }: { sucursalId: string; zonas: ZonaFila[] }) {
+export function ZonasManager({ sucursalId, zonas, conRadio = false }: { sucursalId: string; zonas: ZonaFila[]; conRadio?: boolean }) {
   const router = useRouter();
   const refrescar = () => router.refresh();
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5">
       <p className="text-sm font-semibold text-neutral-900">Zonas de envío</p>
-      <p className="text-xs text-neutral-400 mt-0.5 mb-2">El cliente elige una zona en el checkout y el costo de envío sale de acá. Sin zonas activas, el envío no se ofrece.</p>
+      <p className="text-xs text-neutral-400 mt-0.5 mb-2">El cliente elige una zona en el checkout y el costo de envío sale de acá. Sin zonas activas, el envío no se ofrece. "Llega hasta" es la distancia máxima entre el local y la ubicación del cliente (necesita las coordenadas del local); vacío = sin límite.</p>
       <div className="divide-y divide-neutral-100">
         {zonas.map((z) => (
-          <FilaZona key={`${z.id}:${z.nombre}:${z.costo}:${z.eta_min}:${z.eta_max}:${z.is_active}`} sucursalId={sucursalId} zona={z} onCambio={refrescar} />
+          <FilaZona key={`${z.id}:${z.nombre}:${z.costo}:${z.eta_min}:${z.eta_max}:${z.is_active}:${z.radio_km ?? ""}`} sucursalId={sucursalId} zona={z} onCambio={refrescar} conRadio={conRadio} />
         ))}
-        <FilaZona key="nueva" sucursalId={sucursalId} zona={null} onCambio={refrescar} />
+        <FilaZona key="nueva" sucursalId={sucursalId} zona={null} onCambio={refrescar} conRadio={conRadio} />
       </div>
     </div>
   );

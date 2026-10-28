@@ -129,6 +129,7 @@ export type ZonaInput = {
   eta_min:     number;
   eta_max:     number;
   is_active:   boolean;
+  radio_km?:   number | null; // hasta dónde llega la zona (migración 128); null = sin límite; undefined = no tocar
 };
 
 export async function guardarZona(data: ZonaInput): Promise<{ error?: string; id?: string }> {
@@ -137,6 +138,7 @@ export async function guardarZona(data: ZonaInput): Promise<{ error?: string; id
   if (!data.nombre.trim()) return { error: "La zona necesita un nombre" };
   if (!(data.costo >= 0)) return { error: "El costo de envío no puede ser negativo" };
   if (!(data.eta_min >= 0) || !(data.eta_max >= data.eta_min)) return { error: "El tiempo máximo tiene que ser mayor o igual al mínimo" };
+  if (data.radio_km != null && !(data.radio_km > 0 && data.radio_km <= 100)) return { error: "El alcance tiene que ser un número de kilómetros entre 0,1 y 100 (o dejalo vacío para no poner límite)" };
 
   const admin = createAdminClient();
   const fila = {
@@ -146,11 +148,12 @@ export async function guardarZona(data: ZonaInput): Promise<{ error?: string; id
     eta_max:    data.eta_max,
     is_active:  data.is_active,
     updated_at: new Date().toISOString(),
+    ...(data.radio_km !== undefined ? { radio_km: data.radio_km } : {}),
   };
 
   if (data.id) {
     const { error } = await (admin as any).from("zonas_entrega").update(fila).eq("id", data.id).eq("sucursal_id", data.sucursal_id);
-    if (error) return { error: error.message };
+    if (error) return { error: /radio_km/.test(error.message) ? "Falta aplicar la migración 128 en la base" : error.message };
     refrescar();
     return { id: data.id };
   }
@@ -160,7 +163,7 @@ export async function guardarZona(data: ZonaInput): Promise<{ error?: string; id
     .insert({ ...fila, sucursal_id: data.sucursal_id })
     .select("id")
     .single();
-  if (error) return { error: error.message };
+  if (error) return { error: /radio_km/.test(error.message) ? "Falta aplicar la migración 128 en la base" : error.message };
   refrescar();
   return { id: creada.id };
 }

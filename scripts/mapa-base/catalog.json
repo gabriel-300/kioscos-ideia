@@ -289,7 +289,7 @@
     {
       "t": "zonas_entrega",
       "k": "r",
-      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | nombre:text:NN | costo:numeric(12,2):NN:DEF | eta_min:integer:NN:DEF | eta_max:integer:NN:DEF | orden:integer:NN:DEF | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF"
+      "cols": "id:uuid:NN:DEF | sucursal_id:uuid:NN | nombre:text:NN | costo:numeric(12,2):NN:DEF | eta_min:integer:NN:DEF | eta_max:integer:NN:DEF | orden:integer:NN:DEF | is_active:boolean:NN:DEF | created_at:timestamp with time zone:NN:DEF | updated_at:timestamp with time zone:NN:DEF | radio_km:numeric(5,2)"
     }
   ],
   "fks": [

@@ -22,6 +22,17 @@ import type { CategoriaCatalogo, ConfigTienda } from "@/app/pedir/[sucursal]/_li
 type Admin = ReturnType<typeof createAdminClient>;
 type ClienteSesion = Awaited<ReturnType<typeof clienteDeLaSesion>>;
 
+// Zonas de envío activas con su radio (migración 128). Sin esa columna se lee igual, sin radio.
+async function cargarZonasPublicas(admin: Admin, sucursalId: string): Promise<{ data: any[] | null }> {
+  const leer = (columnas: string) =>
+    (admin as any).from("zonas_entrega").select(columnas)
+      .eq("sucursal_id", sucursalId).eq("is_active", true).order("orden").order("costo");
+  const conRadio = await leer("id, nombre, costo, eta_min, eta_max, radio_km");
+  if (!conRadio.error) return { data: conRadio.data };
+  const sinRadio = await leer("id, nombre, costo, eta_min, eta_max");
+  return { data: sinRadio.data };
+}
+
 export async function cargarTienda(
   admin: Admin,
   sucursalId: string,
@@ -46,13 +57,7 @@ export async function cargarTienda(
       productosOcultos: ocultos.productos,
       promosOcultas: ocultos.promos,
     }),
-    (admin as any)
-      .from("zonas_entrega")
-      .select("id, nombre, costo, eta_min, eta_max")
-      .eq("sucursal_id", sucursalId)
-      .eq("is_active", true)
-      .order("orden")
-      .order("costo"),
+    cargarZonasPublicas(admin, sucursalId),
     leerConfigBeneficio(admin, sucursalId),
     cliente ? esPrimeraCompra(admin, cliente.id) : Promise.resolve(false),
     leerEfectivoOnline(admin, sucursalId),
@@ -95,6 +100,7 @@ export async function cargarTienda(
     horario: normalizarHorario(sucursal.horario_pedidos),
     zonas: ((zonasRaw ?? []) as any[]).map((z) => ({
       id: z.id, nombre: z.nombre, costo: Number(z.costo), etaMin: z.eta_min, etaMax: z.eta_max,
+      radioKm: z.radio_km != null && Number(z.radio_km) > 0 ? Number(z.radio_km) : null,
     })),
     beneficio,
     cliente: cliente ? { nombre: cliente.nombre, telefono: cliente.telefono, primeraCompra } : null,

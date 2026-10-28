@@ -45,6 +45,8 @@ import { calcularBeneficio } from "@/lib/pedidos/beneficio-cliente";
 import { BeneficioCliente } from "./beneficio-cliente";
 import { pedirUbicacion } from "@/lib/geolocalizar";
 import { ingresarConGoogle } from "@/lib/pedidos/acceso-cliente";
+import { sugerirLocalMasCercano, verificarAlcance } from "@/lib/pedidos/alcance-envio";
+import { formatearDistancia } from "@/lib/geo";
 
 export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion, envioNoDisponible, subtotal, cantidadProductos, horario, enviando, errorServidor, ajusteStock = null, onVolver, onAgregarMas, onConfirmar }: {
   config:            ConfigTienda;
@@ -79,6 +81,9 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
 
   const enviosDisponibles = config.deliveryHabilitado && config.zonas.length > 0 && !envioNoDisponible;
   const zona = form.modo === "envio" ? config.zonas.find((z) => z.id === form.zonaId) ?? null : null;
+  // Doble chequeo de ubicación: que la zona llegue hasta donde se pide, y que no haya otro local claramente más cerca.
+  const alcance = zona && ubicacion ? verificarAlcance(ubicacion, config.ubicacionLocal ?? null, zona.radioKm, zona.nombre) : ({ ok: true } as const);
+  const sugerencia = form.modo === "envio" && ubicacion ? sugerirLocalMasCercano(ubicacion, config.sucursalId, config.localesCercania ?? []) : null;
   // Misma cuenta que hace el servidor al cobrar (beneficio-cliente.ts): esto es solo la vista previa.
   const beneficio = calcularBeneficio({
     subtotal,
@@ -105,6 +110,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
       if (!form.zonaId) e["pd-f-zona"] = "Elegí la zona de entrega";
       // El envío se hace a la ubicación del GPS: no se escribe dirección.
       if (!ubicacion) e["pd-f-ubicacion"] = "Compartí tu ubicación para que el repartidor te encuentre";
+      else if (!alcance.ok) e["pd-f-ubicacion"] = alcance.mensaje;
     }
     if (form.nombre.trim().length < 2) e["pd-f-nombre"] = "Escribí tu nombre";
     if (!telefonoValido(form.whatsapp)) e["pd-f-whatsapp"] = "Escribí tu WhatsApp con característica (10 dígitos)";
@@ -227,6 +233,20 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
                   : "Es obligatoria para el envío: así el repartidor llega exacto. Solo se usa para esta entrega."}
               </p>
               <MsgError texto={errores["pd-f-ubicacion"]} />
+              {ubicacion && !alcance.ok && !errores["pd-f-ubicacion"] && (
+                <p role="alert" className="mt-2 rounded-xl border border-pd-line-strong bg-pd-warm px-3.5 py-2.5 text-[13px] font-semibold leading-snug text-pd-ink-900">{alcance.mensaje}</p>
+              )}
+              {sugerencia && (
+                <div role="status" className="mt-2 rounded-xl border border-pd-line-strong bg-white px-3.5 py-3">
+                  <p className="text-[13.5px] font-semibold leading-snug text-pd-ink-900">
+                    Estás más cerca de {sugerencia.local.nombre} ({formatearDistancia(sugerencia.km)}) que de este local ({formatearDistancia(sugerencia.kmActual)}).
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] text-pd-ink-600">Cada local tiene su propio menú y stock: si cambiás, se arma un pedido nuevo allá.</p>
+                  <a href={`/${sugerencia.local.slug}`} className="pd-display mt-2 inline-flex h-10 items-center rounded-full bg-pd-ember px-5 text-[13.5px] font-bold" style={{ color: "#fff" }}>
+                    Pedir en {sugerencia.local.nombre.replace(/^angiru food\s+/i, "")}
+                  </a>
+                </div>
+              )}
             </div>
           </section>
         )}

@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { LOGO_MARCA } from "../[sucursal]/_lib/tema";
 import { estadoHorario } from "@/lib/pedidos/horario";
-import { INSTAGRAM, nombreLimpio, rutaLocal } from "@/lib/pedidos/seo";
+import { INSTAGRAM, nombreLimpio } from "@/lib/pedidos/seo";
 import type { LocalProximo, LocalSeo } from "@/lib/pedidos/seo-servidor";
 import { PedidoEnCurso } from "./pedido-en-curso";
+import { TarjetasLocales, type TarjetaLocal } from "./tarjetas-locales";
 
-// Portada de Angiru Food (la raíz del sitio) cuando hay UN solo local habilitado: le dice a Google y a quien
-// llega qué es esto (panadería, confitería y delicatessen en Posadas), muestra el local y lleva a pedir.
-// Con dos o más locales la raíz sigue siendo "¿Dónde querés pedir?".
+// Portada de Angiru Food (la raíz del sitio): le dice a Google y a quien llega qué es esto, muestra los locales donde
+// se puede pedir (uno o varios; con varios se pueden ordenar por cercanía) y los que abren pronto, y lleva a pedir.
 
 // Dorado del título de la portada (sobre la foto oscura).
 const DORADO = "#E3B04B";
@@ -23,10 +23,13 @@ const PASOS = [
   { titulo: "Retirá o recibilo", texto: "Pasá por el local o pedí el envío a domicilio. Seguís tu pedido paso a paso." },
 ];
 
-export function Portada({ local, proximos = [] }: { local: LocalSeo; proximos?: LocalProximo[] }) {
-  const horario = estadoHorario(local.horario);
-  const nombre = nombreLimpio(local.nombre);
-  const ruta = rutaLocal(local.nombre);
+export function Portada({ locales, proximos = [] }: { locales: LocalSeo[]; proximos?: LocalProximo[] }) {
+  const tarjetas: TarjetaLocal[] = locales.map((l) => {
+    const h = estadoHorario(l.horario);
+    return { id: l.id, slug: l.slug, nombre: l.nombre, direccion: l.direccion, localidad: l.localidad, latitud: l.latitud, longitud: l.longitud, abierto: h.abierto, hoyTexto: h.hoyTexto };
+  });
+  const primero = locales[0];
+  const titulo = locales.length + proximos.length > 1 ? "Nuestros locales" : "Nuestro local";
 
   return (
     <div className="min-h-screen bg-pd-paper text-pd-ink">
@@ -36,7 +39,7 @@ export function Portada({ local, proximos = [] }: { local: LocalSeo; proximos?: 
             // eslint-disable-next-line @next/next/no-img-element
             <img src={LOGO_MARCA.srcOscuro} alt={LOGO_MARCA.alt} width={LOGO_MARCA.ancho} height={LOGO_MARCA.alto} className="h-[36px] w-auto" />
           )}
-          <Link href={`/pedir/${local.id}/mis-pedidos`} style={{ color: "var(--color-pd-ink)" }} className="pd-display inline-flex h-10 items-center rounded-full border border-pd-line-strong bg-white px-4 text-[13px] font-bold">
+          <Link href={`/pedir/${primero.id}/mis-pedidos`} style={{ color: "var(--color-pd-ink)" }} className="pd-display inline-flex h-10 items-center rounded-full border border-pd-line-strong bg-white px-4 text-[13px] font-bold">
             Mis pedidos
           </Link>
         </div>
@@ -49,27 +52,13 @@ export function Portada({ local, proximos = [] }: { local: LocalSeo; proximos?: 
           <div className="px-6 py-12 text-center md:px-12 md:py-20">
             <h1 className="mx-auto max-w-[640px] text-[34px] leading-[1.1] text-white md:text-[48px]">Delicias con <span className="whitespace-nowrap" style={{ color: DORADO }}>sabor regional</span></h1>
             <p className="mx-auto mt-4 max-w-[560px] text-[16px] leading-snug text-white/90 md:text-[18px]">{BAJADA}</p>
-            <Link href={ruta} style={{ color: "#fff" }} className={`${CLASE_BOTON} mt-8`}>Pedir online</Link>
+            <Link href={locales.length === 1 ? `/${primero.slug}` : "#locales"} style={{ color: "#fff" }} className={`${CLASE_BOTON} mt-8`}>Pedir online</Link>
           </div>
         </section>
 
-        <section aria-labelledby="titulo-local" className="mt-8">
-          <h2 id="titulo-local" className="text-[24px]">{proximos.length > 0 ? "Nuestros locales" : "Nuestro local"}</h2>
-          <div className="mt-3 rounded-3xl border border-pd-line bg-white p-5 md:flex md:items-center md:justify-between md:gap-6 md:p-7">
-            <div>
-              <p className="pd-display text-[20px] font-bold">{nombre}</p>
-              {(local.direccion || local.localidad) && (
-                <p className="mt-1 text-[14.5px] text-pd-ink-600">{[local.direccion?.trim(), local.localidad?.trim() || "Posadas"].filter(Boolean).join(", ")}</p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2 text-[12.5px] font-semibold">
-                <span className={`rounded-full px-3 py-1 ${horario.abierto ? "bg-pd-success text-white" : "bg-pd-warm text-pd-ink-900"}`}>{horario.abierto ? "Abierto ahora" : "Cerrado ahora"}</span>
-                {horario.hoyTexto && <span className="rounded-full bg-pd-warm px-3 py-1 text-pd-ink-900">{horario.hoyTexto}</span>}
-                <span className="rounded-full bg-pd-warm px-3 py-1 text-pd-ink-900">Retiro en el local</span>
-                <span className="rounded-full bg-pd-warm px-3 py-1 text-pd-ink-900">Envío a domicilio</span>
-              </div>
-            </div>
-            <Link href={ruta} style={{ color: "#fff" }} className={`${CLASE_BOTON} mt-5 w-full md:mt-0 md:w-auto md:shrink-0`}>Ver el menú</Link>
-          </div>
+        <section id="locales" aria-labelledby="titulo-local" className="mt-8 scroll-mt-4">
+          <h2 id="titulo-local" className="text-[24px]">{titulo}</h2>
+          <TarjetasLocales locales={tarjetas} />
           {proximos.map((p) => {
             const h = estadoHorario(p.horario);
             return (

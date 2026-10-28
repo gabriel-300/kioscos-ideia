@@ -352,3 +352,31 @@ describe("crearPedidoPublico", () => {
     expect(r.error).toBeDefined();
   });
 });
+
+describe("crearPedidoPublico: alcance de la zona de envío (radio)", () => {
+  // El local queda en el campus de la UNAM; la zona llega hasta 1,5 km.
+  const LOCAL = { latitud: -27.43542, longitud: -55.887476 };
+  const ZONA = { id: "z1", nombre: "Campus UNAM", costo: 0, eta_min: 15, eta_max: 20, radio_km: 1.5 };
+  const envioA = (lat: number, lng: number) =>
+    datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", entrega_lat: lat, entrega_lng: lng, direccion_entrega: null, medio_pago: "mercadopago_link" });
+
+  it("una ubicación fuera del alcance se rechaza con distancia y alcance, y no se crea nada", async () => {
+    const { admin, calls } = mundo({ sucursal: LOCAL, zona: ZONA });
+    const r = await crearPedidoPublico(admin, envioA(-27.378595, -55.887861), "1.1.1.1"); // Costanera: a más de 6 km
+    expect(r.error).toMatch(/Esa ubicación está a 6,\d km del local/);
+    expect(r.error).toMatch(/"Campus UNAM" llega hasta 1,5 km/);
+    expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+  });
+  it("una ubicación dentro del alcance pasa", async () => {
+    const { admin } = mundo({ sucursal: LOCAL, zona: ZONA });
+    expect((await crearPedidoPublico(admin, envioA(-27.4360, -55.8880), "1.1.1.1")).error).toBeUndefined();
+  });
+  it("sin radio en la zona (sin límite) pasa aunque esté lejos", async () => {
+    const { admin } = mundo({ sucursal: LOCAL, zona: { ...ZONA, radio_km: null } });
+    expect((await crearPedidoPublico(admin, envioA(-27.378595, -55.887861), "1.1.1.1")).error).toBeUndefined();
+  });
+  it("si el local no tiene coordenadas cargadas no hay con qué medir y pasa", async () => {
+    const { admin } = mundo({ sucursal: { latitud: null, longitud: null }, zona: ZONA });
+    expect((await crearPedidoPublico(admin, envioA(-27.378595, -55.887861), "1.1.1.1")).error).toBeUndefined();
+  });
+});

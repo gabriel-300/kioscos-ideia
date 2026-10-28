@@ -13,7 +13,7 @@ import { DESCRIPCION_MARCA, IMAGEN_COMPARTIR, jsonLdLocal, jsonLdMarca } from "@
 
 // "¿Dónde querés pedir?": cada local tiene su propio catálogo, stock y precios, así
 // que quien llega sin un local elegido (la raíz del dominio de clientes) lo elige acá.
-// Si hay un solo local habilitado no hay nada que elegir y va directo.
+// (Con uno o más locales habilitados la raíz es la portada de la marca; esta pantalla queda de respaldo.)
 // Se muestra como un diálogo translúcido sobre el menú de un local (como PedidosYa), para
 // que el cliente vea productos desde el primer segundo.
 // Este Server Component solo carga los datos; la lista, el orden por cercanía (GPS, en el
@@ -32,11 +32,15 @@ export const metadata: Metadata = {
 export default async function ElegirLocalPage() {
   const admin = createAdminClient();
   const locales = await cargarLocalesParaPedir(admin);
-  // Un solo local: portada de la marca con ese local (y datos estructurados). Con dos o más, se elige acá.
-  if (locales.length === 1) {
-    const [local] = (await cargarLocalesSeo(admin)).filter((l) => l.id === locales[0].id);
+  // Con uno o más locales, portada de la marca con la lista de locales (se pueden ordenar por cercanía) y datos
+  // estructurados. Sin ningún local habilitado, queda la pantalla de elegir.
+  if (locales.length >= 1) {
+    const idsHabilitados = new Set(locales.map((l) => l.id));
+    const seo = (await cargarLocalesSeo(admin)).filter((l) => idsHabilitados.has(l.id));
     const proximos = await cargarLocalesProximos(admin).catch(() => []);
-    if (local) return <><Portada local={local} proximos={proximos} /><JsonLd datos={jsonLdMarca()} /><JsonLd datos={jsonLdLocal(local)} /></>;
+    if (seo.length > 0) {
+      return <><Portada locales={seo} proximos={proximos} /><JsonLd datos={jsonLdMarca()} />{seo.map((l) => <JsonLd key={l.id} datos={jsonLdLocal(l)} />)}</>;
+    }
     redirect(`/pedir/${locales[0].id}`);
   }
 

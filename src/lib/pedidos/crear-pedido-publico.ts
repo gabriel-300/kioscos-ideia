@@ -2,6 +2,9 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { chequearRateLimit } from "./rate-limit";
 import { resolverItemsPedido, redondearMoneda, type ItemCarritoInput } from "./pricing";
 import { revisarStock } from "./stock";
+import { verificarAlcance } from "./alcance-envio";
+import { leerRadioZona } from "./alcance-servidor";
+import { leerCoordenadasSucursal } from "./locales";
 import { telefonoValido } from "./validaciones";
 import { estadoHorario, normalizarHorario } from "./horario";
 import { calcularBeneficio, repartirDescuento } from "./beneficio-cliente";
@@ -198,6 +201,13 @@ export async function crearPedidoPublico(
       .eq("is_active", true)
       .maybeSingle();
     if (!zona) return { error: "La zona de entrega elegida ya no está disponible" };
+
+    // El punto GPS tiene que caer dentro de lo que cubre la zona (radio opcional por zona, migración 128).
+    if (conGps) {
+      const [radio, local] = await Promise.all([leerRadioZona(admin, zona.id), leerCoordenadasSucursal(admin, data.sucursal_id)]);
+      const alcance = verificarAlcance({ lat: data.entrega_lat as number, lng: data.entrega_lng as number }, local, radio, zona.nombre);
+      if (!alcance.ok) return { error: alcance.mensaje };
+    }
 
     const minimo = Number(sucursal.pedido_minimo_envio ?? 0);
     if (minimo > 0 && resuelto.subtotal < minimo) {

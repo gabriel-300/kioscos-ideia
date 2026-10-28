@@ -1,5 +1,6 @@
 import type { TramoHorario } from "@/lib/pedidos/horario";
 import type { ConfigBeneficio } from "@/lib/pedidos/beneficio-cliente";
+import type { LocalCerca } from "@/lib/pedidos/alcance-envio";
 
 export type ItemCatalogo = {
   id:              string; // product_id o promo_id
@@ -16,7 +17,7 @@ export type ItemCatalogo = {
 
 export type CategoriaCatalogo = { id: string; name: string; items: ItemCatalogo[] };
 
-export type ZonaPublica = { id: string; nombre: string; costo: number; etaMin: number; etaMax: number };
+export type ZonaPublica = { id: string; nombre: string; costo: number; etaMin: number; etaMax: number; radioKm: number | null };
 
 // Cliente registrado que está mirando la tienda (null = invitado).
 export type ClienteTienda = { nombre: string | null; telefono: string | null; primeraCompra: boolean };
@@ -39,7 +40,9 @@ export type ConfigTienda = {
   sesionActiva?: boolean; // hay alguien con sesión iniciada (cliente o personal): para mostrar "Salir"
   cliente:            ClienteTienda | null;
   puedeEfectivo?:     boolean; // quien mira ingresó (cliente con Google o personal de esa sucursal): puede elegir efectivo
-  efectivoSucursal:   boolean; // la sucursal acepta efectivo (solo lo puede elegir un cliente que ingresó)
+  efectivoSucursal:   boolean;
+  ubicacionLocal?:    { lat: number; lng: number } | null; // dónde queda este local (para medir el alcance del envío)
+  localesCercania?:   LocalCerca[]; // todos los locales con pedidos online (para avisar si hay otro más cerca) // la sucursal acepta efectivo (solo lo puede elegir un cliente que ingresó)
 };
 
 export type Pantalla = "catalogo" | "carrito" | "checkout" | "confirmacion";

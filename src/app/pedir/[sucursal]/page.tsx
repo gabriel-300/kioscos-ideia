@@ -57,7 +57,10 @@ export default async function PedirPage({ params }: { params: Promise<{ sucursal
   // No se lo manda solo a otro local: tendría que retirar en un lugar distinto al que creía.
   const otrosLocales = tienda.config.habilitado ? [] : (await cargarLocalesParaPedir(admin)).filter((l) => l.id !== sucursalId).map((l) => ({ id: l.id, nombre: l.nombre.trim() }));
 
-  const datosLocal = (await cargarLocalesSeo(admin)).find((l) => l.id === sucursalId);
+  const localesSeo = await cargarLocalesSeo(admin);
+  const datosLocal = localesSeo.find((l) => l.id === sucursalId);
 
-  return <><Tienda config={{ ...tienda.config, sesionActiva: !!user, puedeEfectivo: !!cliente || (await personalDeSucursal(admin, user, sucursalId)) }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} disponibilidad={tienda.disponibilidad} otrosLocales={otrosLocales} />{datosLocal && <JsonLd datos={jsonLdLocal(datosLocal)} />}</>;
+  return <><Tienda config={{ ...tienda.config, sesionActiva: !!user, puedeEfectivo: !!cliente || (await personalDeSucursal(admin, user, sucursalId)),
+    ubicacionLocal: datosLocal && datosLocal.latitud !== null && datosLocal.longitud !== null ? { lat: datosLocal.latitud, lng: datosLocal.longitud } : null,
+    localesCercania: localesSeo.map((l) => ({ id: l.id, slug: l.slug, nombre: l.nombre.trim(), latitud: l.latitud, longitud: l.longitud })) }} catalogo={tienda.catalogo} masPedidos={tienda.masPedidos} destacados={tienda.destacados} disponibilidad={tienda.disponibilidad} otrosLocales={otrosLocales} />{datosLocal && <JsonLd datos={jsonLdLocal(datosLocal)} />}</>;
 }
