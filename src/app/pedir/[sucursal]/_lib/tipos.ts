@@ -76,4 +76,5 @@ export type FormCheckout = {
   pago:       "efectivo" | "mercadopago_link";
   pagoCon:    string;
   notas:      string;
+  referencia: string; // aula, piso o dirección del envío: se pide en CADA pedido, nunca se recuerda
 };

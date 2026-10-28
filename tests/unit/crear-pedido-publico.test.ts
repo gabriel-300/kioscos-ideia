@@ -12,7 +12,7 @@ import { crearPedidoPublico, type DatosPedidoPublico } from "@/lib/pedidos/crear
 const SUC = "suc-1";
 const datos = (over: Partial<DatosPedidoPublico> = {}): DatosPedidoPublico => ({
   sucursal_id: SUC, cliente_nombre: "Ana", cliente_telefono: "3764123456", notas: null,
-  tipo_entrega: "retiro_local", zona_entrega_id: null, direccion_entrega: null, direccion_referencia: null,
+  tipo_entrega: "retiro_local", zona_entrega_id: null, direccion_entrega: null, direccion_referencia: "Aula 12, 2º piso",
   medio_pago: "efectivo", pago_con: null, items: [{ product_id: "p1", cantidad: 2 }], ...over,
 });
 
@@ -378,5 +378,34 @@ describe("crearPedidoPublico: alcance de la zona de envío (radio)", () => {
   it("si el local no tiene coordenadas cargadas no hay con qué medir y pasa", async () => {
     const { admin } = mundo({ sucursal: { latitud: null, longitud: null }, zona: ZONA });
     expect((await crearPedidoPublico(admin, envioA(-27.378595, -55.887861), "1.1.1.1")).error).toBeUndefined();
+  });
+});
+
+describe("crearPedidoPublico: aula, piso o dirección obligatoria en los envíos", () => {
+  const envio = (over: Partial<DatosPedidoPublico> = {}) =>
+    datos({ tipo_entrega: "delivery", zona_entrega_id: "z1", entrega_lat: -27.37, entrega_lng: -55.9, direccion_entrega: null, medio_pago: "mercadopago_link", ...over });
+
+  it("un envío sin aula/piso/dirección se rechaza y no se crea nada", async () => {
+    for (const direccion_referencia of [null, "", "  ", "ab"]) {
+      const { admin, calls } = mundo();
+      const r = await crearPedidoPublico(admin, envio({ direccion_referencia }), "1.1.1.1");
+      expect(r.error, String(direccion_referencia)).toMatch(/aula, piso o dirección/);
+      expect(calls.some((c) => c.table === "pedidos" && c.op === "insert")).toBe(false);
+    }
+  });
+  it("con el dato, el envío entra y se guarda como referencia (la dirección queda como GPS)", async () => {
+    const { admin, calls } = mundo();
+    expect((await crearPedidoPublico(admin, envio({ direccion_referencia: "  Aula 12, 2º piso " }), "1.1.1.1")).error).toBeUndefined();
+    const ins = calls.find((c) => c.table === "pedidos" && c.op === "insert")!;
+    expect(ins.payload).toMatchObject({ direccion_referencia: "Aula 12, 2º piso", direccion_entrega: "Ubicación compartida por GPS" });
+  });
+  it("un pedido para retirar no lo necesita", async () => {
+    const { admin } = mundo();
+    expect((await crearPedidoPublico(admin, datos({ medio_pago: "mercadopago_link", direccion_referencia: null }), "1.1.1.1")).error).toBeUndefined();
+  });
+  it("el bot de WhatsApp, que usa la dirección escrita, no está obligado", async () => {
+    const { admin } = mundo();
+    const r = await crearPedidoPublico(admin, envio({ direccion_entrega: "Calle 123", direccion_referencia: null, entrega_lat: null, entrega_lng: null }), "1.1.1.1", { bot: { cliente_wa_id: "w1", pedido_existente_id: "p1" } });
+    expect(r.error).toBeUndefined();
   });
 });

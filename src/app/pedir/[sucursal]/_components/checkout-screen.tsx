@@ -111,6 +111,7 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
       // El envío se hace a la ubicación del GPS: no se escribe dirección.
       if (!ubicacion) e["pd-f-ubicacion"] = "Compartí tu ubicación para que el repartidor te encuentre";
       else if (!alcance.ok) e["pd-f-ubicacion"] = alcance.mensaje;
+      if (form.referencia.trim().length < 3) e["pd-f-referencia"] = "Escribí el aula, piso o dirección para que el repartidor te encuentre";
     }
     if (form.nombre.trim().length < 2) e["pd-f-nombre"] = "Escribí tu nombre";
     if (!telefonoValido(form.whatsapp)) e["pd-f-whatsapp"] = "Escribí tu WhatsApp con característica (10 dígitos)";
@@ -247,6 +248,20 @@ export function CheckoutScreen({ config, form, setForm, ubicacion, setUbicacion,
                   </a>
                 </div>
               )}
+            </div>
+            <div>
+              <label htmlFor="pd-f-referencia" className="mb-1 block text-[13px] font-semibold text-pd-ink-900">Aula, piso o dirección <span className="text-pd-ember">*</span></label>
+              <input
+                id="pd-f-referencia"
+                value={form.referencia}
+                onChange={(e) => setForm({ referencia: e.target.value })}
+                maxLength={150}
+                autoComplete="off"
+                placeholder="Ej.: Aula 12, 2.º piso · o calle y número"
+                className={`${claseCampo(errores["pd-f-referencia"])} h-[50px]`}
+              />
+              <MsgError texto={errores["pd-f-referencia"]} />
+              <p className="mt-1 px-1 text-[12px] leading-snug text-pd-ink-400">Lo pedimos en cada pedido, así el repartidor te encuentra aunque estés en otro lugar.</p>
             </div>
           </section>
         )}

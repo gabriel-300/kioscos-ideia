@@ -60,6 +60,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
     pago:       "mercadopago_link",
     pagoCon:    "",
     notas:      "",
+    referencia: "",
   }), [enviosDisponibles, config.zonas]);
 
   const [pantalla, setPantalla] = useState<Pantalla>("catalogo");
@@ -120,6 +121,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
         ...guardado.form,
         notas: "",
         pagoCon: "",
+        referencia: "",
         modo: guardado.form?.modo === "envio" && !enviosDisponibles ? "retiro" : (guardado.form?.modo ?? formRestaurado.modo),
         zonaId: zonaValida ? guardado.form.zonaId : formRestaurado.zonaId,
       };
@@ -142,7 +144,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
 
   useEffect(() => {
     if (!hidratado) return;
-    guardarJSON(localStorage, claveStorage, { at: Date.now(), cantidades, form: { ...form, notas: "", pagoCon: "" } } satisfies Guardado); // aclaraciones y monto del efectivo son de cada pedido: no se recuerdan
+    guardarJSON(localStorage, claveStorage, { at: Date.now(), cantidades, form: { ...form, notas: "", pagoCon: "", referencia: "" } } satisfies Guardado); // aclaraciones, monto del efectivo y aula/piso/dirección son de cada pedido: no se recuerdan
   }, [hidratado, cantidades, form, claveStorage]);
 
   // El estado abierto/cerrado se refresca solo mientras la página está abierta.
@@ -267,7 +269,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
         tipo_entrega:         form.modo === "envio" ? "delivery" : "retiro_local",
         zona_entrega_id:      form.modo === "envio" ? form.zonaId : null,
         direccion_entrega:    null, // el envío va a la ubicación GPS (el servidor la guarda como "Ubicación compartida por GPS")
-        direccion_referencia: null,
+        direccion_referencia: form.modo === "envio" ? form.referencia.trim() : null,
         entrega_lat:          form.modo === "envio" ? (ubicacion?.lat ?? null) : null,
         entrega_lng:          form.modo === "envio" ? (ubicacion?.lng ?? null) : null,
         medio_pago:           form.pago,
@@ -310,7 +312,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
       lineas:      lineas.map((l) => ({ nombre: l.item.name, cantidad: l.qty, subtotal: l.item.price * l.qty })),
       cliente:     { nombre: form.nombre.trim(), whatsapp: form.whatsapp.trim() },
       direccion:   null,
-      referencia:  null,
+      referencia:  form.modo === "envio" ? form.referencia.trim() : null,
       notas:       form.notas.trim() || null,
     });
     guardarPedidoReciente(localStorage, { sucursalId: config.sucursalId, pedidoId: res.pedido_id, numero: res.numero ?? 0 });
@@ -318,7 +320,7 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
     guardarJSON(localStorage, "pedir:contacto", { nombre: form.nombre, whatsapp: form.whatsapp } satisfies Contacto);
     setCantidades({});
     setUbicacion(null);
-    setForm({ notas: "", pagoCon: "" }); // lo escrito para este pedido no pasa al próximo
+    setForm({ notas: "", pagoCon: "", referencia: "" }); // lo escrito para este pedido no pasa al próximo
     setPantalla("confirmacion");
   }
 

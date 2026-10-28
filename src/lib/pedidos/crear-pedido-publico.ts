@@ -117,6 +117,8 @@ export async function crearPedidoPublico(
     if (mandoGps && !conGps) return { error: "No pudimos tomar tu ubicación. Probá de nuevo." };
     if (!conGps && !contexto?.bot) return { error: "Compartí tu ubicación para que el repartidor te encuentre" };
     if (!conGps && !data.direccion_entrega?.trim()) return { error: "Falta la dirección de entrega" };
+    // Además del GPS, desde la tienda hay que decir dónde exactamente (aula, piso o dirección): se pide en cada pedido.
+    if (!contexto?.bot && (data.direccion_referencia ?? "").trim().length < 3) return { error: "Escribí el aula, piso o dirección para que el repartidor te encuentre" };
   }
 
   const rateLimitError = await chequearRateLimit(admin, identificadorRateLimit);
