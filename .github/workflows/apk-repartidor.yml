@@ -36,7 +36,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       # El servidor de GitHub ya trae el SDK de Android instalado (ANDROID_HOME). El paso `setup-android` fallaba buscando el
       # paquete viejo "tools", así que se saca: alcanza con aceptar las licencias para que Gradle baje lo que le falte.

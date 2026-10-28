@@ -147,4 +147,4 @@ npm run assets            # regenera íconos y pantalla de inicio desde assets/
 La carpeta `android/` se versiona (es lo normal en Capacitor); no se versionan `node_modules`, `android/app/build`,
 `android/.gradle` ni claves. La firma de `release` se toma de las variables de entorno `ANDROID_KEYSTORE_FILE`,
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` (las arma el workflow). Para compilar local hace
-falta JDK 17 y el Android SDK: `cd android && ./gradlew assembleDebug`.
+falta JDK 21 y el Android SDK: `cd android && ./gradlew assembleDebug`.
