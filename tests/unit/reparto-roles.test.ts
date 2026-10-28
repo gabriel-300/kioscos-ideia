@@ -14,9 +14,9 @@ describe("quién puede asignar a quién", () => {
     expect(puedeAsignarA("admin", "a", "otro")).toBe(true);
     expect(puedeAsignarA("encargado", "e", "otro")).toBe(true);
   });
-  it("un vendedor solo se asigna a sí mismo (Yo lo llevo)", () => {
+  it("un vendedor asigna a sí mismo (Yo lo llevo) y a cualquier otra persona que pueda repartir", () => {
     expect(puedeAsignarA("vendedor", "v1", "v1")).toBe(true);
-    expect(puedeAsignarA("vendedor", "v1", "v2")).toBe(false);
+    expect(puedeAsignarA("vendedor", "v1", "v2")).toBe(true);
   });
   it("concesionario, repartidor y roles desconocidos no asignan", () => {
     for (const r of ["concesionario", "repartidor", "cliente", ""]) expect(puedeAsignarA(r, "x", "x"), r).toBe(false);

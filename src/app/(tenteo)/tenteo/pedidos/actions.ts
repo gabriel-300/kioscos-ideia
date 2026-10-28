@@ -64,7 +64,7 @@ export async function avanzarEstadoPedido(pedidoId: string, nuevoEstado: string)
 // excluir vendedor/concesionario de decisiones de compra.
 export async function asignarRepartidor(pedidoId: string, repartidorUserId: string): Promise<{ error?: string }> {
   const { userId, role } = await requireStaffTenteo();
-  if (!puedeAsignarA(role, userId, repartidorUserId)) return { error: "No tenés permisos para asignar a otra persona. Podés tomar el envío vos con \"Yo lo llevo\"." };
+  if (!puedeAsignarA(role, userId, repartidorUserId)) return { error: "No tenés permisos para asignar repartidor" };
   const admin = createAdminClient();
 
   const { data: pedido } = await (admin as any)

@@ -146,10 +146,9 @@ export function puedeRepartir(rol: string | null | undefined): boolean {
   return !!rol && (ROLES_QUE_REPARTEN as readonly string[]).includes(rol);
 }
 
-// Quién puede asignar a quién: el administrador y el encargado, a cualquiera que pueda repartir; un vendedor,
-// solo a sí mismo ("Yo lo llevo"); el resto, a nadie.
-export function puedeAsignarA(rolActor: string, actorId: string, destinoId: string): boolean {
-  if (rolActor === "admin" || rolActor === "encargado") return true;
-  if (rolActor === "vendedor") return destinoId === actorId;
-  return false;
+// Quién puede asignar un envío: el administrador, el encargado y el vendedor (quien atiende el local es quien decide
+// quién sale a entregar), a cualquiera que pueda repartir en esa sucursal (eso lo valida la acción); el resto, a nadie.
+// `actorId` y `destinoId` quedan en la firma por si algún día vuelve a haber una regla por persona.
+export function puedeAsignarA(rolActor: string, _actorId: string, _destinoId: string): boolean {
+  return rolActor === "admin" || rolActor === "encargado" || rolActor === "vendedor";
 }

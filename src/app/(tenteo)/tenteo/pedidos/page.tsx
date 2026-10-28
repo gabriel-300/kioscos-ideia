@@ -92,8 +92,8 @@ export default async function PedidosOnlinePage() {
       }
     }
   }
-  // Asignar a otra persona es de administrador y encargado; un vendedor solo se toma el envío él ("Yo lo llevo").
-  const puedeAsignarOtros = role === "admin" || role === "encargado";
+  // Asignar el envío a otra persona (o a uno mismo) lo puede hacer quien atiende el local: administrador, encargado y vendedor.
+  const puedeAsignarOtros = role === "admin" || role === "encargado" || role === "vendedor";
   const soyRepartidor = role === "vendedor" || role === "encargado";
 
   const puedeConfirmarPago = role === "admin"; // confirmar un pago a mano es plata: solo administradores
