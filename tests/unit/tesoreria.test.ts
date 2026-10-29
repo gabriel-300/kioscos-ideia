@@ -265,6 +265,15 @@ describe("obligacionesDelMes", () => {
     expect(r.registrado).toBe(1050000);
   });
 
+  it("lo que vence antes del arranque de Tesorería ya está cerrado: no figura ni suma a lo pendiente", () => {
+    const fijos = [fijo(), fijo({ id: "f2", descripcion: "Alquiler", dia_vencimiento: 28 })];
+    const octubre = obligacionesDelMes(fijos, [], "2026-10", "2026-10-29", "2026-10-27");
+    expect(octubre.items.map((i) => i.descripcion)).toEqual(["Alquiler"]);   // el sueldo del día 5 es anterior al 27/10
+    expect(octubre.pendiente).toBe(1000000);
+    const noviembre = obligacionesDelMes(fijos, [], "2026-11", "2026-11-01", "2026-10-27");
+    expect(noviembre.sinRegistrar).toBe(2);
+  });
+
   it("un vencimiento que no existe en el mes (día 31 en un mes de 30) cae en el último día", () => {
     const r = obligacionesDelMes([fijo({ dia_vencimiento: 31 })], [], "2026-11", "2026-11-01");
     expect(r.items[0].vencimiento).toBe("2026-11-30");

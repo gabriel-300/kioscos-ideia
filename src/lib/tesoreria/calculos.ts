@@ -135,6 +135,8 @@ export function obligacionesDelMes(
   egresosDelMes: Pick<Egreso, "gasto_fijo_id" | "monto">[],
   mes: string,
   hoy: string,
+  // Fecha de arranque de Tesorería (AAAA-MM-DD): lo que vence antes ya está cerrado y no se pide registrar (como los retiros de caja).
+  desde?: string,
 ): { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number } {
   const rango = rangoDelMes(mes);
   const ultimoDia = rango ? Number(rango.hasta.slice(8)) : 28;
@@ -156,7 +158,8 @@ export function obligacionesDelMes(
       estimado: redondearMoneda(f.monto_estimado), pagado: redondearMoneda(p?.monto ?? 0), pagos: p?.cantidad ?? 0,
       registrada, vencimiento, vencida: !registrada && hoy > vencimiento,
     };
-  }).sort((a, b) => (a.vencimiento === b.vencimiento ? a.descripcion.localeCompare(b.descripcion) : a.vencimiento.localeCompare(b.vencimiento)));
+  }).filter((i) => !desde || i.registrada || i.vencimiento >= desde)
+    .sort((a, b) => (a.vencimiento === b.vencimiento ? a.descripcion.localeCompare(b.descripcion) : a.vencimiento.localeCompare(b.vencimiento)));
 
   const sinRegistrar = items.filter((i) => !i.registrada);
   return {

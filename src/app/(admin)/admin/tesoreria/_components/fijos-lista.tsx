@@ -13,10 +13,11 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 
 // Vencimientos del mes: alquiler, sueldos, servicios. La lista base (qué se paga y cuánto) se edita en
 // /admin/gastos; acá solo se registra el pago de cada mes, con el mismo formulario que cualquier egreso.
-export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores, puedeCargar }: {
+export function FijosLista({ fijos, pagadosPorFijo, mes, desde, sucursales, proveedores, puedeCargar }: {
   fijos: GastoFijoLista[];
   pagadosPorFijo: Record<string, { monto: number; fecha: string; pagos: number }>;   // gasto_fijo_id → lo registrado este mes
   mes: string;
+  desde: string;   // arranque de Tesorería: lo que vence antes ya está cerrado
   sucursales: Opcion[];
   proveedores: Opcion[];
   puedeCargar: boolean;
@@ -52,6 +53,7 @@ export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores
           <p className="px-4 py-10 text-center text-sm text-neutral-400">No hay gastos fijos cargados.</p>
         ) : fijos.map((g) => {
           const pago = pagadosPorFijo[g.id];
+          const cerrada = !pago && `${mes}-${String(g.dia_vencimiento).padStart(2, "0")}` < desde;
           return (
             <div key={g.id} className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
               <div className="min-w-0">
@@ -63,6 +65,8 @@ export function FijosLista({ fijos, pagadosPorFijo, mes, sucursales, proveedores
                 <p className="mt-1 text-xs">
                   {pago ? (
                     <span className="text-selva-700 font-medium">Registrado {AR.format(pago.monto)}{pago.pagos > 1 ? ` en ${pago.pagos} pagos` : ""} · {pago.pagos > 1 ? "último " : ""}{new Date(pago.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · estimado {AR.format(g.monto_estimado)}</span>
+                  ) : cerrada ? (
+                    <span className="text-neutral-400">Vence antes del arranque de Tesorería ({desde.split("-").reverse().join("/")}): ya está cerrado — estimado {AR.format(g.monto_estimado)}</span>
                   ) : (
                     <span className="text-amber-700 font-medium">Sin registrar este mes — estimado {AR.format(g.monto_estimado)}</span>
                   )}

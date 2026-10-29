@@ -123,7 +123,7 @@ export default async function TesoreriaPage({
       const deudaResumen = (({ items, total }) => ({ items, total }))(
         deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre])), imputaciones),
       );
-      const obligaciones = obligacionesDelMes(fijos, egresosMes, mes, fechaHoyAR());
+      const obligaciones = obligacionesDelMes(fijos, egresosMes, mes, fechaHoyAR(), config.fecha_inicio);
       resumen = {
         entro: entro,
         gasto: resumirEgresos(egresosMes),
@@ -379,7 +379,7 @@ export default async function TesoreriaPage({
       )}
       {vista === "historial" && <HistorialView filas={historial} />}
       {vista === "fijos" && (
-        <FijosLista fijos={fijos} pagadosPorFijo={pagadosPorFijo} mes={mes} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
+        <FijosLista fijos={fijos} pagadosPorFijo={pagadosPorFijo} mes={mes} desde={datos.config.fecha_inicio} sucursales={sucursales} proveedores={proveedores} puedeCargar={permisos.puedeCargar} />
       )}
     </div>
   );
