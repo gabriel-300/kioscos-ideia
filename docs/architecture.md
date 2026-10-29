@@ -69,7 +69,7 @@ lo importa ningún módulo.
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (aplicada y verificada el 2026-10-19) y `113_vencimiento_de_remitos.sql` (aplicada y verificada el 2026-10-19) y `114_plazo_de_pago_proveedor.sql` (aplicada y verificada el 2026-10-20) y `115_historial_costos_de_entrega.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella cargar los costos de una entrega avisa que no pudo anotarse en el historial) y `116_ficha_contable_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: el código lee las columnas nuevas de `proveedores` y sin ella fallan Tesorería y Catálogo → Proveedores); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
-  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6.
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) está escrita y **pendiente de aplicar a mano**.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
@@ -515,6 +515,15 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   sobre `(true)`) y los retiros; el resto se deduce de `mp_cobros` y de los pagos con `origen = mercadopago`
   (`lib/tesoreria/cuenta-mp.ts`, puro y con tests; lecturas en `cuenta-mp-consultas.ts`). Solo dos cuentas: efectivo y Mercado Pago.
   El Resumen la lee tolerando que la tabla no exista (queda «sin configurar»); la solapa Cuentas, en cambio, avisa.
+- **Cuenta corriente de personas** (`persona_cuenta`, migración 129; solapa «Socios»): una tabla con `tipo` = `saldo_inicial` (único vigente por
+  persona), `adelanto`, `reposicion` o `descuento_sueldo`, y `origen` (efectivo de Tesorería, Mercado Pago o transferencia; obligatorio en adelanto y
+  reposición, vacío en los otros dos). `lib/tesoreria/persona-cuenta.ts` es puro y con tests (`calcularCuentaPersona`, `validarMovimientoPersona`);
+  `persona-cuenta-consultas.ts` lee la cuenta de cada socio y los flujos que mueven plata. **Efectivo y Mercado Pago**: los adelantos y reposiciones con
+  origen `efectivo_tesoreria` entran en `efectivoDeTesoreria` (parámetros `adelantos` y `reposiciones`, desde `fecha_inicio`) y los de `mercadopago` en
+  `calcularSaldoMp` (los adelantos como `pagos`, las reposiciones como `ingresos`, desde el saldo inicial de MP); cada lectura tolera que la tabla no
+  exista. Trampa: `cierres_caja` de turnos anteriores al arranque cuyo sobre se retiró después **no** suman al efectivo (`cargarSobresRetirados` filtra por la
+  fecha del turno), porque el efectivo inicial ya los trae. El descuento de sueldo no mueve ninguna cuenta. Escribe solo el servidor
+  (`persona-actions.ts`, mismo patrón que `cuentas-actions.ts`) y deja rastro en el Historial (5 acciones nuevas en el CHECK).
 - **Cuenta corriente de proveedores** (`proveedor_cuenta`, migración 106; solapa «Proveedores»): una sola tabla con `tipo` =
   `saldo_inicial` (único vigente por proveedor y local, índice parcial) o `pago` (con `origen`, nunca `retiro_caja`). Las compras
   siguen siendo `egresos`; **no se muta ninguna compra al pagar**: el saldo es `saldo inicial + compras no pagadas − pagos`
@@ -567,7 +576,8 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
 - **Resumen** (mes elegido): *Entró* = `cierres_caja.total_ventas` de los turnos cerrados; *Salió* = egresos del mes por fecha de compra,
   pagados o no, **sin** retiros de socios (se muestran aparte); *Se debe* = egresos no pagados, agrupados por proveedor.
   «Entró menos salió» **no es la ganancia** (falta el costo de lo vendido).
-- **Efectivo en mano** = `efectivo_inicial` + sobres retirados desde el arranque (lo verificado, o declarado − fondo) − egresos pagados
+- **Efectivo en mano** = `efectivo_inicial` + sobres ya retirados de los turnos desde el arranque (por la fecha del **turno**, no la del retiro;
+  lo verificado, o declarado − fondo) − egresos pagados
   con origen «efectivo de Tesorería» (por `fecha_pago`). Un egreso con origen «retiro de caja», transferencia o Mercado Pago no resta.
 - **Escritura**: solo Server Actions con `service_role` (`authenticated` solo lee, y solo admin). Cada acción valida el permiso
   (`lib/tesoreria/permisos.ts`) y el contenido (`validarEgreso`) y devuelve `{ error }`. Al registrar un egreso con vínculos se toman

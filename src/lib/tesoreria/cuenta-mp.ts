@@ -44,8 +44,10 @@ export interface SaldoMp {
 export function calcularSaldoMp(p: {
   movimientos: MovimientoMp[];
   cobros:      CobroParaSaldo[];
-  pagos:       PagoDesdeMp[];
+  pagos:       PagoDesdeMp[];   // incluye los adelantos a personas que salieron de Mercado Pago
   ahoraMs:     number;
+  // Plata que una persona repuso en Mercado Pago (migración 129): entra a la cuenta y se suma a «ingresos».
+  reposiciones?: PagoDesdeMp[];
 }): SaldoMp {
   const inicial = p.movimientos.find((m) => m.tipo === "saldo_inicial") ?? null;
   const vacio: SaldoMp = {
@@ -64,6 +66,7 @@ export function calcularSaldoMp(p: {
     else if (!c.clasificacion) { sinCantidad += 1; sinMonto += c.monto_neto; }
     if (suma && c.fecha_liberacion && Date.parse(c.fecha_liberacion) > p.ahoraMs) aLiberar += c.monto_neto;
   }
+  ingresos += (p.reposiciones ?? []).filter((x) => x.fecha >= desde).reduce((s, x) => s + x.monto, 0);
   const pagos   = p.pagos.filter((x) => x.fecha >= desde).reduce((s, x) => s + x.monto, 0);
   const retiros = p.movimientos.filter((m) => m.tipo === "retiro" && m.fecha >= desde).reduce((s, m) => s + m.monto, 0);
 

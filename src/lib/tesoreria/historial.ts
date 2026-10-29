@@ -20,6 +20,7 @@ export const ACCIONES_HISTORIAL = [
   "egreso_vencimiento",
   "entrega_costos",
   "proveedor_ficha",
+  "persona_saldo_inicial", "persona_adelanto", "persona_reposicion", "persona_descuento_sueldo", "persona_movimiento_anulado",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -47,6 +48,11 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   egreso_vencimiento:           "Vencimiento de un remito o factura",
   entrega_costos:               "Costos de una mercadería cargados",
   proveedor_ficha:              "Ficha de proveedor",
+  persona_saldo_inicial:        "Saldo inicial de una persona cargado",
+  persona_adelanto:             "Adelanto a una persona registrado",
+  persona_reposicion:           "Reposición de una persona registrada",
+  persona_descuento_sueldo:     "Descuento de sueldo registrado",
+  persona_movimiento_anulado:   "Movimiento de una persona anulado",
 };
 
 export interface EntradaHistorial {
@@ -150,6 +156,18 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `Registró un retiro de ${plata(d.monto)} de Mercado Pago`;
     case "mp_movimiento_anulado":
       return `Anuló ${d.tipo === "saldo_inicial" ? "el saldo inicial" : "un retiro"} de Mercado Pago de ${plata(d.monto)}`;
+    case "persona_saldo_inicial":
+      return `Cargó el saldo inicial de ${texto(d.persona) ?? "una persona"}: debe reponer ${plata(d.monto)} al comenzar el ${texto(d.fecha) ?? "?"}`;
+    case "persona_adelanto":
+      return `Registró un adelanto de ${plata(d.monto)} a ${texto(d.persona) ?? "una persona"}${texto(d.origen) ? ` (salió de ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)})` : ""}`;
+    case "persona_reposicion":
+      return `${texto(d.persona) ?? "Una persona"} repuso ${plata(d.monto)}${texto(d.origen) ? ` (entró a ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)})` : ""}`;
+    case "persona_descuento_sueldo":
+      return `Descontó ${plata(d.monto)} del sueldo de ${texto(d.persona) ?? "una persona"}`;
+    case "persona_movimiento_anulado": {
+      const que = { saldo_inicial: "el saldo inicial", adelanto: "un adelanto", reposicion: "una reposición", descuento_sueldo: "un descuento de sueldo" }[texto(d.tipo) ?? ""] ?? "un movimiento";
+      return `Anuló ${que} de ${plata(d.monto)} de ${texto(d.persona) ?? "una persona"}`;
+    }
     case "peya_liquidacion_importada":
     case "peya_liquidacion_confirmada": {
       const estado = f.accion === "peya_liquidacion_confirmada" ? "confirmó" : "importó (estimada)";

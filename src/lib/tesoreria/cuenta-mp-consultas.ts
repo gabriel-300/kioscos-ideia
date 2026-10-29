@@ -3,6 +3,7 @@
 
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/paginar";
+import { cargarFlujosPersonas } from "./persona-cuenta-consultas";
 import { calcularSaldoMp, type CobroParaSaldo, type MovimientoMp, type PagoDesdeMp, type SaldoMp, type TipoMovimientoMp } from "./cuenta-mp";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -35,7 +36,7 @@ export async function cargarCuentaMp(admin: Admin, tolerarSinTabla = false): Pro
   if (!inicial) return { saldo: calcularSaldoMp({ movimientos, cobros: [], pagos: [], ahoraMs: Date.now() }), movimientos };
 
   const desdeIso = `${inicial.fecha}T00:00:00-03:00`;
-  const [cobros, egresos, pagosProv] = await Promise.all([
+  const [cobros, egresos, pagosProv, personas] = await Promise.all([
     fetchAll<Record<string, unknown>>((d, h) =>
       tabla(admin, "mp_cobros").select("fecha_cobro, fecha_liberacion, monto_neto, estado, clase, clasificacion", { count: "exact" })
         .gte("fecha_cobro", desdeIso).order("operation_id").range(d, h)),
@@ -45,6 +46,7 @@ export async function cargarCuentaMp(admin: Admin, tolerarSinTabla = false): Pro
     fetchAll<{ monto: number | string; fecha: string }>((d, h) =>
       tabla(admin, "proveedor_cuenta").select("monto, fecha", { count: "exact" })
         .eq("tipo", "pago").eq("origen", "mercadopago").is("anulado_en", null).gte("fecha", inicial.fecha).order("id").range(d, h)),
+    cargarFlujosPersonas(admin, "mercadopago", inicial.fecha),
   ]);
 
   const cobrosSaldo: CobroParaSaldo[] = cobros.map((c) => ({
@@ -54,6 +56,9 @@ export async function cargarCuentaMp(admin: Admin, tolerarSinTabla = false): Pro
   const pagos: PagoDesdeMp[] = [
     ...egresos.map((e) => ({ monto: Number(e.monto), fecha: String(e.fecha_pago) })),
     ...pagosProv.map((p) => ({ monto: Number(p.monto), fecha: String(p.fecha) })),
+    // Adelantos a personas que salieron de Mercado Pago (migración 129); ya vienen filtrados desde el saldo inicial.
+    ...(personas.adelantos > 0 ? [{ monto: personas.adelantos, fecha: inicial.fecha }] : []),
   ];
-  return { saldo: calcularSaldoMp({ movimientos, cobros: cobrosSaldo, pagos, ahoraMs: Date.now() }), movimientos };
+  const reposiciones: PagoDesdeMp[] = personas.reposiciones > 0 ? [{ monto: personas.reposiciones, fecha: inicial.fecha }] : [];
+  return { saldo: calcularSaldoMp({ movimientos, cobros: cobrosSaldo, pagos, reposiciones, ahoraMs: Date.now() }), movimientos };
 }

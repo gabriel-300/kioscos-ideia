@@ -33,11 +33,13 @@ import { deudaDelResumen, estadoPorCompra, totalAdeudado } from "@/lib/tesoreria
 import { cargarCobrosMp, cargarCobrosSinClasificar, cargarImportacionesMp, cargarRangosImportados, cargarOrdenesQr, cargarVentasMp } from "@/lib/tesoreria/mp-consultas";
 import { compararPorDia, cruzarConSistema, resumirCobros } from "@/lib/tesoreria/mp-cobros";
 import { SolapasTesoreria } from "./_components/solapas";
+import { PersonasView, type PersonasData } from "./_components/personas-view";
+import { cargarCuentasPersonas, cargarFlujosPersonas } from "@/lib/tesoreria/persona-cuenta-consultas";
 
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Tesorería — Kioscos IDEIA" };
 
-const VISTAS = ["resumen", "cuentas", "para-registrar", "egresos", "proveedores", "fijos", "mercadopago", "pedidosya", "historial"] as const;
+const VISTAS = ["resumen", "cuentas", "para-registrar", "egresos", "proveedores", "fijos", "personas", "mercadopago", "pedidosya", "historial"] as const;
 type Vista = (typeof VISTAS)[number];
 
 export default async function TesoreriaPage({
@@ -98,7 +100,7 @@ export default async function TesoreriaPage({
     if (vista === "fijos" || vista === "resumen") fijos = await cargarGastosFijos(admin);
 
     if (vista === "resumen") {
-      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, imputaciones, cuentaMp, liquidacionesPeya] = await Promise.all([
+      const [entro, pendientes, salidasEfectivo, sobresRetirados, sobresSinRetirar, cambiosEfectivoInicial, movimientosProv, imputaciones, cuentaMp, liquidacionesPeya, flujosEfectivo, personasCuenta] = await Promise.all([
         cargarVentasDelPeriodo(admin, sucursalIds, rango.desde, rango.hasta),
         cargarEgresosPendientes(admin),
         cargarSalidasEfectivo(admin, config.fecha_inicio),
@@ -109,10 +111,15 @@ export default async function TesoreriaPage({
         cargarImputaciones(admin, true),
         cargarCuentaMp(admin, true),
         cargarLiquidacionesPeyaSiExiste(admin),
+        cargarFlujosPersonas(admin, "efectivo_tesoreria", config.fecha_inicio),
+        cargarCuentasPersonas(admin, true),
       ]);
       const alertas = construirAlertas(await cargarEntradaAlertas(admin, fechaHoyAR(), liquidacionesPeya));
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
-      const efectivo = efectivoDeTesoreria({ efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo });
+      const efectivo = efectivoDeTesoreria({
+        efectivoInicial: config.efectivo_inicial, sobresRecibidos: sobresRetirados, egresos: salidasEfectivo,
+        adelantos: flujosEfectivo.adelantos, reposiciones: flujosEfectivo.reposiciones,
+      });
       const deudaResumen = (({ items, total }) => ({ items, total }))(
         deudaDelResumen(pendientes, movimientosProv, nombreProveedor, new Map(sucursales.map((s) => [s.id, s.nombre])), imputaciones),
       );
@@ -125,6 +132,7 @@ export default async function TesoreriaPage({
         obligaciones,
         mp: { configurada: cuentaMp.saldo.configurada, disponible: cuentaMp.saldo.disponible },
         peya: aCobrarPeya(liquidacionesPeya),
+        personas: { cantidad: personasCuenta.filter((x) => x.cuenta.debe > 0).length, debe: personasCuenta.reduce((t, x) => t + Math.max(0, x.cuenta.debe), 0) },
         alertas,
         // «Tengo» es lo de hoy: solo tiene sentido junto con las obligaciones del mes en curso, no con las de un mes pasado.
         tengoMenosDebo: mes === mesActual
@@ -227,15 +235,29 @@ export default async function TesoreriaPage({
   if (vista === "cuentas") {
     try {
       const idsSucursales = datos.sucursales.map((s) => s.id);
-      const [salidas, sobres, cuentaMp] = await Promise.all([
+      const [salidas, sobres, cuentaMp, flujos] = await Promise.all([
         cargarSalidasEfectivo(admin, datos.config.fecha_inicio),
         cargarSobresRetirados(admin, idsSucursales, datos.config.fecha_inicio),
         cargarCuentaMp(admin),
+        cargarFlujosPersonas(admin, "efectivo_tesoreria", datos.config.fecha_inicio),
       ]);
-      const ef = efectivoDeTesoreria({ efectivoInicial: datos.config.efectivo_inicial, sobresRecibidos: sobres, egresos: salidas });
+      const ef = efectivoDeTesoreria({
+        efectivoInicial: datos.config.efectivo_inicial, sobresRecibidos: sobres, egresos: salidas, adelantos: flujos.adelantos, reposiciones: flujos.reposiciones,
+      });
       cuentas = { efectivo: { ...ef, inicial: datos.config.efectivo_inicial }, mp: cuentaMp.saldo, movimientos: cuentaMp.movimientos };
     } catch (e) {
       cuentasError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // Solapa «Socios» (migración 129). Aparte del bloque de arriba para que, sin la migración, solo esta solapa muestre el aviso.
+  let personas: PersonasData | null = null;
+  let personasError = "";
+  if (vista === "personas") {
+    try {
+      personas = { personas: await cargarCuentasPersonas(admin) };
+    } catch (e) {
+      personasError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -291,7 +313,7 @@ export default async function TesoreriaPage({
 
       <SolapasTesoreria activa={vista} esAdmin={esAdmin} pendientes={pendientesDeRegistrar} mes={mes} />
 
-      {vista !== "para-registrar" && vista !== "proveedores" && vista !== "cuentas" && vista !== "pedidosya" && (
+      {vista !== "para-registrar" && vista !== "proveedores" && vista !== "cuentas" && vista !== "personas" && vista !== "pedidosya" && (
         <div className="flex items-center gap-3 mb-6">
           <Link href={enlace(vista, anterior)} aria-label="Mes anterior" className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors">
             <svg className="size-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -327,6 +349,14 @@ export default async function TesoreriaPage({
           <p className="font-semibold">Las cuentas todavía no están listas en la base de datos.</p>
           <p className="mt-1">Falta aplicar la migración 107 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
           <p className="mt-2 text-xs text-amber-700">Detalle técnico: {cuentasError}</p>
+        </div>
+      )}
+      {vista === "personas" && personas && <PersonasView data={personas} puedeCargar={permisos.puedeCargar} />}
+      {vista === "personas" && personasError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">La cuenta de los socios todavía no está lista en la base de datos.</p>
+          <p className="mt-1">Falta aplicar la migración 129 (carpeta supabase/migrations) en el SQL Editor de Supabase.</p>
+          <p className="mt-2 text-xs text-amber-700">Detalle técnico: {personasError}</p>
         </div>
       )}
       {vista === "proveedores" && prov && (

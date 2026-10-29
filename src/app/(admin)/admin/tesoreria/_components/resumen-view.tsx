@@ -16,9 +16,10 @@ export interface ResumenData {
   obligaciones:     { items: ObligacionMes[]; pendiente: number; sinRegistrar: number; registrado: number; estimadoTotal: number };
   mp:               { configurada: boolean; disponible: number };   // cuenta de Mercado Pago (migración 107)
   alertas:          AlertaTesoreria[]; // «Para revisar»: lo que no cierra o no coincide y alguien tiene que mirar
+  personas:         { cantidad: number; debe: number };   // adelantos de socios que falta reponer (migración 129; informativo)
   peya:             ACobrarPeya;       // lo que PedidosYa todavía no pagó (informativo, fuera de «tengo menos debo»)
   tengoMenosDebo:   number | null;     // efectivo en mano − lo que se debe a proveedores − obligaciones sin registrar (solo mes en curso)
-  efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number };
+  efectivo:         { efectivo: number; sobres: number; salidas: number; inicial: number; adelantos: number; reposiciones: number };
   sobresSinRetirar: number;
   cambiosEfectivoInicial: CambiosEfectivoInicial;   // cuántas veces se tocó y el último cambio (del historial)
 }
@@ -82,6 +83,13 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
           <Tarjeta titulo="Efectivo en mano" valor={AR.format(data.efectivo.efectivo)} pie="Lo de Tesorería, sin contar los kioscos" />
           <Tarjeta titulo="Sobres en los kioscos" valor={AR.format(data.sobresSinRetirar)} pie="Cerrados desde el arranque, todavía sin retirar" />
         </div>
+        {data.personas.debe > 0 && (
+          <p className="text-xs text-neutral-500 mt-3">
+            Falta reponer de adelantos: <b>{AR.format(data.personas.debe)}</b> ({data.personas.cantidad} {data.personas.cantidad === 1 ? "persona" : "personas"}).
+            Es informativo: no resta en «Tengo menos debo».{" "}
+            <Link href="/admin/tesoreria?vista=personas" className="font-semibold underline">Ver las cuentas</Link>
+          </p>
+        )}
         {data.peya.cantidad > 0 && (
           <p className="text-xs text-neutral-500 mt-3">
             A cobrar de PedidosYa: <b>{AR.format(data.peya.confirmado)}</b> confirmado
@@ -158,7 +166,9 @@ export function ResumenView({ data, mesLabel, puedeCargar }: { data: ResumenData
         <ul className="space-y-1.5 text-sm">
           <li className="flex justify-between"><span className="text-neutral-600">Efectivo con el que arrancó Tesorería</span><span className="tabular-nums">{AR.format(data.efectivo.inicial)}</span></li>
           <li className="flex justify-between"><span className="text-neutral-600">+ Sobres retirados de los kioscos</span><span className="tabular-nums">{AR.format(data.efectivo.sobres)}</span></li>
+          {data.efectivo.reposiciones > 0 && <li className="flex justify-between"><span className="text-neutral-600">+ Reposiciones de socios</span><span className="tabular-nums">{AR.format(data.efectivo.reposiciones)}</span></li>}
           <li className="flex justify-between"><span className="text-neutral-600">− Pagado en efectivo de Tesorería</span><span className="tabular-nums">{AR.format(data.efectivo.salidas)}</span></li>
+          {data.efectivo.adelantos > 0 && <li className="flex justify-between"><span className="text-neutral-600">− Adelantos a socios</span><span className="tabular-nums">{AR.format(data.efectivo.adelantos)}</span></li>}
           <li className="flex justify-between pt-1.5 border-t border-neutral-100 font-semibold"><span>= Efectivo en mano</span><span className="tabular-nums">{AR.format(data.efectivo.efectivo)}</span></li>
         </ul>
         <p className="text-xs text-neutral-400 mt-3">Lo que se pagó con plata del cajón de un kiosco (retiro de caja), con transferencia o con Mercado Pago no resta acá.</p>

@@ -103,10 +103,14 @@ export function efectivoDeTesoreria(p: {
   efectivoInicial: number;
   sobresRecibidos: SobreRecibido[];
   egresos:         Pick<Egreso, "origen" | "monto">[];
-}): { efectivo: number; sobres: number; salidas: number } {
+  // Cuenta corriente de las personas (migración 129): adelantos que salieron del efectivo de Tesorería y reposiciones que entraron.
+  adelantos?:      number;
+  reposiciones?:   number;
+}): { efectivo: number; sobres: number; salidas: number; adelantos: number; reposiciones: number } {
   const sobres  = redondearMoneda(p.sobresRecibidos.reduce((s, c) => s + montoSobre(c), 0));
   const salidas = redondearMoneda(p.egresos.filter((e) => e.origen === "efectivo_tesoreria").reduce((s, e) => s + e.monto, 0));
-  return { efectivo: redondearMoneda(p.efectivoInicial + sobres - salidas), sobres, salidas };
+  const adelantos = redondearMoneda(p.adelantos ?? 0), reposiciones = redondearMoneda(p.reposiciones ?? 0);
+  return { efectivo: redondearMoneda(p.efectivoInicial + sobres + reposiciones - salidas - adelantos), sobres, salidas, adelantos, reposiciones };
 }
 
 // ── Obligaciones del mes ─────────────────────────────────────────────────────

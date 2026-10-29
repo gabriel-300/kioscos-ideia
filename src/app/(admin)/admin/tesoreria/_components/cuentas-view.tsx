@@ -11,7 +11,7 @@ const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", 
 const dma = (f: string) => f.split("-").reverse().join("/");
 
 export interface CuentasData {
-  efectivo:    { efectivo: number; sobres: number; salidas: number; inicial: number };
+  efectivo:    { efectivo: number; sobres: number; salidas: number; inicial: number; adelantos: number; reposiciones: number };
   mp:          SaldoMp;
   movimientos: MovimientoMp[];
 }
@@ -147,7 +147,9 @@ export function CuentasView({ data, puedeCargar }: { data: CuentasData; puedeCar
           <ul className="space-y-1.5">
             <Linea texto="Efectivo con el que arrancó" valor={efectivo.inicial} />
             <Linea texto="+ Sobres retirados de los kioscos" valor={efectivo.sobres} />
+            {efectivo.reposiciones > 0 && <Linea texto="+ Reposiciones de socios" valor={efectivo.reposiciones} />}
             <Linea texto="− Pagado en efectivo de Tesorería" valor={efectivo.salidas} />
+            {efectivo.adelantos > 0 && <Linea texto="− Adelantos a socios" valor={efectivo.adelantos} />}
             <Linea texto="= Efectivo en mano" valor={efectivo.efectivo} fuerte />
           </ul>
           <p className="text-xs text-neutral-400 mt-3">El efectivo inicial se corrige desde el Resumen.</p>
@@ -171,7 +173,7 @@ export function CuentasView({ data, puedeCargar }: { data: CuentasData; puedeCar
               <ul className="space-y-1.5">
                 <Linea texto={`Saldo al comenzar el ${dma(mp.desde as string)}`} valor={mp.saldoInicial} />
                 <Linea texto="+ Cobros importados (neto de comisión)" valor={mp.cobros} />
-                {mp.ingresos > 0 && <Linea texto="+ Ingresos clasificados (traspasos, aportes)" valor={mp.ingresos} />}
+                {mp.ingresos > 0 && <Linea texto="+ Ingresos clasificados (traspasos, aportes, reposiciones)" valor={mp.ingresos} />}
                 <Linea texto="− Pagos hechos desde Mercado Pago" valor={mp.pagos} menos />
                 <Linea texto="− Retiros de la cuenta" valor={mp.retiros} menos />
                 <Linea texto="= Saldo de la cuenta" valor={mp.total} fuerte />

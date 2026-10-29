@@ -196,6 +196,15 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     nuevo** (el gasto es la compra, esté pagada o no) pero sí baja el efectivo de Tesorería cuando sale de ahí. El saldo inicial es
     único por proveedor y local y se carga una vez; un error se anula con motivo. Si un mismo pago cubre a los dos locales se carga como
     dos pagos. Las compras sin proveedor de la lista no tienen cuenta y quedan agrupadas por lo que se escribió.
+  - **Cuenta de los socios** (solapa «Socios», migración 129; el concepto de «retiro temporal con devolución» que había quedado pendiente): un retiro
+    de plata de un socio es un **adelanto que se repone**, no un gasto. Cada persona tiene una cuenta corriente: `debe = saldo inicial + adelantos −
+    reposiciones − descuentos de sueldo` (negativo = a favor de la persona). El **saldo inicial** (uno por persona, con su fecha de corte) es lo que ya
+    debía al arrancar y no mueve ninguna cuenta; solo cuentan los movimientos desde esa fecha. Un **adelanto** o una **reposición** dicen de dónde salió
+    / adónde entró la plata: con «efectivo de Tesorería» o «Mercado Pago» bajan o suben ese saldo; con «transferencia» no tocan ninguna cuenta (no
+    se llevan bancos). El **descuento de sueldo** resta de lo que debe y **no mueve plata**: el sueldo se carga por el monto final que se pagó.
+    Nada se borra: un error se anula con motivo, y cada movimiento queda en el Historial. Lo que falta reponer figura en el Resumen como dato
+    informativo (no resta en «Tengo menos debo»). Hoy la pantalla lista a los socios (Staff → es socio); la tabla ya admite a cualquier persona,
+    para sumar al personal (adelantos de sueldo, retiro de mercadería) en una etapa siguiente. Javier Acuña arranca debiendo $4.476.000 al 27/10/2026.
   - **Cobros de Mercado Pago** (solapa «Cobros MP», migración 105): el administrativo sube el Excel de cobros del panel de MP. El archivo
     se abre en el navegador y al servidor solo viajan importes, fechas y nº de operación (nunca nombres ni documentos de clientes).
     Cada cobro se ata a su local por la caja (`sucursales.mercadopago_pos_id` = external_id de la caja), la comisión de MP queda
@@ -204,8 +213,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     y saldo de la cuenta de MP todavía no (hace falta el reporte de movimientos).
 - **Estado**: **Construido, pendiente de probar con uso real** (0 egresos). La conciliación del cierre de caja no cambió: lo que
   antes entraba por Pagos a proveedores y Socios queda en cero. `pagos_proveedor`, `movimientos_socio`, `pagos_socio` y `gastos`
-  quedan como histórico. Pendiente a propósito: el concepto de retiro **temporal** de un socio con devolución (se simplificó a
-  la categoría «Retiro de socio»; confirmar con el usuario).
+  quedan como histórico. El retiro **temporal** de un socio con devolución se resolvió con la «Cuenta de los socios» (migración 129);
+  la categoría de egreso «Retiro de socio» queda para retiros que no se reponen.
 
 ### Informes — ventas, cierres, informe mensual, rotación, pronóstico, horario, vendedor
 - **Quién**: admin y concesionario (su sucursal). Informe mensual y Tesorería: admin o socio.

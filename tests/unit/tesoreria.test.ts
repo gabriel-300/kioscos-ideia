@@ -213,7 +213,12 @@ describe("efectivo de Tesorería", () => {
         { origen: "mercadopago",        monto: 5000 },
       ],
     });
-    expect(r).toEqual({ efectivo: 50000 + 119000 - 30000, sobres: 119000, salidas: 30000 });
+    expect(r).toEqual({ efectivo: 50000 + 119000 - 30000, sobres: 119000, salidas: 30000, adelantos: 0, reposiciones: 0 });
+  });
+
+  it("un adelanto a una persona baja el efectivo y una reposición lo sube", () => {
+    const r = efectivoDeTesoreria({ efectivoInicial: 100000, sobresRecibidos: [], egresos: [], adelantos: 40000, reposiciones: 15000 });
+    expect(r).toEqual({ efectivo: 75000, sobres: 0, salidas: 0, adelantos: 40000, reposiciones: 15000 });
   });
 });
 
