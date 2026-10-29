@@ -76,3 +76,25 @@ export async function cargarFlujosPersonas(
     throw e;
   }
 }
+
+// La cuenta de una sola persona (para su ficha). `null` si la migración 129 todavía no está aplicada o la persona no existe.
+export async function cargarCuentaDePersona(admin: Admin, personaId: string): Promise<PersonaConCuenta | null> {
+  let filas: Record<string, unknown>[];
+  try {
+    filas = await fetchAll<Record<string, unknown>>((d, h) =>
+      tabla(admin, "persona_cuenta").select("id, persona_id, tipo, fecha, monto, origen, nota, created_at, created_by", { count: "exact" })
+        .eq("persona_id", personaId).is("anulado_en", null).order("id").range(d, h));
+  } catch (e) {
+    if (e instanceof Error && esTablaPersonaFaltante(e.message)) return null;
+    throw e;
+  }
+  const { data: perfil, error } = await admin.from("profiles").select("id, full_name, es_socio").eq("id", personaId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!perfil) return null;
+  const movs: MovimientoPersona[] = filas.map((f) => ({
+    id: String(f.id), persona_id: String(f.persona_id), tipo: f.tipo as TipoMovimientoPersona, fecha: String(f.fecha), monto: Number(f.monto),
+    origen: (f.origen as OrigenPersona | null) ?? null, nota: (f.nota as string | null) ?? null,
+    created_at: String(f.created_at), created_by: (f.created_by as string | null) ?? null,
+  })).sort((a, b) => (a.fecha === b.fecha ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha)));
+  return { id: perfil.id, nombre: perfil.full_name?.trim() || "Sin nombre", esSocio: !!perfil.es_socio, cuenta: calcularCuentaPersona(movs), movimientos: movs };
+}

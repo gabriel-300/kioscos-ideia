@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fechaHoyAR } from "@/lib/fecha";
 import {
   ETIQUETA_ORIGEN_PERSONA, ETIQUETA_TIPO_PERSONA, ORIGENES_PERSONA,
@@ -140,7 +141,8 @@ function FilaMovimiento({ m, puedeCargar }: { m: MovimientoPersona; puedeCargar:
   );
 }
 
-function Tarjeta({ persona, puedeCargar }: { persona: PersonaConCuenta; puedeCargar: boolean }) {
+// `conFicha`: muestra el enlace a la ficha (en la propia ficha se oculta).
+export function TarjetaPersona({ persona, puedeCargar, conFicha = true }: { persona: PersonaConCuenta; puedeCargar: boolean; conFicha?: boolean }) {
   const [form, setForm] = useState<TipoMovimientoPersona | null>(null);
   const { cuenta } = persona;
   const sinSaldoInicial = cuenta.desde === null;
@@ -151,7 +153,7 @@ function Tarjeta({ persona, puedeCargar }: { persona: PersonaConCuenta; puedeCar
       <div className="flex justify-between gap-3 flex-wrap items-start">
         <div>
           <h2 className="text-base font-semibold text-neutral-900">{persona.nombre}</h2>
-          <p className="text-xs text-neutral-400">{persona.esSocio ? "Socio" : "Personal"}{cuenta.desde ? ` · cuenta desde el ${dma(cuenta.desde)}` : " · todavía sin saldo inicial"}</p>
+          <p className="text-xs text-neutral-400">{persona.esSocio ? "Socio" : "Personal"}{cuenta.desde ? ` · cuenta desde el ${dma(cuenta.desde)}` : " · todavía sin saldo inicial"}{conFicha && <> · <Link href={`/admin/staff/${persona.id}`} className="font-semibold text-tierra-700 hover:underline">Ver ficha</Link></>}</p>
         </div>
         <div className="text-right">
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{cuenta.debe < 0 ? "A favor" : "Debe reponer"}</p>
@@ -204,7 +206,7 @@ export function PersonasView({ data, puedeCargar }: { data: PersonasData; puedeC
       {personas.length === 0 ? (
         <p className="text-sm text-neutral-500">No hay socios marcados. Se marcan en Staff.</p>
       ) : (
-        personas.map((p) => <Tarjeta key={p.id} persona={p} puedeCargar={puedeCargar} />)
+        personas.map((p) => <TarjetaPersona key={p.id} persona={p} puedeCargar={puedeCargar} />)
       )}
     </div>
   );

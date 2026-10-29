@@ -357,6 +357,14 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 ### Staff — `/admin/staff` (solo admin)
 - Alta de usuarios (con email confirmado), rol, **sistema (Kiosco / Tenteo)**, sucursal, "es socio", límite de crédito, suspender y resetear contraseña.
   Quien no tiene sistema guardado figura "por defecto" (= kiosco). Admin y repartidor son fijos.
+- **Ficha del personal** (`/admin/staff/[id]`, botón «Ficha» en la lista; migración 130): el legajo de cada empleado o socio, con datos
+  personales (CUIL, nacimiento, domicilio, contacto de emergencia), laborales (puesto, ingreso y egreso, registrado o no, jornada completa o
+  media, horas, convenio, categoría, obra social) y de pago (sueldo acordado y la parte en recibo, día de pago, forma de pago, CBU o alias,
+  tope de descuento mensual). **Todo es opcional**: la pantalla solo avisa qué falta para poder liquidar y pagar. Ve cualquier administrador;
+  **carga solo el administrativo de Tesorería** (trae sueldo, CUIL y CBU). Cada cambio queda en el Historial de Tesorería con **qué campos**
+  cambiaron, no con sus valores. En la misma pantalla se ve lo que la persona le debe a la empresa en total: sus adelantos (cuenta de la solapa
+  Socios de Tesorería, donde también se cargan) más lo que compró fiado en los kioscos (Cta. Corriente); son dos cuentas que se suman acá, y el
+  descuento de sueldo se anota todavía a mano en cada una. Pendiente: documentos escaneados (DNI, alta, contrato) y la liquidación automática del sueldo.
 - **Estado**: **Funcionando**. El alta pública (`/api/auth/registro`) quedó deshabilitada.
 
 ---

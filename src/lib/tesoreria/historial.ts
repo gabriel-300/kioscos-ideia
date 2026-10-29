@@ -21,6 +21,7 @@ export const ACCIONES_HISTORIAL = [
   "entrega_costos",
   "proveedor_ficha",
   "persona_saldo_inicial", "persona_adelanto", "persona_reposicion", "persona_descuento_sueldo", "persona_movimiento_anulado",
+  "persona_ficha",
 ] as const;
 export type AccionHistorial = (typeof ACCIONES_HISTORIAL)[number];
 
@@ -53,6 +54,7 @@ export const ETIQUETA_ACCION: Record<AccionHistorial, string> = {
   persona_reposicion:           "Reposición de una persona registrada",
   persona_descuento_sueldo:     "Descuento de sueldo registrado",
   persona_movimiento_anulado:   "Movimiento de una persona anulado",
+  persona_ficha:                "Ficha del personal",
 };
 
 export interface EntradaHistorial {
@@ -164,6 +166,12 @@ export function describirHistorial(f: Pick<FilaHistorial, "accion" | "detalle">)
       return `${texto(d.persona) ?? "Una persona"} repuso ${plata(d.monto)}${texto(d.origen) ? ` (entró a ${ORIGEN[texto(d.origen)!] ?? texto(d.origen)})` : ""}`;
     case "persona_descuento_sueldo":
       return `Descontó ${plata(d.monto)} del sueldo de ${texto(d.persona) ?? "una persona"}`;
+    case "persona_ficha": {
+      const quien = texto(d.persona) ?? "una persona";
+      if (d.alta === true) return `Creó la ficha de ${quien}`;
+      const campos = Array.isArray(d.campos) ? d.campos.filter((c): c is string => typeof c === "string") : [];
+      return `Actualizó la ficha de ${quien}${campos.length > 0 ? ` (${campos.map((c) => c.replace(/_/g, " ")).join(", ")})` : ""}`;
+    }
     case "persona_movimiento_anulado": {
       const que = { saldo_inicial: "el saldo inicial", adelanto: "un adelanto", reposicion: "una reposición", descuento_sueldo: "un descuento de sueldo" }[texto(d.tipo) ?? ""] ?? "un movimiento";
       return `Anuló ${que} de ${plata(d.monto)} de ${texto(d.persona) ?? "una persona"}`;

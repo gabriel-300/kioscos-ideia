@@ -69,7 +69,7 @@ lo importa ningún módulo.
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (aplicada y verificada el 2026-10-19) y `113_vencimiento_de_remitos.sql` (aplicada y verificada el 2026-10-19) y `114_plazo_de_pago_proveedor.sql` (aplicada y verificada el 2026-10-20) y `115_historial_costos_de_entrega.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella cargar los costos de una entrega avisa que no pudo anotarse en el historial) y `116_ficha_contable_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: el código lee las columnas nuevas de `proveedores` y sin ella fallan Tesorería y Catálogo → Proveedores); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
-  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) está escrita y **pendiente de aplicar a mano**.
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
@@ -524,6 +524,13 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   exista. Trampa: `cierres_caja` de turnos anteriores al arranque cuyo sobre se retiró después **no** suman al efectivo (`cargarSobresRetirados` filtra por la
   fecha del turno), porque el efectivo inicial ya los trae. El descuento de sueldo no mueve ninguna cuenta. Escribe solo el servidor
   (`persona-actions.ts`, mismo patrón que `cuentas-actions.ts`) y deja rastro en el Historial (5 acciones nuevas en el CHECK).
+- **Ficha del personal** (`personal_ficha`, migración 130; pantalla `/admin/staff/[id]`): tabla 1 a 1 con `profiles` (no se amplió `profiles`: tiene columnas
+  protegidas y se lee desde los kioscos, y estos datos son sensibles). Todo opcional. `lib/personal/ficha.ts` es puro y con tests (`validarFichaPersonal`,
+  `cambiosDeFicha`, `faltantesDeFicha`; CBU de 22 dígitos o alias, CUIL con dígito verificador); `ficha-consultas.ts` lee la ficha y el fiado de la persona
+  (`movimientos` canal `cuenta_corriente` menos `cta_corriente_pagos`, la misma cuenta de Sucursal → Cta. Corriente sumada entre kioscos). Escribe solo el servidor
+  (`staff/ficha-actions.ts`, cargar = administrativo de Tesorería) y deja en el Historial la acción `persona_ficha` con los **nombres** de los campos que cambiaron, nunca
+  sus valores (sueldo, CUIL, CBU). Trampa: los campos del formulario son funciones que devuelven JSX, no componentes definidos dentro del render (se remontarían en cada
+  tecla y perderían el foco). La pantalla muestra además la tarjeta de la cuenta de adelantos (`TarjetaPersona`, la misma de la solapa Socios).
 - **Cuenta corriente de proveedores** (`proveedor_cuenta`, migración 106; solapa «Proveedores»): una sola tabla con `tipo` =
   `saldo_inicial` (único vigente por proveedor y local, índice parcial) o `pago` (con `origen`, nunca `retiro_caja`). Las compras
   siguen siendo `egresos`; **no se muta ninguna compra al pagar**: el saldo es `saldo inicial + compras no pagadas − pagos`

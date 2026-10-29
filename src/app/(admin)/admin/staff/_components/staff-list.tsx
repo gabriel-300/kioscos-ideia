@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -625,6 +626,9 @@ export function StaffList({ staff, sucursales }: { staff: StaffUser[]; sucursale
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-3">
+                        <Link href={`/admin/staff/${u.id}`} className="text-xs text-tierra-700 hover:underline font-medium">
+                          Ficha
+                        </Link>
                         <button
                           onClick={() => setEditing(u)}
                           className="text-xs text-tierra-700 hover:underline font-medium"
