@@ -274,12 +274,14 @@ function aSobre(c: { efectivo_declarado: number | string; fondo_siguiente: numbe
   };
 }
 
-// Sobres que alguien retiró del kiosco desde que arrancó Tesorería (entró efectivo a Tesorería).
+// Sobres ya retirados del kiosco de los turnos desde que arrancó Tesorería (entró efectivo a Tesorería). Se filtra por la fecha
+// del turno, no por la del retiro: el efectivo inicial ya incluye los sobres de turnos anteriores al arranque aunque se hayan
+// retirado después (así lo cargó el usuario al reiniciar Tesorería el 2026-10-27).
 export async function cargarSobresRetirados(admin: Admin, sucursalIds: string[], desdeFecha: string): Promise<SobreRecibido[]> {
   if (sucursalIds.length === 0) return [];
   const filas = await fetchAll((d, h) =>
     admin.from("cierres_caja").select(COLUMNAS_SOBRE, { count: "exact" })
-      .in("sucursal_id", sucursalIds).gte("sobre_retirado_en", `${desdeFecha}T00:00:00-03:00`)
+      .in("sucursal_id", sucursalIds).gte("fecha", desdeFecha).not("sobre_retirado_en", "is", null)
       .order("id").range(d, h));
   return filas.map(aSobre);
 }
