@@ -38,7 +38,7 @@ export function etiquetaPago(p: Pick<PedidoAviso, "medioPago" | "estado" | "pago
   }
   if (p.medioPago === "mercadopago_link") {
     return p.estado === "pendiente_pago"
-      ? "Mercado Pago (link): todavía no pagó, mandale el link"
+      ? "Mercado Pago: esperando el pago"
       : "Mercado Pago: ya pagado";
   }
   if (p.medioPago === "mercadopago_qr") return "Mercado Pago (QR)";

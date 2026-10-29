@@ -49,7 +49,7 @@ describe("aviso: cómo se paga y se entrega", () => {
     expect(etiquetaPago({ ...base, pagoCon: 1000 })).not.toContain("vuelto");
   });
   it("Mercado Pago por link: avisa si todavía no pagó o si ya está pagado", () => {
-    expect(etiquetaPago({ ...base, medioPago: "mercadopago_link", estado: "pendiente_pago" })).toContain("todavía no pagó");
+    expect(etiquetaPago({ ...base, medioPago: "mercadopago_link", estado: "pendiente_pago" })).toBe("Mercado Pago: esperando el pago");
     expect(etiquetaPago({ ...base, medioPago: "mercadopago_link", estado: "pagado" })).toContain("ya pagado");
   });
   it("medio de pago desconocido no rompe", () => {
