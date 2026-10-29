@@ -15,7 +15,8 @@ describe("qué cuenta como 'por atender'", () => {
       expect(cuentaComoPorAtender(p(e), AHORA)).toBe(false);
     }
   });
-  it("un pago por link cuenta mientras no venció (el local tiene que mandar el link y confirmar)", () => {
+  it("un pago por link vigente se muestra en la lista, pero NO cuenta como por atender (el cliente paga solo desde Mercado Pago)", () => {
+    expect(cuentaComoPorAtender(p("pendiente_pago", "mercadopago_link", "2026-09-30T16:00:00Z"), AHORA)).toBe(false);
     expect(pagoPorLinkVigente(p("pendiente_pago", "mercadopago_link", "2026-09-30T16:00:00Z"), AHORA)).toBe(true);
     expect(pagoPorLinkVigente(p("pendiente_pago", "mercadopago_link", null), AHORA)).toBe(true);
   });
@@ -68,7 +69,7 @@ describe("contarPedidosPorAtender", () => {
 
   it("admin: cuenta sobre todas las sucursales (sin filtro)", async () => {
     const { admin, calls } = mundo();
-    expect(await contarPedidosPorAtender(admin, "u1", "admin")).toBe(3);
+    expect(await contarPedidosPorAtender(admin, "u1", "admin")).toBe(2); // confirmado y pagado; los que esperan el pago no cuentan
     expect(calls.find((c) => c.table === "pedidos")!.filters.some((f) => f.col === "sucursal_id")).toBe(false);
   });
   it("vendedor: solo pide las sucursales que tiene asignadas", async () => {

@@ -18,17 +18,17 @@ const ESTADOS_NUEVOS = ["confirmado", "pagado"];
 
 export type PedidoParaContar = { estado: string; medio_pago: string | null; expira_en: string | null };
 
-// Un pago por link solo importa mientras no venció: el local tiene que mandar
-// el link y confirmar a mano cuando ve la plata. Vencido o con otro medio de
-// pago (QR abandonado) es ruido.
+// Un pago por link pendiente solo se muestra en la lista (grupo "Esperando pago") mientras no venció; vencido o con
+// otro medio de pago (QR abandonado) es ruido. NO cuenta como "por atender": el cliente paga solo desde Mercado Pago y
+// el local no tiene nada que hacer hasta que el pago entra (ahí pasa a "pagado" y recién ahí avisa).
 export function pagoPorLinkVigente(p: PedidoParaContar, ahora = Date.now()): boolean {
   return p.estado === "pendiente_pago"
     && p.medio_pago === "mercadopago_link"
     && (!p.expira_en || new Date(p.expira_en).getTime() > ahora);
 }
 
-export function cuentaComoPorAtender(p: PedidoParaContar, ahora = Date.now()): boolean {
-  return ESTADOS_NUEVOS.includes(p.estado) || pagoPorLinkVigente(p, ahora);
+export function cuentaComoPorAtender(p: PedidoParaContar, _ahora = Date.now()): boolean {
+  return ESTADOS_NUEVOS.includes(p.estado);
 }
 
 // null = todas las sucursales (admin). Lista vacía = el usuario no tiene ninguna
@@ -64,7 +64,7 @@ async function pedidosPorAtender(admin: Admin, userId: string, role: string): Pr
   let query = (admin as any)
     .from("pedidos")
     .select("id, estado, medio_pago, expira_en")
-    .in("estado", [...ESTADOS_NUEVOS, "pendiente_pago"])
+    .in("estado", ESTADOS_NUEVOS)
     .order("created_at", { ascending: true })
     .limit(500);
   if (sucursales) query = query.in("sucursal_id", sucursales);
