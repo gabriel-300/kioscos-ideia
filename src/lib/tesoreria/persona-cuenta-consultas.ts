@@ -3,7 +3,7 @@
 
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/paginar";
-import { calcularCuentaPersona, type CuentaPersona, type MovimientoPersona, type OrigenPersona, type TipoMovimientoPersona } from "./persona-cuenta";
+import { calcularCuentaPersona, type CuentaPersona, type FiadoDeLaPersona, type MovimientoPersona, type OrigenPersona, type TipoMovimientoPersona } from "./persona-cuenta";
 
 type Admin = ReturnType<typeof createAdminClient>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,9 +19,39 @@ export interface PersonaConCuenta {
   movimientos: MovimientoPersona[];   // los más nuevos primero
 }
 
+// El fiado del personal en los kioscos (ventas con canal «cuenta_corriente», sin anuladas, a precio de venta) y los pagos que se cargaron en la
+// Cta. Corriente del kiosco, por persona. Es la «mercadería retirada» de la cuenta: se lee de acá y no se copia a persona_cuenta.
+// `desde`: la fecha más vieja que hace falta (la del saldo inicial más antigua); `personaId`: una sola persona.
+export async function cargarFiadoPorPersona(admin: Admin, desde: string | null, personaId?: string): Promise<Map<string, FiadoDeLaPersona>> {
+  const porPersona = new Map<string, FiadoDeLaPersona>();
+  if (desde === null) return porPersona;   // sin saldo inicial no hay mercadería que contar
+  const dePersona = (id: string) => porPersona.get(id) ?? porPersona.set(id, { ventas: [], pagos: [] }).get(id)!;
+  const [ventas, pagos] = await Promise.all([
+    fetchAll<{ personal_id: string; fecha: string; movimiento_items: { subtotal: number | string | null }[] | null }>((d, h) => {
+      let q = tabla(admin, "movimientos").select("id, personal_id, fecha, movimiento_items(subtotal)", { count: "exact" })
+        .eq("tipo", "venta").eq("canal", "cuenta_corriente").is("anulado_en", null).not("personal_id", "is", null).gte("fecha", desde);
+      if (personaId) q = q.eq("personal_id", personaId);
+      return q.order("id").range(d, h);
+    }),
+    fetchAll<{ personal_id: string; fecha: string; monto: number | string }>((d, h) => {
+      let q = tabla(admin, "cta_corriente_pagos").select("id, personal_id, fecha, monto", { count: "exact" }).not("personal_id", "is", null).gte("fecha", desde);
+      if (personaId) q = q.eq("personal_id", personaId);
+      return q.order("id").range(d, h);
+    }),
+  ]);
+  for (const v of ventas) dePersona(v.personal_id).ventas.push({ fecha: String(v.fecha).slice(0, 10), monto: (v.movimiento_items ?? []).reduce((t, i) => t + Number(i.subtotal ?? 0), 0) });
+  for (const p of pagos) dePersona(p.personal_id).pagos.push({ fecha: String(p.fecha).slice(0, 10), monto: Number(p.monto) });
+  return porPersona;
+}
+
+// La fecha más vieja desde la que hay que leer el fiado: el saldo inicial más antiguo o, si es más viejo, el arranque de Tesorería.
+const desdeMasViejo = (movs: MovimientoPersona[], desdeTesoreria: string | null) =>
+  [...movs.filter((m) => m.tipo === "saldo_inicial").map((m) => m.fecha), ...(desdeTesoreria ? [desdeTesoreria] : [])].sort()[0] ?? null;
+
 // Los socios (aunque no tengan movimientos) y cualquier otra persona que tenga algo en su cuenta.
 // `tolerarSinTabla`: el Resumen no se rompe si la migración 129 todavía no está aplicada (sin personas).
-export async function cargarCuentasPersonas(admin: Admin, tolerarSinTabla = false): Promise<PersonaConCuenta[]> {
+// `desdeTesoreria`: arranque de Tesorería; sin saldo inicial, la mercadería de cada persona cuenta desde ahí.
+export async function cargarCuentasPersonas(admin: Admin, tolerarSinTabla = false, desdeTesoreria: string | null = null): Promise<PersonaConCuenta[]> {
   let filas: Record<string, unknown>[];
   try {
     filas = await fetchAll<Record<string, unknown>>((d, h) =>
@@ -40,10 +70,12 @@ export async function cargarCuentasPersonas(admin: Admin, tolerarSinTabla = fals
   const porPersona = new Map<string, MovimientoPersona[]>();
   for (const m of movimientos) porPersona.set(m.persona_id, [...(porPersona.get(m.persona_id) ?? []), m]);
 
+  // Cualquier persona con fiado desde el arranque también tiene cuenta, aunque nunca se le haya cargado un movimiento.
+  const fiado = await cargarFiadoPorPersona(admin, desdeMasViejo(movimientos, desdeTesoreria));
   const { data: socios, error } = await admin.from("profiles").select("id, full_name").eq("es_socio", true);
   if (error) throw new Error(error.message);
-  const ids = new Set<string>([...(socios ?? []).map((s) => s.id), ...porPersona.keys()]);
-  const otros = [...porPersona.keys()].filter((id) => !(socios ?? []).some((s) => s.id === id));
+  const ids = new Set<string>([...(socios ?? []).map((s) => s.id), ...porPersona.keys(), ...fiado.keys()]);
+  const otros = [...ids].filter((id) => !(socios ?? []).some((s) => s.id === id));
   const nombres = new Map<string, string>((socios ?? []).map((s) => [s.id, s.full_name?.trim() || "Sin nombre"]));
   if (otros.length > 0) {
     const { data, error: e2 } = await admin.from("profiles").select("id, full_name").in("id", otros);
@@ -54,7 +86,7 @@ export async function cargarCuentasPersonas(admin: Admin, tolerarSinTabla = fals
 
   return [...ids].map((id) => {
     const movs = (porPersona.get(id) ?? []).sort((a, b) => (a.fecha === b.fecha ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha)));
-    return { id, nombre: nombres.get(id) ?? "Sin nombre", esSocio: sociosIds.has(id), cuenta: calcularCuentaPersona(movs), movimientos: movs };
+    return { id, nombre: nombres.get(id) ?? "Sin nombre", esSocio: sociosIds.has(id), cuenta: calcularCuentaPersona(movs, fiado.get(id), desdeTesoreria), movimientos: movs };
   }).sort((a, b) => Number(b.esSocio) - Number(a.esSocio) || a.nombre.localeCompare(b.nombre, "es"));
 }
 
@@ -78,7 +110,7 @@ export async function cargarFlujosPersonas(
 }
 
 // La cuenta de una sola persona (para su ficha). `null` si la migración 129 todavía no está aplicada o la persona no existe.
-export async function cargarCuentaDePersona(admin: Admin, personaId: string): Promise<PersonaConCuenta | null> {
+export async function cargarCuentaDePersona(admin: Admin, personaId: string, desdeTesoreria: string | null = null): Promise<PersonaConCuenta | null> {
   let filas: Record<string, unknown>[];
   try {
     filas = await fetchAll<Record<string, unknown>>((d, h) =>
@@ -96,5 +128,6 @@ export async function cargarCuentaDePersona(admin: Admin, personaId: string): Pr
     origen: (f.origen as OrigenPersona | null) ?? null, nota: (f.nota as string | null) ?? null,
     created_at: String(f.created_at), created_by: (f.created_by as string | null) ?? null,
   })).sort((a, b) => (a.fecha === b.fecha ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha)));
-  return { id: perfil.id, nombre: perfil.full_name?.trim() || "Sin nombre", esSocio: !!perfil.es_socio, cuenta: calcularCuentaPersona(movs), movimientos: movs };
+  const fiado = await cargarFiadoPorPersona(admin, desdeMasViejo(movs, desdeTesoreria), personaId);
+  return { id: perfil.id, nombre: perfil.full_name?.trim() || "Sin nombre", esSocio: !!perfil.es_socio, cuenta: calcularCuentaPersona(movs, fiado.get(personaId), desdeTesoreria), movimientos: movs };
 }

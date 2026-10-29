@@ -1,6 +1,11 @@
 // Cuenta corriente de una persona con la empresa (migración 129). Funciones puras: reciben filas ya leídas.
 //
-//     debe = saldo inicial + adelantos − reposiciones − descuentos de sueldo
+//     debe = saldo inicial + adelantos + mercadería retirada − reposiciones − descuentos de sueldo − pagos hechos en el kiosco
+//
+// La MERCADERÍA es el fiado del personal en los kioscos (ventas con canal «cuenta_corriente», a precio de venta): no se copia a esta tabla,
+// se lee de las ventas y se trata como un adelanto de sueldo. El kiosco sigue vendiendo fiado igual que siempre. Los pagos se registran acá
+// (reposición) y no tocan la caja de ningún kiosco; un pago que igual se haya cargado en la Cta. Corriente del kiosco también resta.
+// Sin saldo inicial la mercadería cuenta desde el arranque de Tesorería (lo anterior está cerrado); el saldo inicial es solo para una deuda previa.
 //
 // Solo cuentan los movimientos desde el día del saldo inicial en adelante (el saldo inicial ya trae todo lo anterior).
 // Un saldo negativo es plata a favor de la persona (repuso de más).
@@ -34,28 +39,39 @@ export interface MovimientoPersona {
 }
 
 export interface CuentaPersona {
-  desde:         string | null;   // fecha del saldo inicial (null = sin saldo inicial: cuenta todo)
+  desde:         string | null;   // fecha del saldo inicial (null = sin saldo inicial)
   saldoInicial:  number;
   adelantos:     number;
+  mercaderia:    number;          // fiado del kiosco desde el saldo inicial, a precio de venta
   reposiciones:  number;
   descuentos:    number;
-  debe:          number;          // saldoInicial + adelantos − reposiciones − descuentos (negativo = a favor de la persona)
+  pagosKiosco:   number;          // pagos de Cta. Corriente cargados en el kiosco desde el saldo inicial
+  debe:          number;          // saldoInicial + adelantos + mercadería − reposiciones − descuentos − pagosKiosco (negativo = a favor de la persona)
 }
 
-export function calcularCuentaPersona(movimientos: MovimientoPersona[]): CuentaPersona {
+// Lo que la persona compró fiado y lo que pagó en el kiosco, con su fecha (AAAA-MM-DD) y en pesos.
+export interface FiadoDeLaPersona { ventas: { fecha: string; monto: number }[]; pagos: { fecha: string; monto: number }[] }
+
+// `desdeTesoreria`: arranque de Tesorería; sin saldo inicial la mercadería y los pagos del kiosco cuentan desde ahí.
+export function calcularCuentaPersona(movimientos: MovimientoPersona[], fiado?: FiadoDeLaPersona, desdeTesoreria: string | null = null): CuentaPersona {
   const inicial = movimientos.find((m) => m.tipo === "saldo_inicial") ?? null;
   const desde = inicial?.fecha ?? null;
   const suma = (tipo: TipoMovimientoPersona) =>
     movimientos.filter((m) => m.tipo === tipo && (desde === null || m.fecha >= desde)).reduce((s, m) => s + m.monto, 0);
   const saldoInicial = inicial?.monto ?? 0;
   const adelantos = suma("adelanto"), reposiciones = suma("reposicion"), descuentos = suma("descuento_sueldo");
+  const desdeFiado = desde ?? desdeTesoreria;
+  const desdeEl = (xs: { fecha: string; monto: number }[]) => desdeFiado === null ? 0 : xs.filter((x) => x.fecha >= desdeFiado).reduce((t, x) => t + x.monto, 0);
+  const mercaderia = desdeEl(fiado?.ventas ?? []), pagosKiosco = desdeEl(fiado?.pagos ?? []);
   return {
     desde,
     saldoInicial: redondearMoneda(saldoInicial),
     adelantos:    redondearMoneda(adelantos),
+    mercaderia:   redondearMoneda(mercaderia),
     reposiciones: redondearMoneda(reposiciones),
     descuentos:   redondearMoneda(descuentos),
-    debe:         redondearMoneda(saldoInicial + adelantos - reposiciones - descuentos),
+    pagosKiosco:  redondearMoneda(pagosKiosco),
+    debe:         redondearMoneda(saldoInicial + adelantos + mercaderia - reposiciones - descuentos - pagosKiosco),
   };
 }
 

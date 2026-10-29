@@ -112,7 +112,7 @@ export default async function TesoreriaPage({
         cargarCuentaMp(admin, true),
         cargarLiquidacionesPeyaSiExiste(admin),
         cargarFlujosPersonas(admin, "efectivo_tesoreria", config.fecha_inicio),
-        cargarCuentasPersonas(admin, true),
+        cargarCuentasPersonas(admin, true, config.fecha_inicio),
       ]);
       const alertas = construirAlertas(await cargarEntradaAlertas(admin, fechaHoyAR(), liquidacionesPeya));
       const nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]));
@@ -255,7 +255,7 @@ export default async function TesoreriaPage({
   let personasError = "";
   if (vista === "personas") {
     try {
-      personas = { personas: await cargarCuentasPersonas(admin) };
+      personas = { personas: await cargarCuentasPersonas(admin, false, datos.config.fecha_inicio) };
     } catch (e) {
       personasError = e instanceof Error ? e.message : String(e);
     }

@@ -31,7 +31,7 @@ function Linea({ texto, valor, fuerte = false }: { texto: string; valor: number;
 const AYUDA: Record<TipoMovimientoPersona, string> = {
   saldo_inicial:    "Lo que ya debía reponer al comenzar ese día. Se carga una sola vez y no mueve ninguna cuenta.",
   adelanto:         "Plata que se llevó. Si sale del efectivo de Tesorería o de Mercado Pago, baja ese saldo; por transferencia no toca ninguna cuenta.",
-  reposicion:       "Plata que devolvió. Si entra al efectivo de Tesorería o a Mercado Pago, sube ese saldo; por transferencia no toca ninguna cuenta.",
+  reposicion:       "Plata que devolvió, de adelantos o de mercadería: así se paga la cuenta desde Tesorería, sin tocar la caja de ningún kiosco. Si entra al efectivo de Tesorería o a Mercado Pago, sube ese saldo; por transferencia no toca ninguna cuenta.",
   descuento_sueldo: "Lo que se le descontó del sueldo (el sueldo se carga por el monto final que se pagó). Baja lo que debe y no mueve ninguna cuenta.",
 };
 
@@ -163,12 +163,19 @@ export function TarjetaPersona({ persona, puedeCargar, conFicha = true }: { pers
 
       <ul className="space-y-1.5">
         {!sinSaldoInicial && <Linea texto={`Saldo inicial (al comenzar el ${dma(cuenta.desde as string)})`} valor={cuenta.saldoInicial} />}
-        <Linea texto="+ Adelantos" valor={cuenta.adelantos} />
-        <Linea texto="− Reposiciones" valor={cuenta.reposiciones} />
+        <Linea texto="+ Adelantos de plata" valor={cuenta.adelantos} />
+        <Linea texto="+ Mercadería retirada (fiado del kiosco, a precio de venta)" valor={cuenta.mercaderia} />
+        <Linea texto="− Reposiciones (pagos)" valor={cuenta.reposiciones} />
         <Linea texto="− Descuentos de sueldo" valor={cuenta.descuentos} />
+        {cuenta.pagosKiosco > 0 && <Linea texto="− Pagos cargados en la Cta. Corriente del kiosco" valor={cuenta.pagosKiosco} />}
         <Linea texto={cuenta.debe < 0 ? "= A favor de la persona" : "= Debe reponer"} valor={Math.abs(cuenta.debe)} fuerte />
       </ul>
 
+      {sinSaldoInicial && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Sin saldo inicial: cuenta solo lo que pase desde el arranque de Tesorería. Si ya debía algo de antes, cargalo como saldo inicial.
+        </p>
+      )}
       {puedeCargar && !form && (
         <div className="flex gap-2 flex-wrap">
           {botones.map((t) => (
@@ -200,11 +207,11 @@ export function PersonasView({ data, puedeCargar }: { data: PersonasData; puedeC
         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Falta reponer</p>
         <p className="text-2xl font-bold font-display tabular-nums text-neutral-900">{AR.format(deben)}</p>
         <p className="text-xs text-neutral-500 mt-0.5">
-          Lo que los socios se adelantaron y todavía no repusieron (devolviendo la plata o con un descuento de sueldo). Es informativo: no entra en «Tengo menos debo».
+          Lo que las personas le deben a la empresa: adelantos de plata y mercadería retirada, que todavía no repusieron (pagando o con un descuento de sueldo). Es informativo: no entra en «Tengo menos debo».
         </p>
       </div>
       {personas.length === 0 ? (
-        <p className="text-sm text-neutral-500">No hay socios marcados. Se marcan en Staff.</p>
+        <p className="text-sm text-neutral-500">No hay socios marcados ni personas con cuenta. Los socios se marcan en Staff.</p>
       ) : (
         personas.map((p) => <TarjetaPersona key={p.id} persona={p} puedeCargar={puedeCargar} />)
       )}

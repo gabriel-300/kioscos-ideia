@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
 import { permisosTesoreria } from "@/lib/tesoreria/permisos";
-import { cargarFichaPersonal, cargarFiadoPersona, esTablaFichaFaltante } from "@/lib/personal/ficha-consultas";
+import { cargarFichaPersonal, esTablaFichaFaltante } from "@/lib/personal/ficha-consultas";
 import { cargarCuentaDePersona } from "@/lib/tesoreria/persona-cuenta-consultas";
+import { cargarConfig } from "@/lib/tesoreria/consultas";
 import { FichaForm } from "../_components/ficha-form";
 import { TarjetaPersona } from "../../tesoreria/_components/personas-view";
 
@@ -40,9 +41,9 @@ export default async function FichaPersonalPage({ params }: { params: Promise<{ 
     const msg = e instanceof Error ? e.message : String(e);
     fichaError = esTablaFichaFaltante(msg) ? "Falta aplicar la migración 130 (carpeta supabase/migrations) en el SQL Editor de Supabase." : msg;
   }
-  const [cuenta, fiado] = await Promise.all([cargarCuentaDePersona(admin, id), cargarFiadoPersona(admin, id)]);
-  const debeAdelantos = cuenta ? Math.max(0, cuenta.cuenta.debe) : 0;
-  const debeFiado = Math.max(0, fiado.saldo);
+  const config = await cargarConfig(admin);
+  const cuenta = await cargarCuentaDePersona(admin, id, config?.fecha_inicio ?? null);
+  const debe = cuenta ? cuenta.cuenta.debe : 0;
 
   return (
     <div className="p-4 md:p-8 max-w-5xl space-y-6">
@@ -58,17 +59,11 @@ export default async function FichaPersonalPage({ params }: { params: Promise<{ 
 
       <section className="space-y-3" aria-label="Cuentas con la empresa">
         <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">Debe a la empresa en total</p>
-          <p className={`text-2xl font-bold font-display tabular-nums ${debeAdelantos + debeFiado > 0 ? "text-red-700" : "text-neutral-700"}`}>{AR.format(debeAdelantos + debeFiado)}</p>
-          <ul className="text-xs text-neutral-500 mt-1 space-y-0.5">
-            <li>Adelantos y retiros de plata (cuenta de Tesorería): <b>{AR.format(debeAdelantos)}</b></li>
-            <li>
-              Compras fiadas en los kioscos (Cta. Corriente): <b>{AR.format(debeFiado)}</b>
-              {fiado.ventas > 0 && <> · {fiado.ventas} {fiado.ventas === 1 ? "venta" : "ventas"}, {AR.format(fiado.vendido)} comprado y {AR.format(fiado.pagado)} pagado</>}
-            </li>
-          </ul>
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-1">{debe < 0 ? "A favor de la persona" : "Debe a la empresa"}</p>
+          <p className={`text-2xl font-bold font-display tabular-nums ${debe > 0 ? "text-red-700" : debe < 0 ? "text-selva-700" : "text-neutral-700"}`}>{AR.format(Math.abs(debe))}</p>
           <p className="text-xs text-neutral-400 mt-2">
-            Son dos cuentas distintas que se suman acá. Hoy el descuento de sueldo se anota a mano en cada una; la liquidación automática del sueldo viene en la etapa siguiente.
+            Una sola cuenta: adelantos de plata y mercadería retirada (el fiado del kiosco, a precio de venta, se toma como un adelanto de sueldo). Se paga desde acá con
+            una reposición, sin tocar la caja de ningún kiosco. El descuento de sueldo se anota todavía a mano; la liquidación automática viene en la etapa siguiente.
           </p>
         </div>
         {cuenta ? (

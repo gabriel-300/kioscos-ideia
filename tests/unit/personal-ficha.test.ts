@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeAdmin, type Q } from "../helpers/fake-supabase";
 import { FICHA_VACIA, cambiosDeFicha, faltantesDeFicha, normalizarCbuAlias, validarFichaPersonal, type FichaPersonal } from "@/lib/personal/ficha";
-import { cargarFiadoPersona } from "@/lib/personal/ficha-consultas";
 
 const h = vi.hoisted(() => ({ permisos: null as unknown, admin: null as unknown }));
 
@@ -87,22 +86,6 @@ describe("faltantesDeFicha", () => {
   it("si está registrada pide además lo del alta", () => {
     const f = faltantesDeFicha({ ...FICHA_VACIA, registro: "registrado" });
     expect(f).toEqual(expect.arrayContaining(["fecha de alta registrada", "convenio", "categoría", "sueldo en recibo"]));
-  });
-});
-
-describe("cargarFiadoPersona", () => {
-  it("suma lo comprado fiado (sin anuladas) y resta lo pagado", async () => {
-    const f = fakeAdmin((q: Q) => {
-      if (q.table === "movimientos") return { data: [{ movimiento_items: [{ subtotal: "1000" }, { subtotal: "500" }] }, { movimiento_items: [{ subtotal: 2500 }] }] };
-      if (q.table === "cta_corriente_pagos") return { data: [{ monto: "1200" }] };
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(await cargarFiadoPersona(f.admin as any, PERSONA)).toEqual({ vendido: 4000, pagado: 1200, saldo: 2800, ventas: 2 });
-    const q = f.calls.find((c) => c.table === "movimientos")!;
-    expect(q.filters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ op: "eq", col: "canal", val: "cuenta_corriente" }),
-      expect.objectContaining({ op: "is", col: "anulado_en" }),
-    ]));
   });
 });
 

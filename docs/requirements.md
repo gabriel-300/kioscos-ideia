@@ -203,8 +203,11 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
     / adónde entró la plata: con «efectivo de Tesorería» o «Mercado Pago» bajan o suben ese saldo; con «transferencia» no tocan ninguna cuenta (no
     se llevan bancos). El **descuento de sueldo** resta de lo que debe y **no mueve plata**: el sueldo se carga por el monto final que se pagó.
     Nada se borra: un error se anula con motivo, y cada movimiento queda en el Historial. Lo que falta reponer figura en el Resumen como dato
-    informativo (no resta en «Tengo menos debo»). Hoy la pantalla lista a los socios (Staff → es socio); la tabla ya admite a cualquier persona,
-    para sumar al personal (adelantos de sueldo, retiro de mercadería) en una etapa siguiente. Javier Acuña arranca debiendo $4.476.000 al 27/10/2026.
+    informativo (no resta en «Tengo menos debo»). La cuenta es **una sola para socios y personal** (solapa «Socios y personal»): el **retiro de mercadería del personal es el fiado del kiosco** (ventas con canal
+    «cuenta_corriente», **a precio de venta**) y se toma como un adelanto de sueldo. El kiosco sigue vendiendo fiado igual; en Tesorería la mercadería se lee de las ventas
+    (no se copia) y suma a lo que debe desde el saldo inicial de la persona o, si no tiene, desde el arranque de Tesorería. **Se paga desde Tesorería** con una
+    reposición y **nunca toca la caja de ningún kiosco**; un pago que igual se cargue en la Cta. Corriente del kiosco también resta. El saldo inicial del personal es solo
+    la deuda anterior (octubre hasta el 26/10; septiembre ya está cancelado). Javier Acuña arranca debiendo $4.476.000 al 27/10/2026.
   - **Cobros de Mercado Pago** (solapa «Cobros MP», migración 105): el administrativo sube el Excel de cobros del panel de MP. El archivo
     se abre en el navegador y al servidor solo viajan importes, fechas y nº de operación (nunca nombres ni documentos de clientes).
     Cada cobro se ata a su local por la caja (`sucursales.mercadopago_pos_id` = external_id de la caja), la comisión de MP queda
@@ -362,9 +365,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   media, horas, convenio, categoría, obra social) y de pago (sueldo acordado y la parte en recibo, día de pago, forma de pago, CBU o alias,
   tope de descuento mensual). **Todo es opcional**: la pantalla solo avisa qué falta para poder liquidar y pagar. Ve cualquier administrador;
   **carga solo el administrativo de Tesorería** (trae sueldo, CUIL y CBU). Cada cambio queda en el Historial de Tesorería con **qué campos**
-  cambiaron, no con sus valores. En la misma pantalla se ve lo que la persona le debe a la empresa en total: sus adelantos (cuenta de la solapa
-  Socios de Tesorería, donde también se cargan) más lo que compró fiado en los kioscos (Cta. Corriente); son dos cuentas que se suman acá, y el
-  descuento de sueldo se anota todavía a mano en cada una. Pendiente: documentos escaneados (DNI, alta, contrato) y la liquidación automática del sueldo.
+  cambiaron, no con sus valores. En la misma pantalla se ve la cuenta única de la persona (adelantos y mercadería retirada, ver «Cuenta de los socios»), donde también se
+  cargan los pagos; el descuento de sueldo se anota todavía a mano. Pendiente: documentos escaneados (DNI, alta, contrato) y la liquidación automática del sueldo.
 - **Estado**: **Funcionando**. El alta pública (`/api/auth/registro`) quedó deshabilitada.
 
 ---

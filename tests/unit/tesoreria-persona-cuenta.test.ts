@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeAdmin, type Q } from "../helpers/fake-supabase";
 import { calcularCuentaPersona, validarMovimientoPersona, type MovimientoPersona } from "@/lib/tesoreria/persona-cuenta";
 import { calcularSaldoMp, type MovimientoMp } from "@/lib/tesoreria/cuenta-mp";
-import { cargarFlujosPersonas } from "@/lib/tesoreria/persona-cuenta-consultas";
+import { cargarFiadoPorPersona, cargarFlujosPersonas } from "@/lib/tesoreria/persona-cuenta-consultas";
 
 const h = vi.hoisted(() => ({ permisos: null as unknown, admin: null as unknown }));
 
@@ -26,7 +26,7 @@ describe("calcularCuentaPersona", () => {
       mov({ tipo: "reposicion", fecha: "2026-11-05", monto: 1000000, origen: "transferencia" }),
       mov({ tipo: "descuento_sueldo", fecha: "2026-11-10", monto: 200000 }),
     ]);
-    expect(c).toEqual({ desde: "2026-10-27", saldoInicial: 4476000, adelantos: 300000, reposiciones: 1000000, descuentos: 200000, debe: 3576000 });
+    expect(c).toEqual({ desde: "2026-10-27", saldoInicial: 4476000, adelantos: 300000, mercaderia: 0, reposiciones: 1000000, descuentos: 200000, pagosKiosco: 0, debe: 3576000 });
   });
 
   it("lo anterior al saldo inicial no suma ni resta (el saldo inicial ya lo trae)", () => {
@@ -43,6 +43,61 @@ describe("calcularCuentaPersona", () => {
       mov({ tipo: "saldo_inicial", fecha: "2026-10-27", monto: 100 }),
       mov({ tipo: "reposicion", fecha: "2026-11-01", monto: 150, origen: "efectivo_tesoreria" }),
     ]).debe).toBe(-50);
+  });
+});
+
+describe("mercadería retirada (fiado del kiosco) dentro de la cuenta", () => {
+  const inicial = mov({ tipo: "saldo_inicial", fecha: "2026-10-27", monto: 108700 });
+
+  it("la mercadería suma como un adelanto y un pago en Tesorería la baja, sin tocar lo anterior al saldo inicial", () => {
+    const c = calcularCuentaPersona(
+      [inicial, mov({ tipo: "reposicion", fecha: "2026-11-02", monto: 50000, origen: "efectivo_tesoreria" })],
+      { ventas: [{ fecha: "2026-10-20", monto: 9999 }, { fecha: "2026-10-28", monto: 12000 }, { fecha: "2026-11-01", monto: 8000 }], pagos: [] },
+    );
+    expect(c).toMatchObject({ saldoInicial: 108700, mercaderia: 20000, reposiciones: 50000, debe: 78700 });
+  });
+
+  it("un pago que igual se cargó en la Cta. Corriente del kiosco también resta, y el descuento de sueldo baja la deuda", () => {
+    const c = calcularCuentaPersona(
+      [inicial, mov({ tipo: "descuento_sueldo", fecha: "2026-11-05", monto: 100000 })],
+      { ventas: [{ fecha: "2026-11-01", monto: 30000 }], pagos: [{ fecha: "2026-09-30", monto: 700 }, { fecha: "2026-11-03", monto: 5000 }] },
+    );
+    expect(c).toMatchObject({ mercaderia: 30000, pagosKiosco: 5000, debe: 108700 + 30000 - 100000 - 5000 });
+  });
+
+  it("sin saldo inicial la mercadería cuenta desde el arranque de Tesorería y no antes", () => {
+    const fiado = { ventas: [{ fecha: "2026-10-20", monto: 5000 }, { fecha: "2026-10-28", monto: 12000 }], pagos: [] };
+    expect(calcularCuentaPersona([], fiado, "2026-10-27")).toMatchObject({ desde: null, mercaderia: 12000, debe: 12000 });
+    expect(calcularCuentaPersona([], fiado)).toMatchObject({ mercaderia: 0, debe: 0 });   // sin arranque conocido no inventa nada
+  });
+});
+
+describe("cargarFiadoPorPersona", () => {
+  it("agrupa por persona lo fiado (sin anuladas, a precio de venta) y los pagos, desde la fecha pedida", async () => {
+    const f = fakeAdmin((q: Q) => {
+      if (q.table === "movimientos") return { data: [
+        { personal_id: "a", fecha: "2026-10-28", movimiento_items: [{ subtotal: "1000" }, { subtotal: 500 }] },
+        { personal_id: "b", fecha: "2026-11-01", movimiento_items: [{ subtotal: 2500 }] },
+      ] };
+      if (q.table === "cta_corriente_pagos") return { data: [{ personal_id: "a", fecha: "2026-11-02", monto: "300" }] };
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = await cargarFiadoPorPersona(f.admin as any, "2026-10-27");
+    expect(r.get("a")).toEqual({ ventas: [{ fecha: "2026-10-28", monto: 1500 }], pagos: [{ fecha: "2026-11-02", monto: 300 }] });
+    expect(r.get("b")).toEqual({ ventas: [{ fecha: "2026-11-01", monto: 2500 }], pagos: [] });
+    const q = f.calls.find((c) => c.table === "movimientos")!;
+    expect(q.filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ op: "eq", col: "canal", val: "cuenta_corriente" }),
+      expect.objectContaining({ op: "is", col: "anulado_en" }),
+      expect.objectContaining({ op: "gte", col: "fecha", val: "2026-10-27" }),
+    ]));
+  });
+
+  it("sin saldo inicial no consulta nada", async () => {
+    const f = fakeAdmin(() => ({ data: [] }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((await cargarFiadoPorPersona(f.admin as any, null)).size).toBe(0);
+    expect(f.calls).toEqual([]);
   });
 });
 

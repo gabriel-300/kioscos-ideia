@@ -522,7 +522,9 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   origen `efectivo_tesoreria` entran en `efectivoDeTesoreria` (parámetros `adelantos` y `reposiciones`, desde `fecha_inicio`) y los de `mercadopago` en
   `calcularSaldoMp` (los adelantos como `pagos`, las reposiciones como `ingresos`, desde el saldo inicial de MP); cada lectura tolera que la tabla no
   exista. Trampa: `cierres_caja` de turnos anteriores al arranque cuyo sobre se retiró después **no** suman al efectivo (`cargarSobresRetirados` filtra por la
-  fecha del turno), porque el efectivo inicial ya los trae. El descuento de sueldo no mueve ninguna cuenta. Escribe solo el servidor
+  fecha del turno), porque el efectivo inicial ya los trae. **Mercadería del personal**: el fiado del kiosco (`movimientos` canal `cuenta_corriente`, sin anuladas, suma de `movimiento_items.subtotal` = precio de venta) se **lee**, no se copia
+  a `persona_cuenta` (`cargarFiadoPorPersona`); `calcularCuentaPersona(movs, fiado, desdeTesoreria)` lo suma desde el saldo inicial de la persona o, sin él, desde `tesoreria_config.fecha_inicio`,
+  y resta los `cta_corriente_pagos` del mismo período. Un pago en Tesorería (reposición) no escribe en `cta_corriente_pagos`, así que no toca `cerrar_caja` ni la caja de ningún kiosco. El descuento de sueldo no mueve ninguna cuenta. Escribe solo el servidor
   (`persona-actions.ts`, mismo patrón que `cuentas-actions.ts`) y deja rastro en el Historial (5 acciones nuevas en el CHECK).
 - **Ficha del personal** (`personal_ficha`, migración 130; pantalla `/admin/staff/[id]`): tabla 1 a 1 con `profiles` (no se amplió `profiles`: tiene columnas
   protegidas y se lee desde los kioscos, y estos datos son sensibles). Todo opcional. `lib/personal/ficha.ts` es puro y con tests (`validarFichaPersonal`,
@@ -530,7 +532,7 @@ socios ven todo pero no cargan. Alcance: solo los locales con `sucursales.entra_
   (`movimientos` canal `cuenta_corriente` menos `cta_corriente_pagos`, la misma cuenta de Sucursal → Cta. Corriente sumada entre kioscos). Escribe solo el servidor
   (`staff/ficha-actions.ts`, cargar = administrativo de Tesorería) y deja en el Historial la acción `persona_ficha` con los **nombres** de los campos que cambiaron, nunca
   sus valores (sueldo, CUIL, CBU). Trampa: los campos del formulario son funciones que devuelven JSX, no componentes definidos dentro del render (se remontarían en cada
-  tecla y perderían el foco). La pantalla muestra además la tarjeta de la cuenta de adelantos (`TarjetaPersona`, la misma de la solapa Socios).
+  tecla y perderían el foco). La pantalla muestra además la cuenta única de la persona (`TarjetaPersona`, la misma de la solapa «Socios y personal»).
 - **Cuenta corriente de proveedores** (`proveedor_cuenta`, migración 106; solapa «Proveedores»): una sola tabla con `tipo` =
   `saldo_inicial` (único vigente por proveedor y local, índice parcial) o `pago` (con `origen`, nunca `retiro_caja`). Las compras
   siguen siendo `egresos`; **no se muta ninguna compra al pagar**: el saldo es `saldo inicial + compras no pagadas − pagos`

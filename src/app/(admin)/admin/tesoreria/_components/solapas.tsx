@@ -13,7 +13,7 @@ const SOLAPAS: { id: SolapaTesoreria; etiqueta: string; href: string; soloAdmin?
   { id: "para-registrar",  etiqueta: "Para registrar",  href: "/admin/tesoreria?vista=para-registrar" },
   { id: "egresos",         etiqueta: "Egresos",         href: "/admin/tesoreria?vista=egresos" },
   { id: "proveedores",     etiqueta: "Proveedores",     href: "/admin/tesoreria?vista=proveedores" },
-  { id: "personas",        etiqueta: "Socios",          href: "/admin/tesoreria?vista=personas" },
+  { id: "personas",        etiqueta: "Socios y personal", href: "/admin/tesoreria?vista=personas" },
   { id: "fijos",           etiqueta: "Obligaciones",    href: "/admin/tesoreria?vista=fijos" },
   { id: "cierres",         etiqueta: "Cierres de caja", href: "/admin/cierres", soloAdmin: true },
   { id: "mercadopago",     etiqueta: "Cobros MP",       href: "/admin/tesoreria?vista=mercadopago" },
