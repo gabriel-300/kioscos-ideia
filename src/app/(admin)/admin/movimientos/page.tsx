@@ -1,3 +1,4 @@
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -51,9 +52,7 @@ export default async function MovimientosPage() {
     // adentro, no viene fija por URL como en /admin/sucursales/[id], así que
     // necesita el costo de TODAS para poder resolverlo recién cuando el
     // usuario elige una.
-    admin.from("product_prices").select("product_id, sucursal_id, costo") as unknown as Promise<{
-      data: { product_id: string; sucursal_id: string; costo: number }[] | null;
-    }>,
+    todosLosPrecios<{ product_id: string; sucursal_id: string; costo: number }>(admin, "product_id, sucursal_id, costo").then((data) => ({ data })),
     // Para poder registrar merma de un combo/receta (ej. una porción de pizza)
     // -- se expande server-side en sus componentes, no necesita más que esto acá.
     (admin as any)

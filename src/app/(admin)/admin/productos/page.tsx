@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -23,12 +24,11 @@ export default async function ProductosPage() {
   let qProductos = (admin as any).from("products").select("*, category:categories(*)").order("name");
   let qSucursales = (admin as any).from("sucursales").select("id, nombre, catalogo_propio").eq("is_active", true).order("nombre");
   let qStock = (admin as any).from("stock_sucursal").select("product_id, sucursal_id, stock_actual").gt("stock_actual", 0);
-  let qPrecios = (admin as any).from("product_prices").select("product_id, sucursal_id, precio_dist, costo, punto_minimo, punto_pedido, punto_maximo");
+  const COLS_PRECIOS = "product_id, sucursal_id, precio_dist, costo, punto_minimo, punto_pedido, punto_maximo";
   if (dueno) {
     qProductos = qProductos.eq("owner_sucursal_id", dueno);
     qSucursales = qSucursales.eq("id", dueno);
     qStock = qStock.eq("sucursal_id", dueno);
-    qPrecios = qPrecios.eq("sucursal_id", dueno);
   }
 
   const [{ data: productsRaw }, { data: categories }, { data: sucursales }, { data: proveedores }, stockActivoRes, preciosRes] = await Promise.all([
@@ -39,9 +39,9 @@ export default async function ProductosPage() {
     qStock as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null;
       }>,
-    qPrecios as unknown as Promise<{
-      data: { product_id: string; sucursal_id: string; precio_dist: number; costo: number; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null }[] | null;
-    }>,
+    todosLosPrecios<{ product_id: string; sucursal_id: string; precio_dist: number; costo: number; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null }>(
+      admin as any, COLS_PRECIOS, dueno ? (q) => q.eq("sucursal_id", dueno) : undefined,
+    ).then((data) => ({ data })),
   ]);
 
   // El admin gestiona el catálogo de IDEIA: los productos propios de un local independiente (migración 131)

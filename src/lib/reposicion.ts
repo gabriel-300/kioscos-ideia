@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { diaSemanaHoyAR } from "@/lib/fecha";
 
 // Lógica compartida entre /admin/reposicion (pantalla) y
@@ -49,12 +50,10 @@ export async function obtenerItemsReposicion(
 
   const [{ data: sucursales }, { data: puntosRaw }, { data: stockRaw }, { data: proveedoresRaw }] = await Promise.all([
     admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
-    (admin as any)
-      .from("product_prices")
-      .select(`
-        product_id, sucursal_id, punto_minimo, punto_pedido, punto_maximo,
-        product:products(name, sku, category_id, unit_label, is_active, dias_entrega, dia_pedido, proveedor_id)
-      `) as unknown as Promise<{ data: PuntoRow[] | null }>,
+    todosLosPrecios<PuntoRow>(
+      admin as any,
+      "product_id, sucursal_id, punto_minimo, punto_pedido, punto_maximo, product:products(name, sku, category_id, unit_label, is_active, dias_entrega, dia_pedido, proveedor_id)",
+    ).then((data) => ({ data })),
     (admin as any)
       .from("stock_sucursal")
       .select("product_id, sucursal_id, stock_actual") as unknown as Promise<{

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { StockTable } from "./_components/stock-table";
@@ -145,11 +146,7 @@ export default async function StockPage() {
       .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{
         data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null;
       }>,
-    (admin as any)
-      .from("product_prices")
-      .select("sucursal_id, product_id, punto_minimo") as unknown as Promise<{
-        data: { sucursal_id: string; product_id: string; punto_minimo: number | null }[] | null;
-      }>,
+    todosLosPrecios<{ sucursal_id: string; product_id: string; punto_minimo: number | null }>(admin as any, "sucursal_id, product_id, punto_minimo").then((data) => ({ data })),
   ]);
 
   const matrixMap: Record<string, Record<string, number>> = {};

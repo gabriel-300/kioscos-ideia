@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -148,10 +149,10 @@ export default async function RotacionProductosPage({
     return rows;
   }
 
-  const [entregas, ventas, { data: preciosRaw }] = await Promise.all([
+  const [entregas, ventas, preciosRaw] = await Promise.all([
     fetchMovimientos("entrega"),
     fetchMovimientos("venta"),
-    admin.from("product_prices").select("sucursal_id, product_id, costo"),
+    todosLosPrecios<{ sucursal_id: string; product_id: string; costo: number }>(admin, "sucursal_id, product_id, costo"),
   ]);
   const costoMap = new Map((preciosRaw ?? []).map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
 

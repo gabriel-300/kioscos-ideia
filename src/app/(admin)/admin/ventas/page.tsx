@@ -1,3 +1,4 @@
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -115,7 +116,7 @@ export default async function VentasPage({
   // Costo por sucursal (migración 059) -- el costo de un producto depende de
   // en qué sucursal se vendió, así que se resuelve por (sucursal_id, product_id)
   // y no por producto solo.
-  const { data: preciosRaw } = await admin.from("product_prices").select("sucursal_id, product_id, costo");
+  const preciosRaw = await todosLosPrecios<{ sucursal_id: string; product_id: string; costo: number }>(admin, "sucursal_id, product_id, costo");
   const costoMap = new Map((preciosRaw ?? []).map((p) => [`${p.sucursal_id}:${p.product_id}`, p.costo]));
 
   // Agregación por producto -- funciona igual para líneas sueltas y componentes

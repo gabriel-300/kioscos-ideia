@@ -1,3 +1,4 @@
+import { todosLosPrecios } from "@/lib/supabase/paginar";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -211,11 +212,7 @@ export default async function DashboardPage() {
     // vendido con el MISMO precio al calcular rotación (ver más abajo:
     // comparar $ entregado a costo contra $ vendido a precio de público
     // inflaba la rotación por el margen, no por cuánto se movió el stock).
-    (admin as any)
-      .from("product_prices")
-      .select("product_id, sucursal_id, costo") as unknown as Promise<{
-        data: { product_id: string; sucursal_id: string; costo: number }[] | null;
-      }>,
+    todosLosPrecios<{ product_id: string; sucursal_id: string; costo: number }>(admin, "product_id, sucursal_id, costo").then((data) => ({ data })),
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };

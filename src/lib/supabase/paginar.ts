@@ -59,3 +59,20 @@ export async function fetchAll<T = any>(
   }
   throw new Error(`fetchAll: más de ${maxPaginas * tamano} filas, la consulta necesita otro enfoque (agregar en SQL)`);
 }
+
+/**
+ * TODAS las filas de product_prices (con el criterio de `filtro`, si se pasa). La tabla tiene una fila por
+ * producto y sucursal y ya supera las 1.000 filas que PostgREST devuelve de una: una lectura "sin más" deja
+ * afuera precios y costos al azar (productos que figuran sin precio, márgenes mal calculados).
+ */
+export function todosLosPrecios<T = any>(
+  db: { from: (t: string) => any },
+  columnas: string,
+  filtro?: (q: any) => any,
+): Promise<T[]> {
+  return fetchAll<T>((desde, hasta) => {
+    let q = db.from("product_prices").select(columnas, { count: "exact" });
+    if (filtro) q = filtro(q);
+    return q.order("id").range(desde, hasta);
+  });
+}
