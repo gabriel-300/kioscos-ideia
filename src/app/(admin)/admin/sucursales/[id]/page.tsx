@@ -342,7 +342,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // pagó (transferencia desde otro banco vs. desde su propia cuenta MP) --
   // se arma el mejor nombre disponible para que se pueda reconocer de quién
   // es cada transferencia sin tener que abrir la app del banco.
-  const pagosTransferenciaSinAsignar = (pagosTransferenciaSinAsignarResult.data ?? []).map((p) => {
+  // Esas transferencias son de la cuenta de Mercado Pago de IDEIA (una sola, global): un local independiente
+  // no las ve ni las puede vincular a sus ventas.
+  const pagosTransferenciaSinAsignar = (independiente ? [] : pagosTransferenciaSinAsignarResult.data ?? []).map((p) => {
     const payer = p.raw_payload?.payer ?? {};
     const nombre = [payer.first_name, payer.last_name].filter(Boolean).join(" ") || null;
     return {

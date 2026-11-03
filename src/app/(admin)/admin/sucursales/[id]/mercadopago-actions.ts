@@ -217,6 +217,10 @@ export async function vincularTransferenciaMercadoPago(data: {
   const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
   if (accesoError) return { error: accesoError };
 
+  // Las transferencias sin asignar son de la cuenta de Mercado Pago de IDEIA: un local independiente no las toca.
+  const { data: suc } = await (admin as any).from("sucursales").select("catalogo_propio").eq("id", data.sucursal_id).maybeSingle();
+  if (suc?.catalogo_propio) return { error: "Esta sucursal no usa la cuenta de Mercado Pago de IDEIA" };
+
   const { data: transferencia } = await (admin as any)
     .from("mercadopago_transferencias_recibidas")
     .select("movimiento_id, monto")
