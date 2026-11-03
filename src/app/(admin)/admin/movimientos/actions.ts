@@ -159,6 +159,23 @@ export async function crearMovimiento(data: {
   const promoInputs   = data.items.filter(esPromoItem);
   const productInputs = data.items.filter((i): i is ItemInput => !esPromoItem(i));
 
+  // Catálogo con dueño (migración 131): un producto o promo propio de otro local no se
+  // puede mover en esta sucursal (venta, entrega, merma, lo que sea), aunque alguien
+  // le pegue directo a la acción. Solo pasa lo global o lo de esta misma sucursal.
+  {
+    const prodIds  = [...new Set(productInputs.map((i) => i.product_id))];
+    const promoIds = [...new Set(promoInputs.map((i) => i.promo_id))];
+    const [prods, promos] = await Promise.all([
+      prodIds.length  ? (supabase as any).from("products").select("id, owner_sucursal_id").in("id", prodIds)  : { data: [], error: null },
+      promoIds.length ? (supabase as any).from("promos").select("id, owner_sucursal_id").in("id", promoIds) : { data: [], error: null },
+    ]);
+    if (prods.error || promos.error) return { movimiento_id: null, error: (prods.error ?? promos.error).message };
+    const ajeno = [...(prods.data ?? []), ...(promos.data ?? [])].some(
+      (r: { owner_sucursal_id: string | null }) => r.owner_sucursal_id != null && r.owner_sucursal_id !== data.sucursal_id
+    );
+    if (ajeno) return { movimiento_id: null, error: "Uno de los productos no está disponible en esta sucursal" };
+  }
+
   // El precio de cada línea NUNCA se confía del cliente -- se resuelve server-side
   // contra el precio real de catálogo. "Pedido Ya" permite un override manual (la
   // comisión de la app hace que el precio cobrado sea otro), pero SIEMPRE por

@@ -16,6 +16,7 @@ import { TraspasoCajaButton } from "./_components/traspaso-caja-button";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { fechaHoyAR, fmtHora } from "@/lib/fecha";
 import { fetchAll } from "@/lib/supabase/paginar";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 
 export const revalidate = 0;
 
@@ -110,8 +111,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // .neq("sku", "MULTA-TERMO"): producto de servicio ficticio para cobrar
     // multas de termo (ver 063_multa_alquiler_termo.sql) -- no se vende a
     // mano desde acá, se carga solo desde el cobro de multa.
-    (admin as any).from("products").select("*").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
-    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
+    // .or(filtroCatalogoDe): lo global + lo propio de ESTA sucursal (migración 131). Con el cliente admin no hay RLS.
+    (admin as any).from("products").select("*").eq("is_active", true).neq("sku", "MULTA-TERMO").or(filtroCatalogoDe(id)).order("name"),
+    (supabase as any).from("categories").select("id, name").eq("is_active", true).or(filtroCatalogoDe(id)).order("sort_order").order("name") as unknown as Promise<{ data: { id: string; name: string }[] | null }>,
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     // Admin client a propósito, mismo motivo que /admin/stock: stock_sucursal
     // hereda RLS de movimientos, y la regla "cada uno ve su turno" le esconde
@@ -149,6 +151,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .from("promos")
       .select("id, name, price, tipo, cover_image_url, category_id, requiere_termo, promo_items(product_id, cantidad)")
       .eq("is_active", true)
+      .or(filtroCatalogoDe(id))
       .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number | null; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
     // Precio y costo son por sucursal (ver migración 059) -- se resuelven acá,
     // antes de armar `products`, para que el resto de la página (venta rápida,

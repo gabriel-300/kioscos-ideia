@@ -69,7 +69,7 @@ lo importa ningún módulo.
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (aplicada y verificada el 2026-10-19) y `113_vencimiento_de_remitos.sql` (aplicada y verificada el 2026-10-19) y `114_plazo_de_pago_proveedor.sql` (aplicada y verificada el 2026-10-20) y `115_historial_costos_de_entrega.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella cargar los costos de una entrega avisa que no pudo anotarse en el historial) y `116_ficha_contable_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: el código lee las columnas nuevas de `proveedores` y sin ella fallan Tesorería y Catálogo → Proveedores); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
-  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**.
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**. `131_catalogo_con_dueno.sql` (catálogo con dueño, ver §4): escrita, **pendiente de aplicar a mano antes de publicar el código**.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
@@ -277,6 +277,31 @@ rol sintético "socio").
 - `encargado` y `concesionario`: una sola sucursal, la que tiene `sucursales.encargado_user_id = su id`.
 - `vendedor`: `profile_sucursales` (puede estar en varias, migración 082); `profiles.sucursal_id` es la sucursal activa.
 - `admin`: todas. `repartidor`: ninguna, solo su cola de entregas.
+
+**Catálogo con dueño (migración 131).** Un local independiente (otra persona, sus propios productos y costos, sin ver a los demás
+kioscos) usa el sistema completo como `concesionario` de una sucursal con `sucursales.catalogo_propio = true`. Villa Sarita
+(consignación, catálogo de IDEIA) queda en `false`: su rol no cambió.
+- **Dato**: `products`, `categories` y `promos` tienen `owner_sucursal_id` (NULL = catálogo global de IDEIA, como siempre).
+- **Cómo se aísla**: (1) la **venta ya exige una fila en `product_prices` para la sucursal**, y un producto propio tiene precio **solo**
+  en la sucursal de su dueño: ningún otro local puede venderlo. (2) `crearMovimiento` además rechaza cualquier producto/promo de
+  otro dueño (venta, entrega, merma…). (3) Las lecturas con el cliente admin (que no pasa por RLS) arman el catálogo de una sucursal con
+  `.or(filtroCatalogoDe(id))` (`src/lib/catalogo-dueno.ts`): **toda consulta nueva de productos/categorías/promos para una sucursal debe usarlo**.
+  (4) Las políticas RLS de lectura de esas tres tablas (y `promo_items`) usan `puede_ver_dueno(owner)`; `anon` solo ve lo global.
+  (5) Toda acción que reciba un `product_id` del cliente y escriba con el cliente admin llama a `validarProductosDeSucursal(admin, ids, sucursalId)`:
+  hoy precios por sucursal (`actualizarPrecioProducto`), transferencias de stock (se valida contra origen **y** destino: un producto propio no viaja
+  a otro local) y auditorías. Sin eso, ponerle precio en el propio local a un producto ajeno lo haría vendible.
+- **El catálogo global no se le impone al local independiente**: crear productos o promos globales exige precio solo en los kioscos de IDEIA
+  (se omiten las sucursales con `catalogo_propio`); el dueño elige qué productos globales vende y a qué precio/costo. Las pantallas de
+  Productos, Categorías y Promociones del admin muestran solo lo global; lo propio de cada dueño lo ve su dueño.
+- **Quién escribe**: `requireCatalogo()` (`src/lib/auth/catalogo-propio.ts`): admin = todo el catálogo; concesionario con `catalogo_propio` = solo
+  filas con su `owner_sucursal_id` (lo global y lo de otro local se rechazan en el servidor). Producto, categoría o promo propios solo pueden
+  colgar de categorías/productos globales o del mismo dueño. El slug de las categorías propias lleva un sufijo del dueño (el slug es único en toda la base).
+- **Personal propio**: `/admin/mi-personal` (rol sintético `dueno` en el menú): el dueño da de alta, suspende y cambia la contraseña de **sus vendedores**
+  (solo los que trabajan únicamente en su sucursal). No hay `encargado` aparte: `encargado_user_id` es uno solo y es el propio dueño.
+- **Qué NO cubre todavía**: proveedores (siguen globales y de admin), Tesorería, Historial de movimientos y Tenteo para ese local (se resolverá con la
+  plataforma multiplataforma). `product_prices` y `promo_items` de cualquier sucursal siguen siendo legibles con la clave del usuario (el costo está
+  oculto por grants de columna).
+- **Despliegue**: aplicar la 131 **antes** de publicar el código: `crearProducto`/`crearCategoria`/`crearPromo` escriben `owner_sucursal_id`.
 
 **Sistemas: kiosco y Tenteo.** El sistema del kiosco (venta, caja, stock, informes) vive en `/admin` y Tenteo (pedidos online:
 catálogo público, bot de WhatsApp, delivery, seguimiento, clientes con Google) en `/tenteo`. Es UNA app, UNA base y UN

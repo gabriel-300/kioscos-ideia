@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/require-role";
+import { requireCatalogo, validarFilaEditable } from "@/lib/auth/catalogo-propio";
 
 export interface PromoItemInput {
   product_id: string;
@@ -30,10 +30,20 @@ export interface PromoInput {
 // independiente y tiene que tener SU precio cargado, no hay uno "general".
 async function validarPreciosCompletos(
   supabase: ReturnType<typeof createAdminClient>,
-  precios: PrecioSucursalInput[]
+  precios: PrecioSucursalInput[],
+  ownerSucursalId: string | null = null
 ): Promise<string | null> {
-  const { data: sucursales } = await supabase.from("sucursales").select("id").eq("is_active", true);
-  const idsActivas = new Set((sucursales ?? []).map((s) => s.id));
+  // Promo con dueño (migración 131): precio solo en la sucursal del dueño.
+  if (ownerSucursalId) {
+    if (precios.length !== 1 || precios[0].sucursal_id !== ownerSucursalId) {
+      return "Una promo propia lleva precio solo en la sucursal de su dueño.";
+    }
+    if (!(precios[0].price > 0)) return "El precio tiene que ser mayor a 0.";
+    return null;
+  }
+  // Los locales independientes con catálogo propio (migración 131) no reciben las promos de IDEIA.
+  const { data: sucursales } = await (supabase as any).from("sucursales").select("id, catalogo_propio").eq("is_active", true);
+  const idsActivas = new Set(((sucursales ?? []) as { id: string; catalogo_propio?: boolean | null }[]).filter((s) => s.catalogo_propio !== true).map((s) => s.id));
   const idsRecibidas = new Set(precios.map((p) => p.sucursal_id));
   for (const id of idsActivas) {
     if (!idsRecibidas.has(id)) return "Falta el precio de una de las sucursales activas.";
@@ -44,16 +54,49 @@ async function validarPreciosCompletos(
   return null;
 }
 
+// Los componentes y la categoría de una promo tienen que ser globales o del mismo
+// dueño que la promo: si no, se podría armar un combo con productos de otro local.
+async function validarReferencias(
+  supabase: ReturnType<typeof createAdminClient>,
+  data: PromoInput,
+  ownerSucursalId: string | null
+): Promise<string | null> {
+  const productIds = [...new Set(data.items.map((i) => i.product_id))];
+  if (productIds.length > 0) {
+    const { data: prods } = await (supabase as any).from("products").select("id, owner_sucursal_id").in("id", productIds);
+    const dueños = new Map<string, string | null>((prods ?? []).map((p: { id: string; owner_sucursal_id: string | null }) => [p.id, p.owner_sucursal_id]));
+    for (const id of productIds) {
+      if (!dueños.has(id)) return "Uno de los productos no existe.";
+      const o = dueños.get(id)!;
+      if (o !== null && o !== ownerSucursalId) return "Uno de los productos pertenece a otro local.";
+    }
+  }
+  if (data.category_id) {
+    const { data: cat } = await (supabase as any).from("categories").select("owner_sucursal_id").eq("id", data.category_id).maybeSingle();
+    if (!cat) return "La categoría no existe.";
+    const o = (cat as { owner_sucursal_id: string | null }).owner_sucursal_id;
+    if (o !== null && o !== ownerSucursalId) return "Esa categoría pertenece a otro local.";
+  }
+  return null;
+}
+
+async function ownerDe(supabase: ReturnType<typeof createAdminClient>, id: string): Promise<string | null> {
+  const { data } = await (supabase as any).from("promos").select("owner_sucursal_id").eq("id", id).maybeSingle();
+  return (data as { owner_sucursal_id: string | null } | null)?.owner_sucursal_id ?? null;
+}
+
 export async function crearPromo(data: PromoInput) {
-  const { userId } = await requireAdmin();
+  const { userId, ownerSucursalId } = await requireCatalogo();
   const supabase = createAdminClient();
 
-  const errorPrecios = await validarPreciosCompletos(supabase, data.precios);
+  const errorPrecios = await validarPreciosCompletos(supabase, data.precios, ownerSucursalId);
   if (errorPrecios) throw new Error(errorPrecios);
+  const errorRefs = await validarReferencias(supabase, data, ownerSucursalId);
+  if (errorRefs) throw new Error(errorRefs);
 
   const { data: promo, error } = await (supabase as any)
     .from("promos")
-    .insert({ name: data.name, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, category_id: data.category_id, requiere_termo: data.requiere_termo, created_by: userId })
+    .insert({ name: data.name, is_active: data.is_active, tipo: data.tipo, cover_image_url: data.cover_image_url, category_id: data.category_id, requiere_termo: data.requiere_termo, created_by: userId, owner_sucursal_id: ownerSucursalId })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
@@ -74,11 +117,17 @@ export async function crearPromo(data: PromoInput) {
 }
 
 export async function actualizarPromo(id: string, data: PromoInput) {
-  const { userId } = await requireAdmin();
+  const alcance = await requireCatalogo();
+  const { userId } = alcance;
+  const errorFila = await validarFilaEditable(alcance, "promos", id);
+  if (errorFila) throw new Error(errorFila);
   const supabase = createAdminClient();
+  const ownerDeFila = await ownerDe(supabase, id);
 
-  const errorPrecios = await validarPreciosCompletos(supabase, data.precios);
+  const errorPrecios = await validarPreciosCompletos(supabase, data.precios, ownerDeFila);
   if (errorPrecios) throw new Error(errorPrecios);
+  const errorRefs = await validarReferencias(supabase, data, ownerDeFila);
+  if (errorRefs) throw new Error(errorRefs);
 
   const { error } = await (supabase as any)
     .from("promos")
@@ -108,7 +157,9 @@ export async function actualizarPromo(id: string, data: PromoInput) {
 }
 
 export async function eliminarPromo(id: string) {
-  await requireAdmin();
+  const alcance = await requireCatalogo();
+  const errorFila = await validarFilaEditable(alcance, "promos", id);
+  if (errorFila) throw new Error(errorFila);
   const supabase = createAdminClient();
   const { error } = await (supabase as any).from("promos").delete().eq("id", id);
   if (error) throw new Error(error.message);
@@ -116,7 +167,10 @@ export async function eliminarPromo(id: string) {
 }
 
 export async function togglePromoActiva(id: string, activa: boolean) {
-  const { userId } = await requireAdmin();
+  const alcance = await requireCatalogo();
+  const { userId } = alcance;
+  const errorFila = await validarFilaEditable(alcance, "promos", id);
+  if (errorFila) throw new Error(errorFila);
   const supabase = createAdminClient();
   const { error } = await (supabase as any).from("promos").update({ is_active: !activa, updated_by: userId }).eq("id", id);
   if (error) throw new Error(error.message);

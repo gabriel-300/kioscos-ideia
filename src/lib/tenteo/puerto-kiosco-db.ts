@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 import { fetchAll } from "@/lib/supabase/paginar";
 import type {
   DatosCatalogo,
@@ -40,10 +41,11 @@ export function kioscoDirecto(admin: Admin): PuertoKiosco {
 
     async datosCatalogo(sucursalId): Promise<DatosCatalogo> {
       const [categorias, productos, preciosProducto, promos, preciosPromo, stock, componentes] = await Promise.all([
-        admin.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-        (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos, description, short_description").eq("is_active", true).neq("sku", "MULTA-TERMO").order("name"),
+        // .or(...): lo global + lo propio de esta sucursal (migración 131); con el cliente admin no hay RLS.
+        (admin as any).from("categories").select("id, name").eq("is_active", true).or(filtroCatalogoDe(sucursalId)).order("sort_order").order("name"),
+        (admin as any).from("products").select("id, name, cover_image_url, category_id, unit_label, vendible_pos, description, short_description").eq("is_active", true).neq("sku", "MULTA-TERMO").or(filtroCatalogoDe(sucursalId)).order("name"),
         admin.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
-        (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).order("name"),
+        (admin as any).from("promos").select("id, name, price, tipo, cover_image_url, category_id").eq("is_active", true).or(filtroCatalogoDe(sucursalId)).order("name"),
         (admin as any).from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
         // Si no se puede leer el stock (null), se muestra todo (mejor que dejar la tienda vacía):
         // el chequeo al confirmar sigue ahí.

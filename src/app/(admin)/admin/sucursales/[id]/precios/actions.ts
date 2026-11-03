@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { validarProductosDeSucursal } from "@/lib/auth/catalogo-propio";
 
 // Precio de venta y costo por producto de UNA sucursal -- admin (cualquier
 // sucursal) o concesionario (solo la suya). A diferencia de
@@ -33,6 +34,10 @@ export async function actualizarPrecioProducto(data: {
 
   if (!(data.precio_dist > 0)) return { error: "El precio de venta tiene que ser mayor a 0" };
   if (!(data.costo >= 0)) return { error: "El costo no puede ser negativo" };
+
+  // Un precio en esta sucursal hace vendible al producto acá: no puede ser un producto propio de otro local.
+  const errorProducto = await validarProductosDeSucursal(admin, [data.product_id], data.sucursal_id);
+  if (errorProducto) return { error: errorProducto };
 
   const { data: actual } = await admin
     .from("product_prices")

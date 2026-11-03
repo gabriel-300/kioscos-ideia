@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { StockTable } from "./_components/stock-table";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 
 export const metadata: Metadata = { title: "Stock kioscos — Kioscos IDEIA" };
 export const revalidate = 0;
@@ -31,6 +32,9 @@ export default async function StockPage() {
     redirect("/admin/dashboard");
   }
 
+  // Quien trabaja en una sucursal ve lo global + lo propio de SU sucursal (migración 131). Admin ve todo.
+  const filtroDueno = isStaff && staffSucursalId ? filtroCatalogoDe(staffSucursalId) : null;
+
   const [
     { data: products },
     { data: categories },
@@ -39,6 +43,7 @@ export default async function StockPage() {
       .from("products")
       .select("id, name, sku, category_id, unit_label, stock_minimo")
       .eq("is_active", true)
+      .or(filtroDueno ?? "owner_sucursal_id.is.null,owner_sucursal_id.not.is.null")
       // La "multa por atraso de termo" es un producto de servicio ficticio
       // (ver 063_multa_alquiler_termo.sql) solo para que su cobro entre a la
       // conciliación de caja como cualquier venta -- no tiene stock real, no

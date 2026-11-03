@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { validarProductosDeSucursal } from "@/lib/auth/catalogo-propio";
 
 export interface TransferenciaItemInput {
   product_id: string;
@@ -36,6 +37,14 @@ export async function enviarTransferencia(data: {
   const { data: destino } = await supabase
     .from("sucursales").select("is_active").eq("id", data.sucursal_destino_id).single();
   if (!destino?.is_active) return { error: "La sucursal destino no está activa" };
+
+  // Catálogo con dueño (migración 131): un producto propio de un local no se transfiere a otro
+  // (tendría que ser global, o de las DOS puntas, y origen y destino son distintos).
+  const idsItems = data.items.map((i) => i.product_id);
+  const errorProductos =
+    (await validarProductosDeSucursal(supabase, idsItems, data.sucursal_origen_id)) ??
+    (await validarProductosDeSucursal(supabase, idsItems, data.sucursal_destino_id));
+  if (errorProductos) return { error: errorProductos };
 
   const { data: transferenciaId, error } = await (supabase as any).rpc("enviar_transferencia_stock", {
     p_sucursal_origen_id:  data.sucursal_origen_id,

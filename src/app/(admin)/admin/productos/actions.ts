@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/require-role";
+import { requireCatalogo, validarFilaEditable } from "@/lib/auth/catalogo-propio";
 import type { Database } from "@/types/database";
 
 type Insert = Database["public"]["Tables"]["products"]["Insert"];
@@ -51,12 +52,29 @@ function friendlyDbError(error: { code?: string; message: string }): string {
 // Toda sucursal activa necesita su propio precio y costo -- sin fallback.
 // Se valida server-side (además del form) porque esto termina resolviendo
 // cuánto se cobra en el POS, no alcanza con confiar en la UI.
+//
+// Producto con dueño (migración 131): tiene precio SOLO en la sucursal del dueño.
+// Eso es lo que impide venderlo en otro local (la venta exige fila en product_prices).
 async function validarPreciosCompletos(
   supabase: ReturnType<typeof createAdminClient>,
-  precios: PrecioSucursalInput[]
+  precios: PrecioSucursalInput[],
+  ownerSucursalId: string | null = null
 ): Promise<string | null> {
-  const { data: sucursales } = await supabase.from("sucursales").select("id").eq("is_active", true);
-  const idsActivas = new Set((sucursales ?? []).map((s) => s.id));
+  if (ownerSucursalId) {
+    if (precios.length !== 1 || precios[0].sucursal_id !== ownerSucursalId) {
+      return "Un producto propio lleva precio solo en la sucursal de su dueño.";
+    }
+    for (const p of precios) {
+      if (!(p.precio_dist > 0)) return "El precio de venta tiene que ser mayor a 0.";
+      if (!(p.costo >= 0)) return "El costo no puede ser negativo.";
+    }
+    return null;
+  }
+  // Los locales independientes con catálogo propio (migración 131) no reciben automáticamente el catálogo
+  // global: su dueño elige qué productos de IDEIA vende y a qué precio/costo (pantalla de precios de su
+  // sucursal). Por eso no se exige —ni se crea— un precio global para ellos.
+  const { data: sucursales } = await (supabase as any).from("sucursales").select("id, catalogo_propio").eq("is_active", true);
+  const idsActivas = new Set(((sucursales ?? []) as { id: string; catalogo_propio?: boolean | null }[]).filter((s) => s.catalogo_propio !== true).map((s) => s.id));
   const idsRecibidas = new Set(precios.map((p) => p.sucursal_id));
   for (const id of idsActivas) {
     if (!idsRecibidas.has(id)) return "Falta el precio de una de las sucursales activas.";
@@ -68,16 +86,41 @@ async function validarPreciosCompletos(
   return null;
 }
 
+// La categoría de un producto tiene que ser global o del mismo dueño que el producto:
+// si no, un producto de IDEIA quedaría colgado de una categoría ajena (o al revés).
+async function categoriaCompatible(
+  supabase: ReturnType<typeof createAdminClient>,
+  categoryId: string | null | undefined,
+  ownerProducto: string | null
+): Promise<string | null> {
+  if (!categoryId) return null;
+  const { data } = await (supabase as any).from("categories").select("owner_sucursal_id").eq("id", categoryId).maybeSingle();
+  if (!data) return "La categoría no existe.";
+  const ownerCat = (data as { owner_sucursal_id: string | null }).owner_sucursal_id;
+  if (ownerCat !== null && ownerCat !== ownerProducto) return "Esa categoría pertenece a otro local.";
+  return null;
+}
+
+// Campos que nunca se aceptan del cliente: los fija el servidor.
+function limpiarCamposReservados<T extends Record<string, unknown>>(data: T): T {
+  const copia = { ...data } as Record<string, unknown>;
+  for (const k of ["id", "created_by", "updated_by", "owner_sucursal_id", "created_at", "updated_at"]) delete copia[k];
+  return copia as T;
+}
+
 export async function crearProducto(
   data: Omit<Insert, "id" | "created_at" | "updated_at"> & { stock_minimo?: number; precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] }
 ): Promise<{ error?: string }> {
-  const { userId } = await requireAdmin();
+  const alcance = await requireCatalogo();
+  const { userId, ownerSucursalId } = alcance;
   const supabase = createAdminClient();
 
-  const { precios, puntosStock, ...productData } = data;
+  const { precios, puntosStock, ...productData } = limpiarCamposReservados(data);
 
-  const errorPrecios = await validarPreciosCompletos(supabase, precios);
+  const errorPrecios = await validarPreciosCompletos(supabase, precios, ownerSucursalId);
   if (errorPrecios) return { error: errorPrecios };
+  const errorCategoria = await categoriaCompatible(supabase, productData.category_id, ownerSucursalId);
+  if (errorCategoria) return { error: errorCategoria };
 
   const baseSlug = productData.slug || slugify(productData.name) || "producto";
   const { data: existing } = await (supabase as any)
@@ -92,7 +135,7 @@ export async function crearProducto(
     suffix++;
   }
 
-  const payload = { ...productData, slug, created_by: userId };
+  const payload = { ...productData, slug, created_by: userId, owner_sucursal_id: ownerSucursalId };
   const { data: nuevo, error } = await (supabase as any).from("products").insert(payload).select("id").single();
   if (error) return { error: friendlyDbError(error) };
 
@@ -122,13 +165,22 @@ export async function actualizarProducto(
   id: string,
   data: (Update & { stock_minimo?: number; precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] }) | Record<string, unknown>
 ): Promise<{ error?: string }> {
-  const { userId } = await requireAdmin();
+  const alcance = await requireCatalogo();
+  const { userId } = alcance;
   const supabase = createAdminClient();
 
-  const { precios, puntosStock, ...productData } = data as { precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] } & Record<string, unknown>;
+  const errorFila = await validarFilaEditable(alcance, "products", id);
+  if (errorFila) return { error: errorFila };
+  // El dueño de la fila no cambia al editar: se lee de la base, no del cliente.
+  const { data: actualFila } = await (supabase as any).from("products").select("owner_sucursal_id").eq("id", id).maybeSingle();
+  const ownerDeFila: string | null = (actualFila as { owner_sucursal_id: string | null } | null)?.owner_sucursal_id ?? null;
 
-  const errorPrecios = await validarPreciosCompletos(supabase, precios);
+  const { precios, puntosStock, ...productData } = limpiarCamposReservados(data as { precios: PrecioSucursalInput[]; puntosStock?: PuntoSucursalInput[] } & Record<string, unknown>);
+
+  const errorPrecios = await validarPreciosCompletos(supabase, precios, ownerDeFila);
   if (errorPrecios) return { error: errorPrecios };
+  const errorCategoria = await categoriaCompatible(supabase, productData.category_id as string | null | undefined, ownerDeFila);
+  if (errorCategoria) return { error: errorCategoria };
 
   const { error } = await (supabase as any).from("products").update({ ...productData, updated_by: userId }).eq("id", id);
   if (error) return { error: friendlyDbError(error) };
@@ -187,7 +239,10 @@ export async function actualizarProducto(
 }
 
 export async function toggleProductoActivo(id: string, activo: boolean) {
-  const { userId } = await requireAdmin();
+  const alcance = await requireCatalogo();
+  const { userId } = alcance;
+  const errorFila = await validarFilaEditable(alcance, "products", id);
+  if (errorFila) throw new Error(errorFila);
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("products")

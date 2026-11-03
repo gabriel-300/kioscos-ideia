@@ -42,7 +42,7 @@ export function fakeAdmin(
       maybeSingle: () => { q.maybeSingle = true; return b; },
       order: () => b, limit: () => b, range: () => b,
       eq: filtro("eq"), neq: filtro("neq"), in: filtro("in"), gte: filtro("gte"), lte: filtro("lte"),
-      gt: filtro("gt"), lt: filtro("lt"), is: filtro("is"), not: filtro("not"), or: filtro("or"),
+      gt: filtro("gt"), lt: filtro("lt"), is: filtro("is"), not: filtro("not"), or: filtro("or"), like: filtro("like"),
       then: (resolve: (v: any) => any, reject?: (e: any) => any) => {
         calls.push(q);
         return Promise.resolve(handler(q) ?? { data: null })

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
+import { validarProductosDeSucursal } from "@/lib/auth/catalogo-propio";
 import { fechaHoyAR } from "@/lib/fecha";
 
 export interface AuditoriaItemInput {
@@ -55,6 +56,9 @@ export async function crearAuditoria(
     .eq("apertura_id", aperturaId)
     .maybeSingle();
   if (existing) return { error: "Ya se auditó este turno" };
+
+  const errorProductos = await validarProductosDeSucursal(supabase, items.map((i) => i.product_id), sucursalId);
+  if (errorProductos) return { error: errorProductos };
 
   const sinObservacion = items.some(
     (i) => i.stock_contado !== i.stock_sistema && !i.observacion?.trim()

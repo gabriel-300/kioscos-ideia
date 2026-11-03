@@ -118,9 +118,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Catálogo", icon: "productos",
     children: [
-      { href: "/admin/productos",   label: "Productos",   roles: ["admin"], icon: "productos" },
-      { href: "/admin/categorias",  label: "Categorías",  roles: ["admin"], icon: "categorias" },
-      { href: "/admin/promociones", label: "Promociones", roles: ["admin"], icon: "promociones" },
+      { href: "/admin/productos",   label: "Productos",   roles: ["admin", "dueno"], icon: "productos" },
+      { href: "/admin/categorias",  label: "Categorías",  roles: ["admin", "dueno"], icon: "categorias" },
+      { href: "/admin/promociones", label: "Promociones", roles: ["admin", "dueno"], icon: "promociones" },
       { href: "/admin/proveedores", label: "Proveedores", roles: ["admin"], icon: "proveedores" },
     ],
   },
@@ -132,6 +132,7 @@ const NAV_GROUPS: NavGroup[] = [
 const NAV_TAIL: NavItem[] = [
   { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado", "concesionario"],  icon: "nichos" },
   { href: "/admin/staff",  label: "Staff",    roles: ["admin"],               icon: "staff" },
+  { href: "/admin/mi-personal", label: "Mi personal", roles: ["dueno"], icon: "staff" },
   { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ayuda" },
 ];
 
@@ -143,12 +144,14 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /* ─── Component ──────────────────────────────── */
-export function AdminNav({ role, email, name, sucursalId, esSocio = false, puedeTenteo = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0, tesoreriaPendientes = 0 }: {
+export function AdminNav({ role, email, name, sucursalId, esSocio = false, catalogoPropio = false, puedeTenteo = false, auditoriaPendientes = 0, alertasPrecioPendientes = 0, transferenciasPendientes = 0, reposicionPendientes = 0, conciliacionPendientes = 0, tesoreriaPendientes = 0 }: {
   role:        string | null;
   email:       string | null;
   name:        string | null;
   sucursalId?: string | null;
   esSocio?:    boolean;
+  // Concesionario cuya sucursal tiene catálogo propio (migración 131): rol sintético "dueno" para el menú.
+  catalogoPropio?: boolean;
   puedeTenteo?: boolean; // tiene los dos sistemas: se muestra el enlace para cambiar a Tenteo
   auditoriaPendientes?: number;
   alertasPrecioPendientes?: number;
@@ -161,7 +164,7 @@ export function AdminNav({ role, email, name, sucursalId, esSocio = false, puede
   // ítems de nav puedan pedir roles:["admin","socio"] sin tener que inventar
   // un caso especial en cada filtro -- profiles.es_socio es ortogonal al rol
   // real (un vendedor o encargado puede ser socio igual).
-  const effectiveRoles = [role ?? "", ...(esSocio ? ["socio"] : [])];
+  const effectiveRoles = [role ?? "", ...(esSocio ? ["socio"] : []), ...(catalogoPropio && role === "concesionario" ? ["dueno"] : [])];
   // El aviso de pedido nuevo vive en la zona de Tenteo (components/tenteo).
   const badgeCounts: Record<string, number> = {
     "/admin/auditoria":      auditoriaPendientes,

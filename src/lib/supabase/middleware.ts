@@ -27,6 +27,11 @@ const ADMIN_ONLY_PREFIXES = [
   "/tenteo/clientes",
 ];
 
+// Catálogo: el concesionario con catálogo propio (sucursales.catalogo_propio, migración 131) sí entra, pero
+// el middleware no conoce ese dato: deja pasar al concesionario y cada página/acción lo verifica
+// (lib/auth/catalogo-propio.ts) y manda al dashboard a quien no lo tenga.
+const CATALOGO_PREFIXES = ["/admin/categorias", "/admin/productos"];
+
 // Bloqueadas solo para vendedor (encargado sí puede)
 const VENDEDOR_BLOCKED_PREFIXES = [
   "/admin/pronostico",
@@ -119,7 +124,11 @@ export async function updateSession(request: NextRequest) {
       // exclusivas de admin -- productos/categorías/proveedores son catálogo
       // GLOBAL (todas las sucursales comparten el mismo SKU), así que ni el
       // concesionario ve el de otros locales acá.
-      if ((role === "encargado" || role === "vendedor" || role === "concesionario") && ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
+      if (
+        (role === "encargado" || role === "vendedor" || role === "concesionario") &&
+        ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p)) &&
+        !(role === "concesionario" && CATALOGO_PREFIXES.some((p) => pathname.startsWith(p)))
+      ) {
         return NextResponse.redirect(new URL(destinoZona, request.url));
       }
 

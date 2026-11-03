@@ -29,7 +29,7 @@ online por sucursal. Es una app web (Next.js sobre Supabase, en Cloudflare Worke
 - **Admin** (5 usuarios; 3 son socios: Gabriel, Damián y Javier, con `es_socio`): todo, sin restricción de sucursal.
 - **Encargado** (1): su sucursal.
 - **Vendedor** (4, 2 bloqueados): su(s) sucursal(es); ve solo lo de su turno del día.
-- **Concesionario** (2): Villa Sarita, ve el día completo y el costo/margen de su local.
+- **Concesionario** (2): Villa Sarita, ve el día completo y el costo/margen de su local. Un concesionario cuya sucursal tenga catálogo propio (local independiente) además carga su catálogo y sus vendedores.
 - **Repartidor** (rol nuevo, sin usuarios reales todavía): solo su cola de entregas.
 - **Cliente final**: entra sin cuenta al catálogo público `/pedir/[sucursal]`. Si ingresa con Google queda como cuenta sin rol:
   no entra al panel del personal.
@@ -230,6 +230,10 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 
 ### Catálogo: productos, precios por sucursal, promos, categorías, proveedores, alertas de precio
 - **Quién**: catálogo global solo admin; el concesionario fija precio y costo de su sucursal en `/admin/sucursales/[id]/precios`.
+  **Local independiente con catálogo propio** (migración 131): un concesionario cuya sucursal tenga `catalogo_propio` carga sus propios
+  productos, categorías, promos y recetas (con sus propios costos) y ve solo lo suyo más el catálogo global (sobre el que fija su precio y costo).
+  No puede modificar lo global ni ve lo de otros locales; sus productos no se pueden vender en otra sucursal. Sus productos tampoco se pueden transferir a otro kiosco. Los productos globales nuevos no le llegan solos: elige cuáles vende. Ve todos los informes de su
+  sucursal y administra a sus vendedores en `/admin/mi-personal`. El primer caso es el local nuevo, totalmente independiente, que usa el sistema sin pagar a IDEIA.
 - **Reglas**: precio y costo son **por sucursal**; un producto activo no se guarda si falta el precio en alguna sucursal
   activa; todo cambio queda en el historial; una entrega con un costo distinto al del catálogo genera una alerta (sin
   umbral); el catálogo público oculta los productos sin precio.
@@ -385,7 +389,7 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
    puerta y la venta se registra al entregar; envío siempre por zona y calculado en el servidor; las zonas **no se
    sembraron** (los valores del diseño eran "a confirmar con el local").
 5. **Villa Sarita es a consignación**: el concesionario queda **fuera** de Socios, Tesorería consolidada, Staff, catálogo
-   global, gastos, ajustes de stock, aprobar auditorías e integraciones de pago; ve el día completo de su local (no solo su
+   global (el local independiente con `catalogo_propio` carga SOLO el suyo, nunca el global), gastos, ajustes de stock, aprobar auditorías e integraciones de pago; ve el día completo de su local (no solo su
    turno) y el costo/margen del local. Solo Minutas y solo Consumidor Final.
 6. **Pedido Ya Plataforma no concilia con caja** (la app paga después) y el webhook de Pedido Ya **no arma ventas** hasta
    ver un payload real (no se inventa el contrato). En Pedido Ya el precio cobrado puede ser mayor al de catálogo, nunca menor.

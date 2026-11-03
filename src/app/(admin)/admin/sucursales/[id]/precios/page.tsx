@@ -3,6 +3,7 @@ import { createClient, createAdminClient, getUser } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PreciosTable, type ProductoPrecio } from "./_components/precios-table";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 
 export const revalidate = 0;
 
@@ -41,8 +42,9 @@ export default async function PreciosSucursalPage({ params }: { params: Promise<
       .select("id, name, sku, category_id, unit_label")
       .eq("is_active", true)
       .neq("sku", "MULTA-TERMO")
+      .or(filtroCatalogoDe(id))
       .order("name") as unknown as Promise<{ data: { id: string; name: string; sku: string; category_id: string | null; unit_label: string }[] | null }>,
-    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
+    (supabase as any).from("categories").select("id, name").eq("is_active", true).or(filtroCatalogoDe(id)).order("sort_order") as unknown as Promise<{ data: { id: string; name: string }[] | null }>,
     admin.from("product_prices").select("product_id, precio_dist, costo").eq("sucursal_id", id) as unknown as Promise<{
       data: { product_id: string; precio_dist: number; costo: number }[] | null;
     }>,

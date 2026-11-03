@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Input, Textarea } from "@/components/ui";
 import { Button } from "@/components/ui";
-import { crearSucursal, actualizarSucursal, listarCajasMercadoPago, asignarExternalIdCaja, actualizarCategoriasHabilitadas, actualizarCanalesHabilitados } from "../actions";
+import { crearSucursal, actualizarSucursal, listarCajasMercadoPago, asignarExternalIdCaja, actualizarCategoriasHabilitadas, actualizarCanalesHabilitados, actualizarCatalogoPropio } from "../actions";
 import { friendlyError } from "@/lib/utils";
 import type { Database } from "@/types/database";
 
@@ -60,6 +60,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
   // que una categoría nueva no quede bloqueada por default).
   const [catsHabilitadas, setCatsHabilitadas] = useState<string[]>([]);
   const [canalesHab,      setCanalesHab]      = useState<string[]>([]);
+  const [catalogoPropio,  setCatalogoPropio]  = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -67,6 +68,7 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
       setCatsHabilitadas(catsGuardadas && catsGuardadas.length > 0 ? catsGuardadas : categorias.map((c) => c.id));
       const canalesGuardados = (sucursal as any)?.canales_habilitados as string[] | null | undefined;
       setCanalesHab(canalesGuardados && canalesGuardados.length > 0 ? canalesGuardados : TODOS_LOS_CANALES.map((c) => c.id));
+      setCatalogoPropio(!!(sucursal as any)?.catalogo_propio);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sucursal]);
@@ -183,6 +185,10 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
             actualizarCanalesHabilitados(sucursal.id, canalesAGuardar),
           ]);
           if (r1.error || r2.error) { alert(r1.error ?? r2.error); return; }
+          if (catalogoPropio !== !!(sucursal as any).catalogo_propio) {
+            const r3 = await actualizarCatalogoPropio(sucursal.id, catalogoPropio);
+            if (r3.error) { alert(r3.error); return; }
+          }
         } else {
           await crearSucursal(payload);
         }
@@ -384,6 +390,20 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
                   <span className="block text-sm font-medium text-neutral-800">Mostrar promociones</span>
                   <span className="block text-xs text-neutral-400 mt-0.5">
                     Desmarcá para que esta sucursal no vea ninguna promoción, sin importar la categoría -- ni las que ya existen ni las que se creen después.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 rounded-lg border border-neutral-200 p-3 cursor-pointer hover:bg-neutral-50 transition-colors">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-neutral-300 text-tierra-700 focus:ring-tierra-700/20"
+                  checked={catalogoPropio}
+                  onChange={(e) => setCatalogoPropio(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-neutral-800">Local independiente con catálogo propio</span>
+                  <span className="block text-xs text-neutral-400 mt-0.5">
+                    Su encargado concesionario carga sus propios productos, categorías y promociones (con sus costos) y administra a sus vendedores. No ve los datos de los demás kioscos.
                   </span>
                 </span>
               </label>

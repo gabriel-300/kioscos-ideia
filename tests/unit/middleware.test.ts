@@ -55,7 +55,18 @@ describe("rutas solo de admin", () => {
   it("encargado, vendedor y concesionario rebotan al dashboard", async () => {
     for (const r of ["encargado", "vendedor", "concesionario"]) {
       como(r);
-      for (const p of soloAdmin) expect((await ir(p)).redirige, `${r} en ${p}`).toBe("/admin/dashboard");
+      // Productos y categorías: el concesionario con catálogo propio (migración 131) entra; el
+      // middleware no conoce ese dato, así que lo deja pasar y la página/acción lo verifica.
+      const rutas = r === "concesionario" ? soloAdmin.filter((p) => p !== "/admin/categorias" && p !== "/admin/productos") : soloAdmin;
+      for (const p of rutas) expect((await ir(p)).redirige, `${r} en ${p}`).toBe("/admin/dashboard");
+    }
+  });
+  it("el concesionario pasa el middleware en productos y categorías (la página lo verifica); encargado y vendedor no", async () => {
+    como("concesionario");
+    for (const p of ["/admin/productos", "/admin/categorias"]) expect((await ir(p)).redirige, p).toBeNull();
+    for (const r of ["encargado", "vendedor"]) {
+      como(r);
+      for (const p of ["/admin/productos", "/admin/categorias"]) expect((await ir(p)).redirige, `${r} en ${p}`).toBe("/admin/dashboard");
     }
   });
   it("también las subrutas (prefijo)", async () => {

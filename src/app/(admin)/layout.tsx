@@ -26,7 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const [{ data: profileSocio }, sucursalRes] = await Promise.all([
     (supabase as any).from("profiles").select("es_socio").eq("id", user.id).single(),
     role === "encargado" || role === "concesionario"
-      ? supabase.from("sucursales").select("id").eq("encargado_user_id", user.id).single()
+      ? (supabase as any).from("sucursales").select("id, catalogo_propio").eq("encargado_user_id", user.id).single()
       : role === "vendedor"
       ? (supabase as any).from("profiles").select("sucursal_id").eq("id", user.id).single()
       : null,
@@ -34,8 +34,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const esSocio = (profileSocio as { es_socio: boolean | null } | null)?.es_socio ?? false;
 
   let sucursalId: string | null = null;
+  let catalogoPropio = false;
   if (role === "encargado" || role === "concesionario") {
     sucursalId = (sucursalRes?.data as { id: string } | null)?.id ?? null;
+    catalogoPropio = role === "concesionario" && !!(sucursalRes?.data as { catalogo_propio?: boolean } | null)?.catalogo_propio;
   } else if (role === "vendedor") {
     sucursalId = (sucursalRes?.data as { sucursal_id: string | null } | null)?.sucursal_id ?? null;
   }
@@ -140,7 +142,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="h-screen flex flex-col bg-neutral-50">
       <NumberInputWheelGuard />
       <AdminNav
-        role={role} email={email} name={name} sucursalId={sucursalId} esSocio={esSocio}
+        role={role} email={email} name={name} sucursalId={sucursalId} esSocio={esSocio} catalogoPropio={catalogoPropio}
         puedeTenteo={puedeEntrar(user, "tenteo")}
         auditoriaPendientes={auditoriaPendientes}
         alertasPrecioPendientes={alertasPrecioPendientes}

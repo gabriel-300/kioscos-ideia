@@ -34,8 +34,8 @@ type Esc = {
   ultimoCierre?: { created_at: string } | null;
   recibidoPorTraspaso?: string | null;
   precios?: { product_id: string; precio_dist: number | null; costo?: number | null }[];
-  productos?: { id: string; category_id: string | null }[];
-  promos?: { id: string; price: number; is_active: boolean; promo_items: { product_id: string; cantidad: number }[] }[];
+  productos?: { id: string; category_id: string | null; owner_sucursal_id?: string | null }[];
+  promos?: { id: string; price: number; is_active: boolean; owner_sucursal_id?: string | null; promo_items: { product_id: string; cantidad: number }[] }[];
   preciosPromo?: { promo_id: string; price: number }[];
   rpcError?: string;
 };
@@ -429,5 +429,43 @@ describe("crearMovimiento -- recepción de mercadería del encargado (solo stock
     await crearMovimiento(base({ tipo: "entrega", nro_remito: "0001-123", items: [{ product_id: "p1", cantidad: 3, precio_unitario: 55 }] }));
     expect(t.args().p_items[0]).toMatchObject({ precio_unitario: 55, subtotal: 165 });
     expect(t.args().p_nro_remito).toBe("0001-123");
+  });
+});
+
+// Catálogo con dueño (migración 131): un producto o promo propio de OTRO local no se mueve en esta sucursal,
+// ni siquiera llamando directo a la acción (el aislamiento no puede depender de lo que muestre la pantalla).
+describe("crearMovimiento -- productos y promos de otro dueño", () => {
+  it("rechaza una venta con un producto propio de otro local, aunque tenga precio en esta sucursal", async () => {
+    const t = montar({ precios: [P("ajeno", 500)], productos: [{ id: "ajeno", category_id: null, owner_sucursal_id: "otra-suc" }] });
+    const r = await crearMovimiento(base({ items: [{ product_id: "ajeno", cantidad: 1 }] }));
+    expect(r.error).toMatch(/no está disponible/);
+    expect(t.args()).toBeUndefined();
+  });
+  it("rechaza también una entrega o una merma con un producto de otro local", async () => {
+    for (const tipo of ["entrega", "merma"] as const) {
+      const t = montar({ productos: [{ id: "ajeno", category_id: null, owner_sucursal_id: "otra-suc" }] });
+      const r = await crearMovimiento(base({ tipo, notas: "se rompió", items: [{ product_id: "ajeno", cantidad: 1, precio_unitario: 10 }] }));
+      expect(r.error, tipo).toMatch(/no está disponible/);
+      expect(t.args(), tipo).toBeUndefined();
+    }
+  });
+  it("deja pasar un producto propio de ESTA sucursal y uno global", async () => {
+    const t = montar({
+      precios: [P("mio", 700), P("global", 300)],
+      productos: [{ id: "mio", category_id: null, owner_sucursal_id: SUC }, { id: "global", category_id: null, owner_sucursal_id: null }],
+    });
+    const r = await crearMovimiento(base({ items: [{ product_id: "mio", cantidad: 1 }, { product_id: "global", cantidad: 1 }] }));
+    expect(r).toEqual({ movimiento_id: "mov-1" });
+    expect(t.args().p_items).toHaveLength(2);
+  });
+  it("rechaza una promo propia de otro local", async () => {
+    const t = montar({
+      promos: [{ id: "promo-ajena", price: 100, is_active: true, owner_sucursal_id: "otra-suc", promo_items: [{ product_id: "a", cantidad: 1 }] }],
+      preciosPromo: [{ promo_id: "promo-ajena", price: 100 }],
+      precios: [P("a", 1, 10)],
+    });
+    const r = await crearMovimiento(base({ items: [{ promo_id: "promo-ajena", cantidad: 1 }] }));
+    expect(r.error).toMatch(/no está disponible/);
+    expect(t.args()).toBeUndefined();
   });
 });

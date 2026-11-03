@@ -3,6 +3,7 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ProductsTable } from "./_components/products-table";
+import { alcanceCatalogo } from "@/lib/auth/catalogo-propio";
 
 export const metadata: Metadata = { title: "Productos — Kioscos IDEIA" };
 export const revalidate = 0;
@@ -13,25 +14,39 @@ export default async function ProductosPage() {
   const user = await getUser();
   if (!user) redirect("/login");
   const role = user.app_metadata?.role as string | undefined;
-  if (role !== "admin") redirect("/admin/dashboard");
+  // Admin: todo el catálogo. Concesionario con catálogo propio (migración 131): solo lo suyo.
+  const alcance = role ? await alcanceCatalogo(user.id, role) : null;
+  if (!alcance) redirect("/admin/dashboard");
+  const dueno = alcance.ownerSucursalId; // null = admin
+
+  // Un dueño no ve proveedores de IDEIA ni precios/stock de otros locales: todo se acota a su sucursal.
+  let qProductos = (admin as any).from("products").select("*, category:categories(*)").order("name");
+  let qSucursales = (admin as any).from("sucursales").select("id, nombre, catalogo_propio").eq("is_active", true).order("nombre");
+  let qStock = (admin as any).from("stock_sucursal").select("product_id, sucursal_id, stock_actual").gt("stock_actual", 0);
+  let qPrecios = (admin as any).from("product_prices").select("product_id, sucursal_id, precio_dist, costo, punto_minimo, punto_pedido, punto_maximo");
+  if (dueno) {
+    qProductos = qProductos.eq("owner_sucursal_id", dueno);
+    qSucursales = qSucursales.eq("id", dueno);
+    qStock = qStock.eq("sucursal_id", dueno);
+    qPrecios = qPrecios.eq("sucursal_id", dueno);
+  }
 
   const [{ data: productsRaw }, { data: categories }, { data: sucursales }, { data: proveedores }, stockActivoRes, preciosRes] = await Promise.all([
-    (admin as any).from("products").select("*, category:categories(*)").order("name"),
+    qProductos,
     supabase.from("categories").select("*").eq("is_active", true).order("sort_order"),
-    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
-    supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
-    (admin as any)
-      .from("stock_sucursal")
-      .select("product_id, sucursal_id, stock_actual")
-      .gt("stock_actual", 0) as unknown as Promise<{
+    qSucursales,
+    dueno ? Promise.resolve({ data: [] }) : supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
+    qStock as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; stock_actual: number }[] | null;
       }>,
-    (admin as any).from("product_prices").select("product_id, sucursal_id, precio_dist, costo, punto_minimo, punto_pedido, punto_maximo") as unknown as Promise<{
+    qPrecios as unknown as Promise<{
       data: { product_id: string; sucursal_id: string; precio_dist: number; costo: number; punto_minimo: number | null; punto_pedido: number | null; punto_maximo: number | null }[] | null;
     }>,
   ]);
 
-  const products = productsRaw ?? [];
+  // El admin gestiona el catálogo de IDEIA: los productos propios de un local independiente (migración 131)
+  // los administra su dueño y no se mezclan acá. (Filtro en JS: la página no debe romperse si la 131 no está aplicada.)
+  const products = (productsRaw ?? []).filter((p: { owner_sucursal_id?: string | null }) => dueno || !p.owner_sucursal_id);
   const precios  = preciosRes.data ?? [];
   const puntos   = precios.map((p) => ({
     product_id: p.product_id, sucursal_id: p.sucursal_id,
@@ -84,11 +99,16 @@ export default async function ProductosPage() {
       <ProductsTable
         products={(products ?? []) as Parameters<typeof ProductsTable>[0]["products"]}
         categories={categories ?? []}
-        sucursales={sucursales ?? []}
+        // El admin carga precios globales solo para los kioscos de IDEIA: los locales con catálogo propio
+        // (migración 131) manejan los suyos.
+        sucursales={((sucursales ?? []) as { id: string; nombre: string; catalogo_propio?: boolean | null }[])
+          .filter((s) => dueno || s.catalogo_propio !== true)
+          .map(({ id, nombre }) => ({ id, nombre }))}
         proveedores={proveedores ?? []}
         precios={precios}
         puntos={puntos}
         role={role}
+        esDueno={!!dueno}
       />
     </div>
   );

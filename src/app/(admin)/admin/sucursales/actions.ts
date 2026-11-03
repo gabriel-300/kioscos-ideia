@@ -67,6 +67,19 @@ export async function actualizarCanalesHabilitados(sucursalId: string, canales: 
   return {};
 }
 
+// Local independiente con catálogo propio (migración 131): su concesionario carga sus productos, categorías,
+// promos y vendedores. Solo admin lo activa. Se llama únicamente cuando el valor cambia, para que guardar una
+// sucursal no dependa de que la migración 131 esté aplicada.
+export async function actualizarCatalogoPropio(sucursalId: string, valor: boolean): Promise<{ error?: string }> {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await (admin as any).from("sucursales").update({ catalogo_propio: valor }).eq("id", sucursalId);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/sucursales");
+  revalidatePath(`/admin/sucursales/${sucursalId}`);
+  return {};
+}
+
 export async function toggleSucursalActiva(id: string, activa: boolean) {
   await requireAdmin();
   const supabase = createAdminClient();

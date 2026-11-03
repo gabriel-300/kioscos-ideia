@@ -33,7 +33,7 @@ function ToggleActivo({ id, activo }: { id: string; activo: boolean }) {
 }
 
 export function ProductsTable({
-  products, categories, sucursales, proveedores, precios, puntos, role,
+  products, categories, sucursales, proveedores, precios, puntos, role, esDueno = false,
 }: {
   products:   ProductWithCat[];
   categories: Category[];
@@ -42,8 +42,11 @@ export function ProductsTable({
   precios:    PrecioRow[];
   puntos:     PuntoRow[];
   role?:      string;
+  // Concesionario con catálogo propio (migración 131): carga sus productos y sus costos,
+  // pero no usa los ajustes masivos de precio (son de admin y tocan varias sucursales).
+  esDueno?:   boolean;
 }) {
-  const esAdmin = role === "admin";
+  const esAdmin = role === "admin" || esDueno;
   const [search, setSearch]         = useState("");
   const [catFilter, setCat]         = useState("all");
   const [status, setStatus]         = useState<"all" | "activo" | "inactivo">("all");
@@ -110,8 +113,8 @@ export function ProductsTable({
             <option value="inactivo">Inactivos</option>
           </select>
           <span className="text-sm text-neutral-400 mr-auto">{filtered.length} productos</span>
-          {esAdmin && <CostearVentaDrawer categories={categories} sucursales={sucursales} />}
-          <AjustePreciosDrawer categories={categories} sucursales={sucursales} soloVenta={!esAdmin} />
+          {esAdmin && !esDueno && <CostearVentaDrawer categories={categories} sucursales={sucursales} />}
+          {!esDueno && <AjustePreciosDrawer categories={categories} sucursales={sucursales} soloVenta={!esAdmin} />}
           <Button size="sm" onClick={openNew}>
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -278,7 +281,7 @@ export function ProductsTable({
         puntos={puntos}
         existingSkus={products.map((p) => p.sku)}
         onClose={closeDrawer}
-        role={role}
+        role={esAdmin ? "admin" : role}
       />
     </>
   );

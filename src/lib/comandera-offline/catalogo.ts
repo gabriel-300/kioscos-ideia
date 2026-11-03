@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/server";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 
 // Catálogo de la comandera offline: lo que se incorpora dentro del archivo HTML
 // que se descarga. Es un "congelado" de los precios de la sucursal al momento de
@@ -96,12 +97,14 @@ export async function cargarCatalogoComandera(
     .maybeSingle();
   if (!sucursal) return null;
 
+  const filtro = filtroCatalogoDe(sucursalId);
   // Un kiosco tiene unos cientos de productos: entra holgado en el límite de 1.000 filas.
   const [cats, prods, precios, promos, preciosPromo] = await Promise.all([
-    db.from("categories").select("id, name").eq("is_active", true).order("sort_order").order("name"),
-    db.from("products").select("id, name, category_id, unit_label, vendible_pos").eq("is_active", true).neq("sku", "MULTA-TERMO"),
+    // .or(...): lo global + lo propio de esta sucursal (migración 131); con el cliente admin no hay RLS.
+    db.from("categories").select("id, name").eq("is_active", true).or(filtro).order("sort_order").order("name"),
+    db.from("products").select("id, name, category_id, unit_label, vendible_pos").eq("is_active", true).neq("sku", "MULTA-TERMO").or(filtro),
     db.from("product_prices").select("product_id, precio_dist").eq("sucursal_id", sucursalId),
-    db.from("promos").select("id, name, price, category_id").eq("is_active", true),
+    db.from("promos").select("id, name, price, category_id").eq("is_active", true).or(filtro),
     db.from("promo_prices").select("promo_id, price").eq("sucursal_id", sucursalId),
   ]);
 
