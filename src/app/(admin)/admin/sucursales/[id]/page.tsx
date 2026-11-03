@@ -323,7 +323,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     image_url:      p.termo?.image_url ?? null,
   }));
   const preciosSucursal = new Map((preciosResult.data ?? []).map((p) => [p.product_id, p]));
-  const todasSucursales = todasSucursalesResult.data ?? [];
+  // Un local independiente no ve los otros kioscos de IDEIA (ni siquiera sus nombres).
+  const todasSucursales = independiente ? [] : todasSucursalesResult.data ?? [];
   const transferenciasPendientes: Pendiente[] = (transferenciasPendientesResult.data ?? []).map((t) => ({
     id: t.id,
     origenNombre: t.sucursal_origen?.nombre ?? "—",
@@ -494,7 +495,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     if (r.profile) personalPorId.set(r.profile.id, r.profile.full_name ?? "Sin nombre");
   }
   const personal    = [...personalPorId.entries()].map(([id, nombre]) => ({ id, nombre }));
-  const proveedores = proveedoresResult.data ?? [];
+  // Los proveedores (y sus descuentos) son de IDEIA: un local independiente no los ve.
+  const proveedores = independiente ? [] : proveedoresResult.data ?? [];
   // Nombre para el picker de "Ronda comunidad": nombre_contacto si se cargó,
   // si no el mensaje/consulta como referencia -- nunca queda un botón vacío.
   const contactos = (contactosComunidadResult.data ?? []).map((c) => ({
