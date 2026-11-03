@@ -113,7 +113,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // mano desde acá, se carga solo desde el cobro de multa.
     // .or(filtroCatalogoDe): lo global + lo propio de ESTA sucursal (migración 131). Con el cliente admin no hay RLS.
     (admin as any).from("products").select("*").eq("is_active", true).neq("sku", "MULTA-TERMO").or(filtroCatalogoDe(id)).order("name"),
-    (supabase as any).from("categories").select("id, name").eq("is_active", true).or(filtroCatalogoDe(id)).order("sort_order").order("name") as unknown as Promise<{ data: { id: string; name: string }[] | null }>,
+    (supabase as any).from("categories").select("id, name, owner_sucursal_id").eq("is_active", true).or(filtroCatalogoDe(id)).order("sort_order").order("name") as unknown as Promise<{ data: { id: string; name: string; owner_sucursal_id: string | null }[] | null }>,
     (supabase as any).from("cierres_caja").select("*").eq("sucursal_id", id).order("created_at", { ascending: false }).limit(20) as unknown as Promise<{ data: CierreRow[] | null }>,
     // Admin client a propósito, mismo motivo que /admin/stock: stock_sucursal
     // hereda RLS de movimientos, y la regla "cada uno ve su turno" le esconde
@@ -149,7 +149,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
       .order("nombre") as unknown as Promise<{ data: { id: string; nombre: string; modo_facturacion: "costo" | "precio_sugerido"; porcentaje_descuento: number | null }[] | null }>,
     (supabase as any)
       .from("promos")
-      .select("id, name, price, tipo, cover_image_url, category_id, requiere_termo, promo_items(product_id, cantidad)")
+      .select("id, name, price, tipo, cover_image_url, category_id, owner_sucursal_id, requiere_termo, promo_items(product_id, cantidad)")
       .eq("is_active", true)
       .or(filtroCatalogoDe(id))
       .order("name") as unknown as Promise<{ data: { id: string; name: string; price: number | null; tipo: "promo" | "receta"; cover_image_url: string | null; category_id: string | null; requiere_termo: boolean; promo_items: { product_id: string; cantidad: number }[] }[] | null }>,
@@ -296,7 +296,12 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // significa "todas" (comportamiento de siempre). Se calcula acá arriba
   // porque también filtra las promos, no solo los productos sueltos.
   const categoriasHabilitadas: string[] | null = (sucursal as any).categorias_habilitadas ?? null;
-  const promosTodas = (promosResult.data ?? []).map((p) => ({ ...p, price: preciosPromoSucursal.get(p.id) ?? p.price ?? 0 }));
+  // Local independiente (migración 131): del catálogo global de IDEIA solo se ve lo que tenga precio en ESTA sucursal;
+  // lo propio se ve siempre. Los kioscos de IDEIA siguen viendo todo el global (sin precio = "sin precio").
+  const independiente: boolean = (sucursal as any).catalogo_propio ?? false;
+  const promosTodas = (promosResult.data ?? [])
+    .filter((p: any) => !independiente || p.owner_sucursal_id === id || preciosPromoSucursal.has(p.id))
+    .map((p) => ({ ...p, price: preciosPromoSucursal.get(p.id) ?? p.price ?? 0 }));
   // Apagado total de promos (migración 089) -- independiente de categoría,
   // para el caso "esta sucursal no usa promociones, ninguna, nunca".
   const promosHabilitadas: boolean = (sucursal as any).promos_habilitadas ?? true;
@@ -513,7 +518,9 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // antes de cualquier otra cosa, con default 0 si por algún motivo faltara
   // la fila en product_prices (no debería pasar con el backfill obligatorio,
   // pero así se ve como "sin precio" en vez de romper la página).
-  const productsConPrecioTodas = (productsRaw ?? []).map((p: any) => {
+  const productsConPrecioTodas = (productsRaw ?? [])
+    .filter((p: any) => !independiente || p.owner_sucursal_id === id || preciosSucursal.has(p.id))
+    .map((p: any) => {
     const precio = preciosSucursal.get(p.id);
     return { ...p, precio_dist: precio?.precio_dist ?? 0, costo: precio?.costo ?? 0 };
   });
@@ -522,9 +529,17 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   const productsConPrecio = categoriasHabilitadas && categoriasHabilitadas.length > 0
     ? productsConPrecioTodas.filter((p: any) => p.category_id && categoriasHabilitadas.includes(p.category_id))
     : productsConPrecioTodas;
-  const categoriasVisibles = categoriasHabilitadas && categoriasHabilitadas.length > 0
+  const categoriasHabilitadasLista = categoriasHabilitadas && categoriasHabilitadas.length > 0
     ? (categories ?? []).filter((c) => categoriasHabilitadas.includes(c.id))
     : (categories ?? []);
+  // Local independiente: de las categorías de IDEIA solo las que usa algo visible acá; las propias, siempre.
+  const categoriasEnUso = new Set<string>([
+    ...productsConPrecio.map((p: any) => p.category_id),
+    ...promos.map((p: any) => p.category_id),
+  ].filter(Boolean));
+  const categoriasVisibles = independiente
+    ? categoriasHabilitadasLista.filter((c: any) => c.owner_sucursal_id === id || categoriasEnUso.has(c.id))
+    : categoriasHabilitadasLista;
 
   // Costo/margen es informacion sensible del negocio -- se saca del payload
   // para encargado/vendedor antes de que llegue a ningun componente cliente.

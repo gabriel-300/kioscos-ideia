@@ -55,8 +55,9 @@ export default async function StockPage() {
 
   // Vista plana para encargado/vendedor (una sucursal)
   if (isStaff && staffSucursalId) {
-    const { data: sucursal } = await supabase
-      .from("sucursales").select("id, nombre").eq("id", staffSucursalId).single();
+    const { data: sucursalRaw } = await (supabase as any)
+      .from("sucursales").select("id, nombre, catalogo_propio").eq("id", staffSucursalId).single();
+    const sucursal = sucursalRaw as { id: string; nombre: string; catalogo_propio: boolean | null } | null;
 
     // Admin client a propósito: stock_sucursal hereda RLS de movimientos/
     // movimiento_items, y la regla "cada uno ve su turno" (036/041) le
@@ -91,6 +92,22 @@ export default async function StockPage() {
       if (r.punto_minimo != null) minimoMap[r.product_id] = r.punto_minimo;
     }
 
+    // Local independiente (migración 131): del catálogo de IDEIA solo lo que tenga precio acá; lo propio, siempre.
+    let productosVisibles = products ?? [];
+    let categoriasVisibles = categories ?? [];
+    if (sucursal?.catalogo_propio) {
+      const conPrecio = new Set((puntosRes.data ?? []).map((r) => r.product_id));
+      const { data: propios } = await (admin as any).from("products").select("id").eq("owner_sucursal_id", staffSucursalId);
+      const propiosIds = new Set(((propios ?? []) as { id: string }[]).map((p) => p.id));
+      productosVisibles = productosVisibles.filter((p) => propiosIds.has(p.id) || conPrecio.has(p.id));
+      const { data: catsPropias } = await (admin as any).from("categories").select("id").eq("owner_sucursal_id", staffSucursalId);
+      const catIds = new Set([
+        ...((catsPropias ?? []) as { id: string }[]).map((c) => c.id),
+        ...productosVisibles.map((p) => p.category_id).filter((c): c is string => !!c),
+      ]);
+      categoriasVisibles = categoriasVisibles.filter((c) => catIds.has(c.id));
+    }
+
     return (
       <div className="p-4 md:p-8">
         <div className="mb-6">
@@ -100,8 +117,8 @@ export default async function StockPage() {
           </p>
         </div>
         <StockTable
-          products={products ?? []}
-          categories={categories ?? []}
+          products={productosVisibles}
+          categories={categoriasVisibles}
           flatStockMap={stockMap}
           entradaMap={entradaMap}
           salidaMap={salidaMap}
