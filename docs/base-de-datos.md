@@ -2,7 +2,7 @@
 
 > Generado por `scripts/mapa-base/generar.js` a partir de una instantánea de la base viva (`catalog.json`, 2026-10-20) y de las descripciones escritas a mano (`descripciones.js`). **No se edita a mano**: se corrigen esos dos archivos y se vuelve a generar. Si este documento contradice a la base, gana la base. Cómo actualizarlo, al final.
 
-Son **58 tablas y vistas**, **160 relaciones** (claves foráneas) y 7 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
+Son **61 tablas y vistas**, **166 relaciones** (claves foráneas) y 8 dominios. Este documento explica qué significa cada cosa; para el detalle de cómo se usa desde la aplicación, ver [architecture.md](architecture.md) y [requirements.md](requirements.md).
 
 ## Ideas clave para leer la base
 
@@ -154,6 +154,7 @@ Otras columnas: `id`, `created_at`, `created_by`, `updated_by`.
 | `dias_entrega` | entero | Reposición por ciclo: días de la semana en que llega. |
 | `dia_pedido` | texto | Reposición por ciclo: día fijo de pedido. |
 | `proveedor_id` | id → proveedores | Proveedor habitual (para la reposición). |
+| `alicuota_iva` | número | Porcentaje de IVA que ya viene incluido en el precio (21, 10,5 o 0 si es exento); define cómo se desglosa en la factura electrónica. |
 
 Otras columnas: `id`, `created_at`, `updated_at`, `created_by`, `updated_by`.
 
@@ -307,6 +308,7 @@ erDiagram
   movimientos |o--o{ prestamos_termo : "multa_movimiento_id"
   termos ||--o{ prestamos_termo : "termo_id"
   products ||--o{ reposicion_marcas_pedido : "product_id"
+  arca_emisores |o--o{ sucursales : "arca_emisor_id"
   products ||--o{ transferencia_items : "product_id"
   transferencias_stock ||--o{ transferencia_items : "transferencia_id"
   movimientos |o--o{ transferencias_stock : "movimiento_entrada_id"
@@ -364,6 +366,9 @@ erDiagram
   proveedores {
     uuid id PK
   }
+  arca_emisores {
+    uuid id PK
+  }
 ```
 
 Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (uno) y la de la derecha la que la referencia (muchos); el nombre es la columna que las une. Un círculo en la madre significa que la columna puede estar vacía. No se dibujan las columnas que apuntan a usuarios (quién cargó o modificó algo) ni `sucursal_id` (casi todas las tablas la tienen).
@@ -406,11 +411,15 @@ Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (u
 | `latitud` | número | Latitud del local (la carga el admin en Tenteo); sirve para ordenar los locales por cercanía en /pedir. Vacía = sin ubicación. |
 | `longitud` | número | Longitud del local (ver latitud). |
 | `entra_en_tesoreria` | sí / no | Si el local entra en Tesorería. Falso en Villa Sarita (consignación: el concesionario es el dueño económico). |
+| `arca_modo` | texto | desactivado (no factura) o digital (factura sola lo cobrado por medios digitales). |
+| `arca_emisor_id` | id → arca_emisores | A nombre de quién factura esta sucursal. |
+| `arca_punto_venta` | entero | Punto de venta de ARCA de esta sucursal. |
 
 Otras columnas: `id`, `notas`, `created_at`, `updated_at`.
 
+**Apunta a:** `arca_emisor_id` → `arca_emisores`  
 **Personas (auth.users):** `encargado_user_id`  
-**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `peya_liquidaciones` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `proveedor_cuenta` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
+**La usan:** `aperturas_caja` (sucursal_id) · `auditorias_stock` (sucursal_id) · `cierres_caja` (sucursal_id) · `comprobantes_arca` (sucursal_id) · `contactos_crm` (sucursal_id) · `cta_corriente_pagos` (sucursal_id) · `egresos` (sucursal_id) · `gastos` (sucursal_id) · `gastos_fijos` (sucursal_id) · `mercadopago_qr_orders` (sucursal_id) · `mercadopago_transferencias_recibidas` (sucursal_id) · `movimientos` (sucursal_id) · `movimientos_socio` (sucursal_id) · `mp_cobros` (sucursal_id) · `pagos_proveedor` (sucursal_id) · `pagos_socio` (sucursal_id) · `pedidos` (sucursal_id) · `pedidoya_webhook_events` (sucursal_id) · `peya_liquidaciones` (sucursal_id) · `prestamos_termo` (sucursal_id) · `product_price_history` (sucursal_id) · `product_prices` (sucursal_id) · `profile_sucursales` (sucursal_id) · `profiles` (sucursal_id) · `promo_prices` (sucursal_id) · `proveedor_cuenta` (sucursal_id) · `reposicion_marcas_pedido` (sucursal_id) · `retiros_caja` (sucursal_id) · `termos` (sucursal_id) · `transferencias_stock` (sucursal_destino_id, sucursal_origen_id) · `traspasos_caja` (sucursal_id) · `whatsapp_webhook_events` (sucursal_id) · `zonas_entrega` (sucursal_id)
 
 ### `movimientos`
 
@@ -444,7 +453,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`.
 
 **Apunta a:** `contacto_id` → `contactos_crm` · `egreso_id` → `egresos` · `personal_id` → `profiles` · `proveedor_id` → `proveedores` · `sucursal_id` → `sucursales`  
 **Personas (auth.users):** `anulado_por`, `created_by`, `tesoreria_descartado_por`  
-**La usan:** `alertas_precio` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `peya_pedidos` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
+**La usan:** `alertas_precio` (movimiento_id) · `comprobantes_arca` (movimiento_id) · `mercadopago_qr_orders` (movimiento_id) · `mercadopago_transferencias_recibidas` (movimiento_id) · `movimiento_items` (movimiento_id) · `pagos_proveedor` (movimiento_id) · `pedidos` (movimiento_id) · `pedidoya_webhook_events` (movimiento_id) · `peya_pedidos` (movimiento_id) · `prestamos_termo` (movimiento_id, multa_movimiento_id) · `transferencias_stock` (movimiento_entrada_id, movimiento_salida_id)
 
 ### `movimiento_items`
 
@@ -1317,8 +1326,8 @@ Lo que pide el cliente por el catálogo público o por WhatsApp, hasta que se co
 
 ```mermaid
 erDiagram
+  pedidos ||--o{ pedido_calificaciones : "pedido_id"
   pedidos ||--o{ pedido_items : "pedido_id"
-  pedidos ||--o{ repartidor_posiciones : "pedido_id"
   products |o--o{ pedido_items : "product_id"
   promos |o--o{ pedido_items : "promo_id"
   pedidos ||--o{ pedido_mensajes : "pedido_id"
@@ -1326,7 +1335,7 @@ erDiagram
   contactos_crm |o--o{ pedidos : "contacto_id"
   movimientos |o--o{ pedidos : "movimiento_id"
   zonas_entrega |o--o{ pedidos : "zona_entrega_id"
-  pedidos ||--o{ pedido_calificaciones : "pedido_id"
+  pedidos ||--o{ repartidor_posiciones : "pedido_id"
   pedidos {
     uuid id PK
   }
@@ -1407,7 +1416,7 @@ Otras columnas: `id`, `sucursal_id`, `notas`, `created_at`, `updated_at`.
 
 **Apunta a:** `cliente_id` → `clientes` · `contacto_id` → `contactos_crm` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales` · `zona_entrega_id` → `zonas_entrega`  
 **Personas (auth.users):** `repartidor_id`  
-**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_items` (pedido_id) · `repartidor_posiciones` (pedido_id) · `pedido_mensajes` (pedido_id) · `pedido_calificaciones` (pedido_id)
+**La usan:** `mercadopago_qr_orders` (pedido_id) · `pedido_calificaciones` (pedido_id) · `pedido_items` (pedido_id) · `pedido_mensajes` (pedido_id) · `repartidor_posiciones` (pedido_id)
 
 ### `clientes`
 
@@ -1623,6 +1632,98 @@ Otras columnas: `id`, `sucursal_id`.
 Otras columnas: `id`, `sucursal_id`.
 
 **Apunta a:** `contacto_id` → `contactos_crm` · `sucursal_id` → `sucursales`
+
+## Facturación electrónica (ARCA)
+
+Las facturas que se emiten a ARCA (ex AFIP). Lo cobrado por medios digitales se factura solo; el efectivo, a pedido del cliente. El precio del sistema ya trae el IVA incluido.
+
+```mermaid
+erDiagram
+  arca_emisores ||--o{ comprobantes_arca : "emisor_id"
+  movimientos ||--o{ comprobantes_arca : "movimiento_id"
+  arca_emisores {
+    uuid id PK
+  }
+  arca_tickets {
+    uuid id PK
+  }
+  comprobantes_arca {
+    uuid id PK
+  }
+  movimientos {
+    uuid id PK
+  }
+```
+
+Cada línea es una relación: la tabla del lado de la izquierda es la "madre" (uno) y la de la derecha la que la referencia (muchos); el nombre es la columna que las une. Un círculo en la madre significa que la columna puede estar vacía. No se dibujan las columnas que apuntan a usuarios (quién cargó o modificó algo) ni `sucursal_id` (casi todas las tablas la tienen).
+
+### `arca_emisores`
+
+**A nombre de quién se factura.** Cada CUIT que emite comprobantes. Uno por sociedad (la SAS, o un local independiente con el suyo) y por ambiente: homologación es de pruebas y no tiene validez fiscal.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `cuit` | texto · obligatoria | CUIT del emisor (11 dígitos). |
+| `razon_social` | texto · obligatoria | Nombre legal que sale impreso. |
+| `ambiente` | texto | homologacion (pruebas) o produccion (real). |
+| `domicilio` | texto | Domicilio comercial que sale en el ticket. |
+| `ingresos_brutos` | texto | Número de Ingresos Brutos (sale en el ticket). |
+| `inicio_actividades` | fecha | Inicio de actividades (sale en el ticket). |
+| `activo` | sí / no | Apagado = no se usa para facturar. |
+
+Otras columnas: `id`, `created_at`.
+
+**La usan:** `comprobantes_arca` (emisor_id) · `sucursales` (arca_emisor_id)
+
+### `arca_tickets`
+
+**Ticket de acceso a ARCA.** ARCA entrega un permiso temporal (unas 12 horas) y no deja pedir otro mientras el anterior sirve; se guarda acá para que todas las instancias del servidor lo compartan. Solo lo toca el servidor.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `ambiente` | texto · obligatoria | homologacion o produccion. |
+| `token` | texto · obligatoria | Permiso entregado por ARCA (secreto). |
+| `sign` | texto · obligatoria | Firma del permiso (secreta). |
+| `expira_en` | fecha y hora · obligatoria | Cuándo vence; se renueva 10 minutos antes. |
+| `updated_at` | fecha y hora | Cuándo se guardó. |
+
+### `comprobantes_arca`
+
+**Una factura B o una nota de crédito B.** Una fila por venta y tipo de comprobante. Se crea ANTES de hablar con ARCA (eso impide facturar dos veces la misma venta) y queda pendiente, emitido o con error. Si la venta se anula, se emite la nota de crédito que la compensa.
+
+| Columna | Tipo | Qué guarda |
+| --- | --- | --- |
+| `movimiento_id` | id · obligatoria → movimientos | La venta que se factura. |
+| `sucursal_id` | id · obligatoria → sucursales | Sucursal de la venta. |
+| `emisor_id` | id · obligatoria → arca_emisores | A nombre de quién se emitió. |
+| `ambiente` | texto · obligatoria | homologacion (prueba) o produccion (real). |
+| `cbte_tipo` | entero · obligatoria | 6 = Factura B, 8 = Nota de crédito B. |
+| `punto_venta` | entero · obligatoria | Punto de venta de ARCA (uno por kiosco). |
+| `numero` | entero | Número correlativo que dio ARCA (vacío hasta que se emite). |
+| `numero_intentado` | entero | Número que se pidió en el último intento; si se cortó por timeout se consulta antes de reintentar, para no facturar dos veces. |
+| `fecha` | fecha · obligatoria | Fecha del comprobante. |
+| `doc_tipo` | entero | 99 = consumidor final, 96 = DNI, 80 = CUIT. |
+| `doc_nro` | texto | Documento del cliente (0 si es consumidor final sin datos). |
+| `imp_total` | número · obligatoria | Total de la venta (el precio ya incluye IVA). |
+| `imp_neto` | número · obligatoria | Parte sin IVA. |
+| `imp_iva` | número · obligatoria | IVA contenido. |
+| `iva` | datos JSON · obligatoria | Desglose por alícuota (base e importe de cada una). |
+| `origen` | texto · obligatoria | automatico (cobro digital), manual (a pedido del cliente) o anulacion (nota de crédito). |
+| `estado` | texto | pendiente (esperando a ARCA), emitido o error (ARCA lo rechazó: lo revisa una persona). |
+| `cae` | texto | Código de autorización que da ARCA: es lo que vuelve válido al comprobante. |
+| `cae_vto` | fecha | Vencimiento del CAE. |
+| `comprobante_asociado_id` | id → comprobantes_arca | En una nota de crédito, la factura que anula. |
+| `error` | texto | Último motivo de falla o rechazo. |
+| `intentos` | entero | Cuántas veces se intentó. |
+| `tomado_en` | fecha y hora | Candado de reintento (2 minutos): evita que dos procesos emitan a la vez. |
+| `created_by` | id | Quién lo pidió (vacío si fue automático). |
+| `created_at` | fecha y hora | Cuándo se creó. |
+| `emitido_en` | fecha y hora | Cuándo ARCA lo aprobó. |
+
+Otras columnas: `id`.
+
+**Apunta a:** `comprobante_asociado_id` → `comprobantes_arca` · `emisor_id` → `arca_emisores` · `movimiento_id` → `movimientos` · `sucursal_id` → `sucursales`  
+**Personas (auth.users):** `created_by`
 
 ## Cómo actualizar este documento
 

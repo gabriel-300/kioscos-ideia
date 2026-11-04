@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
+import { notaCreditoEnSegundoPlano } from "@/lib/arca/disparar";
 
 // Anular un pedido online que ya se cobró (Mercado Pago): el pedido pasa a "cancelado" y su venta se
 // marca como anulada (no se borra: queda en el Historial con quién, cuándo y por qué), así deja de contar
@@ -31,6 +32,8 @@ export async function anularPedidoCobrado(
     movimientoId: pedido.movimiento_id, sucursalId: pedido.sucursal_id, userId: p.userId, motivo, esAdmin: p.esAdmin,
   });
   if (res.error) return { error: res.error };
+  // Si el pedido ya estaba facturado en ARCA, se emite la nota de crédito que lo anula.
+  notaCreditoEnSegundoPlano(pedido.movimiento_id, p.userId);
 
   const { data: actualizado, error } = await (admin as any)
     .from("pedidos")

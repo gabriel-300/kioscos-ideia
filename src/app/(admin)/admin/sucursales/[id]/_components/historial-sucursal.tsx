@@ -2,6 +2,9 @@
 
 import { Fragment, useState, useMemo, useTransition } from "react";
 import { anularVenta } from "@/app/(admin)/admin/movimientos/actions";
+import { emitirComprobanteManual } from "@/app/(admin)/admin/facturacion/actions";
+import { urlQrArca } from "@/lib/arca/qr";
+import { qrComoSvg } from "@/lib/pedidos/qr";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -66,12 +69,28 @@ type Movimiento = {
   motivo_anulacion?: string | null;
 };
 
-function printTicket(m: Movimiento, sucursalNombre: string) {
+// Comprobante de ARCA de una venta (Factura B o su Nota de crédito). Lo arma la página de la sucursal.
+export type ComprobanteVenta = {
+  movimiento_id: string; cbte_tipo: number; punto_venta: number; numero: number | null; fecha: string;
+  estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
+  doc_tipo: number; doc_nro: string; imp_total: number; imp_iva: number; ambiente: string; error: string | null;
+  emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
+};
+const nroCbte = (c: { punto_venta: number; numero: number | null }) =>
+  c.numero ? `${String(c.punto_venta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")}` : "—";
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+function printTicket(m: Movimiento, sucursalNombre: string, factura?: ComprobanteVenta) {
   const total = m.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
   const fecha = new Date(m.fecha + "T00:00:00").toLocaleDateString("es-AR", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
   const id = m.id.slice(-8).toUpperCase();
+  const fiscal = !!factura && factura.estado === "emitido" && !!factura.cae && !!factura.numero && !!factura.emisor;
+  const AR2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 });
+  const qrSvg = fiscal
+    ? qrComoSvg(urlQrArca({ fecha: factura!.fecha, cuit: factura!.emisor!.cuit, puntoVenta: factura!.punto_venta, tipoCmp: factura!.cbte_tipo, numero: Number(factura!.numero), importe: Number(factura!.imp_total), docTipo: factura!.doc_tipo, docNro: factura!.doc_nro, cae: factura!.cae! }))
+    : "";
 
   const rows = m.movimiento_items.map((item) => `
     <tr>
@@ -100,7 +119,15 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
     .footer .thanks { font-size:13px; font-weight:bold; letter-spacing:.5px; }
     .footer .legal { font-size:9.5px; color:#999; margin-top:8px; border-top:1px dashed #ccc; padding-top:8px; }
   </style></head><body>
-  <h1>ANGIRU FOOD</h1>
+  ${fiscal ? `<h1>${esc(factura!.emisor?.razon_social ?? "")}</h1>
+  <div class="sub">CUIT ${factura!.emisor?.cuit ?? ""} · IVA Responsable Inscripto</div>
+  ${factura!.emisor?.domicilio ? `<div class="sub">${esc(factura!.emisor.domicilio)}</div>` : ""}
+  ${factura!.emisor?.ingresos_brutos ? `<div class="sub">IIBB ${esc(factura!.emisor.ingresos_brutos)}${factura!.emisor.inicio_actividades ? " · Inicio act. " + factura!.emisor.inicio_actividades.split("-").reverse().join("/") : ""}</div>` : ""}
+  <div class="divider"></div>
+  <div style="text-align:center;font-weight:800;font-size:15px">FACTURA B · Cód. 006</div>
+  <div class="sub">N° ${nroCbte(factura!)} · ${factura!.fecha.split("-").reverse().join("/")}</div>
+  <div class="sub">A CONSUMIDOR FINAL${factura!.doc_nro && factura!.doc_nro !== "0" ? " · Doc. " + factura!.doc_nro : ""}</div>
+  ${factura!.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`}
   <div class="sub">${sucursalNombre}</div>
   <div class="sub">${fecha} · #${id}</div>
   <div class="divider"></div>
@@ -109,7 +136,10 @@ function printTicket(m: Movimiento, sucursalNombre: string) {
     <tbody>${rows}</tbody>
   </table>
   <div class="total">TOTAL: ${AR.format(total)}</div>
-  <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div><div class="legal">Este comprobante no tiene validez fiscal</div></div>
+  ${fiscal ? `<div style="margin-top:8px;font-size:10.5px">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)<br>IVA contenido: <b>${AR2.format(factura!.imp_iva)}</b></div>
+  <div style="margin-top:8px;font-size:11px">CAE: <b>${factura!.cae}</b><br>Vto. CAE: ${(factura!.cae_vto ?? "").split("-").reverse().join("/")}</div>
+  <div style="width:34mm;margin:8px auto 0">${qrSvg}</div>` : ""}
+  <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div>${fiscal ? "" : '<div class="legal">Este comprobante no tiene validez fiscal</div>'}</div>
   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
   </body></html>`;
 
@@ -146,6 +176,29 @@ function AnularBtn({ id }: { id: string }) {
   );
 }
 
+function FacturarBtn({ id, onHecho }: { id: string; onHecho?: () => void }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      disabled={pending}
+      onClick={(e) => {
+        e.stopPropagation();
+        const doc = window.prompt("Facturar esta venta. DNI o CUIT del cliente (dejá vacío para Consumidor Final):");
+        if (doc === null) return;
+        startTransition(async () => {
+          const res = await emitirComprobanteManual(id, doc);
+          if (res.error) window.alert(res.pendiente ? "ARCA no respondió: la factura quedó pendiente y se va a reintentar. " + res.error : res.error);
+          else onHecho?.();
+        });
+      }}
+      className="px-2 py-0.5 rounded text-xs font-medium border border-neutral-300 hover:bg-neutral-100 disabled:opacity-50"
+      title="Emitir factura electrónica (ARCA)"
+    >
+      {pending ? "Emitiendo…" : "Facturar"}
+    </button>
+  );
+}
+
 export function HistorialSucursal({
   movimientos,
   sucursalNombre = "",
@@ -154,6 +207,7 @@ export function HistorialSucursal({
   puedeCerrarCaja = false,
   cajaAbierta = false,
   aperturaCreatedAt = null,
+  arca,
 }: {
   movimientos:    Movimiento[];
   sucursalNombre?: string;
@@ -162,6 +216,7 @@ export function HistorialSucursal({
   puedeCerrarCaja?: boolean;
   cajaAbierta?:     boolean;
   aperturaCreatedAt?: string | null;
+  arca?: { activa: boolean; comprobantes: Record<string, ComprobanteVenta[]> };
 }) {
   function puedeAnular(m: Movimiento) {
     return (
@@ -316,6 +371,16 @@ export function HistorialSucursal({
                               Anulada
                             </span>
                           )}
+                          {arca?.activa && m.tipo === "venta" && (() => {
+                            const f = arca.comprobantes[m.id]?.find((c) => c.cbte_tipo === 6);
+                            if (!f) return null;
+                            const cls = f.estado === "emitido" ? "bg-selva-100 text-selva-700" : f.estado === "pendiente" ? "bg-amber-100 text-amber-700" : "bg-danger/10 text-danger";
+                            return (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${cls}`} title={f.error ?? undefined}>
+                                {f.estado === "emitido" ? `Factura B ${nroCbte(f)}` : f.estado === "pendiente" ? "Factura pendiente" : "Factura con error"}
+                              </span>
+                            );
+                          })()}
                           {m.tipo === "venta" && m.canal && m.canal !== "consumidor_final" && (
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${CANAL_COLOR[m.canal] ?? "bg-neutral-100 text-neutral-500"}`}>
                               {CANAL_LABEL[m.canal] ?? m.canal}
@@ -340,7 +405,7 @@ export function HistorialSucursal({
                         <div className="flex items-center justify-end gap-1">
                           {m.tipo === "venta" && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); printTicket(m, sucursalNombre); }}
+                              onClick={(e) => { e.stopPropagation(); printTicket(m, sucursalNombre, arca?.comprobantes[m.id]?.find((c) => c.cbte_tipo === 6 && c.estado === "emitido")); }}
                               className="p-1 rounded hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
                               title="Imprimir ticket"
                             >
@@ -349,6 +414,7 @@ export function HistorialSucursal({
                               </svg>
                             </button>
                           )}
+                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && !arca.comprobantes[m.id]?.some((c) => c.cbte_tipo === 6) && <FacturarBtn id={m.id} />}
                           {puedeAnular(m) && <AnularBtn id={m.id} />}
                           <svg
                             className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}

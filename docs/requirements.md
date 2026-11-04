@@ -354,6 +354,16 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Estado**: **Probado** con Playwright (archivo generado y formulario de descarga) y con pruebas unitarias; falta la prueba con la
   térmica real.
 
+### Facturación electrónica (ARCA) — `/admin/facturacion`
+- **Quién**: configura solo el admin (emisores, sucursal, punto de venta). Cualquier staff con acceso a la sucursal puede
+  emitir a mano desde el historial. El ticket impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA.
+- **Reglas**: ver la decisión 17 del §3. Una venta con comprobante no se puede eliminar: se anula, y eso emite la nota de crédito.
+  Alícuota de IVA por producto (21% por defecto; 10,5% o exento solo si el contador lo indica). En un pedido online el envío se
+  factura como una línea más al 21%.
+- **Estado**: construido y probado de punta a punta contra la base real y ARCA **homologación** (factura, idempotencia y nota de
+  crédito). **Producción pendiente**: puntos de venta reales de tipo «Factura electrónica – Web Services», uno por kiosco, y certificado de producción
+  con la Clave Fiscal de la SAS. Detalle técnico en `docs/architecture.md` §6 y §8.
+
 ### Pedido Ya
 - **Estado**: el canal manual en el POS (efectivo y plataforma) está **Funcionando** (227 ventas en 60 días). El webhook está
   **Pendiente de configurar**: sin token ni payload real; solo guarda los eventos.
@@ -410,7 +420,13 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
 15. **Reposición**: solo avisa (no arma el pedido al proveedor) y es solo admin.
 16. **CRM de nichos**: no se creó la tabla puente `nichos_x_local` (un solo local la usa: YAGNI) ni el calendario de contenido.
     El usuario decidió no comunicarle a Javier (socio no técnico) las correcciones técnicas de su propuesta.
-17. **Facturación electrónica (AFIP/ARCA) pausada**: no se construye hasta que el usuario lo decida.
+17. **Facturación electrónica con ARCA (2026-11-03)**: la SAS es Responsable Inscripto y emite **Factura B** (y nota de crédito B).
+    **Lo cobrado por medios digitales (billetera/MP, tarjeta, QR, transferencia) se factura siempre y sola; el efectivo NO se
+    factura, salvo que el cliente pida el comprobante** (botón «Facturar» en el historial de la sucursal). Si una venta mezcla
+    efectivo con un cobro digital se factura la venta entera. No se factura el fiado ni Pedido Ya Plataforma. El precio del
+    sistema es **final (IVA incluido)**: el IVA se separa hacia atrás, nunca se suma. Cada sucursal arranca sin facturar hasta que un
+    admin la configura. Que ARCA esté caída **nunca frena la venta**. Facturar solo lo digital deja ventas declaradas menores que las
+    reales: es decisión del dueño, a hablar con el contador.
 18. **Historial de movimientos** usa `.limit(1000)` a propósito: es una lista de "últimos N", no un total.
 19. **`created_by` histórico**: las filas anteriores a la trazabilidad se completaron con el admin de aquel momento (mejor
     aproximación, **no es un dato certero**).

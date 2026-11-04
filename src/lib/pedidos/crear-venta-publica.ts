@@ -1,6 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { fechaHoyAR } from "@/lib/fecha";
 import { puertoKiosco } from "@/lib/tenteo/puerto-kiosco";
+import { facturarVentaEnSegundoPlano } from "@/lib/arca/disparar";
 
 // Sin "use server" a propósito -- esto NO es una Server Action invocable
 // desde el browser, solo se llama desde el webhook de Mercado Pago
@@ -73,6 +74,8 @@ export async function crearVentaPublica(
   const movimientoId = venta.movimientoId;
 
   await (admin as any).from("pedidos").update({ movimiento_id: movimientoId }).eq("id", pedidoId);
+  // Facturación ARCA: el pedido pagado por Mercado Pago es un cobro digital, se factura solo en segundo plano.
+  if (movimientoId) facturarVentaEnSegundoPlano(movimientoId, null);
   if (movimientoId) {
     await (admin as any).from("mercadopago_qr_orders").update({ movimiento_id: movimientoId }).eq("pedido_id", pedidoId);
   }

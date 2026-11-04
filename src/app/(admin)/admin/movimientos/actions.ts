@@ -6,6 +6,7 @@ import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
+import { facturarVentaEnSegundoPlano, notaCreditoEnSegundoPlano } from "@/lib/arca/disparar";
 
 export interface ItemInput {
   product_id:      string;
@@ -452,6 +453,10 @@ export async function crearMovimiento(data: {
 
   const movimientoId: string | null = typeof rpcRes.data === "string" ? rpcRes.data : null;
 
+  // Facturación ARCA: lo cobrado por medios digitales se factura solo, en segundo plano
+  // (no hace esperar al cajero). No hace nada si la sucursal no la tiene activada.
+  if (esVenta && movimientoId) facturarVentaEnSegundoPlano(movimientoId, userId);
+
   // Asociar imagen si se proporcionó — intentamos con el ID devuelto por la función
   if (data.remito_image_url) {
     if (movimientoId) {
@@ -667,6 +672,9 @@ export async function anularVenta(id: string, motivo: string): Promise<{ error?:
     .eq("id", id);
   if (error) return { error: error.message };
 
+  // Si la venta ya tenía factura de ARCA, se emite la nota de crédito que la anula.
+  notaCreditoEnSegundoPlano(id, userId);
+
   revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
   revalidatePath("/admin/movimientos");
   revalidatePath("/admin/stock");
@@ -685,6 +693,11 @@ export async function eliminarMovimiento(id: string) {
     .select("sucursal_id")
     .eq("id", id)
     .single();
+
+  // Una venta con comprobante de ARCA no se borra: se anula (eso emite la nota de crédito).
+  const { count: comprobantes } = await (supabase as any)
+    .from("comprobantes_arca").select("id", { count: "exact", head: true }).eq("movimiento_id", id);
+  if ((comprobantes ?? 0) > 0) throw new Error("Esta venta tiene un comprobante de ARCA: no se puede eliminar, hay que anularla.");
 
   const { error } = await supabase.from("movimientos").delete().eq("id", id);
   if (error) throw new Error(error.message);

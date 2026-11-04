@@ -41,6 +41,7 @@ const schema = z.object({
   freezer_required:  z.boolean(),
   is_active:         z.boolean(),
   vendible_pos:      z.boolean(),
+  alicuota_iva:      z.preprocess((v) => Number(v), z.number().refine((n) => [0, 10.5, 21, 27].includes(n), "Alícuota inválida")),
   dias_entrega:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(0).nullable()),
   dia_pedido:        z.string().optional(),
   weight_grams:      z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().positive().nullable()),
@@ -110,7 +111,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
     resolver: zodResolver(schema) as Resolver<FormValues>,
     defaultValues: {
       sku: "", name: "", short_description: "", category_id: "", proveedor_id: "",
-      unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true,
+      unit_label: "unidad", freezer_required: false, is_active: true, vendible_pos: true, alicuota_iva: 21,
       dias_entrega: null, dia_pedido: "", weight_grams: null, merma_pct: null,
     },
   });
@@ -160,6 +161,7 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
       freezer_required:  product.freezer_required,
       is_active:         product.is_active,
       vendible_pos:      (product as any).vendible_pos ?? true,
+      alicuota_iva:      Number((product as any).alicuota_iva ?? 21),
       dias_entrega:      (product as any).dias_entrega ?? null,
       dia_pedido:        (product as any).dia_pedido ?? "",
       weight_grams:      product.weight_grams ?? null,
@@ -240,6 +242,9 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
       freezer_required:  values.freezer_required,
       is_active:         values.is_active,
       vendible_pos:      values.vendible_pos,
+      // Solo se manda si el producto ya tiene la columna (migración 132) o si se eligió algo distinto del 21 por defecto:
+      // así editar productos sigue andando aunque la migración todavía no esté aplicada.
+      ...((product && "alicuota_iva" in product) || values.alicuota_iva !== 21 ? { alicuota_iva: values.alicuota_iva } : {}),
       dias_entrega:      values.dias_entrega,
       dia_pedido:        values.dia_pedido || null,
       weight_grams:      values.weight_grams,
@@ -337,6 +342,15 @@ export function ProductoDrawer({ open, product, categories, sucursales, proveedo
             <p className="text-[11px] text-neutral-400 -mt-2">
               Desmarcalo para insumos (ej. salchicha, pan de pancho) que no se venden sueltos al público — sigue contando stock y disponible para armar recetas/promos, pero no aparece como tile en Registrar venta.
             </p>
+            <label className="block">
+              <span className="text-sm font-medium text-neutral-700">IVA incluido en el precio</span>
+              <select className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm focus:outline-none focus:border-tierra-700" {...register("alicuota_iva")}>
+                <option value={21}>21%</option>
+                <option value={10.5}>10,5%</option>
+                <option value={0}>Exento (0%)</option>
+              </select>
+              <span className="text-[11px] text-neutral-400">El precio de venta ya trae el IVA; esto solo define cuánto es IVA en la factura electrónica. Dejalo en 21% salvo que el contador indique otra cosa.</span>
+            </label>
             <div className="grid grid-cols-2 gap-3 pt-1">
               <Input
                 label="Días hasta la entrega"

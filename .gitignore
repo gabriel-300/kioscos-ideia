@@ -53,3 +53,10 @@ app-repartidor/android/.gradle/
 app-repartidor/android/app/build/
 *.jks
 *.keystore
+
+# Certificados y claves de ARCA (nunca commitear)
+*.key
+*.crt
+*.csr
+certificados-arca/
+ta_wsfe*.json
