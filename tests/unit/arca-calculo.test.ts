@@ -97,3 +97,16 @@ describe("QR de ARCA", () => {
     expect(json).toEqual({ ver: 1, fecha: "2026-11-03", cuit: 30719673623, ptoVta: 1, tipoCmp: 6, nroCmp: 1, importe: 1210, moneda: "PES", ctz: 1, tipoDocRec: 99, nroDocRec: 0, tipoCodAut: "E", codAut: 86441044960533 });
   });
 });
+
+describe("receptor de Factura A", () => {
+  it("exige un CUIT válido y lo marca Responsable Inscripto", () => {
+    expect(normalizarReceptor("30-71967362-3", "A").receptor).toEqual({ docTipo: 80, docNro: "30719673623", condicionIva: 1 });
+    expect(normalizarReceptor("", "A").error).toMatch(/CUIT/);
+    expect(normalizarReceptor("30123456", "A").error).toMatch(/CUIT/);      // un DNI no sirve para la A
+    expect(normalizarReceptor("30-71967362-4", "A").error).toMatch(/válido/);
+  });
+  it("la B no cambia: vacío = consumidor final y un CUIT sigue yendo como consumidor final", () => {
+    expect(normalizarReceptor("", "B").receptor).toMatchObject({ docTipo: 99, condicionIva: 5 });
+    expect(normalizarReceptor("30719673623").receptor).toMatchObject({ docTipo: 80, condicionIva: 5 });
+  });
+});

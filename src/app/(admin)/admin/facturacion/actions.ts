@@ -12,8 +12,9 @@ type Db = any;
 
 export type ResultadoComprobante = { error?: string; pendiente?: boolean; numero?: number | null; cae?: string | null; tipo?: number; puntoVenta?: number };
 
-/** Facturar a mano una venta (típicamente en efectivo, cuando el cliente pide el comprobante). */
-export async function emitirComprobanteManual(movimientoId: string, documento?: string | null): Promise<ResultadoComprobante> {
+/** Facturar a mano una venta (típicamente en efectivo, cuando el cliente pide el comprobante). Factura A solo con CUIT de Responsable Inscripto. */
+export async function emitirComprobanteManual(movimientoId: string, documento?: string | null, tipo: "A" | "B" = "B"): Promise<ResultadoComprobante> {
+  if (tipo !== "A" && tipo !== "B") return { error: "Tipo de factura inválido." };
   const { userId, role } = await requireStaff();
   const db: Db = createAdminClient();
 
@@ -22,7 +23,7 @@ export async function emitirComprobanteManual(movimientoId: string, documento?: 
   const sinAcceso = await requireSucursalAccess(db, userId, role, mov.sucursal_id);
   if (sinAcceso) return { error: sinAcceso };
 
-  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento, userId });
+  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento, userId, tipo });
   revalidatePath(`/admin/sucursales/${mov.sucursal_id}`);
   revalidatePath("/admin/facturacion");
   if (!r.ok) return { error: r.error, pendiente: r.pendiente };

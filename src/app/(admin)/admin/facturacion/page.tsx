@@ -34,8 +34,8 @@ export default async function FacturacionPage() {
   if (falta) {
     return (
       <div className="m-4 md:m-8 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-        <p className="font-semibold">Falta aplicar la migración 132 (facturación ARCA).</p>
-        <p className="mt-1">Ejecutá <code>supabase/migrations/132_facturacion_arca.sql</code> en el SQL Editor de Supabase y recargá. ({falta.error.message})</p>
+        <p className="font-semibold">Falta aplicar la migración de facturación ARCA (132 y 133).</p>
+        <p className="mt-1">Ejecutá <code>supabase/migrations/132_facturacion_arca.sql</code> y <code>133_facturacion_arca_factura_a.sql</code> en el SQL Editor de Supabase y recargá. ({falta.error.message})</p>
       </div>
     );
   }

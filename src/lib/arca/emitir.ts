@@ -14,20 +14,28 @@ import {
   ArcaError, consultarComprobante, ERR_NUMERO_NO_CORRELATIVO, solicitarCae, ultimoAutorizado,
   type Ambiente, type Auth,
 } from "./cliente";
-import { debeFacturarseSola, normalizarReceptor, type VentaParaFacturar } from "./reglas";
+import { debeFacturarseSola, normalizarReceptor, type TipoFactura, type VentaParaFacturar } from "./reglas";
 import { obtenerTicket } from "./ticket";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
+export const FACTURA_A = 1;
+export const NOTA_CREDITO_A = 3;
 export const FACTURA_B = 6;
 export const NOTA_CREDITO_B = 8;
+const TIPOS_FACTURA = [FACTURA_A, FACTURA_B];
+const esNotaDeCredito = (tipo: number) => tipo === NOTA_CREDITO_A || tipo === NOTA_CREDITO_B;
+/** Nota de crédito que anula una factura, y la factura que anula una nota de crédito. */
+const tipoNotaDe = (factura: number) => (factura === FACTURA_A ? NOTA_CREDITO_A : NOTA_CREDITO_B);
+const tipoFacturaDe = (nota: number) => (nota === NOTA_CREDITO_A ? FACTURA_A : FACTURA_B);
+const letra = (tipo: number) => (tipo === FACTURA_A || tipo === NOTA_CREDITO_A ? "A" : "B");
 const LEASE_MS = 2 * 60_000;
 
 export type ComprobanteRow = {
   id: string; movimiento_id: string; sucursal_id: string; emisor_id: string; ambiente: Ambiente;
   cbte_tipo: number; punto_venta: number; numero: number | null; numero_intentado: number | null;
-  fecha: string; doc_tipo: number; doc_nro: string;
+  fecha: string; doc_tipo: number; doc_nro: string; cond_iva_receptor: number;
   imp_total: number; imp_neto: number; imp_iva: number;
   iva: { alicuota: number; idArca: number; base: number; importe: number }[];
   origen: "automatico" | "manual" | "anulacion";
@@ -44,7 +52,7 @@ const yyyymmdd = (iso: string) => iso.replaceAll("-", "");
 const isoDeArca = (s: string) => (s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : null);
 
 // ── Preparar la factura de una venta ────────────────────────────────────────
-type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null };
+type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null; tipo?: TipoFactura };
 
 export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Opciones): Promise<Emision> {
   const { data: mov, error } = await db
@@ -65,12 +73,21 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
     return { ok: false, error: "No corresponde facturar sola (cobro en efectivo).", noCorresponde: true };
   }
 
-  // ¿Ya existe? Emitida → se devuelve; pendiente/error → se reintenta sobre la misma fila.
-  const { data: previo } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).eq("cbte_tipo", FACTURA_B).maybeSingle();
+  // La Factura A solo se emite a mano: lo digital sale siempre como B.
+  const tipoFact = opc.origen === "manual" && opc.tipo === "A" ? FACTURA_A : FACTURA_B;
+
+  // ¿Ya existe una factura de esta venta? Misma letra: emitida → se devuelve; pendiente/error → se reintenta
+  // sobre la misma fila. Otra letra: no se emite una segunda (habría que anular la primera con una nota de crédito).
+  const { data: previas } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).in("cbte_tipo", TIPOS_FACTURA);
+  const previo = (previas ?? []).find((c: ComprobanteRow) => c.cbte_tipo === tipoFact);
+  const otra = (previas ?? []).find((c: ComprobanteRow) => c.cbte_tipo !== tipoFact);
+  if (otra) {
+    return { ok: false, error: `Esta venta ya tiene una Factura ${letra(otra.cbte_tipo)} (${otra.estado}). Para emitir una Factura ${letra(tipoFact)} hay que anular la anterior con una nota de crédito.`, noCorresponde: true };
+  }
   if (previo?.estado === "emitido") return { ok: true, comprobante: previo };
   if (previo) return procesarComprobante(db, previo.id);
 
-  const receptor = opc.origen === "manual" ? normalizarReceptor(opc.documento) : normalizarReceptor(null);
+  const receptor = opc.origen === "manual" ? normalizarReceptor(opc.documento, letra(tipoFact) as TipoFactura) : normalizarReceptor(null);
   if (!receptor.receptor) return { ok: false, error: receptor.error ?? "Documento inválido." };
 
   type Item = { subtotal: number | null; product: { alicuota_iva: number | string | null } | null };
@@ -91,15 +108,15 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
 
   const { data: nuevo, error: errIns } = await db.from("comprobantes_arca").insert({
     movimiento_id: movimientoId, sucursal_id: mov.sucursal_id, emisor_id: suc.emisor.id, ambiente: suc.emisor.ambiente,
-    cbte_tipo: FACTURA_B, punto_venta: suc.arca_punto_venta, fecha: fechaHoyAR(),
-    doc_tipo: receptor.receptor.docTipo, doc_nro: receptor.receptor.docNro,
+    cbte_tipo: tipoFact, punto_venta: suc.arca_punto_venta, fecha: fechaHoyAR(),
+    doc_tipo: receptor.receptor.docTipo, doc_nro: receptor.receptor.docNro, cond_iva_receptor: receptor.receptor.condicionIva,
     imp_total: d.total, imp_neto: d.neto, imp_iva: d.iva, iva: d.tramos,
     origen: opc.origen, created_by: opc.userId ?? null,
   }).select("id").single();
 
   if (errIns) {
     if (errIns.code === "23505") { // otra instancia la creó justo antes
-      const { data: otro } = await db.from("comprobantes_arca").select("id").eq("movimiento_id", movimientoId).eq("cbte_tipo", FACTURA_B).single();
+      const { data: otro } = await db.from("comprobantes_arca").select("id").eq("movimiento_id", movimientoId).eq("cbte_tipo", tipoFact).single();
       if (otro) return procesarComprobante(db, otro.id);
     }
     return { ok: false, error: `No se pudo registrar el comprobante: ${errIns.message}` };
@@ -109,29 +126,33 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
 
 // ── Nota de crédito al anular una venta facturada ───────────────────────────
 export async function emitirNotaCreditoPorAnulacion(db: Db, movimientoId: string, userId?: string | null): Promise<Emision | { ok: true; sinFactura: true }> {
-  const { data: factura } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).eq("cbte_tipo", FACTURA_B).maybeSingle();
-  if (!factura) return { ok: true, sinFactura: true };
+  const { data: facturas } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).in("cbte_tipo", TIPOS_FACTURA);
+  if (!facturas?.length) return { ok: true, sinFactura: true };
 
-  // La factura nunca llegó a emitirse: no hay nada que anular en ARCA, solo se frena.
-  if (factura.estado !== "emitido") {
-    await db.from("comprobantes_arca").update({ estado: "error", error: "La venta se anuló antes de facturarse.", tomado_en: null }).eq("id", factura.id);
-    return { ok: true, sinFactura: true };
+  // Facturas que nunca llegaron a emitirse: no hay nada que anular en ARCA, solo se frenan.
+  for (const f of facturas as ComprobanteRow[]) {
+    if (f.estado !== "emitido") {
+      await db.from("comprobantes_arca").update({ estado: "error", error: "La venta se anuló antes de facturarse.", tomado_en: null }).eq("id", f.id);
+    }
   }
+  const factura = (facturas as ComprobanteRow[]).find((f) => f.estado === "emitido");
+  if (!factura) return { ok: true, sinFactura: true };
+  const tipoNota = tipoNotaDe(factura.cbte_tipo);
 
-  const { data: existente } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).eq("cbte_tipo", NOTA_CREDITO_B).maybeSingle();
+  const { data: existente } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).eq("cbte_tipo", tipoNota).maybeSingle();
   if (existente?.estado === "emitido") return { ok: true, comprobante: existente };
   if (existente) return procesarComprobante(db, existente.id);
 
   const { data: nc, error } = await db.from("comprobantes_arca").insert({
     movimiento_id: movimientoId, sucursal_id: factura.sucursal_id, emisor_id: factura.emisor_id, ambiente: factura.ambiente,
-    cbte_tipo: NOTA_CREDITO_B, punto_venta: factura.punto_venta, fecha: fechaHoyAR(),
-    doc_tipo: factura.doc_tipo, doc_nro: factura.doc_nro,
+    cbte_tipo: tipoNota, punto_venta: factura.punto_venta, fecha: fechaHoyAR(),
+    doc_tipo: factura.doc_tipo, doc_nro: factura.doc_nro, cond_iva_receptor: factura.cond_iva_receptor,
     imp_total: factura.imp_total, imp_neto: factura.imp_neto, imp_iva: factura.imp_iva, iva: factura.iva,
     origen: "anulacion", comprobante_asociado_id: factura.id, created_by: userId ?? null,
   }).select("id").single();
   if (error) {
     if (error.code === "23505") {
-      const { data: otro } = await db.from("comprobantes_arca").select("id").eq("movimiento_id", movimientoId).eq("cbte_tipo", NOTA_CREDITO_B).single();
+      const { data: otro } = await db.from("comprobantes_arca").select("id").eq("movimiento_id", movimientoId).eq("cbte_tipo", tipoNota).single();
       if (otro) return procesarComprobante(db, otro.id);
     }
     return { ok: false, error: `No se pudo registrar la nota de crédito: ${error.message}` };
@@ -160,7 +181,7 @@ export async function procesarComprobante(db: Db, id: string): Promise<Emision> 
 
   try {
     // Una factura de una venta que se anuló mientras esperaba no se emite.
-    if (c.cbte_tipo === FACTURA_B) {
+    if (TIPOS_FACTURA.includes(c.cbte_tipo)) {
       const { data: m } = await db.from("movimientos").select("anulado_en").eq("id", c.movimiento_id).maybeSingle();
       if (m?.anulado_en) {
         await soltar(db, id, { estado: "error", error: "La venta se anuló antes de facturarse." });
@@ -181,10 +202,10 @@ export async function procesarComprobante(db: Db, id: string): Promise<Emision> 
     }
 
     let asociado;
-    if (c.cbte_tipo === NOTA_CREDITO_B) {
+    if (esNotaDeCredito(c.cbte_tipo)) {
       const { data: f } = await db.from("comprobantes_arca").select("numero, fecha, punto_venta").eq("id", c.comprobante_asociado_id).single();
       if (!f?.numero) throw new ArcaError("La factura original no tiene número.", false);
-      asociado = { tipo: FACTURA_B, ptoVta: f.punto_venta as number, numero: Number(f.numero), cuit: emisor.cuit as string, fecha: yyyymmdd(f.fecha as string) };
+      asociado = { tipo: tipoFacturaDe(c.cbte_tipo), ptoVta: f.punto_venta as number, numero: Number(f.numero), cuit: emisor.cuit as string, fecha: yyyymmdd(f.fecha as string) };
     }
 
     const tramos: TramoIva[] = c.iva.map((t) => ({ alicuota: t.alicuota, idArca: t.idArca, base: Number(t.base), importe: Number(t.importe) }));
@@ -195,7 +216,7 @@ export async function procesarComprobante(db: Db, id: string): Promise<Emision> 
 
       const r = await solicitarCae(c.ambiente, auth, {
         ptoVta: c.punto_venta, tipo: c.cbte_tipo, numero, fecha: yyyymmdd(c.fecha),
-        docTipo: c.doc_tipo, docNro: c.doc_nro, condicionIvaReceptor: 5,
+        docTipo: c.doc_tipo, docNro: c.doc_nro, condicionIvaReceptor: c.cond_iva_receptor ?? 5,
         total: importeArca(Number(c.imp_total)), neto: importeArca(Number(c.imp_neto)), iva: importeArca(Number(c.imp_iva)),
         tramos: tramos.map((t) => ({ idArca: t.idArca, base: importeArca(t.base), importe: importeArca(t.importe) })),
         asociado,

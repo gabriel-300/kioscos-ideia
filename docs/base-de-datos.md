@@ -1689,7 +1689,7 @@ Otras columnas: `id`, `created_at`.
 
 ### `comprobantes_arca`
 
-**Una factura B o una nota de crédito B.** Una fila por venta y tipo de comprobante. Se crea ANTES de hablar con ARCA (eso impide facturar dos veces la misma venta) y queda pendiente, emitido o con error. Si la venta se anula, se emite la nota de crédito que la compensa.
+**Una factura (A o B) o una nota de crédito.** Una fila por venta y tipo de comprobante. Se crea ANTES de hablar con ARCA (eso impide facturar dos veces la misma venta) y queda pendiente, emitido o con error. Si la venta se anula, se emite la nota de crédito que la compensa.
 
 | Columna | Tipo | Qué guarda |
 | --- | --- | --- |
@@ -1697,13 +1697,14 @@ Otras columnas: `id`, `created_at`.
 | `sucursal_id` | id · obligatoria → sucursales | Sucursal de la venta. |
 | `emisor_id` | id · obligatoria → arca_emisores | A nombre de quién se emitió. |
 | `ambiente` | texto · obligatoria | homologacion (prueba) o produccion (real). |
-| `cbte_tipo` | entero · obligatoria | 6 = Factura B, 8 = Nota de crédito B. |
+| `cbte_tipo` | entero · obligatoria | 1 = Factura A, 3 = Nota de crédito A, 6 = Factura B, 8 = Nota de crédito B. La A se emite solo a mano, a un cliente Responsable Inscripto. |
 | `punto_venta` | entero · obligatoria | Punto de venta de ARCA (uno por kiosco). |
 | `numero` | entero | Número correlativo que dio ARCA (vacío hasta que se emite). |
 | `numero_intentado` | entero | Número que se pidió en el último intento; si se cortó por timeout se consulta antes de reintentar, para no facturar dos veces. |
 | `fecha` | fecha · obligatoria | Fecha del comprobante. |
-| `doc_tipo` | entero | 99 = consumidor final, 96 = DNI, 80 = CUIT. |
+| `doc_tipo` | entero | 99 = consumidor final, 96 = DNI, 80 = CUIT (obligatorio en la Factura A). |
 | `doc_nro` | texto | Documento del cliente (0 si es consumidor final sin datos). |
+| `cond_iva_receptor` | entero | Condición del cliente frente al IVA: 5 = consumidor final (Factura B), 1 = Responsable Inscripto (Factura A). |
 | `imp_total` | número · obligatoria | Total de la venta (el precio ya incluye IVA). |
 | `imp_neto` | número · obligatoria | Parte sin IVA. |
 | `imp_iva` | número · obligatoria | IVA contenido. |

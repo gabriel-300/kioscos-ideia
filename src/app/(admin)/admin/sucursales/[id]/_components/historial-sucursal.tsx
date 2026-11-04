@@ -73,9 +73,13 @@ type Movimiento = {
 export type ComprobanteVenta = {
   movimiento_id: string; cbte_tipo: number; punto_venta: number; numero: number | null; fecha: string;
   estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
-  doc_tipo: number; doc_nro: string; imp_total: number; imp_iva: number; ambiente: string; error: string | null;
+  doc_tipo: number; doc_nro: string; imp_total: number; imp_neto: number; imp_iva: number; ambiente: string; error: string | null;
+  iva?: { alicuota: number; base: number; importe: number }[]; cond_iva_receptor?: number;
   emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
 };
+// Facturas (A=1, B=6); las notas de crédito (3 y 8) no se ofrecen para imprimir desde acá.
+const esFacturaCbte = (c: { cbte_tipo: number }) => c.cbte_tipo === 1 || c.cbte_tipo === 6;
+const letraCbte = (c: { cbte_tipo: number }) => (c.cbte_tipo === 1 || c.cbte_tipo === 3 ? "A" : "B");
 const nroCbte = (c: { punto_venta: number; numero: number | null }) =>
   c.numero ? `${String(c.punto_venta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")}` : "—";
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -124,9 +128,9 @@ function printTicket(m: Movimiento, sucursalNombre: string, factura?: Comprobant
   ${factura!.emisor?.domicilio ? `<div class="sub">${esc(factura!.emisor.domicilio)}</div>` : ""}
   ${factura!.emisor?.ingresos_brutos ? `<div class="sub">IIBB ${esc(factura!.emisor.ingresos_brutos)}${factura!.emisor.inicio_actividades ? " · Inicio act. " + factura!.emisor.inicio_actividades.split("-").reverse().join("/") : ""}</div>` : ""}
   <div class="divider"></div>
-  <div style="text-align:center;font-weight:800;font-size:15px">FACTURA B · Cód. 006</div>
+  <div style="text-align:center;font-weight:800;font-size:15px">FACTURA ${letraCbte(factura!)} · Cód. ${String(factura!.cbte_tipo).padStart(3, "0")}</div>
   <div class="sub">N° ${nroCbte(factura!)} · ${factura!.fecha.split("-").reverse().join("/")}</div>
-  <div class="sub">A CONSUMIDOR FINAL${factura!.doc_nro && factura!.doc_nro !== "0" ? " · Doc. " + factura!.doc_nro : ""}</div>
+  <div class="sub">${letraCbte(factura!) === "A" ? "CUIT " + factura!.doc_nro + " · IVA Responsable Inscripto" : "A CONSUMIDOR FINAL" + (factura!.doc_nro && factura!.doc_nro !== "0" ? " · Doc. " + factura!.doc_nro : "")}</div>
   ${factura!.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`}
   <div class="sub">${sucursalNombre}</div>
   <div class="sub">${fecha} · #${id}</div>
@@ -136,8 +140,9 @@ function printTicket(m: Movimiento, sucursalNombre: string, factura?: Comprobant
     <tbody>${rows}</tbody>
   </table>
   <div class="total">TOTAL: ${AR.format(total)}</div>
-  ${fiscal ? `<div style="margin-top:8px;font-size:10.5px">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)<br>IVA contenido: <b>${AR2.format(factura!.imp_iva)}</b></div>
-  <div style="margin-top:8px;font-size:11px">CAE: <b>${factura!.cae}</b><br>Vto. CAE: ${(factura!.cae_vto ?? "").split("-").reverse().join("/")}</div>
+  ${fiscal && letraCbte(factura!) === "A" ? `<div style="margin-top:8px;font-size:11px">Importe neto gravado: <b>${AR2.format(factura!.imp_neto)}</b><br>${(factura!.iva ?? []).map((t) => "IVA " + String(t.alicuota).replace(".", ",") + "%: <b>" + AR2.format(t.importe) + "</b>").join("<br>")}</div>` : ""}
+  ${fiscal && letraCbte(factura!) === "B" ? `<div style="margin-top:8px;font-size:10.5px">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)<br>IVA contenido: <b>${AR2.format(factura!.imp_iva)}</b></div>` : ""}
+  ${fiscal ? `<div style="margin-top:8px;font-size:11px">CAE: <b>${factura!.cae}</b><br>Vto. CAE: ${(factura!.cae_vto ?? "").split("-").reverse().join("/")}</div>
   <div style="width:34mm;margin:8px auto 0">${qrSvg}</div>` : ""}
   <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div>${fiscal ? "" : '<div class="legal">Este comprobante no tiene validez fiscal</div>'}</div>
   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
@@ -189,8 +194,11 @@ function FacturarBtn({ id, onHecho }: { id: string; onHecho?: () => void }) {
         e.stopPropagation();
         const doc = window.prompt("Facturar esta venta. DNI o CUIT del cliente (dejá vacío para Consumidor Final):");
         if (doc === null) return;
+        // Un CUIT puede ser de un Responsable Inscripto (Factura A) o de alguien que solo quiere su CUIT en la B.
+        const esCuit = doc.replace(/\D/g, "").length === 11;
+        const tipo: "A" | "B" = esCuit && window.confirm("¿El cliente es Responsable Inscripto y pide Factura A?\n\nAceptar = Factura A\nCancelar = Factura B con ese CUIT") ? "A" : "B";
         startTransition(async () => {
-          const res = await emitirComprobanteManual(id, doc);
+          const res = await emitirComprobanteManual(id, doc, tipo);
           if (res.error) window.alert(res.pendiente ? "ARCA no respondió: la factura quedó pendiente y se va a reintentar. " + res.error : res.error);
           else onHecho?.();
         });
@@ -376,12 +384,12 @@ export function HistorialSucursal({
                             </span>
                           )}
                           {arca?.activa && m.tipo === "venta" && (() => {
-                            const f = arca.comprobantes[m.id]?.find((c) => c.cbte_tipo === 6);
+                            const f = arca.comprobantes[m.id]?.find(esFacturaCbte);
                             if (!f) return null;
                             const cls = f.estado === "emitido" ? "bg-selva-100 text-selva-700" : f.estado === "pendiente" ? "bg-amber-100 text-amber-700" : "bg-danger/10 text-danger";
                             return (
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${cls}`} title={f.error ?? undefined}>
-                                {f.estado === "emitido" ? `Factura B ${nroCbte(f)}` : f.estado === "pendiente" ? "Factura pendiente" : "Factura con error"}
+                                {f.estado === "emitido" ? `Factura ${letraCbte(f)} ${nroCbte(f)}` : f.estado === "pendiente" ? "Factura pendiente" : "Factura con error"}
                               </span>
                             );
                           })()}
@@ -409,7 +417,7 @@ export function HistorialSucursal({
                         <div className="flex items-center justify-end gap-1">
                           {m.tipo === "venta" && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); printTicket(m, sucursalNombre, arca?.comprobantes[m.id]?.find((c) => c.cbte_tipo === 6 && c.estado === "emitido")); }}
+                              onClick={(e) => { e.stopPropagation(); printTicket(m, sucursalNombre, arca?.comprobantes[m.id]?.find((c) => esFacturaCbte(c) && c.estado === "emitido")); }}
                               className="p-1 rounded hover:bg-neutral-100 hover:text-neutral-700 transition-colors"
                               title="Imprimir ticket"
                             >
@@ -418,7 +426,7 @@ export function HistorialSucursal({
                               </svg>
                             </button>
                           )}
-                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && esReciente(m.created_at) && !arca.comprobantes[m.id]?.some((c) => c.cbte_tipo === 6) && <FacturarBtn id={m.id} />}
+                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && esReciente(m.created_at) && !arca.comprobantes[m.id]?.some(esFacturaCbte) && <FacturarBtn id={m.id} />}
                           {puedeAnular(m) && <AnularBtn id={m.id} />}
                           <svg
                             className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}

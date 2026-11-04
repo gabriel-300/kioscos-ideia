@@ -37,8 +37,22 @@ export type Receptor = { docTipo: 99 | 96 | 80; docNro: string; condicionIva: nu
 // 5 = Consumidor Final, 1 = Responsable Inscripto, 6 = Monotributo.
 export const COND_IVA_CONSUMIDOR_FINAL = 5;
 
-export function normalizarReceptor(doc?: string | null): { receptor?: Receptor; error?: string } {
+export type TipoFactura = "A" | "B";
+
+/** Condición frente al IVA del receptor cuando es Responsable Inscripto (Factura A). */
+export const COND_IVA_RESPONSABLE_INSCRIPTO = 1;
+
+/**
+ * Receptor del comprobante. Factura B: sin dato = consumidor final; acepta DNI o CUIT.
+ * Factura A: exige el CUIT del cliente (Responsable Inscripto); ARCA verifica del otro lado que realmente lo sea.
+ */
+export function normalizarReceptor(doc?: string | null, tipo: TipoFactura = "B"): { receptor?: Receptor; error?: string } {
   const limpio = (doc ?? "").replace(/[^0-9]/g, "");
+  if (tipo === "A") {
+    if (limpio.length !== 11) return { error: "La Factura A necesita el CUIT del cliente (11 dígitos)." };
+    if (!cuitValido(limpio)) return { error: "El CUIT no es válido (dígito verificador)." };
+    return { receptor: { docTipo: 80, docNro: limpio, condicionIva: COND_IVA_RESPONSABLE_INSCRIPTO } };
+  }
   if (!limpio) return { receptor: { docTipo: 99, docNro: "0", condicionIva: COND_IVA_CONSUMIDOR_FINAL } };
   if (limpio.length === 11) {
     if (!cuitValido(limpio)) return { error: "El CUIT no es válido (dígito verificador)." };

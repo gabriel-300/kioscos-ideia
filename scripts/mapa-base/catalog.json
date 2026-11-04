@@ -49,7 +49,7 @@
     {
       "k": "r",
       "t": "comprobantes_arca",
-      "cols": "id:uuid:NN:DEF | movimiento_id:uuid:NN | sucursal_id:uuid:NN | emisor_id:uuid:NN | ambiente:text:NN | cbte_tipo:integer:NN | punto_venta:integer:NN | numero:bigint | numero_intentado:bigint | fecha:date:NN | doc_tipo:integer:NN:DEF | doc_nro:text:NN:DEF | imp_total:numeric(14,2):NN | imp_neto:numeric(14,2):NN | imp_iva:numeric(14,2):NN | iva:jsonb:NN | origen:text:NN | estado:text:NN:DEF | cae:text | cae_vto:date | comprobante_asociado_id:uuid | error:text | intentos:integer:NN:DEF | tomado_en:timestamp with time zone | created_by:uuid | created_at:timestamp with time zone:NN:DEF | emitido_en:timestamp with time zone"
+      "cols": "id:uuid:NN:DEF | movimiento_id:uuid:NN | sucursal_id:uuid:NN | emisor_id:uuid:NN | ambiente:text:NN | cbte_tipo:integer:NN | punto_venta:integer:NN | numero:bigint | numero_intentado:bigint | fecha:date:NN | doc_tipo:integer:NN:DEF | doc_nro:text:NN:DEF | cond_iva_receptor:integer:NN:DEF | imp_total:numeric(14,2):NN | imp_neto:numeric(14,2):NN | imp_iva:numeric(14,2):NN | iva:jsonb:NN | origen:text:NN | estado:text:NN:DEF | cae:text | cae_vto:date | comprobante_asociado_id:uuid | error:text | intentos:integer:NN:DEF | tomado_en:timestamp with time zone | created_by:uuid | created_at:timestamp with time zone:NN:DEF | emitido_en:timestamp with time zone"
     },
     {
       "t": "contactos_crm",

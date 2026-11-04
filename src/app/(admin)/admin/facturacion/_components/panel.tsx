@@ -6,7 +6,7 @@ import { configurarSucursalArca, crearEmisor, reintentarComprobante, reintentarP
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
-const TIPO: Record<number, string> = { 6: "Factura B", 8: "Nota de crédito B" };
+const TIPO: Record<number, string> = { 1: "Factura A", 3: "Nota de crédito A", 6: "Factura B", 8: "Nota de crédito B" };
 const ESTADO_CLASE: Record<string, string> = {
   emitido: "bg-selva-100 text-selva-700",
   pendiente: "bg-amber-100 text-amber-700",
