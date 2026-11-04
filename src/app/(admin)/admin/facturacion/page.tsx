@@ -33,7 +33,7 @@ export default async function FacturacionPage() {
   const falta = [emisores, sucursales, comprobantes].find((r) => r.error);
   if (falta) {
     return (
-      <div className="max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+      <div className="m-4 md:m-8 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
         <p className="font-semibold">Falta aplicar la migración 132 (facturación ARCA).</p>
         <p className="mt-1">Ejecutá <code>supabase/migrations/132_facturacion_arca.sql</code> en el SQL Editor de Supabase y recargá. ({falta.error.message})</p>
       </div>
@@ -41,9 +41,9 @@ export default async function FacturacionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 max-w-[1200px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Facturación electrónica (ARCA)</h1>
+        <h1 className="text-xl md:text-2xl font-semibold font-display text-neutral-900">Facturación electrónica (ARCA)</h1>
         <p className="mt-1 text-sm text-neutral-500">
           Lo cobrado por medios digitales se factura solo (Factura B). El efectivo se factura a mano, desde el historial de la sucursal, cuando el cliente pide el comprobante.
         </p>

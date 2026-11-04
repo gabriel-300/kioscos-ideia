@@ -176,6 +176,10 @@ function AnularBtn({ id }: { id: string }) {
   );
 }
 
+// El botón "Facturar" solo se ofrece para ventas de los últimos 7 días: el comprobante lleva la fecha de hoy
+// y ARCA solo tolera unos pocos días de diferencia con la venta; una venta vieja es otro trámite.
+const esReciente = (creada: string) => Date.now() - new Date(creada).getTime() < 7 * 24 * 3600 * 1000;
+
 function FacturarBtn({ id, onHecho }: { id: string; onHecho?: () => void }) {
   const [pending, startTransition] = useTransition();
   return (
@@ -414,7 +418,7 @@ export function HistorialSucursal({
                               </svg>
                             </button>
                           )}
-                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && !arca.comprobantes[m.id]?.some((c) => c.cbte_tipo === 6) && <FacturarBtn id={m.id} />}
+                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && esReciente(m.created_at) && !arca.comprobantes[m.id]?.some((c) => c.cbte_tipo === 6) && <FacturarBtn id={m.id} />}
                           {puedeAnular(m) && <AnularBtn id={m.id} />}
                           <svg
                             className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
