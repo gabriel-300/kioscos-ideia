@@ -18,9 +18,14 @@ async function leer(db: Db, ambiente: Ambiente): Promise<Ticket | null> {
   return expiraEn.getTime() > Date.now() + MARGEN_MS ? { token: data.token, sign: data.sign, expiraEn } : null;
 }
 
-export function credenciales(): { crt: string; key: string } {
-  const crt = process.env.ARCA_CRT, key = process.env.ARCA_KEY;
-  if (!crt || !key) throw new ArcaError("Faltan los secrets ARCA_CRT y ARCA_KEY del certificado.", false);
+/**
+ * Cada ambiente de ARCA tiene su propio certificado: el de homologación (pruebas) NO sirve en producción.
+ * Homologación: ARCA_CRT / ARCA_KEY. Producción: ARCA_CRT_PROD / ARCA_KEY_PROD.
+ */
+export function credenciales(ambiente: Ambiente): { crt: string; key: string } {
+  const sufijo = ambiente === "produccion" ? "_PROD" : "";
+  const crt = process.env[`ARCA_CRT${sufijo}`], key = process.env[`ARCA_KEY${sufijo}`];
+  if (!crt || !key) throw new ArcaError(`Faltan los secrets ARCA_CRT${sufijo} y ARCA_KEY${sufijo} del certificado de ${ambiente}.`, false);
   return { crt, key };
 }
 
@@ -28,7 +33,7 @@ export async function obtenerTicket(db: Db, ambiente: Ambiente): Promise<Ticket>
   const guardado = await leer(db, ambiente);
   if (guardado) return guardado;
 
-  const { crt, key } = credenciales();
+  const { crt, key } = credenciales(ambiente);
   try {
     const nuevo = await pedirTicket(ambiente, crt, key);
     const { error } = await db.from("arca_tickets").upsert({

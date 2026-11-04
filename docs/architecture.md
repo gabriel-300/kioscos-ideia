@@ -48,7 +48,7 @@ lo importa ningún módulo.
 - **Runtime (secrets del Worker, no se pueden listar desde acá)**: `SUPABASE_SERVICE_ROLE_KEY`,
   `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_USER_ID`, `MERCADOPAGO_WEBHOOK_SECRET`, `GROQ_API_KEY`, `CRON_SECRET`,
   `REPOSICION_API_TOKEN`, `PEDIDOYA_WEBHOOK_TOKEN`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`,
-  `WHATSAPP_ACCESS_TOKEN`, `OPENROUTER_API_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL`, `ARCA_CRT` y `ARCA_KEY` (certificado y clave PEM de la facturación electrónica; ver §8).
+  `WHATSAPP_ACCESS_TOKEN`, `OPENROUTER_API_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL`, `ARCA_CRT` y `ARCA_KEY` (certificado y clave PEM de **homologación**) y `ARCA_CRT_PROD` y `ARCA_KEY_PROD` (los de **producción**: cada ambiente de ARCA tiene el suyo; ver §8).
   Los de tipo secret deben crearse como **Secret**, no como Plaintext (un `MERCADOPAGO_USER_ID` en Plaintext no se
   aplicaba).
 - Estado inferido por las respuestas de producción el 2026-09-19: `CRON_SECRET` cargado (`/api/ping` da 401);
