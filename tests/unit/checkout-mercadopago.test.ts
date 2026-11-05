@@ -22,7 +22,7 @@ describe("crearCheckoutMercadoPago", () => {
     const r = await crearCheckoutMercadoPago(f.admin, PEDIDO);
     expect(r.url).toBeNull();
     expect(mock).not.toHaveBeenCalled();
-    expect(f.calls).toHaveLength(0);
+    expect(f.calls.some((c: Q) => c.op === "insert" || c.op === "update")).toBe(false);
   });
 
   it("crea la orden con el pedido enlazado y manda el total del servidor a Mercado Pago", async () => {

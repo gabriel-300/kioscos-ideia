@@ -191,8 +191,8 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // SU PROPIA fila (022_fix_sucursales_own_row_select.sql), y acá
     // cualquiera del staff necesita ver el resto de las sucursales activas
     // para poder elegir a dónde mandar. Sin datos sensibles (solo nombre).
-    admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre") as unknown as Promise<{
-      data: { id: string; nombre: string }[] | null;
+    (admin as any).from("sucursales").select("id, nombre, catalogo_propio").eq("is_active", true).order("nombre") as unknown as Promise<{
+      data: { id: string; nombre: string; catalogo_propio: boolean | null }[] | null;
     }>,
     // Transferencias enviadas a ESTA sucursal que todavía no se confirmaron.
     // Admin client -- mismo motivo que stock_sucursal: no depende de a quién
@@ -220,10 +220,10 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
     // compartida, la sucursal recién se define al vincular).
     (admin as any)
       .from("mercadopago_transferencias_recibidas")
-      .select("id, monto, recibido_en, raw_payload")
+      .select("id, monto, recibido_en, raw_payload, sucursal_id")
       .is("movimiento_id", null)
       .order("recibido_en", { ascending: false })
-      .limit(20) as unknown as Promise<{ data: { id: string; monto: number; recibido_en: string; raw_payload: any }[] | null }>,
+      .limit(60) as unknown as Promise<{ data: { id: string; monto: number; recibido_en: string; raw_payload: any; sucursal_id: string | null }[] | null }>,
     // Candidatas para vincular: ventas de ESTA sucursal pagadas (total o
     // parcialmente) por transferencia en los últimos 7 días. Se filtran las
     // que ya tienen un pago de Mercado Pago vinculado más abajo, en JS (más
@@ -343,9 +343,14 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   // pagó (transferencia desde otro banco vs. desde su propia cuenta MP) --
   // se arma el mejor nombre disponible para que se pueda reconocer de quién
   // es cada transferencia sin tener que abrir la app del banco.
-  // Esas transferencias son de la cuenta de Mercado Pago de IDEIA (una sola, global): un local independiente
-  // no las ve ni las puede vincular a sus ventas.
-  const pagosTransferenciaSinAsignar = (independiente ? [] : pagosTransferenciaSinAsignarResult.data ?? []).map((p) => {
+  // Cada cuenta de Mercado Pago es de un dueño (migración 134): un local independiente ve solo las transferencias de
+  // SU cuenta (las que el aviso marcó con su sucursal) y los demás kioscos ven las de la cuenta de IDEIA, sin las
+  // de los locales independientes.
+  const sucursalesPropias = new Set((todasSucursalesResult.data ?? []).filter((s) => s.catalogo_propio).map((s) => s.id));
+  const pagosTransferenciaSinAsignar = (pagosTransferenciaSinAsignarResult.data ?? [])
+    .filter((p) => (independiente ? p.sucursal_id === id : !p.sucursal_id || !sucursalesPropias.has(p.sucursal_id)))
+    .slice(0, 20)
+    .map((p) => {
     const payer = p.raw_payload?.payer ?? {};
     const nombre = [payer.first_name, payer.last_name].filter(Boolean).join(" ") || null;
     return {

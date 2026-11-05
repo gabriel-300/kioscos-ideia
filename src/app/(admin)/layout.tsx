@@ -49,7 +49,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   let conciliacionPendientes = 0;
   let tesoreriaPendientes = 0;
   if (role === "admin") {
-    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { count: countQrSinVenta }, { count: countTransfSinAsignar }, { count: countRetirosSinRegistrar }, { count: countPeyaPedidos }, { count: countPeyaAtrasadas }, { count: countMpSinClasificar }] = await Promise.all([
+    const [{ count: countAuditoria }, { count: countAlertas }, { count: countTransferencias }, { data: puntosConPedido }, { data: qrSinVenta }, { data: transfSinAsignar }, { data: propiasData }, { count: countRetirosSinRegistrar }, { count: countPeyaPedidos }, { count: countPeyaAtrasadas }, { count: countMpSinClasificar }] = await Promise.all([
       (supabase as any)
         .from("auditoria_stock_items")
         .select("id", { count: "exact", head: true })
@@ -75,15 +75,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         }>,
       // Pagos que Mercado Pago confirmó sin venta vinculada -- ver
       // /admin/conciliacion-mercadopago.
+      // Se traen las filas (pocas: solo las sin vincular) en vez de contar, para dejar afuera las de los locales
+      // independientes, que cobran con su propia cuenta de Mercado Pago (migración 134).
       (supabase as any)
         .from("mercadopago_qr_orders")
-        .select("id", { count: "exact", head: true })
+        .select("sucursal_id")
         .eq("estado", "pagado")
-        .is("movimiento_id", null),
+        .is("movimiento_id", null)
+        .limit(1000),
       (supabase as any)
         .from("mercadopago_transferencias_recibidas")
-        .select("id", { count: "exact", head: true })
-        .is("movimiento_id", null),
+        .select("sucursal_id")
+        .is("movimiento_id", null)
+        .limit(1000),
+      (supabase as any).from("sucursales").select("id").eq("catalogo_propio", true),
       // Retiros de caja que el administrativo todavía no registró en Tesorería (desde la fecha de arranque, solo los
       // locales que entran). Si las migraciones de Tesorería no están aplicadas, da 0 y el menú no muestra nada.
       (async () => {
@@ -109,7 +114,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     auditoriaPendientes     = countAuditoria ?? 0;
     alertasPrecioPendientes = countAlertas ?? 0;
     transferenciasPendientes = countTransferencias ?? 0;
-    conciliacionPendientes  = (countQrSinVenta ?? 0) + (countTransfSinAsignar ?? 0);
+    const propias = new Set(((propiasData ?? []) as { id: string }[]).map((s) => s.id));
+    const sinPropias = (filas: { sucursal_id: string | null }[] | null) => (filas ?? []).filter((f) => !f.sucursal_id || !propias.has(f.sucursal_id)).length;
+    conciliacionPendientes  = sinPropias(qrSinVenta) + sinPropias(transfSinAsignar);
     tesoreriaPendientes     = (countRetirosSinRegistrar ?? 0) + (countPeyaPedidos ?? 0) + (countPeyaAtrasadas ?? 0) + (countMpSinClasificar ?? 0);
 
     if (puntosConPedido && puntosConPedido.length > 0) {

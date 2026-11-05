@@ -428,9 +428,17 @@ export function SucursalDrawer({ open, sucursal, onClose, encargadoUsers, catego
             error={errors.mercadopago_pos_id?.message}
             {...register("mercadopago_pos_id")}
           />
+          {(sucursal as any)?.catalogo_propio ? (
+            <p className="text-xs text-neutral-500 -mt-1 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-2">
+              Este local cobra con <span className="font-medium">su propia cuenta</span> de Mercado Pago, no con la de IDEIA.
+              La cuenta y la Caja se configuran en{" "}
+              <a href={`/admin/mi-mercadopago?sucursal=${sucursal!.id}`} className="text-tierra-700 underline font-medium">Mi Mercado Pago</a>.
+            </p>
+          ) : (
           <Button type="button" variant="ghost" size="sm" onClick={handleBuscarCajas} loading={buscandoCajas} className="-mt-1 self-start">
             Buscar Cajas en Mercado Pago
           </Button>
+          )}
           {errorCajas && (
             <p className="text-xs text-danger bg-danger/5 border border-danger/20 rounded-lg px-2.5 py-1.5">{errorCajas}</p>
           )}

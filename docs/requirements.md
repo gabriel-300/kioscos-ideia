@@ -234,6 +234,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
   productos, categorías, promos y recetas (con sus propios costos) y ve solo lo suyo más el catálogo global (sobre el que fija su precio y costo).
   No puede modificar lo global ni ve lo de otros locales; sus productos no se pueden vender en otra sucursal. Sus productos tampoco se pueden transferir a otro kiosco. Los productos globales nuevos no le llegan solos: elige cuáles vende. Ve todos los informes de su
   sucursal y administra a sus vendedores en `/admin/mi-personal`. El primer caso es el local nuevo, totalmente independiente, que usa el sistema sin pagar a IDEIA.
+  **Cobra con su propia cuenta de Mercado Pago** (migración 134): el dueño conecta su Access Token y elige su Caja en `/admin/mi-mercadopago`; el QR y el cobro online de ese local entran a su cuenta y sus transferencias no se mezclan con la conciliación de IDEIA. No se corrige sin preguntar: un local independiente nunca debe cobrar con la cuenta de IDEIA.
 - **Reglas**: precio y costo son **por sucursal**; un producto activo no se guarda si falta el precio en alguna sucursal
   activa; todo cambio queda en el historial; una entrega con un costo distinto al del catálogo genera una alerta (sin
   umbral); el catálogo público oculta los productos sin precio.

@@ -34,8 +34,8 @@ export default async function ConciliacionMercadoPagoPage({
   const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 6 * 86400000));
   const hasta = sp.hasta ?? hoy;
 
-  const [{ data: sucursales }, qrRes, transfRes, ventasRes] = await Promise.all([
-    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
+  const [{ data: sucursalesTodas }, qrRes, transfRes, ventasRes] = await Promise.all([
+    (supabase as any).from("sucursales").select("id, nombre, catalogo_propio").eq("is_active", true).order("nombre") as unknown as Promise<{ data: { id: string; nombre: string; catalogo_propio: boolean | null }[] | null }>,
     // Paginados (tope de 1.000 filas de PostgREST): con un rango amplio las
     // órdenes/ventas pasan ese límite y la conciliación mostraba diferencias falsas.
     fetchAll<QrOrder>((d, h) =>
@@ -67,12 +67,15 @@ export default async function ConciliacionMercadoPagoPage({
     ).then((data) => ({ data })),
   ]);
 
-  const sucNombreMap = new Map((sucursales ?? []).map((s) => [s.id, s.nombre]));
+  // Los locales independientes cobran con SU cuenta de Mercado Pago (migración 134): no se mezclan con la de IDEIA.
+  const propias = new Set((sucursalesTodas ?? []).filter((s) => s.catalogo_propio).map((s) => s.id));
+  const sucursales = (sucursalesTodas ?? []).filter((s) => !s.catalogo_propio);
+  const sucNombreMap = new Map(sucursales.map((s) => [s.id, s.nombre]));
   const sucFiltro = sp.sucursal ?? "";
 
-  let qr        = qrRes.data ?? [];
-  let transferencias = transfRes.data ?? [];
-  let ventas    = ventasRes.data ?? [];
+  let qr        = (qrRes.data ?? []).filter((q) => !propias.has(q.sucursal_id));
+  let transferencias = (transfRes.data ?? []).filter((t) => !t.sucursal_id || !propias.has(t.sucursal_id));
+  let ventas    = (ventasRes.data ?? []).filter((v) => !propias.has(v.sucursal_id));
   if (sucFiltro) {
     qr = qr.filter((q) => q.sucursal_id === sucFiltro);
     transferencias = transferencias.filter((t) => t.sucursal_id === sucFiltro);

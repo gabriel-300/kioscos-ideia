@@ -69,7 +69,7 @@ lo importa ningún módulo.
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (aplicada y verificada el 2026-10-19) y `113_vencimiento_de_remitos.sql` (aplicada y verificada el 2026-10-19) y `114_plazo_de_pago_proveedor.sql` (aplicada y verificada el 2026-10-20) y `115_historial_costos_de_entrega.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella cargar los costos de una entrega avisa que no pudo anotarse en el historial) y `116_ficha_contable_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: el código lee las columnas nuevas de `proveedores` y sin ella fallan Tesorería y Catálogo → Proveedores); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
-  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**. `131_catalogo_con_dueno.sql` (catálogo con dueño, ver §4): escrita, **pendiente de aplicar a mano antes de publicar el código**.
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**. `131_catalogo_con_dueno.sql` (catálogo con dueño, ver §4): aplicada. `134_mercadopago_por_sucursal.sql` (cuenta de Mercado Pago por sucursal, ver §4): escrita, **pendiente de aplicar a mano antes de publicar el código**.
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
   (`.github/workflows/backup.yml` + `scripts/backup/`): `pg_dump` de `public + auth + storage` y copia de los buckets, cifrado con
@@ -277,6 +277,20 @@ rol sintético "socio").
 - `encargado` y `concesionario`: una sola sucursal, la que tiene `sucursales.encargado_user_id = su id`.
 - `vendedor`: `profile_sucursales` (puede estar en varias, migración 082); `profiles.sucursal_id` es la sucursal activa.
 - `admin`: todas. `repartidor`: ninguna, solo su cola de entregas.
+
+**Mercado Pago por sucursal (migración 134).** Un local independiente cobra con SU cuenta de Mercado Pago, no con la de IDEIA.
+- **Credenciales**: tabla `sucursal_mercadopago` (token cifrado con AES-GCM + usuario de la cuenta), con RLS activo y **sin políticas ni permisos
+  para anon/authenticated**: solo el servidor la lee. La clave de cifrado es `MP_CREDENCIALES_KEY` (secret de Cloudflare, opcional: si falta se deriva de
+  `SUPABASE_SERVICE_ROLE_KEY`; rotar cualquiera de las dos obliga a reconectar la cuenta). El token entra una vez, se verifica contra `/users/me` y no vuelve al navegador.
+- **Qué credenciales usa cada sucursal** (`src/lib/mercadopago/credenciales.ts`, `credencialesDeSucursal`): con fila → las suyas; sin fila → las globales de IDEIA
+  (`MERCADOPAGO_ACCESS_TOKEN`/`MERCADOPAGO_USER_ID`); un local con `catalogo_propio` **sin** su cuenta cargada → ninguna (nunca cae a la de IDEIA).
+  **Todo código nuevo que llame a la API de Mercado Pago por una sucursal tiene que pedir las credenciales por ahí**, no leer `process.env`.
+- **Aviso de pago**: con cuenta propia la `notification_url` lleva `?s=<sucursal>`; el webhook confirma el pago contra la API con el token de ESA cuenta
+  e ignora órdenes de otra sucursal. Las transferencias que llegan a esa cuenta se guardan con su `sucursal_id`.
+- **No se mezclan**: Conciliación Mercado Pago, el aviso rojo del menú y «Pagos por transferencia sin conciliar» dejan afuera lo de los locales independientes;
+  `vincularTransferenciaMercadoPago` solo vincula transferencias de la cuenta que corresponde.
+- **Pantalla**: `/admin/mi-mercadopago` (menú del dueño; un admin entra con `?sucursal=<id>`): conectar la cuenta y elegir la Caja. También aplica al cobro online
+  de pedidos (`crearCheckoutMercadoPago`). Sin tocar todavía: `confirmarPagoPedido` de Tenteo usa la cuenta de IDEIA (Tenteo no está activo para locales independientes).
 
 **Catálogo con dueño (migración 131).** Un local independiente (otra persona, sus propios productos y costos, sin ver a los demás
 kioscos) usa el sistema completo como `concesionario` de una sucursal con `sucursales.catalogo_propio = true`. Villa Sarita

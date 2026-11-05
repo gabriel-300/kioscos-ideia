@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { credencialesDeSucursal } from "@/lib/mercadopago/credenciales";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Webhook de confirmación de pago del QR dinámico de Mercado Pago.
 //
@@ -107,12 +110,27 @@ async function registrarPagoSobrePedidoCerrado(admin: any, pedidoId: string, mpP
 }
 
 export async function POST(request: NextRequest) {
-  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const { searchParams } = request.nextUrl;
+
+  // Aviso de un local con cuenta propia de Mercado Pago (migración 134): la dirección del aviso lleva ?s=<sucursal>,
+  // y el pago se verifica contra la API con el token de ESA cuenta. Sin ?s= es la cuenta de IDEIA, como siempre.
+  const sParam = searchParams.get("s");
+  let sucursalAviso: string | null = null;
+  let accessToken: string | undefined = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (sParam !== null) {
+    if (!UUID.test(sParam)) return NextResponse.json({ ok: true });
+    const cred = await credencialesDeSucursal(createAdminClient(), sParam);
+    if (!cred?.propia) {
+      console.warn("[mercadopago webhook] aviso de una sucursal sin cuenta propia de Mercado Pago, se ignora");
+      return NextResponse.json({ ok: true });
+    }
+    sucursalAviso = sParam;
+    accessToken = cred.accessToken;
+  }
   if (!accessToken) {
     return NextResponse.json({ error: "Integración no configurada todavía (falta MERCADOPAGO_ACCESS_TOKEN)" }, { status: 501 });
   }
 
-  const { searchParams } = request.nextUrl;
   let body: any = null;
   try { body = await request.json(); } catch { /* algunas notificaciones vienen sin body */ }
 
@@ -153,6 +171,15 @@ export async function POST(request: NextRequest) {
 
       if (payment.status === "approved") {
         let matcheoOrdenQr = false;
+        // Cuenta propia: la referencia solo vale si la orden es de ESA sucursal (nadie confirma órdenes ajenas).
+        if (sucursalAviso && payment.external_reference) {
+          const { data: ordenDe } = await (admin as any)
+            .from("mercadopago_qr_orders").select("sucursal_id").eq("external_reference", payment.external_reference).maybeSingle();
+          if (ordenDe && ordenDe.sucursal_id !== sucursalAviso) {
+            console.warn("[mercadopago webhook] la orden no es de la sucursal del aviso, se ignora");
+            return NextResponse.json({ ok: true });
+          }
+        }
         if (payment.external_reference) {
           // El monto cobrado tiene que ser el de la orden: si es otro, NO se marca como pagada (el
           // QR es de importe fijo, así que una diferencia es rara) y el pago queda en "pagos sin
@@ -225,7 +252,7 @@ export async function POST(request: NextRequest) {
           await (admin as any)
             .from("mercadopago_transferencias_recibidas")
             .upsert(
-              { mp_payment_id: String(dataId), monto: payment.transaction_amount, raw_payload: payment },
+              { mp_payment_id: String(dataId), monto: payment.transaction_amount, raw_payload: payment, ...(sucursalAviso ? { sucursal_id: sucursalAviso } : {}) },
               { onConflict: "mp_payment_id", ignoreDuplicates: true }
             );
         }
@@ -251,6 +278,11 @@ export async function POST(request: NextRequest) {
       const paymentId = order.transactions?.payments?.[0]?.id ?? String(dataId);
 
       if (pagoAprobado && order.external_reference) {
+        if (sucursalAviso) {
+          const { data: ordenDe } = await (admin as any)
+            .from("mercadopago_qr_orders").select("sucursal_id").eq("external_reference", order.external_reference).maybeSingle();
+          if (ordenDe && ordenDe.sucursal_id !== sucursalAviso) return NextResponse.json({ ok: true });
+        }
         const { data: actualizados } = await (admin as any)
           .from("mercadopago_qr_orders")
           .update({

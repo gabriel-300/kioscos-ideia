@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff, requireAdmin } from "@/lib/auth/require-role";
 import { requireSucursalAccess as checkAccesoSucursal } from "@/lib/auth/sucursal-access";
+import { credencialesDeSucursal } from "@/lib/mercadopago/credenciales";
 
 // Cobro con QR dinámico de Mercado Pago -- mismo espíritu que
 // transferencia-actions.ts/termos/actions.ts: devuelven {error?} en vez de
@@ -11,12 +12,6 @@ import { requireSucursalAccess as checkAccesoSucursal } from "@/lib/auth/sucursa
 // (MERCADOPAGO_ACCESS_TOKEN/MERCADOPAGO_USER_ID), todo responde con un error
 // claro -- mismo criterio que el webhook de PedidosYa antes de tener token.
 
-function mpCredenciales() {
-  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-  const userId       = process.env.MERCADOPAGO_USER_ID;
-  if (!accessToken || !userId) return null;
-  return { accessToken, userId };
-}
 
 export async function armarQrMercadoPago(data: {
   sucursal_id: string;
@@ -30,12 +25,14 @@ export async function armarQrMercadoPago(data: {
 
   if (!(data.monto > 0)) return { error: "El monto tiene que ser mayor a 0" };
 
-  const cred = mpCredenciales();
-  if (!cred) return { error: "La integración de Mercado Pago todavía no está configurada" };
+  // Cada sucursal cobra con SU cuenta: un local independiente con otra cuenta de Mercado Pago usa la suya (y nunca
+  // la de IDEIA); el resto usa la de IDEIA (migración 134).
+  const cred = await credencialesDeSucursal(admin, data.sucursal_id);
+  if (!cred || !cred.userId) return { error: "Esta sucursal todavía no tiene su cuenta de Mercado Pago conectada" };
 
   const { data: sucursal } = await (admin as any)
     .from("sucursales")
-    .select("mercadopago_pos_id")
+    .select("mercadopago_pos_id, nombre")
     .eq("id", data.sucursal_id)
     .single();
   const posId = sucursal?.mercadopago_pos_id as string | null | undefined;
@@ -53,6 +50,9 @@ export async function armarQrMercadoPago(data: {
   if (insertError) return { error: insertError.message };
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kioscos-ideia.lytwyn-ideia.workers.dev";
+  // Con cuenta propia, el aviso de pago lleva la sucursal para que el servidor sepa con qué token confirmarlo.
+  const notificationUrl = `${siteUrl}/api/webhooks/mercadopago${cred.propia ? `?s=${data.sucursal_id}` : ""}`;
+  const titulo = cred.propia ? `Compra en ${(sucursal?.nombre as string | undefined)?.trim() || "el local"}` : "Compra en Kioscos IDEIA";
 
   const mpRes = await fetch(
     `https://api.mercadopago.com/instore/orders/qr/seller/collectors/${cred.userId}/pos/${posId}/qrs`,
@@ -64,13 +64,13 @@ export async function armarQrMercadoPago(data: {
       },
       body: JSON.stringify({
         external_reference: externalReference,
-        title:              "Kioscos IDEIA",
-        description:        "Compra en Kioscos IDEIA",
-        notification_url:   `${siteUrl}/api/webhooks/mercadopago`,
+        title:              cred.propia ? titulo : "Kioscos IDEIA",
+        description:        titulo,
+        notification_url:   notificationUrl,
         total_amount:        data.monto,
         items: [{
-          title:       "Compra en Kioscos IDEIA",
-          description: "Compra en Kioscos IDEIA",
+          title:       titulo,
+          description: titulo,
           unit_price:   data.monto,
           quantity:     1,
           unit_measure: "unit",
@@ -135,8 +135,8 @@ export async function cancelarQrMercadoPago(externalReference: string): Promise<
   if (errCancel) return { error: errCancel.message };
   if (!cancelada?.length) return { error: "Esta orden ya no está pendiente (puede que se haya pagado justo ahora), refrescá la pantalla" };
 
-  const cred = mpCredenciales();
-  if (cred) {
+  const cred = await credencialesDeSucursal(admin, orden.sucursal_id);
+  if (cred && cred.userId) {
     const { data: sucursal } = await (admin as any)
       .from("sucursales")
       .select("mercadopago_pos_id")
@@ -217,16 +217,22 @@ export async function vincularTransferenciaMercadoPago(data: {
   const accesoError = await checkAccesoSucursal(admin, userId, role, data.sucursal_id);
   if (accesoError) return { error: accesoError };
 
-  // Las transferencias sin asignar son de la cuenta de Mercado Pago de IDEIA: un local independiente no las toca.
-  const { data: suc } = await (admin as any).from("sucursales").select("catalogo_propio").eq("id", data.sucursal_id).maybeSingle();
-  if (suc?.catalogo_propio) return { error: "Esta sucursal no usa la cuenta de Mercado Pago de IDEIA" };
-
   const { data: transferencia } = await (admin as any)
     .from("mercadopago_transferencias_recibidas")
-    .select("movimiento_id, monto")
+    .select("movimiento_id, monto, sucursal_id")
     .eq("id", data.transferencia_id)
     .single();
   if (!transferencia) return { error: "No se encontró esa transferencia" };
+
+  // Cada cuenta de Mercado Pago es de un dueño: un local independiente solo vincula las transferencias de SU cuenta
+  // (las que el aviso dejó marcadas con su sucursal) y los demás kioscos no tocan las de un local independiente.
+  const { data: suc } = await (admin as any).from("sucursales").select("catalogo_propio").eq("id", data.sucursal_id).maybeSingle();
+  if (suc?.catalogo_propio) {
+    if (transferencia.sucursal_id !== data.sucursal_id) return { error: "Esa transferencia no es de la cuenta de esta sucursal" };
+  } else if (transferencia.sucursal_id) {
+    const { data: duena } = await (admin as any).from("sucursales").select("catalogo_propio").eq("id", transferencia.sucursal_id).maybeSingle();
+    if (duena?.catalogo_propio) return { error: "Esa transferencia es de la cuenta de un local independiente" };
+  }
   if (transferencia.movimiento_id) return { error: "Esa transferencia ya está vinculada a una venta" };
 
   // Hallazgo de la auditoría de seguridad del 08/08 (ver memoria del

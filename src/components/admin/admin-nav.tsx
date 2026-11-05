@@ -133,6 +133,7 @@ const NAV_TAIL: NavItem[] = [
   { href: "/admin/nichos", label: "Nichos",   roles: ["admin", "encargado", "concesionario"],  icon: "nichos" },
   { href: "/admin/staff",  label: "Staff",    roles: ["admin"],               icon: "staff" },
   { href: "/admin/mi-personal", label: "Mi personal", roles: ["dueno"], icon: "staff" },
+  { href: "/admin/mi-mercadopago", label: "Mi Mercado Pago", roles: ["dueno"], icon: "transferencias" },
   { href: "/admin/ayuda",  label: "Ayuda",    roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "ayuda" },
 ];
 

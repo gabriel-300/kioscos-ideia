@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/server";
 import { urlSeguimiento } from "./enlaces";
+import { credencialesDeSucursal } from "@/lib/mercadopago/credenciales";
 
 // Cobro automático de un pedido online con Mercado Pago (Checkout Pro).
 //
@@ -26,8 +27,10 @@ export type PedidoParaCheckout = {
 const URL_PREFERENCIAS = "https://api.mercadopago.com/checkout/preferences";
 
 export async function crearCheckoutMercadoPago(admin: Admin, pedido: PedidoParaCheckout): Promise<{ url: string | null; error?: string }> {
-  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-  if (!accessToken) return { url: null, error: "Mercado Pago no está configurado" };
+  // Cada sucursal cobra en SU cuenta (migración 134): un local independiente jamás cobra con la de IDEIA.
+  const cred = await credencialesDeSucursal(admin, pedido.sucursal_id);
+  if (!cred) return { url: null, error: "Mercado Pago no está configurado para esta sucursal" };
+  const accessToken = cred.accessToken;
   if (!(pedido.total > 0)) return { url: null, error: "El pedido no tiene un total para cobrar" };
 
   const externalReference = crypto.randomUUID();
@@ -54,7 +57,7 @@ export async function crearCheckoutMercadoPago(admin: Admin, pedido: PedidoParaC
       body: JSON.stringify({
         items: [{ id: pedido.id, title: `Angiru Food · Pedido #${pedido.numero}`, quantity: 1, unit_price: pedido.total, currency_id: "ARS" }],
         external_reference: externalReference,
-        notification_url:   `${siteUrl}/api/webhooks/mercadopago`,
+        notification_url:   `${siteUrl}/api/webhooks/mercadopago${cred.propia ? `?s=${pedido.sucursal_id}` : ""}`,
         back_urls:          { success: volver, pending: volver, failure: volver },
         auto_return:        "approved",
         statement_descriptor: "ANGIRU FOOD",
