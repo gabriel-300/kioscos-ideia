@@ -54,7 +54,13 @@ export async function conectarMercadoPago(token: string, sucursalId?: string): P
   const r = await resolverSucursal(sucursalId);
   if ("error" in r) return r;
   const limpio = token.trim();
-  if (!/^[A-Za-z0-9_-]{20,300}$/.test(limpio)) return { error: "El Access Token no tiene el formato esperado" };
+  if (/^APP_USR-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(limpio)) {
+    return { error: "Eso es la Public Key, no el Access Token. Copiá el campo \"Access Token\" de las credenciales de producción." };
+  }
+  if (/^TEST-/i.test(limpio)) return { error: "Ese es un token de prueba. Necesitás el Access Token de PRODUCCIÓN (empieza con APP_USR-)." };
+  if (!/^APP_USR-[0-9]+-[0-9]{4,8}-[0-9a-f]{20,64}-[0-9]+$/i.test(limpio)) {
+    return { error: "No parece un Access Token de Mercado Pago (tiene la forma APP_USR-números-números-letras-números). Copialo completo, sin espacios." };
+  }
 
   const cuenta = await cuentaDelToken(limpio);
   if (cuenta.error || !cuenta.userId) return { error: cuenta.error ?? "No se pudo verificar el token" };

@@ -61,6 +61,11 @@ export async function cuentaDelToken(accessToken: string): Promise<{ error?: str
 
   const pos = await fetch("https://api.mercadopago.com/pos?limit=1", { headers });
   if (pos.status === 401) return { error: "Mercado Pago no reconoce ese Access Token. Revisá que sea el de producción y que esté completo." };
+  // Mercado Pago responde 403 PA_UNAUTHORIZED_RESULT_FROM_POLICIES también cuando el token no existe o no es de esa
+  // cuenta (se comprobó con un token inventado): así que acá lo más probable es un token mal copiado.
+  if (pos.status === 403 && yo.status === 403) {
+    return { error: "Mercado Pago no aceptó ese token (error 403). Revisá que sea el Access Token de PRODUCCIÓN de tu aplicación, copiado completo; si recién activaste las credenciales, esperá unos minutos y probá de nuevo." };
+  }
   if (!pos.ok) {
     const detalle = (await pos.text().catch(() => "")).slice(0, 300);
     return { error: `Mercado Pago respondió ${pos.status}${detalle ? `: ${detalle}` : ""}. Revisá que la aplicación sea de Pagos presenciales (Código QR) y que las credenciales de producción estén activadas.` };

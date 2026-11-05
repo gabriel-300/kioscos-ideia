@@ -95,7 +95,7 @@ describe("acciones del dueño (Mi Mercado Pago)", () => {
     globalThis.fetch = m as unknown as typeof fetch;
     return m;
   };
-  const TOKEN = "APP_USR-1234567890-abcdef-ghijkl";
+  const TOKEN = "APP_USR-1234567890123456-110512-abcdef0123456789abcdef0123456789-2987654321";
 
   it("conecta la cuenta: verifica el token, lo guarda CIFRADO y limpia la Caja anterior", async () => {
     const f = armar();
@@ -132,7 +132,7 @@ describe("acciones del dueño (Mi Mercado Pago)", () => {
     armar();
     const m = mpResponde({ id: 1 });
     const r = await conectarMercadoPago("hola ../x");
-    expect(r.error).toMatch(/formato/);
+    expect(r.error).toMatch(/No parece un Access Token/);
     expect(m).not.toHaveBeenCalled();
   });
 
@@ -280,10 +280,24 @@ describe("cuentaDelToken", () => {
     expect((await cuentaDelToken(TOKEN)).error).toMatch(/no reconoce/);
   });
 
-  it("si las dos consultas dan 403 muestra el detalle de Mercado Pago", async () => {
+  it("si las dos consultas dan 403 explica que el token no fue aceptado", async () => {
     mockFetch({ "/users/me": resp(403), "/pos": resp(403, { message: "Forbidden por policy" }) });
     const r = await cuentaDelToken(TOKEN);
     expect(r.error).toMatch(/403/);
-    expect(r.error).toMatch(/Forbidden por policy/);
+    expect(r.error).toMatch(/no aceptó ese token/);
+  });
+});
+
+describe("formato del Access Token al conectar", () => {
+  beforeEach(() => {
+    h.admin = fakeAdmin((q: Q) => (q.table === "sucursales" && q.op === "select" ? { data: { id: MIA } } : { data: null })).admin;
+  });
+  it("rechaza la Public Key, el token de prueba y cosas que no son un token, sin salir a Mercado Pago", async () => {
+    const m = vi.fn();
+    globalThis.fetch = m as unknown as typeof fetch;
+    expect((await conectarMercadoPago("APP_USR-1a2b3c4d-1234-5678-9abc-def012345678")).error).toMatch(/Public Key/);
+    expect((await conectarMercadoPago("TEST-1234567890123456-110512-abcdef0123456789abcdef0123456789-2987654321")).error).toMatch(/prueba/);
+    expect((await conectarMercadoPago("TOKEN")).error).toMatch(/No parece un Access Token/);
+    expect(m).not.toHaveBeenCalled();
   });
 });
