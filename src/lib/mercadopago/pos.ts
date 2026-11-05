@@ -20,7 +20,9 @@ export async function listarCajasConToken(accessToken: string): Promise<{ error?
     name:       p.name,
     store_id:   p.store_id != null ? String(p.store_id) : null,
   }));
-  if (cajas.length === 0) return { error: "No se encontraron Cajas en la cuenta de Mercado Pago" };
+  if (cajas.length === 0) {
+    return { error: "No se encontraron Cajas en esta cuenta de Mercado Pago. Revisá que la Caja se haya creado en la MISMA cuenta que conectaste (el número de cuenta figura arriba) y, si es recién creada, esperá un par de minutos." };
+  }
   return { cajas };
 }
 

@@ -44,7 +44,8 @@ export function MercadoPagoLocal({ estado, sucursalId }: { estado: EstadoMercado
         {estado.conectado ? (
           <>
             <p className="text-sm text-neutral-600">
-              Conectada como <span className="font-medium">{estado.cuenta ?? "tu cuenta"}</span>. El token está guardado cifrado y no se vuelve a mostrar.
+              Conectada como <span className="font-medium">{estado.cuenta ?? "tu cuenta"}</span>
+              {estado.cuentaId && <> (cuenta Nº <span className="font-mono">{estado.cuentaId}</span>)</>}. El token está guardado cifrado y no se vuelve a mostrar.
             </p>
             <Button size="sm" variant="ghost" onClick={desconectar} loading={pending}>Desconectar</Button>
           </>

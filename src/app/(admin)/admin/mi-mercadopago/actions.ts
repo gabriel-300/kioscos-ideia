@@ -29,6 +29,8 @@ async function resolverSucursal(sucursalId?: string): Promise<{ userId: string; 
 export interface EstadoMercadoPago {
   conectado: boolean;
   cuenta: string | null;
+  /** Número de la cuenta de Mercado Pago conectada (para que el dueño verifique que es la suya). */
+  cuentaId: string | null;
   posId: string | null;
 }
 
@@ -37,13 +39,14 @@ export async function estadoMercadoPago(sucursalId?: string): Promise<{ error?: 
   if ("error" in r) return r;
   const admin = createAdminClient();
   const [{ data: cred }, { data: suc }] = await Promise.all([
-    (admin as any).from("sucursal_mercadopago").select("mp_cuenta").eq("sucursal_id", r.sucursalId).maybeSingle(),
+    (admin as any).from("sucursal_mercadopago").select("mp_cuenta, mp_user_id").eq("sucursal_id", r.sucursalId).maybeSingle(),
     (admin as any).from("sucursales").select("mercadopago_pos_id").eq("id", r.sucursalId).maybeSingle(),
   ]);
   return {
     estado: {
       conectado: !!cred,
       cuenta: (cred as { mp_cuenta: string | null } | null)?.mp_cuenta ?? null,
+      cuentaId: (cred as { mp_user_id: string | null } | null)?.mp_user_id ?? null,
       posId: (suc as { mercadopago_pos_id: string | null } | null)?.mercadopago_pos_id ?? null,
     },
   };
