@@ -36,15 +36,17 @@ export default async function StockPage() {
   // Quien trabaja en una sucursal ve lo global + lo propio de SU sucursal (migración 131). Admin ve todo.
   const filtroDueno = isStaff && staffSucursalId ? filtroCatalogoDe(staffSucursalId) : null;
 
+  let productsQuery = (supabase as any)
+      .from("products")
+      .select("id, name, sku, category_id, unit_label, stock_minimo")
+      .eq("is_active", true);
+  if (filtroDueno) productsQuery = productsQuery.or(filtroDueno);
+
   const [
     { data: products },
     { data: categories },
   ] = await Promise.all([
-    (supabase as any)
-      .from("products")
-      .select("id, name, sku, category_id, unit_label, stock_minimo")
-      .eq("is_active", true)
-      .or(filtroDueno ?? "owner_sucursal_id.is.null,owner_sucursal_id.not.is.null")
+    productsQuery
       // La "multa por atraso de termo" es un producto de servicio ficticio
       // (ver 063_multa_alquiler_termo.sql) solo para que su cobro entre a la
       // conciliación de caja como cualquier venta -- no tiene stock real, no
