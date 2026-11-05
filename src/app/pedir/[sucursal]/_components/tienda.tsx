@@ -99,9 +99,11 @@ export function Tienda({ config, catalogo, masPedidos = [], destacados = [], dis
   const puedePedir = config.habilitado && (config.retiroHabilitado || enviosDisponibles) && horario.abierto && !pedidosEstado.pausado;
 
   // Si estaba eligiendo envío y se corta, pasa a retiro (el envío ya no se puede elegir).
+  // `hidratado` en las dependencias: al restaurar el formulario guardado, el modo "envio" del navegador
+  // pisaba este cambio sin que cambiara form.modo, y el efecto no volvía a correr.
   useEffect(() => {
     if (envioNoDisponible && form.modo === "envio") setFormEstado((f) => ({ ...f, modo: "retiro" }));
-  }, [envioNoDisponible, form.modo]);
+  }, [envioNoDisponible, form.modo, hidratado]);
 
   // ── Carrito persistente: solo ids + cantidades (los precios salen siempre del catálogo) ──
   useEffect(() => {
