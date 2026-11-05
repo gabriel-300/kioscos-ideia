@@ -44,13 +44,31 @@ export async function asignarExternalIdConToken(
   return { externalId };
 }
 
-/** Verifica el token contra Mercado Pago y devuelve a qué cuenta pertenece. */
+/**
+ * Verifica el token contra Mercado Pago y devuelve a qué cuenta pertenece.
+ * Primero pregunta por la cuenta (/users/me). Las aplicaciones de QR a veces no tienen permiso para esa consulta
+ * (403): en ese caso se verifica con la consulta de Cajas, que es la que el QR usa igual, y el usuario sale de la
+ * Caja o, si todavía no hay ninguna, del final del propio token (APP_USR-…-<usuario>).
+ */
 export async function cuentaDelToken(accessToken: string): Promise<{ error?: string; userId?: string; cuenta?: string }> {
-  const res = await fetch("https://api.mercadopago.com/users/me", { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) {
-    return { error: res.status === 401 ? "Mercado Pago no reconoce ese Access Token. Revisá que sea el de producción." : `Mercado Pago respondió ${res.status}` };
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const yo = await fetch("https://api.mercadopago.com/users/me", { headers });
+  if (yo.ok) {
+    const u = await yo.json() as { id?: number | string; nickname?: string; email?: string };
+    if (u.id != null) return { userId: String(u.id), cuenta: u.nickname || u.email || String(u.id) };
   }
-  const u = await res.json() as { id?: number | string; nickname?: string; email?: string };
-  if (u.id == null) return { error: "Mercado Pago no devolvió la cuenta de ese token" };
-  return { userId: String(u.id), cuenta: u.nickname || u.email || String(u.id) };
+  if (yo.status === 401) return { error: "Mercado Pago no reconoce ese Access Token. Revisá que sea el de producción y que esté completo." };
+
+  const pos = await fetch("https://api.mercadopago.com/pos?limit=1", { headers });
+  if (pos.status === 401) return { error: "Mercado Pago no reconoce ese Access Token. Revisá que sea el de producción y que esté completo." };
+  if (!pos.ok) {
+    const detalle = (await pos.text().catch(() => "")).slice(0, 300);
+    return { error: `Mercado Pago respondió ${pos.status}${detalle ? `: ${detalle}` : ""}. Revisá que la aplicación sea de Pagos presenciales (Código QR) y que las credenciales de producción estén activadas.` };
+  }
+  const body = await pos.json().catch(() => ({})) as { results?: { user_id?: number | string }[] };
+  const desdeCaja = body.results?.[0]?.user_id;
+  const desdeToken = /-([0-9]{3,20})$/.exec(accessToken)?.[1];
+  const userId = desdeCaja != null ? String(desdeCaja) : desdeToken;
+  if (!userId) return { error: "No se pudo saber a qué cuenta pertenece el token. Creá primero una Caja en Mercado Pago y probá de nuevo." };
+  return { userId, cuenta: `cuenta ${userId}` };
 }

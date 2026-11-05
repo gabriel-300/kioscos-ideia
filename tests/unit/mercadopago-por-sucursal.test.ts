@@ -247,3 +247,43 @@ describe("aviso de pago (webhook)", () => {
     expect((up.payload as Record<string, unknown>).sucursal_id).toBe(MIA);
   });
 });
+
+import { cuentaDelToken } from "@/lib/mercadopago/pos";
+
+describe("cuentaDelToken", () => {
+  const TOKEN = "APP_USR-1234567890123456-110512-abcdef0123456789abcdef0123456789-2987654321";
+  const resp = (status: number, json: unknown = {}) =>
+    ({ ok: status >= 200 && status < 300, status, json: async () => json, text: async () => JSON.stringify(json) }) as unknown as Response;
+  const mockFetch = (porUrl: Record<string, Response>) => {
+    const m = vi.fn(async (url: string) => porUrl[Object.keys(porUrl).find((k) => url.includes(k))!]);
+    globalThis.fetch = m as unknown as typeof fetch;
+    return m;
+  };
+
+  it("usa /users/me cuando anda", async () => {
+    mockFetch({ "/users/me": resp(200, { id: 555, nickname: "DUENO" }) });
+    expect(await cuentaDelToken(TOKEN)).toEqual({ userId: "555", cuenta: "DUENO" });
+  });
+
+  it("si /users/me da 403 (app de QR sin ese permiso) verifica con las Cajas y toma el usuario de la Caja", async () => {
+    mockFetch({ "/users/me": resp(403), "/pos": resp(200, { results: [{ user_id: 777 }] }) });
+    expect(await cuentaDelToken(TOKEN)).toMatchObject({ userId: "777" });
+  });
+
+  it("si /users/me da 403 y todavía no hay Cajas, el usuario sale del final del token", async () => {
+    mockFetch({ "/users/me": resp(403), "/pos": resp(200, { results: [] }) });
+    expect(await cuentaDelToken(TOKEN)).toMatchObject({ userId: "2987654321" });
+  });
+
+  it("un token que Mercado Pago no reconoce (401) se rechaza", async () => {
+    mockFetch({ "/users/me": resp(401) });
+    expect((await cuentaDelToken(TOKEN)).error).toMatch(/no reconoce/);
+  });
+
+  it("si las dos consultas dan 403 muestra el detalle de Mercado Pago", async () => {
+    mockFetch({ "/users/me": resp(403), "/pos": resp(403, { message: "Forbidden por policy" }) });
+    const r = await cuentaDelToken(TOKEN);
+    expect(r.error).toMatch(/403/);
+    expect(r.error).toMatch(/Forbidden por policy/);
+  });
+});
