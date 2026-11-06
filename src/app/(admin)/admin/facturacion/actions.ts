@@ -7,6 +7,9 @@ import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { emitirFacturaDeVenta, procesarComprobante, reintentarPendientes } from "@/lib/arca/emitir";
 import { cuitValido, datosFaltantesEmisor } from "@/lib/arca/reglas";
 import { probarEmisor, type PruebaEmisor } from "@/lib/arca/probar";
+import { comoComprobanteVenta } from "@/lib/arca/venta-factura";
+import { lineasParaReimprimir } from "@/lib/arca/ticket-datos";
+import type { ComprobanteVenta, LineaTicket } from "@/lib/arca/ticket-html";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
@@ -124,4 +127,32 @@ export async function probarConexionArca(): Promise<{ error?: string; resultados
   const resultados: PruebaEmisor[] = [];
   for (const emisor of emisores) resultados.push(await probarEmisor(db, emisor, sucursales ?? []));
   return { resultados };
+}
+
+export type DatosTicket = { lineas: LineaTicket[]; total: number; fecha: string; id: string; sucursalNombre: string; factura: ComprobanteVenta };
+
+/** Datos para volver a imprimir una factura ya emitida. Solo lectura. */
+export async function datosTicketComprobante(comprobanteId: string): Promise<{ error?: string; ticket?: DatosTicket }> {
+  await requireAdmin();
+  const db: Db = createAdminClient();
+  const { data: c } = await db.from("comprobantes_arca").select("*").eq("id", comprobanteId).maybeSingle();
+  if (!c) return { error: "No se encontró el comprobante." };
+  if (c.estado !== "emitido" || !c.cae || !c.numero) return { error: "Solo se pueden imprimir comprobantes ya emitidos." };
+  if (c.cbte_tipo !== 1 && c.cbte_tipo !== 6) return { error: "Las notas de crédito no se imprimen desde acá." };
+
+  const { data: mov } = await db.from("movimientos")
+    .select("id, fecha, sucursal:sucursales(nombre), movimiento_items(cantidad, precio_unitario, subtotal, product:products(name))")
+    .eq("id", c.movimiento_id).maybeSingle();
+  if (!mov) return { error: "No se encontró la venta de este comprobante." };
+
+  return {
+    ticket: {
+      lineas: lineasParaReimprimir(mov.movimiento_items ?? [], Number(c.imp_total)),
+      total: Number(c.imp_total),
+      fecha: mov.fecha,
+      id: String(mov.id).slice(-8).toUpperCase(),
+      sucursalNombre: mov.sucursal?.nombre ?? "",
+      factura: await comoComprobanteVenta(db, c),
+    },
+  };
 }

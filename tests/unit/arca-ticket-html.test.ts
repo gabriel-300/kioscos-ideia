@@ -67,3 +67,37 @@ describe("armarTicketHtml", () => {
     expect(nroCbte({ punto_venta: 3, numero: null })).toBe("—");
   });
 });
+
+import { abrirTicketDespues } from "@/lib/arca/ticket-html";
+import { afterEach, vi } from "vitest";
+
+describe("abrirTicketDespues (ventana de impresión)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const ventana = () => ({ document: { write: vi.fn(), open: vi.fn(), close: vi.fn() }, close: vi.fn() });
+
+  it("abre la ventana ANTES de pedir los datos y después escribe el ticket", async () => {
+    const w = ventana(); const orden: string[] = [];
+    vi.stubGlobal("window", { open: vi.fn(() => { orden.push("abre"); return w; }) });
+    const ok = await abrirTicketDespues(async () => { orden.push("datos"); return "<html>ticket</html>"; });
+    expect(ok).toBe(true);
+    expect(orden).toEqual(["abre", "datos"]);
+    expect(w.document.write).toHaveBeenLastCalledWith("<html>ticket</html>");
+  });
+
+  it("si no hay ticket o falla la carga, cierra la ventana y devuelve false", async () => {
+    let w = ventana();
+    vi.stubGlobal("window", { open: vi.fn(() => w) });
+    expect(await abrirTicketDespues(async () => null)).toBe(false);
+    expect(w.close).toHaveBeenCalled();
+    w = ventana();
+    expect(await abrirTicketDespues(async () => { throw new Error("red"); })).toBe(false);
+    expect(w.close).toHaveBeenCalled();
+  });
+
+  it("si el navegador bloquea la ventana, devuelve false sin pedir los datos", async () => {
+    vi.stubGlobal("window", { open: vi.fn(() => null) });
+    const pedir = vi.fn(async () => "<html/>");
+    expect(await abrirTicketDespues(pedir)).toBe(false);
+    expect(pedir).not.toHaveBeenCalled();
+  });
+});

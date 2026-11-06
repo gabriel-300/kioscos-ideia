@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { configurarSucursalArca, reintentarComprobante, reintentarPendientesAhora } from "../actions";
+import { configurarSucursalArca, datosTicketComprobante, reintentarComprobante, reintentarPendientesAhora } from "../actions";
+import { abrirTicketDespues, armarTicketHtml } from "@/lib/arca/ticket-html";
 import { Emisores } from "./emisores";
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
 
@@ -27,6 +28,17 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
     start(async () => { const r = await fn(); setMsg(r.error ?? ok ?? null); if (!r.error) router.refresh(); });
 
   const abiertos = comprobantes.filter((c) => c.estado !== "emitido");
+
+  // La ventana se abre dentro del clic y se completa cuando llegan los datos (si no, el navegador bloquea el popup).
+  const reimprimir = async (id: string) => {
+    setMsg(null);
+    const abierta = await abrirTicketDespues(async () => {
+      const r = await datosTicketComprobante(id);
+      if (r.error || !r.ticket) { setMsg(r.error ?? "No se pudo preparar el ticket."); return null; }
+      return armarTicketHtml(r.ticket);
+    });
+    if (!abierta) setMsg((m) => m ?? "No se pudo abrir la ventana de impresión: revisá que el navegador permita ventanas emergentes para este sitio.");
+  };
 
 
   return (
@@ -77,10 +89,10 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
           <table className="w-full text-sm">
             <thead><tr className="border-y border-neutral-100 bg-neutral-50 text-left text-xs uppercase text-neutral-500">
               <th className="px-4 py-2">Fecha</th><th className="px-4 py-2">Comprobante</th><th className="px-4 py-2">Número</th>
-              <th className="px-4 py-2">Sucursal</th><th className="px-4 py-2 text-right">Total</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">CAE</th>
+              <th className="px-4 py-2">Sucursal</th><th className="px-4 py-2 text-right">Total</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">CAE</th><th className="px-4 py-2" />
             </tr></thead>
             <tbody className="divide-y divide-neutral-100">
-              {comprobantes.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-neutral-400">Todavía no se emitió ninguno.</td></tr>}
+              {comprobantes.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-neutral-400">Todavía no se emitió ninguno.</td></tr>}
               {comprobantes.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-2 tabular-nums">{c.fecha}</td>
@@ -90,6 +102,12 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
                   <td className="px-4 py-2 text-right tabular-nums">{AR.format(c.imp_total)}</td>
                   <td className="px-4 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO_CLASE[c.estado]}`}>{c.estado}</span></td>
                   <td className="px-4 py-2 tabular-nums text-xs text-neutral-500">{c.cae ?? "—"}</td>
+                  <td className="px-4 py-2 text-right">
+                    {c.estado === "emitido" && (c.cbte_tipo === 1 || c.cbte_tipo === 6) && (
+                      <button className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
+                        title="Volver a imprimir esta factura" onClick={() => reimprimir(c.id)}>Imprimir</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
