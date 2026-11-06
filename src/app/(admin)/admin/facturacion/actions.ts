@@ -5,7 +5,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { emitirFacturaDeVenta, procesarComprobante, reintentarPendientes } from "@/lib/arca/emitir";
-import { cuitValido } from "@/lib/arca/reglas";
+import { cuitValido, datosFaltantesEmisor } from "@/lib/arca/reglas";
+import { probarEmisor, type PruebaEmisor } from "@/lib/arca/probar";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
@@ -74,6 +75,14 @@ export async function configurarSucursalArca(data: {
       return { error: "El punto de venta tiene que ser un número entre 1 y 99998." };
     }
   }
+  // Facturar de verdad con un emisor al que le faltan datos que el ticket imprime dejaría comprobantes incompletos.
+  if (data.modo === "digital" && data.emisorId) {
+    const { data: emisor } = await (createAdminClient() as Db).from("arca_emisores")
+      .select("ambiente, activo, domicilio, ingresos_brutos, inicio_actividades").eq("id", data.emisorId).maybeSingle();
+    if (!emisor?.activo) return { error: "El emisor elegido no está activo." };
+    const faltan = datosFaltantesEmisor(emisor);
+    if (faltan.length > 0) return { error: `Antes de facturar de verdad, completá en el emisor: ${faltan.join(", ")}.` };
+  }
   const { error } = await (createAdminClient() as Db).from("sucursales").update({
     arca_modo: data.modo,
     arca_emisor_id: data.emisorId || null,
@@ -82,4 +91,37 @@ export async function configurarSucursalArca(data: {
   if (error) return { error: error.message };
   revalidatePath("/admin/facturacion");
   return {};
+}
+
+/** Corrige los datos que se imprimen en el ticket. El CUIT y el ambiente no se cambian: serían otro emisor. */
+export async function editarEmisor(id: string, data: { razon_social: string; domicilio?: string; ingresos_brutos?: string; inicio_actividades?: string; activo: boolean }): Promise<{ error?: string }> {
+  await requireAdmin();
+  if (!data.razon_social.trim()) return { error: "Falta la razón social." };
+  const inicio = (data.inicio_actividades ?? "").trim();
+  if (inicio && !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return { error: "El inicio de actividades tiene que ser una fecha." };
+  const { error } = await (createAdminClient() as Db).from("arca_emisores").update({
+    razon_social: data.razon_social.trim(),
+    domicilio: data.domicilio?.trim() || null,
+    ingresos_brutos: data.ingresos_brutos?.trim() || null,
+    inicio_actividades: inicio || null,
+    activo: data.activo,
+  }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/facturacion");
+  return {};
+}
+
+/** Prueba de conexión con ARCA, SOLO LECTURA (no emite nada). Corre desde donde corre la app: sirve para verificar Cloudflare. */
+export async function probarConexionArca(): Promise<{ error?: string; resultados?: PruebaEmisor[] }> {
+  await requireAdmin();
+  const db: Db = createAdminClient();
+  const [{ data: emisores, error: e1 }, { data: sucursales, error: e2 }] = await Promise.all([
+    db.from("arca_emisores").select("id, cuit, razon_social, ambiente").eq("activo", true).order("created_at"),
+    db.from("sucursales").select("nombre, arca_emisor_id, arca_punto_venta, arca_modo"),
+  ]);
+  if (e1 || e2) return { error: (e1 ?? e2).message };
+  if (!emisores?.length) return { error: "No hay emisores cargados." };
+  const resultados: PruebaEmisor[] = [];
+  for (const emisor of emisores) resultados.push(await probarEmisor(db, emisor, sucursales ?? []));
+  return { resultados };
 }

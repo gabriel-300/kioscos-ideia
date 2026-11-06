@@ -128,6 +128,23 @@ export async function ultimoAutorizado(amb: Ambiente, auth: Auth, ptoVta: number
   return Number(n);
 }
 
+export type PuntoVentaArca = { nro: number; emision: string; bloqueado: boolean; baja: boolean };
+
+/** Puntos de venta habilitados para facturar (FEParamGetPtosVenta). Sin resultados → lista vacía. */
+export async function puntosDeVenta(amb: Ambiente, auth: Auth): Promise<PuntoVentaArca[]> {
+  const xml = await fe(amb, auth, "FEParamGetPtosVenta", "");
+  const lista = [...xml.matchAll(/<PtoVenta>([\s\S]*?)<\/PtoVenta>/g)].map((m) => ({
+    nro: Number(tag(m[1], "Nro")),
+    emision: desescapar(tag(m[1], "EmisionTipo") ?? ""),
+    bloqueado: tag(m[1], "Bloqueado") === "S",
+    baja: (tag(m[1], "FchBaja") ?? "NULL") !== "NULL",
+  }));
+  if (lista.length > 0) return lista;
+  const e = errores(xml)[0];
+  if (!e || e.codigo === "602") return []; // 602 = sin resultados
+  throw new ArcaError(`ARCA no informó los puntos de venta: ${e.codigo} ${e.mensaje}`, false, e.codigo);
+}
+
 export type ComprobanteConsultado = { cae: string; caeVto: string; total: number; fecha: string } | null;
 
 /** Busca un comprobante ya autorizado (null si no existe). Sirve para no duplicar tras un timeout. */

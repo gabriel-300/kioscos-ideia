@@ -75,3 +75,16 @@ export function cuitValido(cuit: string): boolean {
   const dv = resto === 11 ? 0 : resto === 10 ? 9 : resto;
   return dv === Number(cuit[10]);
 }
+
+/**
+ * Datos del emisor que el ticket de una factura REAL imprime. Antes de facturar de verdad (producción) tienen que
+ * estar completos: se devuelve lo que falta. En homologación (pruebas) no se exige nada.
+ */
+export function datosFaltantesEmisor(e: { ambiente: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null }): string[] {
+  if (e.ambiente !== "produccion") return [];
+  return [
+    !e.domicilio?.trim() && "domicilio",
+    !e.ingresos_brutos?.trim() && "Ingresos Brutos",
+    !e.inicio_actividades?.trim() && "inicio de actividades",
+  ].filter(Boolean) as string[];
+}

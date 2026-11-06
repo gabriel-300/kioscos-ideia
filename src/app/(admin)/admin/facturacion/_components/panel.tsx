@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { configurarSucursalArca, crearEmisor, reintentarComprobante, reintentarPendientesAhora } from "../actions";
+import { configurarSucursalArca, reintentarComprobante, reintentarPendientesAhora } from "../actions";
+import { Emisores } from "./emisores";
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
@@ -27,8 +28,6 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
 
   const abiertos = comprobantes.filter((c) => c.estado !== "emitido");
 
-  // Emisor nuevo
-  const [cuit, setCuit] = useState(""); const [razon, setRazon] = useState(""); const [domicilio, setDomicilio] = useState(""); const [iibb, setIibb] = useState(""); const [inicio, setInicio] = useState(""); const [amb, setAmb] = useState<"homologacion" | "produccion">("homologacion");
 
   return (
     <div className="space-y-6">
@@ -60,28 +59,7 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
         </section>
       )}
 
-      {/* Emisores */}
-      <section className="rounded-xl border border-neutral-200 bg-white p-4">
-        <h2 className="font-semibold text-neutral-900">Emisores (a nombre de quién se factura)</h2>
-        <ul className="mt-2 text-sm text-neutral-700">
-          {emisores.length === 0 && <li className="text-neutral-400">Todavía no hay ninguno.</li>}
-          {emisores.map((e) => (
-            <li key={e.id}>{e.razon_social} · CUIT {e.cuit} · <span className={e.ambiente === "produccion" ? "font-semibold text-selva-700" : "text-amber-700"}>{e.ambiente === "produccion" ? "PRODUCCIÓN" : "homologación (pruebas)"}</span></li>
-          ))}
-        </ul>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <input className={input} placeholder="CUIT" value={cuit} onChange={(e) => setCuit(e.target.value)} />
-          <input className={`${input} min-w-56`} placeholder="Razón social" value={razon} onChange={(e) => setRazon(e.target.value)} />
-          <select className={input} value={amb} onChange={(e) => setAmb(e.target.value as typeof amb)}>
-            <option value="homologacion">Homologación (pruebas)</option>
-            <option value="produccion">Producción</option>
-          </select>
-          <input className={`${input} min-w-64`} placeholder="Domicilio comercial" value={domicilio} onChange={(e) => setDomicilio(e.target.value)} />
-          <input className={input} placeholder="Ingresos Brutos" value={iibb} onChange={(e) => setIibb(e.target.value)} />
-          <input className={input} type="date" title="Inicio de actividades" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-          <button disabled={pending} className={boton} onClick={() => correr(() => crearEmisor({ cuit, razon_social: razon, ambiente: amb, domicilio, ingresos_brutos: iibb, inicio_actividades: inicio }), "Emisor agregado.")}>Agregar emisor</button>
-        </div>
-      </section>
+      <Emisores emisores={emisores} />
 
       {/* Sucursales */}
       <section className="rounded-xl border border-neutral-200 bg-white p-4">

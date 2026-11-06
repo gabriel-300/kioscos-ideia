@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { desglosarIva, importeArca, idAlicuotaArca } from "@/lib/arca/calculo";
-import { cuitValido, debeFacturarseSola, montoQueSeFacturaSolo, normalizarReceptor } from "@/lib/arca/reglas";
+import { cuitValido, datosFaltantesEmisor, debeFacturarseSola, montoQueSeFacturaSolo, normalizarReceptor } from "@/lib/arca/reglas";
 
 describe("desglosarIva (precio final con IVA incluido)", () => {
   it("1210 al 21% → neto 1000 + IVA 210 (el caso que ARCA aprobó en homologación)", () => {
@@ -113,5 +113,20 @@ describe("receptor de Factura A", () => {
   it("la B no cambia: vacío = consumidor final y un CUIT sigue yendo como consumidor final", () => {
     expect(normalizarReceptor("", "B").receptor).toMatchObject({ docTipo: 99, condicionIva: 5 });
     expect(normalizarReceptor("30719673623").receptor).toMatchObject({ docTipo: 80, condicionIva: 5 });
+  });
+});
+
+describe("datosFaltantesEmisor (protección para facturar de verdad)", () => {
+  const completo = { ambiente: "produccion", domicilio: "176 5812 - Posadas", ingresos_brutos: "123-456", inicio_actividades: "2026-11-01" };
+  it("producción completa: no falta nada", () => {
+    expect(datosFaltantesEmisor(completo)).toEqual([]);
+  });
+  it("producción incompleta: dice qué falta (vacío, null, undefined o solo espacios)", () => {
+    expect(datosFaltantesEmisor({ ambiente: "produccion", domicilio: "176 5812", ingresos_brutos: null, inicio_actividades: null })).toEqual(["Ingresos Brutos", "inicio de actividades"]);
+    expect(datosFaltantesEmisor({ ambiente: "produccion" })).toEqual(["domicilio", "Ingresos Brutos", "inicio de actividades"]);
+    expect(datosFaltantesEmisor({ ...completo, ingresos_brutos: "   " })).toEqual(["Ingresos Brutos"]);
+  });
+  it("homologación (pruebas): no se exige nada", () => {
+    expect(datosFaltantesEmisor({ ambiente: "homologacion", domicilio: null, ingresos_brutos: null, inicio_actividades: null })).toEqual([]);
   });
 });

@@ -4,7 +4,8 @@ name: Reintentos de facturación ARCA
 # (ARCA caída, red, timeout). Las que ARCA rechazó ('error') NO se reintentan solas: las revisa
 # una persona en /admin/facturacion. Si no hay nada pendiente la llamada es una consulta liviana.
 #
-# Requiere el secret CRON_SECRET en GitHub (el MISMO valor que el secret CRON_SECRET del Worker).
+# Requiere el secret ARCA_CRON_SECRET en GitHub (el MISMO valor que el secret ARCA_CRON_SECRET del Worker;
+# es un secret propio de este endpoint, distinto del CRON_SECRET de /api/ping).
 # Opcional: la variable de repositorio APP_URL si cambia el dominio de la app.
 # GitHub solo corre los cron del branch principal, y puede demorarlos unos minutos con mucha carga.
 on:
@@ -27,14 +28,14 @@ jobs:
     steps:
       - name: Reintentar comprobantes pendientes
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ARCA_CRON_SECRET: ${{ secrets.ARCA_CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://kioscos-ideia.lytwyn-ideia.workers.dev' }}
         run: |
-          if [ -z "$CRON_SECRET" ]; then
-            echo "::warning::Falta el secret CRON_SECRET en GitHub: no se reintenta nada. Cargalo en Settings > Secrets and variables > Actions."
+          if [ -z "$ARCA_CRON_SECRET" ]; then
+            echo "::warning::Falta el secret ARCA_CRON_SECRET en GitHub: no se reintenta nada. Cargalo en Settings > Secrets and variables > Actions."
             exit 0
           fi
           curl --silent --show-error --fail-with-body --max-time 120 \
-            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Authorization: Bearer $ARCA_CRON_SECRET" \
             "$APP_URL/api/arca/reintentar"
           echo

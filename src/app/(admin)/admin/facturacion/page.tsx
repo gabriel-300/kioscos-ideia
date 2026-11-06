@@ -6,7 +6,10 @@ import { Panel } from "./_components/panel";
 export const revalidate = 0;
 export const metadata: Metadata = { title: "Facturación — Kioscos IDEIA" };
 
-export type EmisorRow = { id: string; cuit: string; razon_social: string; ambiente: "homologacion" | "produccion"; activo: boolean };
+export type EmisorRow = {
+  id: string; cuit: string; razon_social: string; ambiente: "homologacion" | "produccion"; activo: boolean;
+  domicilio: string | null; ingresos_brutos: string | null; inicio_actividades: string | null;
+};
 export type SucursalArca = { id: string; nombre: string; arca_modo: "desactivado" | "digital"; arca_emisor_id: string | null; arca_punto_venta: number | null };
 export type ComprobanteListado = {
   id: string; cbte_tipo: number; punto_venta: number; numero: number | null; fecha: string; imp_total: number;
@@ -22,7 +25,7 @@ export default async function FacturacionPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: any = createAdminClient();
   const [emisores, sucursales, comprobantes] = await Promise.all([
-    db.from("arca_emisores").select("id, cuit, razon_social, ambiente, activo").order("created_at"),
+    db.from("arca_emisores").select("id, cuit, razon_social, ambiente, activo, domicilio, ingresos_brutos, inicio_actividades").order("created_at"),
     db.from("sucursales").select("id, nombre, arca_modo, arca_emisor_id, arca_punto_venta").order("nombre"),
     db.from("comprobantes_arca")
       .select("id, cbte_tipo, punto_venta, numero, fecha, imp_total, estado, cae, error, origen, intentos, ambiente, created_at, sucursal:sucursales(nombre)")
