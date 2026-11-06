@@ -1,11 +1,11 @@
 // Cuándo corresponde facturar. Lógica pura.
 //
-// Decisión del dueño (2026-11-06): se factura SIEMPRE y sola únicamente lo cobrado con el QR de
-// Mercado Pago, que en el POS es la «billetera virtual» (pago_billetera). Efectivo, tarjeta/posnet
-// y transferencia NO se facturan solos: la transferencia puede ser un ingreso que no corresponde
-// facturar, y el posnet todavía no está. En esos casos el cliente que pide factura la recibe con la
-// casilla «Emitir factura» del cobro o con el botón «Facturar» del historial.
-// Si una venta mezcla efectivo con billetera se factura la venta ENTERA: el comprobante no se
+// Decisión del dueño (2026-11-06): se factura SIEMPRE y sola lo cobrado con el QR de Mercado Pago (en el POS,
+// la «billetera virtual»: pago_billetera) y lo cobrado por transferencia (pago_transferencia). Efectivo y
+// tarjeta/posnet (que llegará más adelante) NO se facturan solos. Solo cuentan las ventas registradas en el POS:
+// un ingreso por transferencia que no es una venta no pasa por acá y nunca se factura. El cliente que paga con
+// otro medio y pide factura la recibe con la casilla «Emitir factura» del cobro o con el botón «Facturar» del historial.
+// Si una venta mezcla efectivo con billetera o transferencia se factura la venta ENTERA: el comprobante no se
 // puede partir por medio de pago.
 
 export type VentaParaFacturar = {
@@ -22,15 +22,15 @@ export type VentaParaFacturar = {
 // cuando se cobra, y lo de Pedido Ya Plataforma lo cobra y liquida Pedido Ya.
 export const CANALES_SIN_FACTURA_AUTOMATICA = ["cuenta_corriente", "pedido_ya_plataforma"] as const;
 
-/** Lo cobrado con el QR de Mercado Pago (billetera virtual). */
-export function montoMercadoPago(v: Pick<VentaParaFacturar, "pago_billetera">): number {
-  return Math.round((v.pago_billetera ?? 0) * 100) / 100;
+/** Lo cobrado con medios que se facturan solos: QR de Mercado Pago (billetera virtual) y transferencia. */
+export function montoQueSeFacturaSolo(v: Pick<VentaParaFacturar, "pago_billetera" | "pago_transferencia">): number {
+  return Math.round(((v.pago_billetera ?? 0) + (v.pago_transferencia ?? 0)) * 100) / 100;
 }
 
 export function debeFacturarseSola(v: VentaParaFacturar): boolean {
   if (v.tipo !== "venta" || v.anulado_en) return false;
   if ((CANALES_SIN_FACTURA_AUTOMATICA as readonly string[]).includes(v.canal ?? "")) return false;
-  return montoMercadoPago(v) > 0;
+  return montoQueSeFacturaSolo(v) > 0;
 }
 
 /** Documento del receptor. Consumidor final sin datos: tipo 99, número 0. */

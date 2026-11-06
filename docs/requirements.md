@@ -423,8 +423,9 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
     El usuario decidió no comunicarle a Javier (socio no técnico) las correcciones técnicas de su propuesta.
 17. **Facturación electrónica con ARCA (2026-11-03)**: la SAS es Responsable Inscripto y emite **Factura B** (y nota de crédito B).
     **Solo facturan UNAM y Costanera** (Villa Sarita y Bencivenga son de otros dueños: quedan apagadas). **Se factura siempre y sola
-    únicamente lo cobrado con el QR de Mercado Pago (la «billetera virtual» del POS).** Transferencia, tarjeta/posnet (llegará más
-    adelante) y efectivo NO se facturan solos: la transferencia puede ser un ingreso que no corresponde facturar. El cliente que
+    lo cobrado con el QR de Mercado Pago (la «billetera virtual» del POS) y lo cobrado por transferencia.** Efectivo y
+    tarjeta/posnet (llegará más adelante) NO se facturan solos. Solo cuentan las ventas registradas en el POS: un ingreso por
+    transferencia que no es una venta no se factura. El cliente que
     paga con otro medio y pide factura la recibe con la casilla **«Emitir factura»** del cobro (el cajero espera a ARCA e imprime
     la factura en el momento) o con el botón «Facturar» del historial (hasta 7 días después). Si una venta mezcla efectivo con
     billetera se factura la venta entera. No se factura el fiado ni Pedido Ya Plataforma. El precio del

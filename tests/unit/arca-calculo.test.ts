@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { desglosarIva, importeArca, idAlicuotaArca } from "@/lib/arca/calculo";
-import { cuitValido, debeFacturarseSola, montoMercadoPago, normalizarReceptor } from "@/lib/arca/reglas";
+import { cuitValido, debeFacturarseSola, montoQueSeFacturaSolo, normalizarReceptor } from "@/lib/arca/reglas";
 
 describe("desglosarIva (precio final con IVA incluido)", () => {
   it("1210 al 21% → neto 1000 + IVA 210 (el caso que ARCA aprobó en homologación)", () => {
@@ -49,28 +49,30 @@ describe("desglosarIva (precio final con IVA incluido)", () => {
   });
 });
 
-describe("debeFacturarseSola (solo el QR de Mercado Pago = billetera virtual)", () => {
+describe("debeFacturarseSola (QR de Mercado Pago = billetera virtual, y transferencia)", () => {
   const base = { tipo: "venta", canal: "consumidor_final", anulado_en: null, pago_efectivo: null, pago_billetera: null, pago_tarjeta: null, pago_transferencia: null };
-  it("efectivo, tarjeta/posnet y transferencia: no se facturan solos", () => {
+  it("efectivo y tarjeta/posnet: no se facturan solos", () => {
     expect(debeFacturarseSola({ ...base, pago_efectivo: 1000 })).toBe(false);
     expect(debeFacturarseSola({ ...base, pago_tarjeta: 500 })).toBe(false);
-    expect(debeFacturarseSola({ ...base, pago_transferencia: 500 })).toBe(false);
+    expect(debeFacturarseSola({ ...base, pago_efectivo: 700, pago_tarjeta: 300 })).toBe(false);
   });
   it("billetera virtual (QR de Mercado Pago): sí", () => {
     expect(debeFacturarseSola({ ...base, pago_billetera: 500 })).toBe(true);
   });
-  it("mezcla efectivo + billetera: se factura la venta entera", () => {
+  it("transferencia: sí", () => {
+    expect(debeFacturarseSola({ ...base, pago_transferencia: 500 })).toBe(true);
+  });
+  it("mezcla efectivo + billetera o transferencia: se factura la venta entera", () => {
     const v = { ...base, pago_efectivo: 700, pago_billetera: 300 };
     expect(debeFacturarseSola(v)).toBe(true);
-    expect(montoMercadoPago(v)).toBe(300);
+    expect(montoQueSeFacturaSolo(v)).toBe(300);
+    expect(debeFacturarseSola({ ...base, pago_efectivo: 700, pago_transferencia: 300 })).toBe(true);
+    expect(montoQueSeFacturaSolo({ pago_billetera: 100, pago_transferencia: 200.5 })).toBe(300.5);
   });
-  it("transferencia + efectivo sin billetera: no", () => {
-    expect(debeFacturarseSola({ ...base, pago_efectivo: 700, pago_transferencia: 300 })).toBe(false);
-  });
-  it("fiado, Pedido Ya plataforma, anuladas y no-ventas: no, aunque haya billetera", () => {
+  it("fiado, Pedido Ya plataforma, anuladas y no-ventas: no, aunque haya billetera o transferencia", () => {
     expect(debeFacturarseSola({ ...base, canal: "cuenta_corriente", pago_billetera: 1 })).toBe(false);
-    expect(debeFacturarseSola({ ...base, canal: "pedido_ya_plataforma", pago_billetera: 1 })).toBe(false);
-    expect(debeFacturarseSola({ ...base, anulado_en: "2026-11-03", pago_billetera: 1 })).toBe(false);
+    expect(debeFacturarseSola({ ...base, canal: "pedido_ya_plataforma", pago_transferencia: 1 })).toBe(false);
+    expect(debeFacturarseSola({ ...base, anulado_en: "2026-11-03", pago_transferencia: 1 })).toBe(false);
     expect(debeFacturarseSola({ ...base, tipo: "entrega", pago_billetera: 1 })).toBe(false);
   });
 });

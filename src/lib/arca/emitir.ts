@@ -70,7 +70,7 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
   if (!suc || suc.arca_modo === "desactivado") return { ok: false, error: "Esta sucursal no tiene la facturación activada.", noCorresponde: true };
   if (!suc.emisor?.activo || !suc.arca_punto_venta) return { ok: false, error: "Falta configurar el emisor o el punto de venta de la sucursal." };
   if (opc.origen === "automatico" && !debeFacturarseSola(mov as VentaParaFacturar)) {
-    return { ok: false, error: "No corresponde facturar sola (no se cobró con el QR de Mercado Pago).", noCorresponde: true };
+    return { ok: false, error: "No corresponde facturar sola (no se cobró con el QR de Mercado Pago ni por transferencia).", noCorresponde: true };
   }
 
   // La Factura A solo se emite a mano: lo digital sale siempre como B.

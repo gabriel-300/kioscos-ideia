@@ -1756,8 +1756,8 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                   <input type="checkbox" checked={emitirFactura} onChange={(e) => setEmitirFactura(e.target.checked)} />
                   Emitir factura
                 </label>
-                {!emitirFactura && (parseFloat(pagos.mp) || 0) > 0 && (
-                  <p style={{ fontSize: 11, color: "#5A766B", marginTop: 4 }}>Lo cobrado con el QR de Mercado Pago se factura solo, a Consumidor Final. Tildá la casilla solo si el cliente quiere sus datos en la factura.</p>
+                {!emitirFactura && ((parseFloat(pagos.mp) || 0) > 0 || (parseFloat(pagos.transferencia) || 0) > 0) && (
+                  <p style={{ fontSize: 11, color: "#5A766B", marginTop: 4 }}>Lo cobrado con el QR de Mercado Pago o por transferencia se factura solo, a Consumidor Final. Tildá la casilla solo si el cliente quiere sus datos en la factura.</p>
                 )}
                 {emitirFactura && (
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
