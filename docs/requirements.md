@@ -356,7 +356,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 
 ### Facturación electrónica (ARCA) — `/admin/facturacion`
 - **Quién**: configura solo el admin (emisores, sucursal, punto de venta). Cualquier staff con acceso a la sucursal puede
-  emitir a mano desde el historial. El ticket impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA.
+  emitir a mano: con la casilla «Emitir factura» al cobrar (solo ventas de consumidor final) o con el botón del historial. El ticket
+  impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA, igual desde el POS que desde el historial.
 - **Reglas**: ver la decisión 17 del §3. Una venta con comprobante no se puede eliminar: se anula, y eso emite la nota de crédito.
   Alícuota de IVA por producto (21% por defecto; 10,5% o exento solo si el contador lo indica). En un pedido online el envío se
   factura como una línea más al 21%.
@@ -421,9 +422,12 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
 16. **CRM de nichos**: no se creó la tabla puente `nichos_x_local` (un solo local la usa: YAGNI) ni el calendario de contenido.
     El usuario decidió no comunicarle a Javier (socio no técnico) las correcciones técnicas de su propuesta.
 17. **Facturación electrónica con ARCA (2026-11-03)**: la SAS es Responsable Inscripto y emite **Factura B** (y nota de crédito B).
-    **Lo cobrado por medios digitales (billetera/MP, tarjeta, QR, transferencia) se factura siempre y sola; el efectivo NO se
-    factura, salvo que el cliente pida el comprobante** (botón «Facturar» en el historial de la sucursal). Si una venta mezcla
-    efectivo con un cobro digital se factura la venta entera. No se factura el fiado ni Pedido Ya Plataforma. El precio del
+    **Solo facturan UNAM y Costanera** (Villa Sarita y Bencivenga son de otros dueños: quedan apagadas). **Se factura siempre y sola
+    únicamente lo cobrado con el QR de Mercado Pago (la «billetera virtual» del POS).** Transferencia, tarjeta/posnet (llegará más
+    adelante) y efectivo NO se facturan solos: la transferencia puede ser un ingreso que no corresponde facturar. El cliente que
+    paga con otro medio y pide factura la recibe con la casilla **«Emitir factura»** del cobro (el cajero espera a ARCA e imprime
+    la factura en el momento) o con el botón «Facturar» del historial (hasta 7 días después). Si una venta mezcla efectivo con
+    billetera se factura la venta entera. No se factura el fiado ni Pedido Ya Plataforma. El precio del
     sistema es **final (IVA incluido)**: el IVA se separa hacia atrás, nunca se suma. Cada sucursal arranca sin facturar hasta que un
     admin la configura. **Factura A: solo a mano** (el cliente es Responsable Inscripto y da su CUIT; al elegir un CUIT en «Facturar» el sistema pregunta A o B); lo digital nunca sale como A, y no se emite una letra encima de la otra (habría que anular la primera con una nota de crédito: el flujo de «refacturar» no está construido a propósito, hasta que aparezca el caso real). Que ARCA esté caída **nunca frena la venta**. Facturar solo lo digital deja ventas declaradas menores que las
     reales: es decisión del dueño, a hablar con el contador.

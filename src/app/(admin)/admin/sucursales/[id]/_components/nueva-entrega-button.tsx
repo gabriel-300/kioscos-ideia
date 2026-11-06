@@ -35,6 +35,7 @@ export function NuevaEntregaButton({
   termosDisponibles,
   termosPrestados,
   mercadopagoPosId,
+  arcaActiva,
   soloStock = false,
 }: {
   sucursalId:     string;
@@ -56,6 +57,7 @@ export function NuevaEntregaButton({
   termosDisponibles?: TermoDisponible[];
   termosPrestados?:   TermoPrestado[];
   mercadopagoPosId?:  string | null;
+  arcaActiva?:        boolean;
   soloStock?:         boolean;   // recepción del personal: solo stock, sin costos (ver MovimientoForm)
 }) {
   const [open, setOpen] = useState(false);
@@ -90,6 +92,7 @@ export function NuevaEntregaButton({
           termosDisponibles={termosDisponibles}
           termosPrestados={termosPrestados}
           mercadopagoPosId={mercadopagoPosId}
+          arcaActiva={arcaActiva}
         />
       ) : (
         <MovimientoForm

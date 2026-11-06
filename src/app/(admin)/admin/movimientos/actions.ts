@@ -7,6 +7,8 @@ import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
 import { facturarVentaEnSegundoPlano, notaCreditoEnSegundoPlano } from "@/lib/arca/disparar";
+import { facturarVentaAhora, validarPedidoFactura } from "@/lib/arca/venta-factura";
+import type { ComprobanteVenta } from "@/lib/arca/ticket-html";
 
 export interface ItemInput {
   product_id:      string;
@@ -52,7 +54,9 @@ export async function crearMovimiento(data: {
   pago_billetera?:     number | null;
   pago_tarjeta?:       number | null;
   pago_transferencia?: number | null;
-}): Promise<{ movimiento_id: string | null; error?: string }> {
+  // Casilla «Emitir factura» del cobro: el cajero espera a ARCA y recibe el comprobante para imprimirlo.
+  facturar?:           { documento?: string | null; tipo?: "A" | "B" } | null;
+}): Promise<{ movimiento_id: string | null; error?: string; factura?: ComprobanteVenta; facturaError?: string }> {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();
 
@@ -419,6 +423,12 @@ export async function crearMovimiento(data: {
     }
   }
 
+  // Factura pedida al cobrar: si no se puede cumplir (sucursal sin facturación, CUIT inválido), la venta ni se registra.
+  if (esVenta && data.facturar) {
+    const errorFactura = await validarPedidoFactura(supabase, data.sucursal_id, data.canal ?? null, data.facturar);
+    if (errorFactura) return { movimiento_id: null, error: errorFactura };
+  }
+
   // Límite de crédito de Cta. Corriente: el chequeo vive DENTRO del RPC
   // (crear_movimiento_con_items, con pg_advisory_xact_lock por personal_id)
   // para que dos ventas fiado simultáneas del mismo cliente no puedan leer el
@@ -455,7 +465,18 @@ export async function crearMovimiento(data: {
 
   // Facturación ARCA: lo cobrado por medios digitales se factura solo, en segundo plano
   // (no hace esperar al cajero). No hace nada si la sucursal no la tiene activada.
-  if (esVenta && movimientoId) facturarVentaEnSegundoPlano(movimientoId, userId);
+  // Si el cajero pidió factura, se emite ahora y se espera (para imprimirla); si no, la regla automática (solo QR de Mercado Pago).
+  let factura: ComprobanteVenta | undefined;
+  let facturaError: string | undefined;
+  if (esVenta && movimientoId) {
+    if (data.facturar) {
+      const r = await facturarVentaAhora(supabase, movimientoId, data.facturar, userId);
+      factura = r.factura;
+      facturaError = r.error;
+    } else {
+      facturarVentaEnSegundoPlano(movimientoId, userId);
+    }
+  }
 
   // Asociar imagen si se proporcionó — intentamos con el ID devuelto por la función
   if (data.remito_image_url) {
@@ -503,7 +524,7 @@ export async function crearMovimiento(data: {
   revalidatePath("/admin/stock");
   revalidatePath("/admin/alertas-precio");
 
-  return { movimiento_id: movimientoId };
+  return { movimiento_id: movimientoId, factura, facturaError };
 }
 
 // Sin acentos, en minúsculas, espacios colapsados -- para comparar "PAN MIÑÓN"

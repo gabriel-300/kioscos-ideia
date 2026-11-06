@@ -3,8 +3,7 @@
 import { Fragment, useState, useMemo, useTransition } from "react";
 import { anularVenta } from "@/app/(admin)/admin/movimientos/actions";
 import { emitirComprobanteManual } from "@/app/(admin)/admin/facturacion/actions";
-import { urlQrArca } from "@/lib/arca/qr";
-import { qrComoSvg } from "@/lib/pedidos/qr";
+import { abrirTicket, armarTicketHtml, esFacturaCbte, letraCbte, nroCbte, type ComprobanteVenta } from "@/lib/arca/ticket-html";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -69,88 +68,17 @@ type Movimiento = {
   motivo_anulacion?: string | null;
 };
 
-// Comprobante de ARCA de una venta (Factura B o su Nota de crédito). Lo arma la página de la sucursal.
-export type ComprobanteVenta = {
-  movimiento_id: string; cbte_tipo: number; punto_venta: number; numero: number | null; fecha: string;
-  estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
-  doc_tipo: number; doc_nro: string; imp_total: number; imp_neto: number; imp_iva: number; ambiente: string; error: string | null;
-  iva?: { alicuota: number; base: number; importe: number }[]; cond_iva_receptor?: number;
-  emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
-};
-// Facturas (A=1, B=6); las notas de crédito (3 y 8) no se ofrecen para imprimir desde acá.
-const esFacturaCbte = (c: { cbte_tipo: number }) => c.cbte_tipo === 1 || c.cbte_tipo === 6;
-const letraCbte = (c: { cbte_tipo: number }) => (c.cbte_tipo === 1 || c.cbte_tipo === 3 ? "A" : "B");
-const nroCbte = (c: { punto_venta: number; numero: number | null }) =>
-  c.numero ? `${String(c.punto_venta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")}` : "—";
-const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+export type { ComprobanteVenta };
 
 function printTicket(m: Movimiento, sucursalNombre: string, factura?: ComprobanteVenta) {
-  const total = m.movimiento_items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
-  const fecha = new Date(m.fecha + "T00:00:00").toLocaleDateString("es-AR", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-  const id = m.id.slice(-8).toUpperCase();
-  const fiscal = !!factura && factura.estado === "emitido" && !!factura.cae && !!factura.numero && !!factura.emisor;
-  const AR2 = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 });
-  const qrSvg = fiscal
-    ? qrComoSvg(urlQrArca({ fecha: factura!.fecha, cuit: factura!.emisor!.cuit, puntoVenta: factura!.punto_venta, tipoCmp: factura!.cbte_tipo, numero: Number(factura!.numero), importe: Number(factura!.imp_total), docTipo: factura!.doc_tipo, docNro: factura!.doc_nro, cae: factura!.cae! }))
-    : "";
-
-  const rows = m.movimiento_items.map((item) => `
-    <tr>
-      <td style="padding:4px 0;border-bottom:1px solid #eee">${item.product?.name ?? "Producto"}</td>
-      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:center">${item.cantidad}</td>
-      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:right">${AR.format(item.precio_unitario ?? 0)}</td>
-      <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${item.subtotal != null ? AR.format(item.subtotal) : "—"}</td>
-    </tr>`).join("");
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Ticket ${id}</title>
-  <style>
-    @page { size: 80mm auto; margin: 0; }
-    * { box-sizing: border-box; }
-    body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0; padding: 6mm 4mm; color:#111; }
-    h1 { font-size: 19px; font-weight: 800; text-align:center; letter-spacing:1.5px; margin: 0; }
-    .sub { color: #555; text-align:center; font-size: 11px; margin-top:2px; }
-    .divider { border-top:2px solid #333; margin:9px 0; }
-    table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top:9px; }
-    th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    th { text-align: left; font-size: 10px; text-transform: uppercase; color: #999; padding-bottom: 4px; border-bottom: 2px solid #000; }
-    th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
-    th:first-child, td:first-child { width: 42%; white-space: normal; }
-    .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
-    .footer { text-align: center; margin-top: 16px; }
-    .footer .thanks { font-size:13px; font-weight:bold; letter-spacing:.5px; }
-    .footer .legal { font-size:9.5px; color:#999; margin-top:8px; border-top:1px dashed #ccc; padding-top:8px; }
-  </style></head><body>
-  ${fiscal ? `<h1>${esc(factura!.emisor?.razon_social ?? "")}</h1>
-  <div class="sub">CUIT ${factura!.emisor?.cuit ?? ""} · IVA Responsable Inscripto</div>
-  ${factura!.emisor?.domicilio ? `<div class="sub">${esc(factura!.emisor.domicilio)}</div>` : ""}
-  ${factura!.emisor?.ingresos_brutos ? `<div class="sub">IIBB ${esc(factura!.emisor.ingresos_brutos)}${factura!.emisor.inicio_actividades ? " · Inicio act. " + factura!.emisor.inicio_actividades.split("-").reverse().join("/") : ""}</div>` : ""}
-  <div class="divider"></div>
-  <div style="text-align:center;font-weight:800;font-size:15px">FACTURA ${letraCbte(factura!)} · Cód. ${String(factura!.cbte_tipo).padStart(3, "0")}</div>
-  <div class="sub">N° ${nroCbte(factura!)} · ${factura!.fecha.split("-").reverse().join("/")}</div>
-  <div class="sub">${letraCbte(factura!) === "A" ? "CUIT " + factura!.doc_nro + " · IVA Responsable Inscripto" : "A CONSUMIDOR FINAL" + (factura!.doc_nro && factura!.doc_nro !== "0" ? " · Doc. " + factura!.doc_nro : "")}</div>
-  ${factura!.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`}
-  <div class="sub">${sucursalNombre}</div>
-  <div class="sub">${fecha} · #${id}</div>
-  <div class="divider"></div>
-  <table>
-    <thead><tr><th>Producto</th><th style="text-align:right">Cant</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div class="total">TOTAL: ${AR.format(total)}</div>
-  ${fiscal && letraCbte(factura!) === "A" ? `<div style="margin-top:8px;font-size:11px">Importe neto gravado: <b>${AR2.format(factura!.imp_neto)}</b><br>${(factura!.iva ?? []).map((t) => "IVA " + String(t.alicuota).replace(".", ",") + "%: <b>" + AR2.format(t.importe) + "</b>").join("<br>")}</div>` : ""}
-  ${fiscal && letraCbte(factura!) === "B" ? `<div style="margin-top:8px;font-size:10.5px">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)<br>IVA contenido: <b>${AR2.format(factura!.imp_iva)}</b></div>` : ""}
-  ${fiscal ? `<div style="margin-top:8px;font-size:11px">CAE: <b>${factura!.cae}</b><br>Vto. CAE: ${(factura!.cae_vto ?? "").split("-").reverse().join("/")}</div>
-  <div style="width:34mm;margin:8px auto 0">${qrSvg}</div>` : ""}
-  <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div>${fiscal ? "" : '<div class="legal">Este comprobante no tiene validez fiscal</div>'}</div>
-  <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
-  </body></html>`;
-
-  const w = window.open("", "_blank", "width=340,height=500");
-  w?.document.write(html);
-  w?.document.close();
+  abrirTicket(armarTicketHtml({
+    lineas: m.movimiento_items.map((i) => ({ nombre: i.product?.name ?? "Producto", cantidad: i.cantidad, precio: i.precio_unitario, subtotal: i.subtotal })),
+    total: m.movimiento_items.reduce((acc, i) => acc + (i.subtotal ?? 0), 0),
+    fecha: m.fecha,
+    id: m.id.slice(-8).toUpperCase(),
+    sucursalNombre,
+    factura,
+  }));
 }
 
 // Botón "Anular" -- mismo patrón que DeleteBtn en movimientos-list.tsx
