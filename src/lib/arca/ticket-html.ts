@@ -3,6 +3,7 @@
 // datos del emisor, CAE, vencimiento y QR de ARCA. Solo arma el HTML; abrirTicket() es lo único que toca el navegador.
 
 import { urlQrArca } from "./qr";
+import { conRetencion, esFactura, letraDe } from "./tipos";
 import { qrComoSvg } from "@/lib/pedidos/qr";
 
 /** Comprobante de ARCA de una venta, como lo leen el historial y el POS. */
@@ -17,8 +18,8 @@ export type ComprobanteVenta = {
 export type LineaTicket = { nombre: string; cantidad: number; precio: number | null; subtotal: number | null };
 
 // Facturas (A=1, B=6); las notas de crédito (3 y 8) no se imprimen como ticket de venta.
-export const esFacturaCbte = (c: { cbte_tipo: number }) => c.cbte_tipo === 1 || c.cbte_tipo === 6;
-export const letraCbte = (c: { cbte_tipo: number }) => (c.cbte_tipo === 1 || c.cbte_tipo === 3 ? "A" : "B");
+export const esFacturaCbte = (c: { cbte_tipo: number }) => esFactura(c.cbte_tipo);
+export const letraCbte = (c: { cbte_tipo: number }) => letraDe(c.cbte_tipo);
 export const nroCbte = (c: { punto_venta: number; numero: number | null }) =>
   c.numero ? `${String(c.punto_venta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")}` : "—";
 
@@ -60,6 +61,7 @@ export function armarTicketHtml(p: {
   ${f.emisor!.ingresos_brutos ? `<div class="sub">IIBB ${esc(f.emisor!.ingresos_brutos)}${f.emisor!.inicio_actividades ? " · Inicio act. " + diaMesAnio(f.emisor!.inicio_actividades) : ""}</div>` : ""}
   <div class="divider"></div>
   <div style="text-align:center;font-weight:800;font-size:15px">FACTURA ${letraCbte(f)} · Cód. ${String(f.cbte_tipo).padStart(3, "0")}</div>
+  ${conRetencion(f.cbte_tipo) ? '<div style="text-align:center;font-weight:800;font-size:11px">OPERACIÓN SUJETA A RETENCIÓN</div>' : ""}
   <div class="sub">N° ${nroCbte(f)} · ${diaMesAnio(f.fecha)}</div>
   <div class="sub">${letraCbte(f) === "A" ? "CUIT " + f.doc_nro + " · IVA Responsable Inscripto" : "A CONSUMIDOR FINAL" + (f.doc_nro && f.doc_nro !== "0" ? " · Doc. " + f.doc_nro : "")}</div>
   ${f.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`;

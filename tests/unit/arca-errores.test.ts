@@ -5,10 +5,11 @@ import { esFacturaRechazada } from "@/lib/arca/reglas";
 describe("explicarErrorArca", () => {
   const original = "10000: NO AUTORIZADO A EMITIR COMPROBANTES - LA CUIT INFORMADA NO SE ENCUENTRA AUTORIZADA A EMITIR COMPROBANTES CLASE 'A'";
 
-  it("explica en castellano que la SAS no está habilitada para Factura A y conserva el texto de ARCA", () => {
+  it("explica en castellano que la SAS no tiene la Factura A común, ofrece la A sujeta a retención y conserva el texto de ARCA", () => {
     const t = explicarErrorArca(original);
-    expect(t).toMatch(/todavía no habilita a la SAS para emitir Factura A/);
-    expect(t).toMatch(/Emití una Factura B/);
+    expect(t).toMatch(/todavía no habilita a la SAS para emitir la Factura A común/);
+    expect(t).toMatch(/sujeta a retención/);
+    expect(t).toMatch(/una Factura B/);
     expect(t).toContain(original);          // lo que hay que mostrarle al contador
   });
 

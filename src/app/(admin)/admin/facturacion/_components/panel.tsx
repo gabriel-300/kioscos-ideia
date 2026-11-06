@@ -4,11 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { configurarSucursalArca, datosTicketComprobante, descartarComprobanteRechazado, reintentarComprobante, reintentarPendientesAhora } from "../actions";
 import { abrirTicketDespues, armarTicketHtml } from "@/lib/arca/ticket-html";
+import { esFactura } from "@/lib/arca/tipos";
 import { Emisores } from "./emisores";
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
-const TIPO: Record<number, string> = { 1: "Factura A", 3: "Nota de crédito A", 6: "Factura B", 8: "Nota de crédito B" };
+const TIPO: Record<number, string> = {
+  1: "Factura A", 3: "Nota de crédito A", 6: "Factura B", 8: "Nota de crédito B",
+  51: "Factura A (sujeta a retención)", 53: "Nota de crédito A (sujeta a retención)",
+};
 const ESTADO_CLASE: Record<string, string> = {
   emitido: "bg-selva-100 text-selva-700",
   pendiente: "bg-amber-100 text-amber-700",
@@ -110,7 +114,7 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
                   <td className="px-4 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO_CLASE[c.estado]}`}>{c.estado}</span></td>
                   <td className="px-4 py-2 tabular-nums text-xs text-neutral-500">{c.cae ?? "—"}</td>
                   <td className="px-4 py-2 text-right">
-                    {c.estado === "emitido" && (c.cbte_tipo === 1 || c.cbte_tipo === 6) && (
+                    {c.estado === "emitido" && esFactura(c.cbte_tipo) && (
                       <button className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
                         title="Volver a imprimir esta factura" onClick={() => reimprimir(c.id)}>Imprimir</button>
                     )}

@@ -6,6 +6,7 @@ import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { emitirFacturaDeVenta, procesarComprobante, reintentarPendientes } from "@/lib/arca/emitir";
 import { cuitValido, datosFaltantesEmisor, esFacturaRechazada } from "@/lib/arca/reglas";
+import { esFactura } from "@/lib/arca/tipos";
 import { probarEmisor, type PruebaEmisor } from "@/lib/arca/probar";
 import { comoComprobanteVenta } from "@/lib/arca/venta-factura";
 import { lineasParaReimprimir } from "@/lib/arca/ticket-datos";
@@ -97,7 +98,7 @@ export async function configurarSucursalArca(data: {
 }
 
 /** Corrige los datos que se imprimen en el ticket. El CUIT y el ambiente no se cambian: serían otro emisor. */
-export async function editarEmisor(id: string, data: { razon_social: string; domicilio?: string; ingresos_brutos?: string; inicio_actividades?: string; activo: boolean }): Promise<{ error?: string }> {
+export async function editarEmisor(id: string, data: { razon_social: string; domicilio?: string; ingresos_brutos?: string; inicio_actividades?: string; activo: boolean; factura_a_con_retencion?: boolean }): Promise<{ error?: string }> {
   await requireAdmin();
   if (!data.razon_social.trim()) return { error: "Falta la razón social." };
   const inicio = (data.inicio_actividades ?? "").trim();
@@ -108,6 +109,7 @@ export async function editarEmisor(id: string, data: { razon_social: string; dom
     ingresos_brutos: data.ingresos_brutos?.trim() || null,
     inicio_actividades: inicio || null,
     activo: data.activo,
+    ...(data.factura_a_con_retencion === undefined ? {} : { factura_a_con_retencion: data.factura_a_con_retencion }),
   }).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/admin/facturacion");
@@ -138,7 +140,7 @@ export async function datosTicketComprobante(comprobanteId: string): Promise<{ e
   const { data: c } = await db.from("comprobantes_arca").select("*").eq("id", comprobanteId).maybeSingle();
   if (!c) return { error: "No se encontró el comprobante." };
   if (c.estado !== "emitido" || !c.cae || !c.numero) return { error: "Solo se pueden imprimir comprobantes ya emitidos." };
-  if (c.cbte_tipo !== 1 && c.cbte_tipo !== 6) return { error: "Las notas de crédito no se imprimen desde acá." };
+  if (!esFactura(c.cbte_tipo)) return { error: "Las notas de crédito no se imprimen desde acá." };
 
   const { data: mov } = await db.from("movimientos")
     .select("id, fecha, sucursal:sucursales(nombre), movimiento_items(cantidad, precio_unitario, subtotal, product:products(name))")
