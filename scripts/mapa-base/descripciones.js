@@ -219,6 +219,26 @@ const DOMINIOS = [
     T("pedidoya_webhook_events", "Avisos crudos de Pedido Ya", "Guarda lo que manda Pedido Ya, sin procesar (todavía no se arman ventas solas).", { raw_payload: "Contenido original." }),
     T("whatsapp_webhook_events", "Mensajes crudos de WhatsApp", "Auditoría de cada mensaje recibido (evita duplicar un mismo mensaje).", { wa_message_id: "Identificador único del mensaje en WhatsApp.", status: "processed, sin_sucursal o error." }),
   ]),
+  D("facturacion", "Facturación electrónica (ARCA)", "Las facturas que se emiten a ARCA (ex AFIP). Lo cobrado por medios digitales se factura solo; el efectivo, a pedido del cliente. El precio del sistema ya trae el IVA incluido.", [
+    T("arca_emisores", "A nombre de quién se factura", "Cada CUIT que emite comprobantes. Uno por sociedad (la SAS, o un local independiente con el suyo) y por ambiente: homologación es de pruebas y no tiene validez fiscal.", {
+      cuit: "CUIT del emisor (11 dígitos).", razon_social: "Nombre legal que sale impreso.", ambiente: "homologacion (pruebas) o produccion (real).",
+      domicilio: "Domicilio comercial que sale en el ticket.", ingresos_brutos: "Número de Ingresos Brutos (sale en el ticket).", inicio_actividades: "Inicio de actividades (sale en el ticket).", activo: "Apagado = no se usa para facturar.",
+    }),
+    T("arca_tickets", "Ticket de acceso a ARCA", "ARCA entrega un permiso temporal (unas 12 horas) y no deja pedir otro mientras el anterior sirve; se guarda acá para que todas las instancias del servidor lo compartan. Solo lo toca el servidor.", {
+      ambiente: "homologacion o produccion.", token: "Permiso entregado por ARCA (secreto).", sign: "Firma del permiso (secreta).", expira_en: "Cuándo vence; se renueva 10 minutos antes.", updated_at: "Cuándo se guardó.",
+    }),
+    T("comprobantes_arca", "Una factura (A o B) o una nota de crédito", "Una fila por venta y tipo de comprobante. Se crea ANTES de hablar con ARCA (eso impide facturar dos veces la misma venta) y queda pendiente, emitido o con error. Si la venta se anula, se emite la nota de crédito que la compensa.", {
+      movimiento_id: "La venta que se factura.", sucursal_id: "Sucursal de la venta.", emisor_id: "A nombre de quién se emitió.", ambiente: "homologacion (prueba) o produccion (real).",
+      cbte_tipo: "1 = Factura A, 3 = Nota de crédito A, 6 = Factura B, 8 = Nota de crédito B. La A se emite solo a mano, a un cliente Responsable Inscripto.", punto_venta: "Punto de venta de ARCA (uno por kiosco).", numero: "Número correlativo que dio ARCA (vacío hasta que se emite).",
+      numero_intentado: "Número que se pidió en el último intento; si se cortó por timeout se consulta antes de reintentar, para no facturar dos veces.", fecha: "Fecha del comprobante.",
+      doc_tipo: "99 = consumidor final, 96 = DNI, 80 = CUIT (obligatorio en la Factura A).", doc_nro: "Documento del cliente (0 si es consumidor final sin datos).", cond_iva_receptor: "Condición del cliente frente al IVA: 5 = consumidor final (Factura B), 1 = Responsable Inscripto (Factura A).",
+      imp_total: "Total de la venta (el precio ya incluye IVA).", imp_neto: "Parte sin IVA.", imp_iva: "IVA contenido.", iva: "Desglose por alícuota (base e importe de cada una).",
+      origen: "automatico (cobro digital), manual (a pedido del cliente) o anulacion (nota de crédito).", estado: "pendiente (esperando a ARCA), emitido o error (ARCA lo rechazó: lo revisa una persona).",
+      cae: "Código de autorización que da ARCA: es lo que vuelve válido al comprobante.", cae_vto: "Vencimiento del CAE.", comprobante_asociado_id: "En una nota de crédito, la factura que anula.",
+      error: "Último motivo de falla o rechazo.", intentos: "Cuántas veces se intentó.", tomado_en: "Candado de reintento (2 minutos): evita que dos procesos emitan a la vez.",
+      created_by: "Quién lo pidió (vacío si fue automático).", created_at: "Cuándo se creó.", emitido_en: "Cuándo ARCA lo aprobó.",
+    }),
+  ]),
 ];
 
 // Columnas de significado evidente que no hacía falta explicar en la tabla principal. Clave: "tabla.columna".
@@ -256,6 +276,8 @@ const COLUMNAS_EXTRA = {
   "mercadopago_qr_orders.paid_at": "Cuándo se pagó.",
   "mercadopago_transferencias_recibidas.mp_payment_id": "Identificador del pago en Mercado Pago.", "mercadopago_transferencias_recibidas.monto": "Importe recibido.", "mercadopago_transferencias_recibidas.recibido_en": "Cuándo llegó el aviso.", "mercadopago_transferencias_recibidas.raw_payload": "Copia de lo que informó Mercado Pago.", "mercadopago_transferencias_recibidas.asignado_en": "Cuándo se asignó a una venta.",
   "pedidoya_webhook_events.received_at": "Cuándo llegó el aviso.", "pedidoya_webhook_events.external_order_id": "Número del pedido en Pedido Ya.", "pedidoya_webhook_events.external_store_id": "Local según Pedido Ya.", "pedidoya_webhook_events.movimiento_id": "Venta creada a partir del aviso, si la hubo.", "pedidoya_webhook_events.status": "Estado del procesamiento.", "pedidoya_webhook_events.error_message": "Error, si falló.", "pedidoya_webhook_events.processed_at": "Cuándo se procesó.",
+  "products.alicuota_iva": "Porcentaje de IVA que ya viene incluido en el precio (21, 10,5 o 0 si es exento); define cómo se desglosa en la factura electrónica.",
+  "sucursales.arca_modo": "desactivado (no factura) o digital (factura sola lo cobrado por medios digitales).", "sucursales.arca_emisor_id": "A nombre de quién factura esta sucursal.", "sucursales.arca_punto_venta": "Punto de venta de ARCA de esta sucursal.",
   "whatsapp_webhook_events.received_at": "Cuándo llegó el mensaje.", "whatsapp_webhook_events.raw_payload": "Mensaje original.", "whatsapp_webhook_events.wa_from": "Número de quien escribe.", "whatsapp_webhook_events.phone_number_id": "Número de WhatsApp Business que lo recibió.", "whatsapp_webhook_events.contacto_id": "Contacto del CRM asociado.", "whatsapp_webhook_events.error_message": "Error, si falló.",
 };
 

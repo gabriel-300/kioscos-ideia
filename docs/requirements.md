@@ -355,6 +355,21 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Estado**: **Probado** con Playwright (archivo generado y formulario de descarga) y con pruebas unitarias; falta la prueba con la
   térmica real.
 
+### Facturación electrónica (ARCA) — `/admin/facturacion`
+- **Quién**: configura solo el admin (emisores, sucursal, punto de venta). Cualquier staff con acceso a la sucursal puede
+  emitir a mano: con la casilla «Emitir factura» al cobrar (solo ventas de consumidor final) o con el botón del historial. El ticket
+  impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA, igual desde el POS que desde el historial.
+- **Emisores y prueba de conexión**: los datos del emisor que el ticket imprime (domicilio, Ingresos Brutos, inicio de actividades) se
+  pueden editar. Una sucursal **no se puede activar con un emisor de producción al que le falte alguno**. El botón «Probar conexión con
+  ARCA» (solo lectura, no emite nada) pide el ticket de acceso, lista los puntos de venta habilitados con su último comprobante y verifica el punto de
+  venta de cada sucursal. Hay que usarlo desde la página publicada: desde la computadora, ARCA producción rechaza la conexión.
+- **Reglas**: ver la decisión 17 del §3. Una venta con comprobante no se puede eliminar: se anula, y eso emite la nota de crédito.
+  Alícuota de IVA por producto (21% por defecto; 10,5% o exento solo si el contador lo indica). En un pedido online el envío se
+  factura como una línea más al 21%.
+- **Estado**: construido y probado de punta a punta contra la base real y ARCA **homologación** (factura B y A, idempotencia, nota de
+  crédito B y A, venta automática y su anulación). **Producción pendiente**: puntos de venta reales de tipo «Factura electrónica – Web Services», uno por kiosco, y certificado de producción
+  con la Clave Fiscal de la SAS. Detalle técnico en `docs/architecture.md` §6 y §8.
+
 ### Pedido Ya
 - **Estado**: el canal manual en el POS (efectivo y plataforma) está **Funcionando** (227 ventas en 60 días). El webhook está
   **Pendiente de configurar**: sin token ni payload real; solo guarda los eventos.
@@ -411,7 +426,17 @@ Cada una tiene un motivo. Si algo de acá parece un error, es una decisión: pre
 15. **Reposición**: solo avisa (no arma el pedido al proveedor) y es solo admin.
 16. **CRM de nichos**: no se creó la tabla puente `nichos_x_local` (un solo local la usa: YAGNI) ni el calendario de contenido.
     El usuario decidió no comunicarle a Javier (socio no técnico) las correcciones técnicas de su propuesta.
-17. **Facturación electrónica (AFIP/ARCA) pausada**: no se construye hasta que el usuario lo decida.
+17. **Facturación electrónica con ARCA (2026-11-03)**: la SAS es Responsable Inscripto y emite **Factura B** (y nota de crédito B).
+    **Solo facturan UNAM y Costanera** (Villa Sarita y Bencivenga son de otros dueños: quedan apagadas). **Se factura siempre y sola
+    lo cobrado con el QR de Mercado Pago (la «billetera virtual» del POS) y lo cobrado por transferencia.** Efectivo y
+    tarjeta/posnet (llegará más adelante) NO se facturan solos. Solo cuentan las ventas registradas en el POS: un ingreso por
+    transferencia que no es una venta no se factura. El cliente que
+    paga con otro medio y pide factura la recibe con la casilla **«Emitir factura»** del cobro (el cajero espera a ARCA e imprime
+    la factura en el momento) o con el botón «Facturar» del historial (hasta 7 días después). Si una venta mezcla efectivo con
+    billetera se factura la venta entera. No se factura el fiado ni Pedido Ya Plataforma. El precio del
+    sistema es **final (IVA incluido)**: el IVA se separa hacia atrás, nunca se suma. Cada sucursal arranca sin facturar hasta que un
+    admin la configura. **Factura A: solo a mano** (el cliente es Responsable Inscripto y da su CUIT; al elegir un CUIT en «Facturar» el sistema pregunta A o B); lo digital nunca sale como A, y no se emite una letra encima de la otra (habría que anular la primera con una nota de crédito: el flujo de «refacturar» no está construido a propósito, hasta que aparezca el caso real). Que ARCA esté caída **nunca frena la venta**. Facturar solo lo digital deja ventas declaradas menores que las
+    reales: es decisión del dueño, a hablar con el contador.
 18. **Historial de movimientos** usa `.limit(1000)` a propósito: es una lista de "últimos N", no un total.
 19. **`created_by` histórico**: las filas anteriores a la trazabilidad se completaron con el admin de aquel momento (mejor
     aproximación, **no es un dato certero**).

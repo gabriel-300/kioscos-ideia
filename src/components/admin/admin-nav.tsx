@@ -96,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Finanzas", icon: "gastos",
     children: [
       { href: "/admin/tesoreria",         label: "Tesorería",           roles: ["admin", "socio"],                                 icon: "tesoreria" },
+      { href: "/admin/facturacion",       label: "Facturación",         roles: ["admin"],                                          icon: "tesoreria" },
       { href: "/admin/cierres",           label: "Cierres",             roles: ["concesionario"],                                  icon: "cierres" },
       { href: "/admin/cta-corriente",     label: "Cta. Corriente",      roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "staff" },
     ],

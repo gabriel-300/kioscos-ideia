@@ -1093,6 +1093,7 @@ export type Database = {
           margen_gastro: number | null
           margen_min: number | null
           merma_coccion_pct: number | null
+          alicuota_iva: number
           metadata: Json
           min_quantity_b2b: number
           mult_bolsas: boolean | null
@@ -1132,6 +1133,7 @@ export type Database = {
           margen_gastro?: number | null
           margen_min?: number | null
           merma_coccion_pct?: number | null
+          alicuota_iva?: number
           metadata?: Json
           min_quantity_b2b?: number
           mult_bolsas?: boolean | null
@@ -1171,6 +1173,7 @@ export type Database = {
           margen_gastro?: number | null
           margen_min?: number | null
           merma_coccion_pct?: number | null
+          alicuota_iva?: number
           metadata?: Json
           min_quantity_b2b?: number
           mult_bolsas?: boolean | null

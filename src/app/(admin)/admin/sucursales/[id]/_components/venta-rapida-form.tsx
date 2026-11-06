@@ -3,6 +3,8 @@
 import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { crearMovimiento } from "@/app/(admin)/admin/movimientos/actions";
+import { abrirTicket, armarTicketHtml, letraCbte, nroCbte, type ComprobanteVenta } from "@/lib/arca/ticket-html";
+import { normalizarReceptor } from "@/lib/arca/reglas";
 import { prestarTermo, devolverTermo, pagarMultaTermo } from "@/app/(admin)/admin/termos/actions";
 import { armarQrMercadoPago, consultarQrMercadoPago, cancelarQrMercadoPago, vincularMovimientoQr } from "../mercadopago-actions";
 import { fechaHoyAR } from "@/lib/fecha";
@@ -102,6 +104,11 @@ type Receipt = {
   vuelto: number | null; notas: string | null;
   canal: string;
   personalNombre?: string | null;
+  // Facturación ARCA: la factura que se pidió al cobrar (o el motivo por el que no salió) y lo necesario para imprimirla.
+  factura?: ComprobanteVenta | null;
+  facturaError?: string | null;
+  movimientoId?: string | null;
+  fechaIso?: string;
 };
 
 interface Props {
@@ -122,9 +129,10 @@ interface Props {
   termosDisponibles?: TermoDisponible[];
   termosPrestados?:   TermoPrestado[];
   mercadopagoPosId?:  string | null;
+  arcaActiva?:        boolean;   // la sucursal tiene facturación electrónica: aparece «Emitir factura» al cobrar
 }
 
-export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], canalesHabilitados = null, masVendidosIds = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null }: Props) {
+export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, products, stockMap, categories, personal = [], contactos = [], contactosCtaCorriente = [], canalesHabilitados = null, masVendidosIds = [], cajaAbierta, promos = [], termosDisponibles = [], termosPrestados = [], mercadopagoPosId = null, arcaActiva = false }: Props) {
   // Canales que esta sucursal puede usar (migración 088) -- null/[] = todos.
   // Caso real: una sucursal a concesión que solo cobra Consumidor Final.
   const canalesDisponibles = canalesHabilitados && canalesHabilitados.length > 0
@@ -153,6 +161,9 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [personalId, setPersonalId] = useState("");
   const [contactoId, setContactoId] = useState("");
   const [notas,      setNotas]      = useState("");
+  const [emitirFactura, setEmitirFactura] = useState(false);
+  const [docFactura,    setDocFactura]    = useState("");
+  const [tipoFactura,   setTipoFactura]   = useState<"A" | "B">("B");
   const [termoId,      setTermoId]      = useState("");
   const [dniTermo,     setDniTermo]     = useState("");
   const [telefonoTermo, setTelefonoTermo] = useState("");
@@ -444,6 +455,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setContactoId(""); setNotas(""); setError(null); setReceipt(null);
+    setEmitirFactura(false); setDocFactura(""); setTipoFactura("B");
     setTermoId(""); setDniTermo(""); setTelefonoTermo(""); setNombreTermo("");
     setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch("");
     detenerPollingQr(); setQrEstado("idle"); setQrExternalRef(null); setQrError(null);
@@ -618,6 +630,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
       setError("El monto en billetera/tarjeta/transferencia no puede superar el total (ahí no se da vuelto)");
       return;
     }
+    // Factura pedida al cobrar: se valida el documento antes de registrar nada.
+    const pideFactura = arcaActiva && emitirFactura && canal === "consumidor_final";
+    if (pideFactura) {
+      const r = normalizarReceptor(docFactura, tipoFactura);
+      if (!r.receptor) { setError(r.error ?? "Documento inválido para la factura"); return; }
+    }
     setError(null);
     const now  = new Date();
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -641,7 +659,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
 
     startTransition(async () => {
       try {
-        const { movimiento_id, error: crearError } = await crearMovimiento({
+        const { movimiento_id, error: crearError, factura, facturaError } = await crearMovimiento({
           sucursal_id:        sucursalId,
           fecha,
           tipo:               "venta",
@@ -656,6 +674,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           pago_billetera:     parseFloat(pagos.mp)            || null,
           pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
           pago_transferencia: parseFloat(pagos.transferencia) || null,
+          facturar:           pideFactura ? { documento: docFactura, tipo: tipoFactura } : null,
           items: seleccionados.map(([id, cantidad]) =>
             isPromoId(id)
               ? { promo_id: promoIdOf(id), cantidad, precio_unitario: priceOf(id) }
@@ -700,9 +719,22 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
           personalNombre: (canal === "ronda_comunidad" || (canal === "cuenta_corriente" && contactoId)) ? contactoNombre : (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
+          factura: factura ?? null, facturaError: facturaError ?? null, movimientoId: movimiento_id, fechaIso: fecha,
         });
       } catch (e) { setError(friendlyError(e)); }
     });
+  }
+
+  function handlePrintFactura(r: Receipt) {
+    if (!r.factura) return;
+    abrirTicket(armarTicketHtml({
+      lineas: r.items.map((i) => ({ nombre: i.name, cantidad: i.qty, precio: i.precioUnit, subtotal: i.sub })),
+      total: r.totalPrecio,
+      fecha: r.fechaIso ?? fechaHoyAR(),
+      id: (r.movimientoId ?? "").slice(-8).toUpperCase(),
+      sucursalNombre: sucursalNombre ?? "",
+      factura: r.factura,
+    }));
   }
 
   function handlePrint(r: Receipt) {
@@ -816,6 +848,18 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </div>
             )}
 
+            {receipt.factura && (
+              <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "#BFD0C7", background: "#F1F7F4", color: "#173A31" }}>
+                <b>Factura {letraCbte(receipt.factura)} {nroCbte(receipt.factura)}</b> emitida
+                <div className="text-xs" style={{ color: "#5A766B" }}>CAE {receipt.factura.cae}{receipt.factura.ambiente === "homologacion" ? " · PRUEBA, sin validez fiscal" : ""}</div>
+              </div>
+            )}
+            {receipt.facturaError && (
+              <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "#E8C98A", background: "#FFF8E8", color: "#7A4B00" }}>
+                La venta se registró, pero la factura no salió: {receipt.facturaError}. Podés pedirla de nuevo con el botón «Facturar» del historial.
+              </div>
+            )}
+
             {receipt.notas && <p className="text-xs border-t pt-2" style={{ color: "#86A096", borderColor: "#DCE7E1" }}>{receipt.notas}</p>}
           </div>
 
@@ -830,6 +874,15 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               </svg>
               Imprimir comprobante
             </button>
+            {receipt.factura && (
+              <button
+                onClick={() => handlePrintFactura(receipt)}
+                className="w-full h-10 rounded-lg text-sm font-bold transition-all hover:opacity-90"
+                style={{ background: "#173A31", color: "white" }}
+              >
+                Imprimir factura {letraCbte(receipt.factura)}
+              </button>
+            )}
             <button onClick={resetForm} className="w-full h-10 rounded-lg text-white text-sm font-bold transition-all" style={{ background: NAVY }}>
               Nueva venta
             </button>
@@ -1694,6 +1747,34 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               )}
             </div>
             </>
+            )}
+
+            {/* Facturación electrónica: lo cobrado con el QR de Mercado Pago se factura solo; para cualquier otro medio, el cliente que la pide la recibe acá. */}
+            {arcaActiva && canal === "consumidor_final" && (
+              <div style={{ border: "1.5px solid #DCE7E1", borderRadius: 8, padding: "9px 12px", marginBottom: 8, background: emitirFactura ? "#F1F7F4" : "white" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", color: "#173A31" }}>
+                  <input type="checkbox" checked={emitirFactura} onChange={(e) => setEmitirFactura(e.target.checked)} />
+                  Emitir factura
+                </label>
+                {!emitirFactura && ((parseFloat(pagos.mp) || 0) > 0 || (parseFloat(pagos.transferencia) || 0) > 0) && (
+                  <p style={{ fontSize: 11, color: "#5A766B", marginTop: 4 }}>Lo cobrado con el QR de Mercado Pago o por transferencia se factura solo, a Consumidor Final. Tildá la casilla solo si el cliente quiere sus datos en la factura.</p>
+                )}
+                {emitirFactura && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <input
+                      value={docFactura} onChange={(e) => { setDocFactura(e.target.value); if (e.target.value.replace(/\D/g, "").length !== 11) setTipoFactura("B"); }}
+                      placeholder="DNI o CUIT del cliente (vacío = Consumidor Final)" inputMode="numeric"
+                      style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #DCE7E1", borderRadius: 6, fontSize: 13, outline: "none" }}
+                    />
+                    {docFactura.replace(/\D/g, "").length === 11 && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#173A31", cursor: "pointer" }}>
+                        <input type="checkbox" checked={tipoFactura === "A"} onChange={(e) => setTipoFactura(e.target.checked ? "A" : "B")} />
+                        El cliente es Responsable Inscripto y pide <b>Factura A</b>
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Notas */}
