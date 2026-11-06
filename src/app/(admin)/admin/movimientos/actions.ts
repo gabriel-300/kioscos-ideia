@@ -6,7 +6,8 @@ import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { obtenerTenedorActual } from "@/lib/auth/turno-actual";
 import { leerComprobanteConGroq, validarComprobante } from "@/lib/groq";
-import { facturarVentaEnSegundoPlano, notaCreditoEnSegundoPlano } from "@/lib/arca/disparar";
+import { facturarVentaAutomaticaEsperando, notaCreditoEnSegundoPlano } from "@/lib/arca/disparar";
+import { debeFacturarseSola } from "@/lib/arca/reglas";
 import { facturarVentaAhora, validarPedidoFactura } from "@/lib/arca/venta-factura";
 import type { ComprobanteVenta } from "@/lib/arca/ticket-html";
 
@@ -465,7 +466,7 @@ export async function crearMovimiento(data: {
 
   // Facturación ARCA: lo cobrado por medios digitales se factura solo, en segundo plano
   // (no hace esperar al cajero). No hace nada si la sucursal no la tiene activada.
-  // Si el cajero pidió factura, se emite ahora y se espera (para imprimirla); si no, la regla automática (solo QR de Mercado Pago).
+  // Si el cajero pidió factura, se emite ahora y se espera (para imprimirla); si no, rige la regla automática (QR de Mercado Pago o transferencia).
   let factura: ComprobanteVenta | undefined;
   let facturaError: string | undefined;
   if (esVenta && movimientoId) {
@@ -473,8 +474,14 @@ export async function crearMovimiento(data: {
       const r = await facturarVentaAhora(supabase, movimientoId, data.facturar, userId);
       factura = r.factura;
       facturaError = r.error;
-    } else {
-      facturarVentaEnSegundoPlano(movimientoId, userId);
+    } else if (debeFacturarseSola({
+      tipo: data.tipo, canal: data.canal ?? "consumidor_final", anulado_en: null,
+      pago_efectivo: pagoEfectivo, pago_billetera: pagoBilletera, pago_tarjeta: pagoTarjeta, pago_transferencia: pagoTransferencia,
+    })) {
+      // El cajero espera a ARCA unos segundos para ver e imprimir la factura; si tarda, sigue en segundo plano.
+      const r = await facturarVentaAutomaticaEsperando(movimientoId, userId);
+      factura = r.factura;
+      facturaError = r.facturaError;
     }
   }
 
