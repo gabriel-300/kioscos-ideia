@@ -14,7 +14,7 @@ export type SucursalAProbar = { nombre: string; arca_emisor_id: string | null; a
 
 export type PuntoVentaProbado = {
   nro: number; emision: string; bloqueado: boolean; baja: boolean;
-  ultimaFacturaB: number | null; ultimaFacturaA: number | null; error?: string;
+  ultimaFacturaB: number | null; ultimaFacturaA: number | null; ultimaFacturaARet: number | null; error?: string;
 };
 
 export type PruebaEmisor = {
@@ -47,10 +47,11 @@ export async function probarEmisor(db: Db, emisor: EmisorAProbar, sucursales: Su
   try {
     const pvs = await puntosDeVenta(emisor.ambiente, auth);
     for (const pv of pvs) {
-      const p: PuntoVentaProbado = { nro: pv.nro, emision: pv.emision, bloqueado: pv.bloqueado, baja: pv.baja, ultimaFacturaB: null, ultimaFacturaA: null };
+      const p: PuntoVentaProbado = { nro: pv.nro, emision: pv.emision, bloqueado: pv.bloqueado, baja: pv.baja, ultimaFacturaB: null, ultimaFacturaA: null, ultimaFacturaARet: null };
       if (!pv.bloqueado && !pv.baja) {
         try { p.ultimaFacturaB = await ultimoAutorizado(emisor.ambiente, auth, pv.nro, 6); } catch (e) { p.error = mensaje(e); }
         try { p.ultimaFacturaA = await ultimoAutorizado(emisor.ambiente, auth, pv.nro, 1); } catch (e) { p.error = p.error ?? mensaje(e); }
+        try { p.ultimaFacturaARet = await ultimoAutorizado(emisor.ambiente, auth, pv.nro, 51); } catch (e) { p.error = p.error ?? mensaje(e); }
       }
       base.puntosVenta.push(p);
     }

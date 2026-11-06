@@ -6,7 +6,7 @@ export function explicarErrorArca(original: string): string {
   const t = original ?? "";
   // 10000 «no autorizado a emitir comprobantes clase A»: la habilitación es del EMISOR (la SAS), no del cliente.
   if (/CLASE\s*'?A'?/i.test(t) && /NO AUTORIZADO/i.test(t)) {
-    return `ARCA todavía no habilita a la SAS para emitir Factura A. Emití una Factura B, o consultalo con el contador. (ARCA: ${t})`;
+    return `ARCA todavía no habilita a la SAS para emitir la Factura A común. Sí puede emitir la Factura A «sujeta a retención» (activala en el emisor) o, mientras tanto, una Factura B. (ARCA: ${t})`;
   }
   return t;
 }

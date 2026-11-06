@@ -15,22 +15,14 @@ import {
   type Ambiente, type Auth,
 } from "./cliente";
 import { explicarErrorArca } from "./errores";
+import { esNotaDeCredito, letraDe, tipoDeFacturaAEmitir, tipoFacturaDe, tipoNotaDe, TIPOS_FACTURA } from "./tipos";
 import { debeFacturarseSola, esFacturaRechazada, normalizarReceptor, type TipoFactura, type VentaParaFacturar } from "./reglas";
 import { obtenerTicket } from "./ticket";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-export const FACTURA_A = 1;
-export const NOTA_CREDITO_A = 3;
-export const FACTURA_B = 6;
-export const NOTA_CREDITO_B = 8;
-const TIPOS_FACTURA = [FACTURA_A, FACTURA_B];
-const esNotaDeCredito = (tipo: number) => tipo === NOTA_CREDITO_A || tipo === NOTA_CREDITO_B;
-/** Nota de crédito que anula una factura, y la factura que anula una nota de crédito. */
-const tipoNotaDe = (factura: number) => (factura === FACTURA_A ? NOTA_CREDITO_A : NOTA_CREDITO_B);
-const tipoFacturaDe = (nota: number) => (nota === NOTA_CREDITO_A ? FACTURA_A : FACTURA_B);
-const letra = (tipo: number) => (tipo === FACTURA_A || tipo === NOTA_CREDITO_A ? "A" : "B");
+const letra = letraDe;
 const LEASE_MS = 2 * 60_000;
 
 export type ComprobanteRow = {
@@ -60,7 +52,7 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
     .from("movimientos")
     .select(`id, tipo, canal, fecha, sucursal_id, anulado_en, pago_efectivo, pago_billetera, pago_tarjeta, pago_transferencia,
              movimiento_items ( subtotal, product:products ( alicuota_iva ) ),
-             sucursal:sucursales ( arca_modo, arca_punto_venta, emisor:arca_emisores!sucursales_arca_emisor_id_fkey ( id, cuit, ambiente, activo ) )`)
+             sucursal:sucursales ( arca_modo, arca_punto_venta, emisor:arca_emisores!sucursales_arca_emisor_id_fkey ( id, cuit, ambiente, activo, factura_a_con_retencion ) )`)
     .eq("id", movimientoId)
     .maybeSingle();
   if (error || !mov) return { ok: false, error: "No se encontró la venta." };
@@ -75,7 +67,7 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
   }
 
   // La Factura A solo se emite a mano: lo digital sale siempre como B.
-  const tipoFact = opc.origen === "manual" && opc.tipo === "A" ? FACTURA_A : FACTURA_B;
+  const tipoFact = tipoDeFacturaAEmitir(opc.origen === "manual" && opc.tipo === "A" ? "A" : "B", !!suc.emisor.factura_a_con_retencion);
 
   // ¿Ya existe una factura de esta venta? Misma letra: emitida → se devuelve; pendiente/error → se reintenta
   // sobre la misma fila. Otra letra: no se emite una segunda (habría que anular la primera con una nota de crédito).

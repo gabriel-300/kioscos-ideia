@@ -22,13 +22,13 @@ export function Emisores({ emisores }: { emisores: EmisorRow[] }) {
   const [probando, setProbando] = useState(false);
 
   // formulario de edición
-  const [razon, setRazon] = useState(""); const [dom, setDom] = useState(""); const [iibb, setIibb] = useState(""); const [inicio, setInicio] = useState(""); const [activo, setActivo] = useState(true);
+  const [razon, setRazon] = useState(""); const [dom, setDom] = useState(""); const [iibb, setIibb] = useState(""); const [inicio, setInicio] = useState(""); const [activo, setActivo] = useState(true); const [conRet, setConRet] = useState(false);
   // emisor nuevo
   const [cuit, setCuit] = useState(""); const [razonN, setRazonN] = useState(""); const [domN, setDomN] = useState(""); const [iibbN, setIibbN] = useState(""); const [inicioN, setInicioN] = useState("");
   const [amb, setAmb] = useState<"homologacion" | "produccion">("homologacion");
 
   const abrirEdicion = (e: EmisorRow) => {
-    setEditando(e.id); setRazon(e.razon_social); setDom(e.domicilio ?? ""); setIibb(e.ingresos_brutos ?? ""); setInicio(e.inicio_actividades ?? ""); setActivo(e.activo);
+    setEditando(e.id); setRazon(e.razon_social); setDom(e.domicilio ?? ""); setIibb(e.ingresos_brutos ?? ""); setInicio(e.inicio_actividades ?? ""); setActivo(e.activo); setConRet(e.factura_a_con_retencion);
   };
   const correr = (fn: () => Promise<{ error?: string }>, ok: string, alExito?: () => void) =>
     start(async () => { const r = await fn(); setMsg(r.error ?? ok); if (!r.error) { alExito?.(); router.refresh(); } });
@@ -73,7 +73,7 @@ export function Emisores({ emisores }: { emisores: EmisorRow[] }) {
                   {p.puntosVenta.map((pv) => (
                     <li key={pv.nro}>
                       Punto de venta {pv.nro} · {pv.emision}
-                      {pv.bloqueado ? " · BLOQUEADO" : pv.baja ? " · de baja" : ` · último comprobante: B ${pv.ultimaFacturaB ?? "—"} · A ${pv.ultimaFacturaA ?? "—"}`}
+                      {pv.bloqueado ? " · BLOQUEADO" : pv.baja ? " · de baja" : ` · último comprobante: B ${pv.ultimaFacturaB ?? "—"} · A ${pv.ultimaFacturaA ?? "—"} · A c/retención ${pv.ultimaFacturaARet ?? "—"}`}
                       {pv.error && <span className="text-danger"> ({pv.error})</span>}
                     </li>
                   ))}
@@ -101,6 +101,7 @@ export function Emisores({ emisores }: { emisores: EmisorRow[] }) {
               <div>
                 {e.razon_social} · CUIT {e.cuit} · <span className={e.ambiente === "produccion" ? "font-semibold text-selva-700" : "text-amber-700"}>{e.ambiente === "produccion" ? "PRODUCCIÓN" : "homologación (pruebas)"}</span>
                 {!e.activo && <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">inactivo</span>}
+                {e.factura_a_con_retencion && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Factura A sujeta a retención</span>}
                 {faltantes(e).length > 0 && (
                   <div className="text-xs text-amber-700">Faltan datos para el ticket: {faltantes(e).join(", ")}. No se puede activar una sucursal con este emisor hasta completarlos.</div>
                 )}
@@ -116,7 +117,10 @@ export function Emisores({ emisores }: { emisores: EmisorRow[] }) {
                   <input className={input} type="date" value={inicio} onChange={(x) => setInicio(x.target.value)} />
                 </label>
                 <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={activo} onChange={(x) => setActivo(x.target.checked)} /> Activo</label>
-                <button disabled={pending} className={boton} onClick={() => correr(() => editarEmisor(e.id, { razon_social: razon, domicilio: dom, ingresos_brutos: iibb, inicio_actividades: inicio, activo }), "Emisor actualizado.", () => setEditando(null))}>Guardar</button>
+                <label className="flex w-full items-center gap-1 text-sm" title="ARCA no le habilita la Factura A común: emite la A con la leyenda «Operación sujeta a retención» (código 51). El cliente que la recibe retiene.">
+                  <input type="checkbox" checked={conRet} onChange={(x) => setConRet(x.target.checked)} /> Su Factura A sale «sujeta a retención» (código 51)
+                </label>
+                <button disabled={pending} className={boton} onClick={() => correr(() => editarEmisor(e.id, { razon_social: razon, domicilio: dom, ingresos_brutos: iibb, inicio_actividades: inicio, activo, factura_a_con_retencion: conRet }), "Emisor actualizado.", () => setEditando(null))}>Guardar</button>
                 <button disabled={pending} className={botonSecundario} onClick={() => setEditando(null)}>Cancelar</button>
               </div>
             )}

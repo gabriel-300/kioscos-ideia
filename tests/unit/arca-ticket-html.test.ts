@@ -101,3 +101,27 @@ describe("abrirTicketDespues (ventana de impresión)", () => {
     expect(pedir).not.toHaveBeenCalled();
   });
 });
+
+describe("Factura A con leyenda «Operación sujeta a retención» (código 51)", () => {
+  const f51 = factura({ cbte_tipo: 51, doc_tipo: 80, doc_nro: "20302371866", cond_iva_receptor: 1 });
+
+  it("el ticket lleva el código 051, la leyenda y el neto + IVA discriminados", () => {
+    const h = armarTicketHtml({ ...base, factura: f51 });
+    expect(h).toContain("FACTURA A · Cód. 051");
+    expect(h).toContain("OPERACIÓN SUJETA A RETENCIÓN");
+    expect(h).toContain("Importe neto gravado");
+    expect(h).toContain("CUIT 20302371866 · IVA Responsable Inscripto");
+    expect(h).not.toContain("Transparencia Fiscal");
+  });
+
+  it("la Factura A común y la B NO llevan la leyenda", () => {
+    expect(armarTicketHtml({ ...base, factura: factura({ cbte_tipo: 1, doc_tipo: 80, doc_nro: "20302371866", cond_iva_receptor: 1 }) })).not.toContain("SUJETA A RETENCIÓN");
+    expect(armarTicketHtml({ ...base, factura: factura() })).not.toContain("SUJETA A RETENCIÓN");
+  });
+
+  it("la 51 se reconoce como factura y como clase A al imprimir", () => {
+    expect(esFacturaCbte({ cbte_tipo: 51 })).toBe(true);
+    expect(esFacturaCbte({ cbte_tipo: 53 })).toBe(false);
+    expect(letraCbte({ cbte_tipo: 51 })).toBe("A");
+  });
+});
