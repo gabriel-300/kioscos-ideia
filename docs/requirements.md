@@ -359,6 +359,8 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Quién**: configura solo el admin (emisores, sucursal, punto de venta). Cualquier staff con acceso a la sucursal puede
   emitir a mano: con la casilla «Emitir factura» al cobrar (solo ventas de consumidor final) o con el botón del historial. El ticket
   impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA, igual desde el POS que desde el historial.
+- **Factura A todavía no disponible en producción (2026-11-06)**: ARCA la rechaza con «10000: NO AUTORIZADO A EMITIR COMPROBANTES CLASE 'A'» (la habilitación es de la SAS como emisora, no del cliente; probablemente por ser alta reciente en IVA, a confirmar con el contador). La Factura B anda normal. El sistema lo explica en castellano.
+- **Facturas rechazadas por ARCA**: una factura con error y sin número nunca existió fiscalmente; el botón «Facturar» del historial vuelve a aparecer y se puede emitir de nuevo (otro documento u otra letra); en la pantalla de Facturación hay «Descartar». Nada con número o CAE se descarta nunca.
 - **Reimprimir**: cada factura emitida de la lista de `/admin/facturacion` tiene un botón «Imprimir» (ticket fiscal con CAE y QR, el mismo que sale del historial de la sucursal).
 - **Emisores y prueba de conexión**: los datos del emisor que el ticket imprime (domicilio, Ingresos Brutos, inicio de actividades) se
   pueden editar. Una sucursal **no se puede activar con un emisor de producción al que le falte alguno**. El botón «Probar conexión con

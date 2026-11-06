@@ -88,3 +88,12 @@ export function datosFaltantesEmisor(e: { ambiente: string; domicilio?: string |
     !e.inicio_actividades?.trim() && "inicio de actividades",
   ].filter(Boolean) as string[];
 }
+
+/**
+ * Una factura que ARCA rechazó (estado error y sin número) nunca existió fiscalmente: no tiene CAE ni número.
+ * Se puede descartar y volver a emitir, con otro documento o con otra letra. Las pendientes NO entran acá:
+ * un intento cortado por timeout pudo haber sido autorizado igual.
+ */
+export function esFacturaRechazada(c: { estado: string; numero: number | string | null }): boolean {
+  return c.estado === "error" && !c.numero;
+}

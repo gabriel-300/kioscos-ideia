@@ -14,7 +14,8 @@ import {
   ArcaError, consultarComprobante, ERR_NUMERO_NO_CORRELATIVO, solicitarCae, ultimoAutorizado,
   type Ambiente, type Auth,
 } from "./cliente";
-import { debeFacturarseSola, normalizarReceptor, type TipoFactura, type VentaParaFacturar } from "./reglas";
+import { explicarErrorArca } from "./errores";
+import { debeFacturarseSola, esFacturaRechazada, normalizarReceptor, type TipoFactura, type VentaParaFacturar } from "./reglas";
 import { obtenerTicket } from "./ticket";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,7 +79,12 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
 
   // ¿Ya existe una factura de esta venta? Misma letra: emitida → se devuelve; pendiente/error → se reintenta
   // sobre la misma fila. Otra letra: no se emite una segunda (habría que anular la primera con una nota de crédito).
-  const { data: previas } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).in("cbte_tipo", TIPOS_FACTURA);
+  const { data: todas } = await db.from("comprobantes_arca").select("*").eq("movimiento_id", movimientoId).in("cbte_tipo", TIPOS_FACTURA);
+  // Una factura que ARCA rechazó nunca existió fiscalmente (sin CAE ni número): se descarta para poder emitirla de nuevo,
+  // con otro documento o con otra letra (ej. una Factura A rechazada y el cliente acepta una B).
+  const rechazadas = (todas ?? []).filter(esFacturaRechazada);
+  for (const r of rechazadas) await db.from("comprobantes_arca").delete().eq("id", r.id);
+  const previas = (todas ?? []).filter((c: ComprobanteRow) => !esFacturaRechazada(c));
   const previo = (previas ?? []).find((c: ComprobanteRow) => c.cbte_tipo === tipoFact);
   const otra = (previas ?? []).find((c: ComprobanteRow) => c.cbte_tipo !== tipoFact);
   if (otra) {
@@ -226,8 +232,9 @@ export async function procesarComprobante(db: Db, id: string): Promise<Emision> 
       ultimoMotivo = r.errores.join(" | ");
       if (!ultimoMotivo.includes(ERR_NUMERO_NO_CORRELATIVO)) break; // rechazo real: no se reintenta solo
     }
-    await soltar(db, id, { estado: "error", error: ultimoMotivo.slice(0, 1000) });
-    return { ok: false, error: ultimoMotivo };
+    const motivo = explicarErrorArca(ultimoMotivo);
+    await soltar(db, id, { estado: "error", error: motivo.slice(0, 1000) });
+    return { ok: false, error: motivo };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const transitorio = e instanceof ArcaError ? e.transitorio : true;
