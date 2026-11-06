@@ -3,7 +3,7 @@
 import { Fragment, useState, useMemo, useTransition } from "react";
 import { anularVenta } from "@/app/(admin)/admin/movimientos/actions";
 import { emitirComprobanteManual } from "@/app/(admin)/admin/facturacion/actions";
-import { abrirTicket, armarTicketHtml, esFacturaCbte, letraCbte, nroCbte, type ComprobanteVenta } from "@/lib/arca/ticket-html";
+import { abrirTicket, armarTicketHtml, esFacturaCbte, esReimpresion, letraCbte, nroCbte, type ComprobanteVenta } from "@/lib/arca/ticket-html";
 import { esFacturaRechazada } from "@/lib/arca/reglas";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -79,6 +79,7 @@ function printTicket(m: Movimiento, sucursalNombre: string, factura?: Comprobant
     id: m.id.slice(-8).toUpperCase(),
     sucursalNombre,
     factura,
+    copia: !!factura && esReimpresion(factura.emitido_en),
   }));
 }
 

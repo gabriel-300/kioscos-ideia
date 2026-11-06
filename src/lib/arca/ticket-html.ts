@@ -12,6 +12,7 @@ export type ComprobanteVenta = {
   estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
   doc_tipo: number; doc_nro: string; imp_total: number; imp_neto: number; imp_iva: number; ambiente: string; error: string | null;
   iva?: { alicuota: number; base: number; importe: number }[]; cond_iva_receptor?: number;
+  emitido_en?: string | null;   // cuándo aprobó ARCA el comprobante (sirve para saber si una impresión es copia)
   emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
 };
 
@@ -36,6 +37,7 @@ export function armarTicketHtml(p: {
   sucursalNombre: string;
   factura?: ComprobanteVenta | null;
   imprimir?: boolean;        // true (por defecto) agrega el window.print() automático
+  copia?: boolean;           // reimpresión de una factura ya entregada: lleva la marca «COPIA»
 }): string {
   const { factura } = p;
   const fiscal = !!factura && factura.estado === "emitido" && !!factura.cae && !!factura.numero && !!factura.emisor;
@@ -61,6 +63,7 @@ export function armarTicketHtml(p: {
   ${f.emisor!.ingresos_brutos ? `<div class="sub">IIBB ${esc(f.emisor!.ingresos_brutos)}${f.emisor!.inicio_actividades ? " · Inicio act. " + diaMesAnio(f.emisor!.inicio_actividades) : ""}</div>` : ""}
   <div class="divider"></div>
   <div style="text-align:center;font-weight:800;font-size:15px">FACTURA ${letraCbte(f)} · Cód. ${String(f.cbte_tipo).padStart(3, "0")}</div>
+  ${p.copia ? '<div class="sub" style="font-weight:800">*** COPIA — REIMPRESIÓN ***</div>' : ""}
   ${conRetencion(f.cbte_tipo) ? '<div style="text-align:center;font-weight:800;font-size:11px">OPERACIÓN SUJETA A RETENCIÓN</div>' : ""}
   <div class="sub">N° ${nroCbte(f)} · ${diaMesAnio(f.fecha)}</div>
   <div class="sub">${letraCbte(f) === "A" ? "CUIT " + f.doc_nro + " · IVA Responsable Inscripto" : "A CONSUMIDOR FINAL" + (f.doc_nro && f.doc_nro !== "0" ? " · Doc. " + f.doc_nro : "")}</div>
@@ -108,6 +111,19 @@ export function armarTicketHtml(p: {
   <div class="footer"><div class="thanks">¡GRACIAS POR SU COMPRA!</div>${fiscal ? "" : '<div class="legal">Este comprobante no tiene validez fiscal</div>'}</div>
   ${p.imprimir === false ? "" : "<script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}</script>"}
   </body></html>`;
+}
+
+/** Minutos desde la emisión a partir de los cuales una impresión se considera reimpresión (y sale marcada COPIA). */
+export const MINUTOS_PARA_COPIA = 10;
+
+/**
+ * ¿Esta impresión es una copia? Sí si la factura se emitió hace más de MINUTOS_PARA_COPIA. Así no sale «COPIA» el
+ * primer ticket de una factura que tardó en emitirse (el POS ya entregó el original en los primeros minutos).
+ */
+export function esReimpresion(emitidoEn: string | null | undefined, ahora: number = Date.now()): boolean {
+  if (!emitidoEn) return false;
+  const t = new Date(emitidoEn).getTime();
+  return Number.isFinite(t) && ahora - t > MINUTOS_PARA_COPIA * 60_000;
 }
 
 /** Abre el ticket en una ventana y dispara la impresión. Solo en el navegador. */
