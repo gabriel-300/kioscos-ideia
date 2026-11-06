@@ -34,7 +34,7 @@ export type ComprobanteRow = {
   origen: "automatico" | "manual" | "anulacion";
   estado: "pendiente" | "emitido" | "error";
   cae: string | null; cae_vto: string | null; comprobante_asociado_id: string | null;
-  error: string | null; intentos: number; tomado_en: string | null;
+  error: string | null; intentos: number; tomado_en: string | null; emitido_en?: string | null;
 };
 
 export type Emision =

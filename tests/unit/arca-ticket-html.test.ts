@@ -125,3 +125,34 @@ describe("Factura A con leyenda «Operación sujeta a retención» (código 51)"
     expect(letraCbte({ cbte_tipo: 51 })).toBe("A");
   });
 });
+
+import { esReimpresion, MINUTOS_PARA_COPIA } from "@/lib/arca/ticket-html";
+
+describe("COPIA en las reimpresiones", () => {
+  const ahora = Date.parse("2026-11-06T20:00:00Z");
+  const hace = (min: number) => new Date(ahora - min * 60_000).toISOString();
+
+  it("el ticket marcado como copia lleva «COPIA — REIMPRESIÓN»; el original no", () => {
+    expect(armarTicketHtml({ ...base, factura: factura(), copia: true })).toContain("*** COPIA — REIMPRESIÓN ***");
+    expect(armarTicketHtml({ ...base, factura: factura() })).not.toContain("COPIA");
+    expect(armarTicketHtml({ ...base, factura: factura(), copia: false })).not.toContain("COPIA");
+  });
+
+  it("un ticket sin factura (comprobante interno) nunca lleva la marca, aunque se pida", () => {
+    expect(armarTicketHtml({ ...base, copia: true })).not.toContain("COPIA");
+  });
+
+  it("es reimpresión pasados los minutos de gracia, no antes (el primer ticket de una factura que tardó sale como original)", () => {
+    expect(MINUTOS_PARA_COPIA).toBe(10);
+    expect(esReimpresion(hace(2), ahora)).toBe(false);
+    expect(esReimpresion(hace(10), ahora)).toBe(false);
+    expect(esReimpresion(hace(11), ahora)).toBe(true);
+    expect(esReimpresion(hace(60 * 24), ahora)).toBe(true);
+  });
+
+  it("sin fecha de emisión o con una fecha inválida no se marca como copia", () => {
+    expect(esReimpresion(null, ahora)).toBe(false);
+    expect(esReimpresion(undefined, ahora)).toBe(false);
+    expect(esReimpresion("no es una fecha", ahora)).toBe(false);
+  });
+});

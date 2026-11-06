@@ -37,6 +37,6 @@ export async function comoComprobanteVenta(db: Db, c: ComprobanteRow): Promise<C
     movimiento_id: c.movimiento_id, cbte_tipo: c.cbte_tipo, punto_venta: c.punto_venta, numero: c.numero, fecha: c.fecha,
     estado: c.estado, cae: c.cae, cae_vto: c.cae_vto, doc_tipo: c.doc_tipo, doc_nro: c.doc_nro,
     imp_total: Number(c.imp_total), imp_neto: Number(c.imp_neto), imp_iva: Number(c.imp_iva), ambiente: c.ambiente, error: c.error,
-    iva: c.iva, cond_iva_receptor: c.cond_iva_receptor, emisor: emisor ?? null,
+    iva: c.iva, cond_iva_receptor: c.cond_iva_receptor, emitido_en: c.emitido_en ?? null, emisor: emisor ?? null,
   };
 }

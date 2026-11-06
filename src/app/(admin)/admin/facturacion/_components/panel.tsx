@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { configurarSucursalArca, datosTicketComprobante, descartarComprobanteRechazado, reintentarComprobante, reintentarPendientesAhora } from "../actions";
-import { abrirTicketDespues, armarTicketHtml } from "@/lib/arca/ticket-html";
+import { abrirTicketDespues, armarTicketHtml, esReimpresion } from "@/lib/arca/ticket-html";
 import { esFactura } from "@/lib/arca/tipos";
 import { Emisores } from "./emisores";
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
@@ -39,7 +39,7 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
     const abierta = await abrirTicketDespues(async () => {
       const r = await datosTicketComprobante(id);
       if (r.error || !r.ticket) { setMsg(r.error ?? "No se pudo preparar el ticket."); return null; }
-      return armarTicketHtml(r.ticket);
+      return armarTicketHtml({ ...r.ticket, copia: esReimpresion(r.ticket.factura.emitido_en) });
     });
     if (!abierta) setMsg((m) => m ?? "No se pudo abrir la ventana de impresión: revisá que el navegador permita ventanas emergentes para este sitio.");
   };

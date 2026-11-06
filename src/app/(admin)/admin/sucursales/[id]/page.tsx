@@ -3,6 +3,9 @@ import { createClient, createAdminClient, getUser } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { HistorialSucursal } from "./_components/historial-sucursal";
+import { FacturasSucursal } from "./_components/facturas-sucursal";
+import { esFacturaCbte } from "@/lib/arca/ticket-html";
+import type { FilaFactura } from "@/lib/arca/buscar";
 import { HistorialCierres, type CierreConDetalle } from "./_components/historial-cierres";
 import { NuevaEntregaButton } from "./_components/nueva-entrega-button";
 import { CierreCajaButton } from "./_components/cierre-caja-button";
@@ -672,7 +675,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   if (arcaActiva) {
     const { data: compsArca } = await (admin as any)
       .from("comprobantes_arca")
-      .select("movimiento_id, cbte_tipo, punto_venta, numero, fecha, estado, cae, cae_vto, doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, iva, cond_iva_receptor, ambiente, error, emisor:arca_emisores(cuit, razon_social, domicilio, ingresos_brutos, inicio_actividades)")
+      .select("movimiento_id, cbte_tipo, punto_venta, numero, fecha, estado, cae, cae_vto, doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, iva, cond_iva_receptor, ambiente, error, emitido_en, emisor:arca_emisores(cuit, razon_social, domicilio, ingresos_brutos, inicio_actividades)")
       .eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1000);
     for (const c of compsArca ?? []) (comprobantesPorVenta[c.movimiento_id] ??= []).push(c);
   }
@@ -1297,6 +1300,21 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
         </div>
         <HistorialCierres cierres={cierresVisibles} />
       </div>
+
+      {/* Facturas emitidas: buscar y reimprimir. Usa las MISMAS ventas que el historial (cada uno ve las suyas). */}
+      {arcaActiva && (() => {
+        const facturas: FilaFactura[] = [];
+        for (const m of movsVisibles as any[]) {
+          if (m.tipo !== "venta" || m.anulado_en) continue;
+          const c = comprobantesPorVenta[m.id]?.find((x) => esFacturaCbte(x) && x.estado === "emitido");
+          if (!c) continue;
+          facturas.push({
+            movimientoId: m.id, fecha: m.fecha, creadaEn: m.created_at, comprobante: c,
+            lineas: (m.movimiento_items ?? []).map((i: any) => ({ nombre: i.product?.name ?? "Producto", cantidad: Number(i.cantidad), precio: i.precio_unitario, subtotal: i.subtotal })),
+          });
+        }
+        return <FacturasSucursal sucursalNombre={sucursal.nombre} facturas={facturas} />;
+      })()}
 
       {/* Historial */}
       <div>
