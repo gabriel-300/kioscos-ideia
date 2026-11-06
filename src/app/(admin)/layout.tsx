@@ -1,4 +1,4 @@
-import { createClient, getUser } from "@/lib/supabase/server";
+import { createAdminClient, createClient, getUser } from "@/lib/supabase/server";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { NumberInputWheelGuard } from "@/components/admin/number-input-wheel-guard";
 import { redirect } from "next/navigation";
@@ -67,7 +67,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // columnas de tablas distintas, algo que PostgREST no soporta) -- se
       // trae solo lo que tiene punto_pedido cargado (subconjunto chico del
       // catálogo) y se cruza con el stock actual acá abajo.
-      (supabase as any)
+      // Cliente admin a propósito: punto_pedido (y el costo) no se pueden leer con la sesión del usuario (permisos por
+      // columna en product_prices): antes daba 403 y este aviso siempre mostraba 0. Solo se ejecuta para el admin.
+      (createAdminClient() as any)
         .from("product_prices")
         .select("product_id, sucursal_id, punto_pedido")
         .not("punto_pedido", "is", null) as unknown as Promise<{
