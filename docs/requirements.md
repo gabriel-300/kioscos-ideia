@@ -358,6 +358,7 @@ Formato: objetivo · quién puede · reglas · casos borde · estado.
 - **Quién**: configura solo el admin (emisores, sucursal, punto de venta). Cualquier staff con acceso a la sucursal puede
   emitir a mano: con la casilla «Emitir factura» al cobrar (solo ventas de consumidor final) o con el botón del historial. El ticket
   impreso de una venta facturada sale con CAE, IVA contenido y QR de ARCA, igual desde el POS que desde el historial.
+- **Reimprimir**: cada factura emitida de la lista de `/admin/facturacion` tiene un botón «Imprimir» (ticket fiscal con CAE y QR, el mismo que sale del historial de la sucursal).
 - **Emisores y prueba de conexión**: los datos del emisor que el ticket imprime (domicilio, Ingresos Brutos, inicio de actividades) se
   pueden editar. Una sucursal **no se puede activar con un emisor de producción al que le falte alguno**. El botón «Probar conexión con
   ARCA» (solo lectura, no emite nada) pide el ticket de acceso, lista los puntos de venta habilitados con su último comprobante y verifica el punto de

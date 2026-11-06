@@ -114,3 +114,24 @@ export function abrirTicket(html: string): void {
   w?.document.write(html);
   w?.document.close();
 }
+
+/**
+ * Abre la ventana de impresión de inmediato (dentro del clic, para que el navegador no la bloquee) y carga el ticket
+ * cuando los datos llegan. Si no hay ticket o falla, cierra la ventana y devuelve false.
+ */
+export async function abrirTicketDespues(obtenerHtml: () => Promise<string | null>): Promise<boolean> {
+  const w = window.open("", "_blank", "width=340,height=500");
+  if (!w) return false;
+  w.document.write("<p style=\"font-family:sans-serif;padding:16px\">Preparando el ticket…</p>");
+  try {
+    const html = await obtenerHtml();
+    if (!html) { w.close(); return false; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    return true;
+  } catch {
+    w.close();
+    return false;
+  }
+}
