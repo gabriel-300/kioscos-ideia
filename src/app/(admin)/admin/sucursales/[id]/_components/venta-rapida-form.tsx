@@ -107,6 +107,7 @@ type Receipt = {
   // Facturación ARCA: la factura que se pidió al cobrar (o el motivo por el que no salió) y lo necesario para imprimirla.
   factura?: ComprobanteVenta | null;
   facturaError?: string | null;
+  facturando?: boolean;          // se factura sola (QR/transferencia) y todavía no terminó: aparece en el historial en unos segundos
   movimientoId?: string | null;
   fechaIso?: string;
 };
@@ -641,7 +642,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
     const receiptItems = seleccionados.map(([id, qty]) => {
       const precioUnit = priceOf(id);
-      return { name: nameOf(id), qty, precioUnit, sub: qty * precioUnit };
+      return { name: nameOf(id), qty: Math.round(qty * 10000) / 10000, precioUnit, sub: qty * precioUnit };
     });
     // Pedido Ya Efectivo no pasa por el selector de medios -- se cobra 100% en
     // efectivo por definición del canal, así que el comprobante lo refleja directo.
@@ -716,10 +717,12 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
         setShowPay(false);
         setReceipt({
           fecha: new Date(fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
-          hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades, pagos: pagosList,
+          hora, items: receiptItems, subtotalPrecio, descuento: descuentoPedidoYaNum, totalPrecio, totalUnidades: Math.round(totalUnidades * 10000) / 10000, pagos: pagosList,
           vuelto: vuelto !== null && vuelto > 0 ? vuelto : null, notas: notas || null, canal,
           personalNombre: (canal === "ronda_comunidad" || (canal === "cuenta_corriente" && contactoId)) ? contactoNombre : (canal === "cuenta_corriente" || canal === "ambulante") ? personalNombre : null,
           factura: factura ?? null, facturaError: facturaError ?? null, movimientoId: movimiento_id, fechaIso: fecha,
+          facturando: !factura && !facturaError && arcaActiva && canal === "consumidor_final" && !pideFactura
+            && ((parseFloat(pagos.mp) || 0) > 0 || (parseFloat(pagos.transferencia) || 0) > 0),
         });
       } catch (e) { setError(friendlyError(e)); }
     });
@@ -852,6 +855,11 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
               <div className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "#BFD0C7", background: "#F1F7F4", color: "#173A31" }}>
                 <b>Factura {letraCbte(receipt.factura)} {nroCbte(receipt.factura)}</b> emitida
                 <div className="text-xs" style={{ color: "#5A766B" }}>CAE {receipt.factura.cae}{receipt.factura.ambiente === "homologacion" ? " · PRUEBA, sin validez fiscal" : ""}</div>
+              </div>
+            )}
+            {receipt.facturando && (
+              <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: "#BFD0C7", background: "#F1F7F4", color: "#35604F" }}>
+                La factura se está emitiendo: en unos segundos la encontrás en el historial de la sucursal, lista para imprimir.
               </div>
             )}
             {receipt.facturaError && (
