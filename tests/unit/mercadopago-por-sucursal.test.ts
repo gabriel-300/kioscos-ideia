@@ -11,6 +11,7 @@ const IDEIA = "22222222-2222-4222-8222-222222222222"; // kiosco de IDEIA
 const h = vi.hoisted(() => ({ session: { userId: "u1", role: "concesionario" }, admin: null as any }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/require-role", () => ({ requireStaff: async () => h.session }));
+vi.mock("@/lib/auth/sucursal-access", () => ({ requireSucursalAccess: async () => null }));
 vi.mock("@/lib/supabase/server", () => ({ createAdminClient: () => h.admin }));
 
 import { cifrar, descifrar, credencialesDeSucursal } from "@/lib/mercadopago/credenciales";
@@ -299,5 +300,49 @@ describe("formato del Access Token al conectar", () => {
     expect((await conectarMercadoPago("TEST-1234567890123456-110512-abcdef0123456789abcdef0123456789-2987654321")).error).toMatch(/prueba/);
     expect((await conectarMercadoPago("TOKEN")).error).toMatch(/No parece un Access Token/);
     expect(m).not.toHaveBeenCalled();
+  });
+});
+
+import { armarQrMercadoPago } from "@/app/(admin)/admin/sucursales/[id]/mercadopago-actions";
+
+describe("armarQrMercadoPago: reintento ante caídas de Mercado Pago", () => {
+  function mundo() {
+    const f = fakeAdmin((q: Q) => {
+      if (q.table === "sucursal_mercadopago") return { data: null };
+      if (q.table === "sucursales" && q.op === "select") return { data: { catalogo_propio: false, mercadopago_pos_id: "CAJA1", nombre: "Kiosco" } };
+      return { data: null };
+    });
+    h.admin = f.admin;
+    return f;
+  }
+  const resp = (status: number) => ({ ok: status < 400, status, text: async () => `{"status":${status}}` }) as unknown as Response;
+
+  it("una caída 5xx seguida de éxito se resuelve sola y la orden no queda cancelada", async () => {
+    const f = mundo();
+    const m = vi.fn().mockResolvedValueOnce(resp(503)).mockResolvedValueOnce(resp(200));
+    globalThis.fetch = m as unknown as typeof fetch;
+    const r = await armarQrMercadoPago({ sucursal_id: IDEIA, monto: 2600 });
+    expect(r.error).toBeUndefined();
+    expect(m).toHaveBeenCalledTimes(2);
+    expect(f.calls.some((c: Q) => c.table === "mercadopago_qr_orders" && c.op === "update")).toBe(false);
+  });
+
+  it("un rechazo 4xx NO se reintenta y la orden queda cancelada", async () => {
+    const f = mundo();
+    const m = vi.fn().mockResolvedValue(resp(400));
+    globalThis.fetch = m as unknown as typeof fetch;
+    const r = await armarQrMercadoPago({ sucursal_id: IDEIA, monto: 2600 });
+    expect(r.error).toMatch(/rechazó la orden \(400\)/);
+    expect(m).toHaveBeenCalledTimes(1);
+    expect(f.calls.some((c: Q) => c.table === "mercadopago_qr_orders" && c.op === "update")).toBe(true);
+  });
+
+  it("si cae dos veces, avisa y deja la orden cancelada", async () => {
+    mundo();
+    const m = vi.fn().mockRejectedValue(new Error("red"));
+    globalThis.fetch = m as unknown as typeof fetch;
+    const r = await armarQrMercadoPago({ sucursal_id: IDEIA, monto: 2600 });
+    expect(r.error).toMatch(/No se pudo conectar/);
+    expect(m).toHaveBeenCalledTimes(2);
   });
 });

@@ -54,7 +54,7 @@ export async function armarQrMercadoPago(data: {
   const notificationUrl = `${siteUrl}/api/webhooks/mercadopago${cred.propia ? `?s=${data.sucursal_id}` : ""}`;
   const titulo = cred.propia ? `Compra en ${(sucursal?.nombre as string | undefined)?.trim() || "el local"}` : "Compra en Kioscos IDEIA";
 
-  const mpRes = await fetch(
+  const pedirQr = () => fetch(
     `https://api.mercadopago.com/instore/orders/qr/seller/collectors/${cred.userId}/pos/${posId}/qrs`,
     {
       method: "PUT",
@@ -79,6 +79,18 @@ export async function armarQrMercadoPago(data: {
       }),
     }
   );
+
+  // Mercado Pago tiene caídas cortas (5xx / 429 / corte de red): se reintenta UNA vez, con la misma referencia (el PUT
+  // reemplaza el QR del punto de cobro, así que repetirlo no duplica nada). Un rechazo 4xx NO se reintenta.
+  let mpRes: Response | null = await pedirQr().catch(() => null);
+  if (!mpRes || mpRes.status >= 500 || mpRes.status === 429) {
+    await new Promise((r) => setTimeout(r, 800));
+    mpRes = await pedirQr().catch(() => null);
+  }
+  if (!mpRes) {
+    await (admin as any).from("mercadopago_qr_orders").update({ estado: "cancelado" }).eq("external_reference", externalReference);
+    return { error: "No se pudo conectar con Mercado Pago. Probá de nuevo en unos segundos." };
+  }
 
   if (!mpRes.ok) {
     const bodyText = await mpRes.text().catch(() => "");

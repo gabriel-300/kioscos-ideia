@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { createClient, getUser } from "@/lib/supabase/server";
+import { createAdminClient, createClient, getUser } from "@/lib/supabase/server";
+import { filtroCatalogoDe } from "@/lib/catalogo-dueno";
 import { redirect } from "next/navigation";
 import { PromosTable } from "./_components/promos-table";
 import type { PromoWithItems } from "./_components/promos-table";
@@ -30,9 +31,15 @@ export default async function PromocionesPage() {
     qSucursales = qSucursales.eq("id", dueno);
   }
 
+  // Productos con el cliente admin a propósito: en `products` los permisos son columna por columna (para esconder el costo)
+  // y owner_sucursal_id NO se puede leer con la sesión del usuario (daba 403 y el selector de la promo quedaba vacío).
+  // La pantalla ya está acotada por alcanceCatalogo; el filtro de dueño lo hace .or(filtroCatalogoDe), que antes hacía la RLS.
+  let qProductos = (createAdminClient() as any).from("products").select("id, name, unit_label, owner_sucursal_id").eq("is_active", true).order("name");
+  qProductos = dueno ? qProductos.or(filtroCatalogoDe(dueno)) : qProductos.is("owner_sucursal_id", null);
+
   const [{ data: promos }, { data: products }, { data: categories }, { data: sucursales }] = await Promise.all([
     qPromos as unknown as Promise<{ data: PromoWithItems[] | null }>,
-    (supabase as any).from("products").select("id, name, unit_label, owner_sucursal_id").eq("is_active", true).order("name") as Promise<{ data: { id: string; name: string; unit_label: string; owner_sucursal_id: string | null }[] | null }>,
+    qProductos as Promise<{ data: { id: string; name: string; unit_label: string; owner_sucursal_id: string | null }[] | null }>,
     (supabase as any).from("categories").select("id, name, owner_sucursal_id").eq("is_active", true).order("sort_order").order("name") as Promise<{ data: { id: string; name: string; owner_sucursal_id: string | null }[] | null }>,
     qSucursales,
   ]);
