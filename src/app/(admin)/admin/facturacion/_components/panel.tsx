@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { configurarSucursalArca, datosTicketComprobante, reintentarComprobante, reintentarPendientesAhora } from "../actions";
+import { configurarSucursalArca, datosTicketComprobante, descartarComprobanteRechazado, reintentarComprobante, reintentarPendientesAhora } from "../actions";
 import { abrirTicketDespues, armarTicketHtml } from "@/lib/arca/ticket-html";
 import { Emisores } from "./emisores";
 import type { ComprobanteListado, EmisorRow, SucursalArca } from "../page";
@@ -63,8 +63,15 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
                   {TIPO[c.cbte_tipo]} · {c.sucursal?.nombre} · {AR.format(c.imp_total)} · {c.fecha}
                   <div className="text-xs text-neutral-600">{c.error ?? "Esperando a ARCA"} (intentos: {c.intentos})</div>
                 </div>
-                <button disabled={pending} className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
-                  onClick={() => correr(() => reintentarComprobante(c.id), "Listo.")}>Reintentar</button>
+                <div className="flex gap-2">
+                  <button disabled={pending} className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
+                    onClick={() => correr(() => reintentarComprobante(c.id), "Listo.")}>Reintentar</button>
+                  {c.estado === "error" && !c.numero && (
+                    <button disabled={pending} className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
+                      title="ARCA la rechazó y nunca existió: se descarta para poder emitirla de nuevo desde la venta"
+                      onClick={() => correr(() => descartarComprobanteRechazado(c.id), "Descartada. Ya se puede emitir de nuevo desde la venta.")}>Descartar</button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

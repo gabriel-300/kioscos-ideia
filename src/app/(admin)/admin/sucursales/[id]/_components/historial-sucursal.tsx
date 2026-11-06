@@ -4,6 +4,7 @@ import { Fragment, useState, useMemo, useTransition } from "react";
 import { anularVenta } from "@/app/(admin)/admin/movimientos/actions";
 import { emitirComprobanteManual } from "@/app/(admin)/admin/facturacion/actions";
 import { abrirTicket, armarTicketHtml, esFacturaCbte, letraCbte, nroCbte, type ComprobanteVenta } from "@/lib/arca/ticket-html";
+import { esFacturaRechazada } from "@/lib/arca/reglas";
 
 const AR = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 
@@ -354,7 +355,7 @@ export function HistorialSucursal({
                               </svg>
                             </button>
                           )}
-                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && esReciente(m.created_at) && !arca.comprobantes[m.id]?.some(esFacturaCbte) && <FacturarBtn id={m.id} />}
+                          {arca?.activa && m.tipo === "venta" && !m.anulado_en && esReciente(m.created_at) && !arca.comprobantes[m.id]?.some((c) => esFacturaCbte(c) && !esFacturaRechazada(c)) && <FacturarBtn id={m.id} />}
                           {puedeAnular(m) && <AnularBtn id={m.id} />}
                           <svg
                             className={`size-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}

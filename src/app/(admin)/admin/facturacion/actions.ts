@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin, requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { emitirFacturaDeVenta, procesarComprobante, reintentarPendientes } from "@/lib/arca/emitir";
-import { cuitValido, datosFaltantesEmisor } from "@/lib/arca/reglas";
+import { cuitValido, datosFaltantesEmisor, esFacturaRechazada } from "@/lib/arca/reglas";
 import { probarEmisor, type PruebaEmisor } from "@/lib/arca/probar";
 import { comoComprobanteVenta } from "@/lib/arca/venta-factura";
 import { lineasParaReimprimir } from "@/lib/arca/ticket-datos";
@@ -155,4 +155,18 @@ export async function datosTicketComprobante(comprobanteId: string): Promise<{ e
       factura: await comoComprobanteVenta(db, c),
     },
   };
+}
+
+/** Descarta una factura que ARCA rechazó (sin CAE ni número) para poder emitirla de nuevo. No toca nada que ARCA haya autorizado. */
+export async function descartarComprobanteRechazado(id: string): Promise<{ error?: string }> {
+  await requireAdmin();
+  const db: Db = createAdminClient();
+  const { data: c } = await db.from("comprobantes_arca").select("id, estado, numero, sucursal_id").eq("id", id).maybeSingle();
+  if (!c) return { error: "No se encontró el comprobante." };
+  if (!esFacturaRechazada(c)) return { error: "Solo se pueden descartar comprobantes que ARCA rechazó (con error y sin número)." };
+  const { error } = await db.from("comprobantes_arca").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/facturacion");
+  if (c.sucursal_id) revalidatePath(`/admin/sucursales/${c.sucursal_id}`);
+  return {};
 }
