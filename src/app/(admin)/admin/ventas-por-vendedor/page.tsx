@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -45,11 +46,14 @@ export default async function VentasPorVendedorPage({
     sucFilter = miSucursalId;
   }
 
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, role);
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   type ItemRow  = { cantidad: number; subtotal: number | null };
   type VentaRow = {
@@ -81,6 +85,7 @@ export default async function VentasPorVendedorPage({
       .range(from, from + PAGE_SIZE - 1);
 
     if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
+    else query = sinIndependientes(query, propias);
 
     const { data, error } = (await query) as { data: VentaRow[] | null; error: any };
     if (error) throw new Error(error.message);

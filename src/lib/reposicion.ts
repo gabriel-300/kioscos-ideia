@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { todosLosPrecios } from "@/lib/supabase/paginar";
+import { independientesParaAdmin } from "@/lib/sucursales-independientes";
 import { diaSemanaHoyAR } from "@/lib/fecha";
 
 // Lógica compartida entre /admin/reposicion (pantalla) y
@@ -44,9 +45,13 @@ type PuntoRow = {
 // ya filtrando lo que un admin marcó como "ya pedido" y todavía no llegó
 // una entrega nueva desde esa marca.
 export async function obtenerItemsReposicion(
-  admin: ReturnType<typeof createAdminClient>
+  admin: ReturnType<typeof createAdminClient>,
+  opciones: { incluirIndependientes?: boolean } = {},
 ): Promise<ItemReposicion[]> {
   const hoy = diaSemanaHoyAR();
+  // La reposición de IDEIA (pantalla del admin, aviso del menú, API de n8n) no incluye a un local independiente: es de otra
+  // persona y no pide a los proveedores de IDEIA. Solo su propio dueño la ve (incluirIndependientes).
+  const independientes = opciones.incluirIndependientes ? [] : await independientesParaAdmin(admin, "admin");
 
   const [{ data: sucursales }, { data: puntosRaw }, { data: stockRaw }, { data: proveedoresRaw }] = await Promise.all([
     admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
@@ -68,6 +73,7 @@ export async function obtenerItemsReposicion(
 
   const candidatos: ItemReposicion[] = [];
   for (const p of puntosRaw ?? []) {
+    if (independientes.includes(p.sucursal_id)) continue;
     if (!p.product?.is_active) continue;
     const stockActual = stockMap.get(`${p.sucursal_id}:${p.product_id}`) ?? 0;
     const diaPedido = p.product.dia_pedido;

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -43,13 +44,15 @@ export default async function ReposicionPage({
 
   const sp = await searchParams;
 
-  const [items, { data: sucursales }, { data: categories }, { data: proveedores }] = await Promise.all([
-    obtenerItemsReposicion(admin),
+  const propias = await independientesParaAdmin(admin, role);
+  const [items, { data: sucursalesTodas }, { data: categories }, { data: proveedores }] = await Promise.all([
+    obtenerItemsReposicion(admin, { incluirIndependientes: role === "concesionario" }),
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("proveedores").select("id, nombre").eq("is_active", true).order("nombre"),
   ]);
 
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
   const pasaFiltros = (f: ItemReposicion) => {
     if (miSucursalId && f.sucursalId !== miSucursalId) return false;
     if (!miSucursalId && sp.sucursal && f.sucursalId !== sp.sucursal) return false;

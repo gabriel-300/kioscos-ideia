@@ -69,7 +69,7 @@ lo importa ningún módulo.
   (verificada con `get_advisors` y las pruebas de punta a punta); la reversión y los scripts de prueba están en `scripts/rls-rendimiento/`.
 - **Tesorería unificada (2026-10-05)**: `101_tesoreria_egresos.sql` (aplicada y verificada) y `102_egresos_pendientes_y_anulacion.sql`
   (aplicada) y `103_entregas_no_corresponde.sql` (aplicadas y verificadas el 2026-10-05), `104_tesoreria_historial.sql`, `105_mp_cobros.sql`, `106_proveedor_cuenta.sql`, `107_cuenta_mp.sql`, `108_peya_liquidaciones.sql` y `109_peya_pedidos_revisados.sql` (aplicadas y verificadas por MCP el 2026-10-15 y 16) y `110_numero_de_remito_sin_factura.sql` (aplicada el 2026-10-19) y `111_retiro_como_pago_proveedor.sql` (aplicada el 2026-10-19) y `112_imputacion_de_pagos_a_remitos.sql` (aplicada y verificada el 2026-10-19) y `113_vencimiento_de_remitos.sql` (aplicada y verificada el 2026-10-19) y `114_plazo_de_pago_proveedor.sql` (aplicada y verificada el 2026-10-20) y `115_historial_costos_de_entrega.sql` (escrita; **si no figura aplicada, correrla a mano**: sin ella cargar los costos de una entrega avisa que no pudo anotarse en el historial) y `116_ficha_contable_proveedor.sql` (escrita; **si no figura aplicada, correrla a mano**: el código lee las columnas nuevas de `proveedores` y sin ella fallan Tesorería y Catálogo → Proveedores); sin ellas la pantalla de Tesorería muestra un aviso en vez de romperse. Solo agregan
-  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**. `131_catalogo_con_dueno.sql` (catálogo con dueño, ver §4): aplicada. `134_mercadopago_por_sucursal.sql` (cuenta de Mercado Pago por sucursal, ver §4): escrita, **pendiente de aplicar a mano antes de publicar el código**.
+  columnas y tablas nuevas, no tocan `cerrar_caja`. Ver §6. `129_persona_cuenta.sql` (cuenta de los socios) y `130_personal_ficha.sql` (ficha del personal): la 129 está aplicada; la 130 está escrita y **pendiente de aplicar a mano**. `131_catalogo_con_dueno.sql` (catálogo con dueño, ver §4): aplicada. `134_mercadopago_por_sucursal.sql` (cuenta de Mercado Pago por sucursal, ver §4): aplicada. `136_independiente_fuera_de_tesoreria.sql` (saca a los locales independientes de la Tesorería de IDEIA y lo impide con un CHECK, ver §4): escrita, **pendiente de aplicar a mano**.
 - **Facturación ARCA (2026-11-03)**: `132_facturacion_arca.sql` (aplicada y verificada el 2026-11-04): `products.alicuota_iva`, `arca_emisores`, `arca_tickets`, `comprobantes_arca` y las columnas `sucursales.arca_*`. Aditiva: cada sucursal arranca en `arca_modo = 'desactivado'`. No toca `cerrar_caja`. `133_facturacion_arca_factura_a.sql` (aplicada y verificada el 2026-11-04): `comprobantes_arca.cond_iva_receptor` y los tipos 1 y 3 (Factura A y nota de crédito A).
 - Antes de cambiar la firma de un RPC hay que hacer `DROP FUNCTION` explícito (ver §9).
 - **Backups**: la organización de Supabase está en plan **Free, con 0 backups y sin PITR**. Los reemplaza un workflow de GitHub
@@ -278,6 +278,15 @@ rol sintético "socio").
 - `encargado` y `concesionario`: una sola sucursal, la que tiene `sucursales.encargado_user_id = su id`.
 - `vendedor`: `profile_sucursales` (puede estar en varias, migración 082); `profiles.sucursal_id` es la sucursal activa.
 - `admin`: todas. `repartidor`: ninguna, solo su cola de entregas.
+
+**Locales independientes fuera de las finanzas de IDEIA (migración 136).** Un local con `catalogo_propio` es de otra persona y no paga a IDEIA: su caja,
+sus ventas, su stock y su reposición **no se mezclan** con los de IDEIA. Los administradores ven los informes (Cierres, Ventas, Por día/horario/vendedor, Mermas,
+Rotación, Informe mensual, Tablero, Historial, Auditoría, Gastos, Stock, Reposición, Conciliación MP) **sin** esas sucursales; el dueño ve la suya.
+Se hace con `src/lib/sucursales-independientes.ts` (`independientesParaAdmin` → ids; `sinIndependientes` filtra una consulta; `sinIndependientesLista` una lista):
+**toda pantalla o consulta nueva del admin que sume o liste sucursales tiene que usarlo.** La Tesorería usa `sucursales.entra_en_tesoreria`: la migración 136 la pone en
+`false` para los independientes y agrega un CHECK que impide que un independiente entre (`actualizarCatalogoPropio` lo apaga al marcarlo).
+En `products` los permisos son columna por columna: `owner_sucursal_id` **no se puede leer ni filtrar con la sesión del usuario** (403); las pantallas que
+lo necesitan leen con el cliente admin (Promociones, Stock).
 
 **Mercado Pago por sucursal (migración 134).** Un local independiente cobra con SU cuenta de Mercado Pago, no con la de IDEIA.
 - **Credenciales**: tabla `sucursal_mercadopago` (token cifrado con AES-GCM + usuario de la cuenta), con RLS activo y **sin políticas ni permisos

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -57,13 +58,16 @@ export default async function AuditoriaPage({
   const hoy   = fechaHoyAR();
   const desde = sp.desde ?? fechaHoyAR(new Date(Date.now() - 29 * 86400000));
   const hasta = sp.hasta ?? hoy;
-  const sucFilter = sp.sucursal ?? "all";
+  let sucFilter = sp.sucursal ?? "all";
 
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, "admin");
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   let query = (admin as any)
     .from("auditorias_stock")
@@ -81,6 +85,7 @@ export default async function AuditoriaPage({
     .order("fecha", { ascending: false });
 
   if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
+  else query = sinIndependientes(query, propias);
 
   const { data: auditoriasRaw, error } = (await query) as { data: AuditoriaRow[] | null; error: any };
   if (error) throw new Error(error.message);

@@ -73,7 +73,8 @@ export async function actualizarCanalesHabilitados(sucursalId: string, canales: 
 export async function actualizarCatalogoPropio(sucursalId: string, valor: boolean): Promise<{ error?: string }> {
   await requireAdmin();
   const admin = createAdminClient();
-  const { error } = await (admin as any).from("sucursales").update({ catalogo_propio: valor }).eq("id", sucursalId);
+  // Un local independiente no entra en la Tesorería de IDEIA (migración 136): se saca al marcarlo, en el mismo UPDATE.
+  const { error } = await (admin as any).from("sucursales").update(valor ? { catalogo_propio: true, entra_en_tesoreria: false } : { catalogo_propio: false }).eq("id", sucursalId);
   if (error) return { error: error.message };
   revalidatePath("/admin/sucursales");
   revalidatePath(`/admin/sucursales/${sucursalId}`);

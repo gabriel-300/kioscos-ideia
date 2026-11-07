@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -37,11 +38,14 @@ export default async function VentasDiariasPage({
     sucFilter = miSucursalId;
   }
 
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, role);
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   let query = (admin as any)
     .from("cierres_caja")
@@ -55,6 +59,7 @@ export default async function VentasDiariasPage({
     .order("created_at", { ascending: false });
 
   if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
+    else query = sinIndependientes(query, propias);
 
   type CierreRow = {
     id: string;

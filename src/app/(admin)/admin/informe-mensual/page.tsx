@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -63,7 +64,9 @@ export default async function InformeMensualPage({
   const canGoNext = mes < mesActual;
 
   const { data: todasSucursalesRaw } = await admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre");
-  const todasSucursales = todasSucursalesRaw ?? [];
+  // Un local independiente (otra persona, no paga a IDEIA) no entra en el informe de IDEIA.
+  const independientes = await independientesParaAdmin(admin, "admin");
+  const todasSucursales = sinIndependientesLista(todasSucursalesRaw, independientes);
 
   // Default: Parque de las Fiestas + UNAM (los dos kioscos propios -- Villa
   // Sarita queda afuera por defecto por ser una operación a consignación,

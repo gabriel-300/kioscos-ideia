@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -61,11 +62,14 @@ export default async function MermasPage({
     sucFilter = miSucursalId;
   }
 
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, role);
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   type ItemRow = {
     product_id: string;
@@ -103,6 +107,8 @@ export default async function MermasPage({
 
     if (sucFilter !== "all") {
       query = query.eq("sucursal_id", sucFilter);
+    } else {
+      query = sinIndependientes(query, propias);
     }
 
     const { data, error } = (await query) as { data: MermaRow[] | null; error: any };

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -114,11 +115,14 @@ export default async function RotacionProductosPage({
     return `/admin/rotacion-productos?${params.toString()}`;
   }
 
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, role);
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   type ItemRow = { product_id: string; cantidad: number; subtotal: number | null; product: { name: string; unit_label: string | null } | null };
   type MovRow  = { id: string; sucursal_id: string; movimiento_items: ItemRow[] };
@@ -139,6 +143,7 @@ export default async function RotacionProductosPage({
         .range(from, from + PAGE_SIZE - 1);
       if (tipo === "venta") query = query.is("anulado_en", null);
       if (sucFilter !== "all") query = query.eq("sucursal_id", sucFilter);
+      else query = sinIndependientes(query, propias);
 
       const { data, error } = (await query) as { data: MovRow[] | null; error: any };
       if (error) throw new Error(error.message);

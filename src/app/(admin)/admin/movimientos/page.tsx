@@ -1,4 +1,5 @@
 import { todosLosPrecios } from "@/lib/supabase/paginar";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -16,8 +17,9 @@ export default async function MovimientosPage() {
   const role = user.app_metadata?.role as string | undefined;
   if (role !== "admin") redirect("/admin/dashboard");
 
-  const [{ data: movimientos }, { data: sucursales }, { data: products }, { data: proveedores }, preciosRes, { data: promos }] = await Promise.all([
-    supabase
+  const propias = await independientesParaAdmin(admin, "admin");
+  const [{ data: movimientos }, { data: sucursalesTodas }, { data: products }, { data: proveedores }, preciosRes, { data: promos }] = await Promise.all([
+    sinIndependientes(supabase
       .from("movimientos")
       .select(`
         *,
@@ -26,7 +28,7 @@ export default async function MovimientosPage() {
           id, cantidad, precio_unitario, subtotal,
           product:products(id, name, sku)
         )
-      `)
+      `), propias)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000),
@@ -62,6 +64,7 @@ export default async function MovimientosPage() {
       .order("name") as Promise<{ data: { id: string; name: string; tipo: "promo" | "receta" }[] | null }>,
   ]);
 
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
   const costosPorSucursal: Record<string, Record<string, number>> = {};
   for (const p of preciosRes.data ?? []) {
     (costosPorSucursal[p.sucursal_id] ??= {})[p.product_id] = p.costo;

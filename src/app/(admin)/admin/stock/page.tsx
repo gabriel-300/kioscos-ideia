@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { todosLosPrecios } from "@/lib/supabase/paginar";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -36,11 +37,14 @@ export default async function StockPage() {
   // Quien trabaja en una sucursal ve lo global + lo propio de SU sucursal (migración 131). Admin ve todo.
   const filtroDueno = isStaff && staffSucursalId ? filtroCatalogoDe(staffSucursalId) : null;
 
-  let productsQuery = (supabase as any)
+  // Cliente admin a propósito: en `products` los permisos son columna por columna y owner_sucursal_id NO se puede
+  // leer ni filtrar con la sesión del usuario (daba 403 y la lista quedaba vacía). El acceso ya está acotado arriba.
+  // Admin: solo el catálogo de IDEIA (un local independiente es de otra persona); personal de una sucursal: lo global + lo suyo.
+  let productsQuery = (admin as any)
       .from("products")
       .select("id, name, sku, category_id, unit_label, stock_minimo")
       .eq("is_active", true);
-  if (filtroDueno) productsQuery = productsQuery.or(filtroDueno);
+  productsQuery = filtroDueno ? productsQuery.or(filtroDueno) : productsQuery.is("owner_sucursal_id", null);
 
   const [
     { data: products },
@@ -137,20 +141,22 @@ export default async function StockPage() {
   // Vista matriz para admin (todas las sucursales) — misma fuente que la vista
   // de encargado/vendedor (stock_sucursal), para no reimplementar la fórmula
   // de stock a mano (eso hacía que "Ajuste de stock" no se viera acá).
+  const propias = await independientesParaAdmin(admin, "admin");
   const [
-    { data: sucursales },
+    { data: sucursalesTodas },
     { data: stockRows },
     { data: puntosRows },
   ] = await Promise.all([
     supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
-    (supabase as any)
+    sinIndependientes((supabase as any)
       .from("stock_sucursal")
-      .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{
+      .select("sucursal_id, product_id, stock_actual"), propias) as unknown as Promise<{
         data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null;
       }>,
     todosLosPrecios<{ sucursal_id: string; product_id: string; punto_minimo: number | null }>(admin as any, "sucursal_id, product_id, punto_minimo").then((data) => ({ data })),
   ]);
 
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
   const matrixMap: Record<string, Record<string, number>> = {};
   for (const r of stockRows ?? []) {
     if (!matrixMap[r.sucursal_id]) matrixMap[r.sucursal_id] = {};

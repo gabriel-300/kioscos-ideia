@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -40,11 +41,14 @@ export default async function CierresPage({
   }
 
   // Fetch sucursales (para el filtro)
-  const { data: sucursales } = await supabase
+  const propias = await independientesParaAdmin(admin, role);
+  if (propias.includes(sucFilter)) sucFilter = "all";
+  const { data: sucursalesTodas } = await supabase
     .from("sucursales")
     .select("id, nombre")
     .eq("is_active", true)
     .order("nombre");
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
 
   // Fetch cierres con join a sucursales y aperturas
   let query = (admin as any)
@@ -61,6 +65,8 @@ export default async function CierresPage({
 
   if (sucFilter !== "all") {
     query = query.eq("sucursal_id", sucFilter);
+  } else {
+    query = sinIndependientes(query, propias);
   }
 
   type CierreRow = {

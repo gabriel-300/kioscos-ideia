@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import Link from "next/link";
 import { createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -28,7 +29,8 @@ export default async function GastosPage({
   const mes = sp.mes && rangoDelMes(sp.mes) ? sp.mes : fechaHoyAR().slice(0, 7);
   const { desde, hasta } = rangoDelMes(mes)!;
 
-  const [{ data: sucursales }, { data: gastosFijosRaw }, { data: pagosRaw }] = await Promise.all([
+  const propias = await independientesParaAdmin(admin, "admin");
+  const [{ data: sucursalesTodas }, { data: gastosFijosRaw }, { data: pagosRaw }] = await Promise.all([
     admin.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
     (admin as any)
       .from("gastos_fijos")
@@ -43,6 +45,7 @@ export default async function GastosPage({
       .gte("fecha", desde).lte("fecha", hasta) as unknown as Promise<{ data: { id: string; gasto_fijo_id: string; monto: number; fecha: string }[] | null }>,
   ]);
 
+  const sucursales = sinIndependientesLista(sucursalesTodas, propias);
   const pagoPorFijo = new Map<string, { id: string; monto: number; fecha: string }>();
   for (const p of pagosRaw ?? []) pagoPorFijo.set(p.gasto_fijo_id, { id: p.id, monto: Number(p.monto), fecha: p.fecha });
 

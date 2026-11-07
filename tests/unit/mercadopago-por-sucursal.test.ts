@@ -346,3 +346,31 @@ describe("armarQrMercadoPago: reintento ante caídas de Mercado Pago", () => {
     expect(m).toHaveBeenCalledTimes(2);
   });
 });
+
+import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
+
+describe("locales independientes fuera de las finanzas de IDEIA", () => {
+  const mundoIndep = () => fakeAdmin((q: Q) => (q.table === "sucursales" ? { data: [{ id: MIA }] } : { data: null }));
+
+  it("el admin deja afuera los independientes; los demás roles no (el dueño ve lo suyo)", async () => {
+    const f = mundoIndep();
+    expect(await independientesParaAdmin(f.admin, "admin")).toEqual([MIA]);
+    expect(await independientesParaAdmin(f.admin, "concesionario")).toEqual([]);
+    expect(await independientesParaAdmin(f.admin, "encargado")).toEqual([]);
+  });
+
+  it("sinIndependientes agrega el filtro solo si hay independientes, sobre la columna indicada", () => {
+    const llamadas: unknown[][] = [];
+    const q = { not: (...a: unknown[]) => { llamadas.push(a); return q; } };
+    sinIndependientes(q, []);
+    expect(llamadas).toHaveLength(0);
+    sinIndependientes(q, [MIA, "otra"]);
+    sinIndependientes(q, [MIA], "id");
+    expect(llamadas).toEqual([["sucursal_id", "in", `(${MIA},otra)`], ["id", "in", `(${MIA})`]]);
+  });
+
+  it("sinIndependientesLista saca esas sucursales y tolera null", () => {
+    expect(sinIndependientesLista([{ id: MIA }, { id: IDEIA }], [MIA])).toEqual([{ id: IDEIA }]);
+    expect(sinIndependientesLista(null, [MIA])).toEqual([]);
+  });
+});

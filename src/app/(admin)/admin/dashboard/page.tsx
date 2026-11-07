@@ -1,4 +1,5 @@
 import { todosLosPrecios } from "@/lib/supabase/paginar";
+import { independientesParaAdmin, sinIndependientes } from "@/lib/sucursales-independientes";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -71,7 +72,8 @@ const ICON_CART  = <svg className="size-[18px]" fill="none" viewBox="0 0 24 24" 
 async function fetchAllMovimientosDelMes(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tipo: "entrega" | "venta",
-  desde: string
+  desde: string,
+  excluir: string[]
 ) {
   const PAGE_SIZE = 1000;
   const rows: unknown[] = [];
@@ -82,6 +84,7 @@ async function fetchAllMovimientosDelMes(
       .eq("tipo", tipo)
       .gte("fecha", desde);
     if (tipo === "venta") query = query.is("anulado_en", null);
+    query = sinIndependientes(query, excluir);
     const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
     const pagina = data ?? [];
@@ -133,6 +136,8 @@ export default async function DashboardPage() {
   const now       = fmtFechaLarga(new Date());
   const hoy       = fechaHoyAR();
   const mesInicio = primerDiaMesAR();
+  // Un local independiente (otra persona, no paga a IDEIA) no entra en el tablero de IDEIA.
+  const propias = await independientesParaAdmin(admin, "admin");
 
   const [
     { count: totalSucursales },
@@ -151,8 +156,8 @@ export default async function DashboardPage() {
     puntosPedidoRaw,
     costosRaw,
   ] = await Promise.all([
-    supabase.from("sucursales").select("*", { count: "exact", head: true }),
-    supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true),
+    sinIndependientes(supabase.from("sucursales").select("*", { count: "exact", head: true }), propias, "id"),
+    sinIndependientes(supabase.from("sucursales").select("*", { count: "exact", head: true }).eq("is_active", true), propias, "id"),
     // select("id") en vez de "*" -- select("*") se expande a TODAS las
     // columnas de products, incluidas costo/margen_*, que a propósito nunca
     // tienen SELECT otorgado a authenticated (ver 035_restrict_costo_margen_
@@ -161,58 +166,58 @@ export default async function DashboardPage() {
     supabase.from("products").select("id", { count: "exact", head: true }),
     supabase.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
     // últimas entregas para la tabla de actividad
-    supabase
+    sinIndependientes(supabase
       .from("movimientos")
       .select("id, fecha, tipo, created_at, sucursal:sucursales(nombre), movimiento_items(subtotal)")
-      .eq("tipo", "entrega")
+      .eq("tipo", "entrega"), propias)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(8),
     // entregas del mes
-    fetchAllMovimientosDelMes(supabase, "entrega", mesInicio),
+    fetchAllMovimientosDelMes(supabase, "entrega", mesInicio, propias),
     // ventas POS del mes
-    fetchAllMovimientosDelMes(supabase, "venta", mesInicio),
+    fetchAllMovimientosDelMes(supabase, "venta", mesInicio, propias),
     // sucursales activas para resumen del día
-    supabase.from("sucursales").select("id, nombre").eq("is_active", true).order("nombre"),
+    sinIndependientes(supabase.from("sucursales").select("id, nombre").eq("is_active", true), propias, "id").order("nombre"),
     // ventas de hoy por sucursal
-    supabase
+    sinIndependientes(supabase
       .from("movimientos")
       .select("sucursal_id, movimiento_items(subtotal)")
       .eq("tipo", "venta")
       .is("anulado_en", null)
-      .eq("fecha", hoy),
+      .eq("fecha", hoy), propias),
     // aperturas de hoy
-    (supabase as any)
+    sinIndependientes((supabase as any)
       .from("aperturas_caja")
       .select("sucursal_id, fondo_inicial")
-      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; fondo_inicial: number }[] | null }>,
+      .eq("fecha", hoy), propias) as unknown as Promise<{ data: { sucursal_id: string; fondo_inicial: number }[] | null }>,
     // cierres de hoy
-    (supabase as any)
+    sinIndependientes((supabase as any)
       .from("cierres_caja")
       .select("sucursal_id, total_ventas")
-      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; total_ventas: number }[] | null }>,
+      .eq("fecha", hoy), propias) as unknown as Promise<{ data: { sucursal_id: string; total_ventas: number }[] | null }>,
     // retiros de hoy
-    (supabase as any)
+    sinIndependientes((supabase as any)
       .from("retiros_caja")
       .select("sucursal_id, monto")
-      .eq("fecha", hoy) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
+      .eq("fecha", hoy), propias) as unknown as Promise<{ data: { sucursal_id: string; monto: number }[] | null }>,
     // stock actual por sucursal/producto (para alertas)
-    (admin as any)
+    sinIndependientes((admin as any)
       .from("stock_sucursal")
-      .select("sucursal_id, product_id, stock_actual") as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
+      .select("sucursal_id, product_id, stock_actual"), propias) as unknown as Promise<{ data: { sucursal_id: string; product_id: string; stock_actual: number }[] | null }>,
     // puntos de stock configurados por (producto, sucursal) -- reemplaza el
     // viejo products.stock_minimo global (migración 069_puntos_stock.sql)
-    (admin as any)
+    sinIndependientes((admin as any)
       .from("product_prices")
       .select("product_id, sucursal_id, punto_pedido, punto_maximo, product:products(name, is_active)")
-      .not("punto_pedido", "is", null) as unknown as Promise<{
+      .not("punto_pedido", "is", null), propias) as unknown as Promise<{
         data: { product_id: string; sucursal_id: string; punto_pedido: number; punto_maximo: number | null; product: { name: string; is_active: boolean } | null }[] | null;
       }>,
     // Costo actual por (producto, sucursal) -- para valorizar entregado y
     // vendido con el MISMO precio al calcular rotación (ver más abajo:
     // comparar $ entregado a costo contra $ vendido a precio de público
     // inflaba la rotación por el margen, no por cuánto se movió el stock).
-    todosLosPrecios<{ product_id: string; sucursal_id: string; costo: number }>(admin, "product_id, sucursal_id, costo").then((data) => ({ data })),
+    todosLosPrecios<{ product_id: string; sucursal_id: string; costo: number }>(admin, "product_id, sucursal_id, costo", (q) => sinIndependientes(q, propias)).then((data) => ({ data })),
   ]);
 
   type Item = { subtotal: number | null; cantidad: number; product: { id: string; name: string } | null };
