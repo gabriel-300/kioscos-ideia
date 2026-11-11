@@ -130,3 +130,18 @@ describe("datosFaltantesEmisor (protección para facturar de verdad)", () => {
     expect(datosFaltantesEmisor({ ambiente: "homologacion", domicilio: null, ingresos_brutos: null, inicio_actividades: null })).toEqual([]);
   });
 });
+
+describe("cliente exento de IVA (se detecta solo por el CUIT)", () => {
+  it("la Universidad Nacional de Misiones sale como Factura B exento, sin que nadie lo marque", () => {
+    expect(normalizarReceptor("30-59821809-5", "B").receptor).toEqual({ docTipo: 80, docNro: "30598218095", condicionIva: 4 });
+  });
+  it("un CUIT común sigue siendo Consumidor Final", () => {
+    expect(normalizarReceptor("30546689979", "B").receptor).toMatchObject({ docTipo: 80, condicionIva: 5 });
+  });
+  it("con Factura A no se aplica (A es para Responsables Inscriptos)", () => {
+    expect(normalizarReceptor("30598218095", "A").receptor?.condicionIva).toBe(1);
+  });
+  it("la opción exento explícita exige un CUIT válido", () => {
+    expect(normalizarReceptor("12345678", "B", true).error).toMatch(/CUIT/);
+  });
+});

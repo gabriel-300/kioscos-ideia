@@ -39,6 +39,16 @@ export type Receptor = { docTipo: 99 | 96 | 80; docNro: string; condicionIva: nu
 // Condición frente al IVA del receptor (FEParamGetCondicionIvaReceptor):
 // 5 = Consumidor Final, 1 = Responsable Inscripto, 6 = Monotributo.
 export const COND_IVA_CONSUMIDOR_FINAL = 5;
+/** IVA Sujeto Exento (ARCA, FEParamGetCondicionIvaReceptor clase B). Se factura con Factura B y el CUIT del cliente. */
+export const COND_IVA_EXENTO = 4;
+/**
+ * CUITs de clientes exentos de IVA conocidos: se facturan solos como Factura B «exento», sin que el cajero lo sepa.
+ * Para sumar uno, agregar su CUIT acá (11 dígitos, sin guiones).
+ */
+export const CUITS_EXENTOS: ReadonlySet<string> = new Set([
+  "30598218095", // Universidad Nacional de Misiones
+]);
+export const esCuitExento = (doc?: string | null) => CUITS_EXENTOS.has((doc ?? "").replace(/[^0-9]/g, ""));
 
 export type TipoFactura = "A" | "B";
 
@@ -49,8 +59,15 @@ export const COND_IVA_RESPONSABLE_INSCRIPTO = 1;
  * Receptor del comprobante. Factura B: sin dato = consumidor final; acepta DNI o CUIT.
  * Factura A: exige el CUIT del cliente (Responsable Inscripto); ARCA verifica del otro lado que realmente lo sea.
  */
-export function normalizarReceptor(doc?: string | null, tipo: TipoFactura = "B"): { receptor?: Receptor; error?: string } {
+export function normalizarReceptor(doc?: string | null, tipo: TipoFactura = "B", exento = false): { receptor?: Receptor; error?: string } {
   const limpio = (doc ?? "").replace(/[^0-9]/g, "");
+  // Cliente exento de IVA (ej. una universidad): Factura B con su CUIT y condición «exento». Exige CUIT válido.
+  if (exento || (tipo === "B" && esCuitExento(limpio))) {
+    if (tipo === "A") return { error: "La Factura A es para Responsables Inscriptos: un cliente exento de IVA recibe Factura B." };
+    if (limpio.length !== 11) return { error: "Un cliente exento de IVA necesita su CUIT (11 dígitos)." };
+    if (!cuitValido(limpio)) return { error: "El CUIT no es válido (dígito verificador)." };
+    return { receptor: { docTipo: 80, docNro: limpio, condicionIva: COND_IVA_EXENTO } };
+  }
   if (tipo === "A") {
     if (limpio.length !== 11) return { error: "La Factura A necesita el CUIT del cliente (11 dígitos)." };
     if (!cuitValido(limpio)) return { error: "El CUIT no es válido (dígito verificador)." };

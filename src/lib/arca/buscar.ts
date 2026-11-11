@@ -28,6 +28,7 @@ function textoBuscable(f: FilaFactura): string {
     String(importe), importe.toFixed(2), String(importe).replace(".", ","), importe.toFixed(2).replace(".", ","),
     importe.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
     c.doc_nro && c.doc_nro !== "0" ? c.doc_nro : "consumidor final",
+    c.cond_iva_receptor === 4 ? "exento iva sujeto exento" : "",
     `factura ${letraDe(c.cbte_tipo)}`,
     f.lineas.map((l) => l.nombre).join(" "),
   ].join(" | "));
