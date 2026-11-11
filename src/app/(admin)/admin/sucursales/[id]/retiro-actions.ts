@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth/require-role";
 import { requireSucursalAccess } from "@/lib/auth/sucursal-access";
 import { rolDe } from "@/lib/auth/acceso";
+import { sucursalConCatalogoPropio } from "@/lib/auth/catalogo-propio";
 import { fechaHoyAR } from "@/lib/fecha";
 import { validarRetiro, type RetiroEntrada } from "@/lib/retiros";
 
@@ -15,7 +16,9 @@ import { validarRetiro, type RetiroEntrada } from "@/lib/retiros";
 export async function listarOpcionesRetiro(): Promise<
   { error: string } | { proveedores: { id: string; nombre: string }[]; autorizadores: { id: string; nombre: string }[] }
 > {
-  await requireStaff();
+  const { userId, role } = await requireStaff();
+  // El dueño de un local independiente no ve los proveedores de IDEIA ni quiénes son sus administradores (migración 131).
+  if (role === "concesionario" && (await sucursalConCatalogoPropio(userId))) return { proveedores: [], autorizadores: [] };
   const admin = createAdminClient();
 
   const [{ data: proveedores, error: errProv }, { data: { users }, error: errUsers }] = await Promise.all([
