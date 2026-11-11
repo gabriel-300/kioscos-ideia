@@ -37,7 +37,8 @@ function VerificarModal({ cierreId, montoSobre, montoInicial, notasIniciales, on
     setError(null);
     startTransition(async () => {
       try {
-        await verificarSobre(cierreId, { montoVerificado: montoNum, notas: notas || null });
+        const r = await verificarSobre(cierreId, { montoVerificado: montoNum, notas: notas || null });
+        if (r.error) { setError(r.error); return; }
         onClose();
       } catch (e) { setError(friendlyError(e)); }
     });
@@ -163,8 +164,10 @@ function ConfirmarRetiroButton({ cierreId }: { cierreId: string }) {
   function handleClick() {
     setError(null);
     startTransition(async () => {
-      try { await confirmarRetiroSobre(cierreId); }
-      catch (e) { setError(friendlyError(e)); }
+      try {
+        const r = await confirmarRetiroSobre(cierreId);
+        if (r.error) setError(r.error);
+      } catch (e) { setError(friendlyError(e)); }
     });
   }
 

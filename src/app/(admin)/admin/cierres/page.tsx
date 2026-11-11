@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { sucursalConCatalogoPropio } from "@/lib/auth/catalogo-propio";
 import { independientesParaAdmin, sinIndependientes, sinIndependientesLista } from "@/lib/sucursales-independientes";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -42,6 +43,8 @@ export default async function CierresPage({
 
   // Fetch sucursales (para el filtro)
   const propias = await independientesParaAdmin(admin, role);
+  // El dueño de un local independiente retira la caja de SU local: puede confirmar y verificar sus sobres (no los de nadie más).
+  const esDuenoIndependiente = role === "concesionario" && !!(await sucursalConCatalogoPropio(user.id));
   if (propias.includes(sucFilter)) sucFilter = "all";
   const { data: sucursalesTodas } = await supabase
     .from("sucursales")
@@ -360,7 +363,7 @@ export default async function CierresPage({
 
       {/* Tabla */}
       <InformeCierresTable
-        puedeGestionarSobre={role === "admin"}
+        puedeGestionarSobre={role === "admin" || esDuenoIndependiente}
         filas={filas}
         totales={{
           ventas: totalVentas,

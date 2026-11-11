@@ -374,3 +374,54 @@ describe("locales independientes fuera de las finanzas de IDEIA", () => {
     expect(sinIndependientesLista(null, [MIA])).toEqual([]);
   });
 });
+
+import { confirmarRetiroSobre, verificarSobre } from "@/app/(admin)/admin/cierres/actions";
+
+describe("sobre de la caja: quién puede confirmar el retiro", () => {
+  function mundo(cierre: { sucursal_id: string; sobre_retirado_por: string | null } | null) {
+    const f = fakeAdmin((q: Q) => {
+      if (q.table === "cierres_caja" && q.op === "select") return { data: cierre };
+      if (q.table === "sucursales" && q.op === "select") return { data: q.filters.some((x) => x.col === "encargado_user_id") ? { id: MIA } : null };
+      return { data: null };
+    });
+    h.admin = f.admin;
+    return f;
+  }
+  const huboUpdate = (f: ReturnType<typeof mundo>) => f.calls.some((c: Q) => c.table === "cierres_caja" && c.op === "update");
+
+  it("el dueño confirma el retiro del sobre de SU local", async () => {
+    const f = mundo({ sucursal_id: MIA, sobre_retirado_por: null });
+    expect(await confirmarRetiroSobre("c1")).toEqual({});
+    const upd = f.calls.find((c: Q) => c.table === "cierres_caja" && c.op === "update")!;
+    expect((upd.payload as Record<string, unknown>).sobre_retirado_por).toBe("u1");
+  });
+
+  it("el dueño NO puede tocar el sobre de un cierre de otro local", async () => {
+    const f = mundo({ sucursal_id: IDEIA, sobre_retirado_por: null });
+    expect((await confirmarRetiroSobre("c1")).error).toMatch(/permiso/);
+    expect((await verificarSobre("c1", { montoVerificado: 1, notas: null })).error).toMatch(/permiso/);
+    expect(huboUpdate(f)).toBe(false);
+  });
+
+  it("un vendedor o un concesionario sin local independiente no pueden", async () => {
+    const f = mundo({ sucursal_id: MIA, sobre_retirado_por: null });
+    h.session = { userId: "u2", role: "vendedor" };
+    expect((await confirmarRetiroSobre("c1")).error).toMatch(/permiso/);
+    expect(huboUpdate(f)).toBe(false);
+  });
+
+  it("el admin puede con cualquier cierre, y un sobre ya retirado no se pisa", async () => {
+    h.session = { userId: "adm", role: "admin" };
+    const f = mundo({ sucursal_id: IDEIA, sobre_retirado_por: null });
+    expect(await confirmarRetiroSobre("c1")).toEqual({});
+    expect(huboUpdate(f)).toBe(true);
+    const g = mundo({ sucursal_id: IDEIA, sobre_retirado_por: "otro" });
+    expect((await confirmarRetiroSobre("c1")).error).toMatch(/ya estaba/);
+    expect(huboUpdate(g)).toBe(false);
+  });
+
+  it("un cierre inexistente devuelve error", async () => {
+    mundo(null);
+    expect((await confirmarRetiroSobre("nada")).error).toMatch(/no encontrado/);
+  });
+});
