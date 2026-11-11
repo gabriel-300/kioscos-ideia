@@ -65,7 +65,7 @@ type NavGroup = { label: string; icon: string; children: NavItem[] };
 
 // Ítems sueltos que van antes de los grupos
 const NAV_HEAD: NavItem[] = [
-  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                                          icon: "dashboard" },
+  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin", "dueno"],                                          icon: "dashboard" },
   { href: "/admin/sucursales", label: "Kioscos",   roles: ["admin", "encargado", "vendedor", "concesionario"], icon: "sucursales" },
 ];
 

@@ -1,4 +1,6 @@
 import { todosLosPrecios } from "@/lib/supabase/paginar";
+import { sucursalConCatalogoPropio } from "@/lib/auth/catalogo-propio";
+import { DashboardDueno } from "./_components/dashboard-dueno";
 import { independientesParaAdmin, sinIndependientes } from "@/lib/sucursales-independientes";
 import type { Metadata } from "next";
 import { createClient, createAdminClient, getUser } from "@/lib/supabase/server";
@@ -100,6 +102,12 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   const role = user.app_metadata?.role as string | undefined;
+
+  // El dueño de un local independiente (migración 131) tiene su propio tablero, acotado a su local.
+  if (role === "concesionario") {
+    const propia = await sucursalConCatalogoPropio(user.id);
+    if (propia) return <DashboardDueno sucursalId={propia} />;
+  }
 
   if (role === "encargado" || role === "concesionario") {
     const { data: sucursal } = await supabase
