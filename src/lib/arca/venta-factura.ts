@@ -11,7 +11,7 @@ import type { ComprobanteVenta } from "./ticket-html";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-export type PedidoFactura = { documento?: string | null; tipo?: TipoFactura };
+export type PedidoFactura = { documento?: string | null; tipo?: TipoFactura; exento?: boolean };
 
 /** Se corre ANTES de crear la venta: si el pedido no se puede cumplir, la venta ni se registra. */
 export async function validarPedidoFactura(db: Db, sucursalId: string, canal: string | null, pedido: PedidoFactura): Promise<string | null> {
@@ -20,13 +20,13 @@ export async function validarPedidoFactura(db: Db, sucursalId: string, canal: st
   if (!suc || suc.arca_modo === "desactivado" || !suc.arca_punto_venta || !suc.emisor?.activo) {
     return "Esta sucursal no tiene la facturación activada.";
   }
-  const r = normalizarReceptor(pedido.documento, pedido.tipo === "A" ? "A" : "B");
+  const r = normalizarReceptor(pedido.documento, pedido.tipo === "A" ? "A" : "B", !!pedido.exento);
   return r.receptor ? null : (r.error ?? "Documento inválido.");
 }
 
 /** Emite la factura de una venta ya registrada y devuelve el comprobante listo para imprimir. */
 export async function facturarVentaAhora(db: Db, movimientoId: string, pedido: PedidoFactura, userId: string): Promise<{ factura?: ComprobanteVenta; error?: string }> {
-  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento: pedido.documento, tipo: pedido.tipo === "A" ? "A" : "B", userId });
+  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento: pedido.documento, tipo: pedido.tipo === "A" ? "A" : "B", exento: !!pedido.exento, userId });
   if (!r.ok) return { error: r.error };
   return { factura: await comoComprobanteVenta(db, r.comprobante) };
 }

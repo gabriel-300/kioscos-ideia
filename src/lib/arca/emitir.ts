@@ -45,7 +45,7 @@ const yyyymmdd = (iso: string) => iso.replaceAll("-", "");
 const isoDeArca = (s: string) => (s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : null);
 
 // ── Preparar la factura de una venta ────────────────────────────────────────
-type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null; tipo?: TipoFactura };
+type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null; tipo?: TipoFactura; exento?: boolean };
 
 export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Opciones): Promise<Emision> {
   const { data: mov, error } = await db
@@ -85,7 +85,7 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
   if (previo?.estado === "emitido") return { ok: true, comprobante: previo };
   if (previo) return procesarComprobante(db, previo.id);
 
-  const receptor = opc.origen === "manual" ? normalizarReceptor(opc.documento, letra(tipoFact) as TipoFactura) : normalizarReceptor(null);
+  const receptor = opc.origen === "manual" ? normalizarReceptor(opc.documento, letra(tipoFact) as TipoFactura, !!opc.exento) : normalizarReceptor(null);
   if (!receptor.receptor) return { ok: false, error: receptor.error ?? "Documento inválido." };
 
   type Item = { subtotal: number | null; product: { alicuota_iva: number | string | null } | null };

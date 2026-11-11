@@ -66,7 +66,7 @@ export function armarTicketHtml(p: {
   ${p.copia ? '<div class="sub" style="font-weight:800">*** COPIA — REIMPRESIÓN ***</div>' : ""}
   ${conRetencion(f.cbte_tipo) ? '<div style="text-align:center;font-weight:800;font-size:11px">OPERACIÓN SUJETA A RETENCIÓN</div>' : ""}
   <div class="sub">N° ${nroCbte(f)} · ${diaMesAnio(f.fecha)}</div>
-  <div class="sub">${letraCbte(f) === "A" ? "CUIT " + f.doc_nro + " · IVA Responsable Inscripto" : "A CONSUMIDOR FINAL" + (f.doc_nro && f.doc_nro !== "0" ? " · Doc. " + f.doc_nro : "")}</div>
+  <div class="sub">${letraCbte(f) === "A" ? "CUIT " + f.doc_nro + " · IVA Responsable Inscripto" : (f.cond_iva_receptor === 4 ? "IVA SUJETO EXENTO · CUIT " + f.doc_nro : "A CONSUMIDOR FINAL" + (f.doc_nro && f.doc_nro !== "0" ? " · Doc. " + f.doc_nro : ""))}</div>
   ${f.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`;
 
   const ivaA = f && letraCbte(f) === "A"
