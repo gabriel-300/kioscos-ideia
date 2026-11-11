@@ -128,7 +128,10 @@ function DetalleCierre({ f }: { f: FilaCierre }) {
   );
 }
 
-export function InformeCierresTable({ filas, totales }: {
+// puedeGestionarSobre: confirmar y verificar el sobre es un trámite de Tesorería (solo admin). Quien no es admin (el dueño de un
+// local) ve el informe sin esos botones: antes los veía y, al tocarlos, la acción fallaba con un error ilegible.
+export function InformeCierresTable({ filas, totales, puedeGestionarSobre }: {
+  puedeGestionarSobre: boolean;
   filas: FilaCierre[];
   totales: { ventas: number; plataforma: number; efectivo: number; billetera: number; tarjeta: number; transferencia: number; diferencia: number; retiros: number };
 }) {
@@ -190,6 +193,7 @@ export function InformeCierresTable({ filas, totales }: {
                   {f.plataforma > 0 && <span className="text-sky-600"> · 🛵 {AR.format(f.plataforma)}</span>}
                 </p>
                 <div className="mt-2 flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  {puedeGestionarSobre && (
                   <SobreEstado
                     cierreId={f.id}
                     montoSobre={f.montoSobre}
@@ -200,6 +204,7 @@ export function InformeCierresTable({ filas, totales }: {
                     verificadoEn={f.sobreVerificadoEn}
                     notas={f.sobreNotas}
                   />
+                  )}
                   <FondoNota f={f} />
                 </div>
               </button>
@@ -283,6 +288,7 @@ export function InformeCierresTable({ filas, totales }: {
                       </td>
                       <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-end gap-0.5">
+                          {puedeGestionarSobre && (
                           <SobreEstado
                             cierreId={f.id}
                             montoSobre={f.montoSobre}
@@ -293,6 +299,7 @@ export function InformeCierresTable({ filas, totales }: {
                             verificadoEn={f.sobreVerificadoEn}
                             notas={f.sobreNotas}
                           />
+                          )}
                           <FondoNota f={f} />
                         </div>
                       </td>

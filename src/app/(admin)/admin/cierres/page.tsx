@@ -360,6 +360,7 @@ export default async function CierresPage({
 
       {/* Tabla */}
       <InformeCierresTable
+        puedeGestionarSobre={role === "admin"}
         filas={filas}
         totales={{
           ventas: totalVentas,
