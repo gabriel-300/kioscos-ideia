@@ -90,7 +90,11 @@ export function armarTicketHtml(p: {
     th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     th { text-align: left; font-size: 10px; text-transform: uppercase; color: #999; padding-bottom: 4px; border-bottom: 2px solid #000; }
     th:nth-child(2),th:nth-child(3),th:nth-child(4){text-align:right}
-    th:first-child, td:first-child { width: 42%; white-space: normal; }
+    th:first-child, td:first-child { width: 34%; white-space: normal; }
+    th:nth-child(2), td:nth-child(2) { width: 10%; }
+    th:nth-child(3), td:nth-child(3) { width: 25%; }
+    th:nth-child(4), td:nth-child(4) { width: 31%; }
+    td:nth-child(n+2) { overflow: visible; text-overflow: clip; font-size: 11px; }
     .total { font-size: 16px; font-weight: 800; text-align: right; margin-top: 10px; border-top: 2px solid #000; padding-top: 6px; }
     .footer { text-align: center; margin-top: 16px; }
     .footer .thanks { font-size:13px; font-weight:bold; letter-spacing:.5px; }
