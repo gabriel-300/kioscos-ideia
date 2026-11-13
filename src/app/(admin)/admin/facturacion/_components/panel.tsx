@@ -28,10 +28,19 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   const correr = (fn: () => Promise<{ error?: string }>, ok?: string) =>
     start(async () => { const r = await fn(); setMsg(r.error ?? ok ?? null); if (!r.error) router.refresh(); });
 
   const abiertos = comprobantes.filter((c) => c.estado !== "emitido");
+  // Buscador del listado: número (con o sin guion y ceros), importe, sucursal o CAE. Todas las palabras tienen que aparecer.
+  const palabras = busqueda.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(" ").filter(Boolean);
+  const visibles = palabras.length === 0 ? comprobantes : comprobantes.filter((c) => {
+    const n = nro(c);
+    const texto = [n, n.replace("-", ""), String(c.numero ?? ""), `pv ${c.punto_venta}`, String(c.imp_total), c.sucursal?.nombre ?? "", c.cae ?? "", c.fecha]
+      .join(" | ").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    return palabras.every((p) => texto.includes(p));
+  });
 
   // La ventana se abre dentro del clic y se completa cuando llegan los datos (si no, el navegador bloquea el popup).
   const reimprimir = async (id: string, original = false) => {
@@ -95,7 +104,11 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
 
       {/* Últimos comprobantes */}
       <section className="rounded-xl border border-neutral-200 bg-white">
-        <h2 className="p-4 pb-2 font-semibold text-neutral-900">Últimos comprobantes</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-2">
+          <h2 className="font-semibold text-neutral-900">Últimos comprobantes</h2>
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar: número, importe, sucursal…"
+            className="h-9 w-full rounded-lg border border-neutral-300 px-3 text-sm sm:w-72" />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-y border-neutral-100 bg-neutral-50 text-left text-xs uppercase text-neutral-500">
@@ -103,8 +116,8 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
               <th className="px-4 py-2">Sucursal</th><th className="px-4 py-2 text-right">Total</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2">CAE</th><th className="px-4 py-2" />
             </tr></thead>
             <tbody className="divide-y divide-neutral-100">
-              {comprobantes.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-neutral-400">Todavía no se emitió ninguno.</td></tr>}
-              {comprobantes.map((c) => (
+              {visibles.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-neutral-400">{comprobantes.length === 0 ? "Todavía no se emitió ninguno." : "Ningún comprobante coincide con la búsqueda."}</td></tr>}
+              {visibles.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-2 tabular-nums">{c.fecha}</td>
                   <td className="px-4 py-2">{TIPO[c.cbte_tipo]}{c.ambiente === "homologacion" && <span className="ml-1 text-xs text-amber-700">(prueba)</span>}</td>

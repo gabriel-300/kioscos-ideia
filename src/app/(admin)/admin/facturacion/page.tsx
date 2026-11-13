@@ -30,7 +30,7 @@ export default async function FacturacionPage() {
     db.from("sucursales").select("id, nombre, arca_modo, arca_emisor_id, arca_punto_venta").order("nombre"),
     db.from("comprobantes_arca")
       .select("id, cbte_tipo, punto_venta, numero, fecha, imp_total, estado, cae, error, origen, intentos, ambiente, created_at, sucursal:sucursales(nombre)")
-      .order("created_at", { ascending: false }).limit(100),
+      .order("created_at", { ascending: false }).limit(1000),
   ]);
 
   // Sin la migración 132 la pantalla avisa en vez de romperse (mismo criterio que Tesorería).
