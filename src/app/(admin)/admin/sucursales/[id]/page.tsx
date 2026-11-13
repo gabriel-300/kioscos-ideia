@@ -675,7 +675,7 @@ export default async function SucursalDetailPage({ params, searchParams }: { par
   if (arcaActiva) {
     const { data: compsArca } = await (admin as any)
       .from("comprobantes_arca")
-      .select("movimiento_id, cbte_tipo, punto_venta, numero, fecha, estado, cae, cae_vto, doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, iva, cond_iva_receptor, ambiente, error, emitido_en, emisor:arca_emisores(cuit, razon_social, domicilio, ingresos_brutos, inicio_actividades)")
+      .select("movimiento_id, cbte_tipo, punto_venta, numero, fecha, estado, cae, cae_vto, doc_tipo, doc_nro, imp_total, imp_neto, imp_iva, iva, cond_iva_receptor, referencia, ambiente, error, emitido_en, emisor:arca_emisores(cuit, razon_social, domicilio, ingresos_brutos, inicio_actividades)")
       .eq("sucursal_id", id).order("created_at", { ascending: false }).limit(1000);
     for (const c of compsArca ?? []) (comprobantesPorVenta[c.movimiento_id] ??= []).push(c);
   }

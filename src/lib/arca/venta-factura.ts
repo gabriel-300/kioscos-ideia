@@ -11,7 +11,7 @@ import type { ComprobanteVenta } from "./ticket-html";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-export type PedidoFactura = { documento?: string | null; tipo?: TipoFactura; exento?: boolean };
+export type PedidoFactura = { documento?: string | null; tipo?: TipoFactura; exento?: boolean; referencia?: string | null };
 
 /** Se corre ANTES de crear la venta: si el pedido no se puede cumplir, la venta ni se registra. */
 export async function validarPedidoFactura(db: Db, sucursalId: string, canal: string | null, pedido: PedidoFactura): Promise<string | null> {
@@ -26,7 +26,7 @@ export async function validarPedidoFactura(db: Db, sucursalId: string, canal: st
 
 /** Emite la factura de una venta ya registrada y devuelve el comprobante listo para imprimir. */
 export async function facturarVentaAhora(db: Db, movimientoId: string, pedido: PedidoFactura, userId: string): Promise<{ factura?: ComprobanteVenta; error?: string }> {
-  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento: pedido.documento, tipo: pedido.tipo === "A" ? "A" : "B", exento: !!pedido.exento, userId });
+  const r = await emitirFacturaDeVenta(db, movimientoId, { origen: "manual", documento: pedido.documento, tipo: pedido.tipo === "A" ? "A" : "B", exento: !!pedido.exento, referencia: pedido.referencia, userId });
   if (!r.ok) return { error: r.error };
   return { factura: await comoComprobanteVenta(db, r.comprobante) };
 }
@@ -37,6 +37,6 @@ export async function comoComprobanteVenta(db: Db, c: ComprobanteRow): Promise<C
     movimiento_id: c.movimiento_id, cbte_tipo: c.cbte_tipo, punto_venta: c.punto_venta, numero: c.numero, fecha: c.fecha,
     estado: c.estado, cae: c.cae, cae_vto: c.cae_vto, doc_tipo: c.doc_tipo, doc_nro: c.doc_nro,
     imp_total: Number(c.imp_total), imp_neto: Number(c.imp_neto), imp_iva: Number(c.imp_iva), ambiente: c.ambiente, error: c.error,
-    iva: c.iva, cond_iva_receptor: c.cond_iva_receptor, emitido_en: c.emitido_en ?? null, emisor: emisor ?? null,
+    iva: c.iva, cond_iva_receptor: c.cond_iva_receptor, emitido_en: c.emitido_en ?? null, referencia: c.referencia ?? null, emisor: emisor ?? null,
   };
 }

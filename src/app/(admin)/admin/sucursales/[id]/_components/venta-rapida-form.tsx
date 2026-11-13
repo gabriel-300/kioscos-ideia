@@ -165,6 +165,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
   const [emitirFactura, setEmitirFactura] = useState(false);
   const [docFactura,    setDocFactura]    = useState("");
   const [tipoFactura,   setTipoFactura]   = useState<"A" | "B">("B");
+  const [refFactura,    setRefFactura]    = useState("");
   const [termoId,      setTermoId]      = useState("");
   const [dniTermo,     setDniTermo]     = useState("");
   const [telefonoTermo, setTelefonoTermo] = useState("");
@@ -456,7 +457,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
     setSearch(""); setCatFilter("all"); setShowPay(false); setMobileTicketOpen(false);
     setPagos({ efectivo: "", mp: "", tarjeta: "", transferencia: "" });
     setCanal("consumidor_final"); setPrecioOverride({}); setDescuentoPedidoYa(""); setPersonalId(""); setContactoId(""); setNotas(""); setError(null); setReceipt(null);
-    setEmitirFactura(false); setDocFactura(""); setTipoFactura("B");
+    setEmitirFactura(false); setDocFactura(""); setTipoFactura("B"); setRefFactura("");
     setTermoId(""); setDniTermo(""); setTelefonoTermo(""); setNombreTermo("");
     setTermosModalOpen(false); setMultaACobrar(null); setErrorTermoModal(null); setTermoSearch("");
     detenerPollingQr(); setQrEstado("idle"); setQrExternalRef(null); setQrError(null);
@@ -675,7 +676,7 @@ export function VentaRapidaForm({ open, onClose, sucursalId, sucursalNombre, pro
           pago_billetera:     parseFloat(pagos.mp)            || null,
           pago_tarjeta:       parseFloat(pagos.tarjeta)       || null,
           pago_transferencia: parseFloat(pagos.transferencia) || null,
-          facturar:           pideFactura ? { documento: docFactura, tipo: tipoFactura } : null,
+          facturar:           pideFactura ? { documento: docFactura, tipo: tipoFactura, referencia: refFactura } : null,
           items: seleccionados.map(([id, cantidad]) =>
             isPromoId(id)
               ? { promo_id: promoIdOf(id), cantidad, precio_unitario: priceOf(id) }
@@ -1774,6 +1775,13 @@ ${r.notas ? `<div class="divider"></div><div style="font-size:11px;color:#555">$
                       placeholder="DNI o CUIT del cliente (vacío = Consumidor Final)" inputMode="numeric"
                       style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #DCE7E1", borderRadius: 6, fontSize: 13, outline: "none" }}
                     />
+                    {docFactura.replace(/\D/g, "").length === 11 && (
+                      <input
+                        value={refFactura} onChange={(e) => setRefFactura(e.target.value)} maxLength={60}
+                        placeholder="N° de orden de compra o expediente (opcional)"
+                        style={{ width: "100%", padding: "8px 10px", border: "1.5px solid #DCE7E1", borderRadius: 6, fontSize: 13, outline: "none" }}
+                      />
+                    )}
                     {docFactura.replace(/\D/g, "").length === 11 && (
                       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#173A31", cursor: "pointer" }}>
                         <input type="checkbox" checked={tipoFactura === "A"} onChange={(e) => setTipoFactura(e.target.checked ? "A" : "B")} />

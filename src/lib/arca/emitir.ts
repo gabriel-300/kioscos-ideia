@@ -34,7 +34,7 @@ export type ComprobanteRow = {
   origen: "automatico" | "manual" | "anulacion";
   estado: "pendiente" | "emitido" | "error";
   cae: string | null; cae_vto: string | null; comprobante_asociado_id: string | null;
-  error: string | null; intentos: number; tomado_en: string | null; emitido_en?: string | null;
+  error: string | null; intentos: number; tomado_en: string | null; emitido_en?: string | null; referencia?: string | null;
 };
 
 export type Emision =
@@ -45,7 +45,7 @@ const yyyymmdd = (iso: string) => iso.replaceAll("-", "");
 const isoDeArca = (s: string) => (s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : null);
 
 // ── Preparar la factura de una venta ────────────────────────────────────────
-type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null; tipo?: TipoFactura; exento?: boolean };
+type Opciones = { origen: "automatico" | "manual"; documento?: string | null; userId?: string | null; tipo?: TipoFactura; exento?: boolean; referencia?: string | null };
 
 export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Opciones): Promise<Emision> {
   const { data: mov, error } = await db
@@ -110,6 +110,8 @@ export async function emitirFacturaDeVenta(db: Db, movimientoId: string, opc: Op
     doc_tipo: receptor.receptor.docTipo, doc_nro: receptor.receptor.docNro, cond_iva_receptor: receptor.receptor.condicionIva,
     imp_total: d.total, imp_neto: d.neto, imp_iva: d.iva, iva: d.tramos,
     origen: opc.origen, created_by: opc.userId ?? null,
+    // solo si hay referencia: así una factura común no depende de la columna nueva
+    ...((opc.referencia ?? "").trim() ? { referencia: (opc.referencia ?? "").trim().slice(0, 60) } : {}),
   }).select("id").single();
 
   if (errIns) {

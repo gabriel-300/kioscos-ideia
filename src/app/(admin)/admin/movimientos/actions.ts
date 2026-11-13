@@ -56,7 +56,7 @@ export async function crearMovimiento(data: {
   pago_tarjeta?:       number | null;
   pago_transferencia?: number | null;
   // Casilla «Emitir factura» del cobro: el cajero espera a ARCA y recibe el comprobante para imprimirlo.
-  facturar?:           { documento?: string | null; tipo?: "A" | "B"; exento?: boolean } | null;
+  facturar?:           { documento?: string | null; tipo?: "A" | "B"; exento?: boolean; referencia?: string | null } | null;
 }): Promise<{ movimiento_id: string | null; error?: string; factura?: ComprobanteVenta; facturaError?: string }> {
   const { userId, role } = await requireStaff();
   const supabase         = createAdminClient();

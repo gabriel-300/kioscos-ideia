@@ -156,3 +156,24 @@ describe("COPIA en las reimpresiones", () => {
     expect(esReimpresion("no es una fecha", ahora)).toBe(false);
   });
 });
+
+describe("ticket fiscal a un cliente exento conocido", () => {
+  const base = {
+    movimiento_id: "m", cbte_tipo: 6, punto_venta: 3, numero: 192, fecha: "2026-11-11", estado: "emitido" as const,
+    cae: "86452212159705", cae_vto: "2026-11-21", doc_tipo: 80, doc_nro: "30598218095", imp_total: 29200, imp_neto: 24132.23, imp_iva: 5067.77,
+    ambiente: "produccion", error: null, cond_iva_receptor: 4,
+    emisor: { cuit: "30719673623", razon_social: "ALS S.A.S.", domicilio: "x", ingresos_brutos: null, inicio_actividades: null },
+  };
+  const arma = (extra = {}) => armarTicketHtml({ lineas: [], total: 29200, fecha: "2026-11-11", id: "09C05C86", sucursalNombre: "Angiru Food UNAM", factura: { ...base, ...extra } });
+  it("imprime razón social, domicilio, condición de venta y rotula el local", () => {
+    const h = arma();
+    expect(h).toContain("Universidad Nacional de Misiones");
+    expect(h).toContain("Villa Miguel Lanús");
+    expect(h).toContain("Condición de venta: Contado");
+    expect(h).toContain("Local: Angiru Food UNAM");
+  });
+  it("imprime la orden de compra solo si se cargó", () => {
+    expect(arma()).not.toContain("Orden de compra");
+    expect(arma({ referencia: "OC 123/26" })).toContain("Orden de compra / Expte.: <b>OC 123/26</b>");
+  });
+});
