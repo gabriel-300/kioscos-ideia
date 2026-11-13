@@ -33,7 +33,9 @@ export async function facturarVentaAhora(db: Db, movimientoId: string, pedido: P
 
 export async function comoComprobanteVenta(db: Db, c: ComprobanteRow): Promise<ComprobanteVenta> {
   const { data: emisor } = await db.from("arca_emisores").select("cuit, razon_social, domicilio, ingresos_brutos, inicio_actividades").eq("id", c.emisor_id).maybeSingle();
+  const { data: suc } = await db.from("sucursales").select("direccion").eq("id", c.sucursal_id).maybeSingle();
   return {
+    local_direccion: (suc?.direccion ?? "").trim() || null,
     movimiento_id: c.movimiento_id, cbte_tipo: c.cbte_tipo, punto_venta: c.punto_venta, numero: c.numero, fecha: c.fecha,
     estado: c.estado, cae: c.cae, cae_vto: c.cae_vto, doc_tipo: c.doc_tipo, doc_nro: c.doc_nro,
     imp_total: Number(c.imp_total), imp_neto: Number(c.imp_neto), imp_iva: Number(c.imp_iva), ambiente: c.ambiente, error: c.error,
