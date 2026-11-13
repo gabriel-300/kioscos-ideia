@@ -177,3 +177,12 @@ describe("ticket fiscal a un cliente exento conocido", () => {
     expect(arma({ referencia: "OC 123/26" })).toContain("Orden de compra / Expte.: <b>OC 123/26</b>");
   });
 });
+
+describe("dirección del local en el ticket fiscal", () => {
+  const f = { movimiento_id: "m", cbte_tipo: 6, punto_venta: 3, numero: 1, fecha: "2026-11-11", estado: "emitido" as const, cae: "1", cae_vto: "2026-11-21", doc_tipo: 99, doc_nro: "0", imp_total: 100, imp_neto: 82.64, imp_iva: 17.36, ambiente: "produccion", error: null, emisor: { cuit: "30719673623", razon_social: "ALS S.A.S.", domicilio: "x" } };
+  const arma = (local_direccion: string | null) => armarTicketHtml({ lineas: [], total: 100, fecha: "2026-11-11", id: "A", sucursalNombre: "Angiru Food UNAM", factura: { ...f, local_direccion } });
+  it("la imprime debajo del nombre del local, y no inventa nada si no hay", () => {
+    expect(arma("Av. Libertador 1234")).toContain("Local: Angiru Food UNAM</div><div class=\"sub\">Av. Libertador 1234");
+    expect(arma(null)).not.toContain("Av. Libertador");
+  });
+});

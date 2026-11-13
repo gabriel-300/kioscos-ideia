@@ -13,6 +13,7 @@ export type ComprobanteVenta = {
   estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
   doc_tipo: number; doc_nro: string; imp_total: number; imp_neto: number; imp_iva: number; ambiente: string; error: string | null;
   iva?: { alicuota: number; base: number; importe: number }[]; cond_iva_receptor?: number;
+  local_direccion?: string | null;   // dirección del local donde se vendió (se imprime bajo «Local:»)
   referencia?: string | null;   // N° de orden de compra / expediente del cliente (opcional)
   emitido_en?: string | null;   // cuándo aprobó ARCA el comprobante (sirve para saber si una impresión es copia)
   emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
@@ -107,7 +108,7 @@ export function armarTicketHtml(p: {
     .footer .legal { font-size:9.5px; color:#999; margin-top:8px; border-top:1px dashed #ccc; padding-top:8px; }
   </style></head><body>
   ${cabeceraFiscal}
-  <div class="sub">${f ? "Local: " : ""}${esc(p.sucursalNombre)}</div>
+  <div class="sub">${f ? "Local: " : ""}${esc(p.sucursalNombre)}</div>${f?.local_direccion ? `<div class="sub">${esc(f.local_direccion)}</div>` : ""}
   <div class="sub">${fechaLarga} · #${p.id}</div>
   <div class="divider"></div>
   <table>
