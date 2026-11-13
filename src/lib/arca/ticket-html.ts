@@ -5,6 +5,7 @@
 import { urlQrArca } from "./qr";
 import { conRetencion, esFactura, letraDe } from "./tipos";
 import { qrComoSvg } from "@/lib/pedidos/qr";
+import { clienteConocido } from "./reglas";
 
 /** Comprobante de ARCA de una venta, como lo leen el historial y el POS. */
 export type ComprobanteVenta = {
@@ -12,6 +13,7 @@ export type ComprobanteVenta = {
   estado: "pendiente" | "emitido" | "error"; cae: string | null; cae_vto: string | null;
   doc_tipo: number; doc_nro: string; imp_total: number; imp_neto: number; imp_iva: number; ambiente: string; error: string | null;
   iva?: { alicuota: number; base: number; importe: number }[]; cond_iva_receptor?: number;
+  referencia?: string | null;   // N° de orden de compra / expediente del cliente (opcional)
   emitido_en?: string | null;   // cuándo aprobó ARCA el comprobante (sirve para saber si una impresión es copia)
   emisor: { cuit: string; razon_social: string; domicilio?: string | null; ingresos_brutos?: string | null; inicio_actividades?: string | null } | null;
 };
@@ -49,6 +51,7 @@ export function armarTicketHtml(p: {
     ? qrComoSvg(urlQrArca({ fecha: f.fecha, cuit: f.emisor!.cuit, puntoVenta: f.punto_venta, tipoCmp: f.cbte_tipo, numero: Number(f.numero), importe: Number(f.imp_total), docTipo: f.doc_tipo, docNro: f.doc_nro, cae: f.cae! }))
     : "";
 
+  const cli = f ? clienteConocido(f.doc_nro) : null;
   const rows = p.lineas.map((l) => `
     <tr>
       <td style="padding:4px 0;border-bottom:1px solid #eee">${esc(l.nombre)}</td>
@@ -67,6 +70,9 @@ export function armarTicketHtml(p: {
   ${conRetencion(f.cbte_tipo) ? '<div style="text-align:center;font-weight:800;font-size:11px">OPERACIÓN SUJETA A RETENCIÓN</div>' : ""}
   <div class="sub">N° ${nroCbte(f)} · ${diaMesAnio(f.fecha)}</div>
   <div class="sub">${letraCbte(f) === "A" ? "CUIT " + f.doc_nro + " · IVA Responsable Inscripto" : (f.cond_iva_receptor === 4 ? "IVA SUJETO EXENTO · CUIT " + f.doc_nro : "A CONSUMIDOR FINAL" + (f.doc_nro && f.doc_nro !== "0" ? " · Doc. " + f.doc_nro : ""))}</div>
+  ${cli ? `<div class="sub" style="font-weight:700">${esc(cli.nombre)}</div><div class="sub">${esc(cli.domicilio)}</div>` : ""}
+  <div class="sub">Condición de venta: Contado</div>
+  ${f.referencia ? `<div class="sub">Orden de compra / Expte.: <b>${esc(f.referencia)}</b></div>` : ""}
   ${f.ambiente === "homologacion" ? '<div class="sub" style="font-weight:800">*** PRUEBA — SIN VALIDEZ FISCAL ***</div>' : ""}` : `<h1>ANGIRU FOOD</h1>`;
 
   const ivaA = f && letraCbte(f) === "A"
@@ -101,7 +107,7 @@ export function armarTicketHtml(p: {
     .footer .legal { font-size:9.5px; color:#999; margin-top:8px; border-top:1px dashed #ccc; padding-top:8px; }
   </style></head><body>
   ${cabeceraFiscal}
-  <div class="sub">${esc(p.sucursalNombre)}</div>
+  <div class="sub">${f ? "Local: " : ""}${esc(p.sucursalNombre)}</div>
   <div class="sub">${fechaLarga} · #${p.id}</div>
   <div class="divider"></div>
   <table>

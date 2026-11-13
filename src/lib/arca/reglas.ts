@@ -42,13 +42,17 @@ export const COND_IVA_CONSUMIDOR_FINAL = 5;
 /** IVA Sujeto Exento (ARCA, FEParamGetCondicionIvaReceptor clase B). Se factura con Factura B y el CUIT del cliente. */
 export const COND_IVA_EXENTO = 4;
 /**
- * CUITs de clientes exentos de IVA conocidos: se facturan solos como Factura B «exento», sin que el cajero lo sepa.
- * Para sumar uno, agregar su CUIT acá (11 dígitos, sin guiones).
+ * Clientes exentos de IVA conocidos: se facturan solos como Factura B «exento» y el ticket imprime su razón social y
+ * domicilio (el cajero no tiene que saber nada). Para sumar uno, agregarlo acá (CUIT de 11 dígitos, sin guiones).
+ * Verificar el domicilio con la constancia de inscripción de ARCA del cliente.
  */
-export const CUITS_EXENTOS: ReadonlySet<string> = new Set([
-  "30598218095", // Universidad Nacional de Misiones
-]);
+export const CLIENTES_EXENTOS: Readonly<Record<string, { nombre: string; domicilio: string }>> = {
+  "30598218095": { nombre: "Universidad Nacional de Misiones", domicilio: "Ruta Nacional 12, km 7,5 - Villa Miguel Lanús, Posadas (3304), Misiones" },
+};
+export const CUITS_EXENTOS: ReadonlySet<string> = new Set(Object.keys(CLIENTES_EXENTOS));
 export const esCuitExento = (doc?: string | null) => CUITS_EXENTOS.has((doc ?? "").replace(/[^0-9]/g, ""));
+/** Nombre y domicilio a imprimir de un cliente conocido (hoy: los exentos); null si no lo conocemos. */
+export const clienteConocido = (doc?: string | null) => CLIENTES_EXENTOS[(doc ?? "").replace(/[^0-9]/g, "")] ?? null;
 
 export type TipoFactura = "A" | "B";
 

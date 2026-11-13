@@ -1720,6 +1720,7 @@ Otras columnas: `id`, `created_at`.
 | `created_by` | id | Quién lo pidió (vacío si fue automático). |
 | `created_at` | fecha y hora | Cuándo se creó. |
 | `emitido_en` | fecha y hora | Cuándo ARCA lo aprobó. |
+| `referencia` | texto | N° de orden de compra / expediente del cliente (opcional); se imprime en el ticket, no se envía a ARCA. |
 
 Otras columnas: `id`.
 
