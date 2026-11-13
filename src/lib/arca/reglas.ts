@@ -44,10 +44,10 @@ export const COND_IVA_EXENTO = 4;
 /**
  * Clientes exentos de IVA conocidos: se facturan solos como Factura B «exento» y el ticket imprime su razón social y
  * domicilio (el cajero no tiene que saber nada). Para sumar uno, agregarlo acá (CUIT de 11 dígitos, sin guiones).
- * Verificar el domicilio con la constancia de inscripción de ARCA del cliente.
+ * Nombre y domicilio: de la constancia de inscripción de ARCA del cliente (UNaM: constancia del 13/11/2026).
  */
 export const CLIENTES_EXENTOS: Readonly<Record<string, { nombre: string; domicilio: string }>> = {
-  "30598218095": { nombre: "Universidad Nacional de Misiones", domicilio: "Ruta Nacional 12, km 7,5 - Villa Miguel Lanús, Posadas (3304), Misiones" },
+  "30598218095": { nombre: "Universidad Nacional de Misiones O. P.", domicilio: "Ruta Nac. 12 Km 7.000, Posadas (3300), Misiones" },
 };
 export const CUITS_EXENTOS: ReadonlySet<string> = new Set(Object.keys(CLIENTES_EXENTOS));
 export const esCuitExento = (doc?: string | null) => CUITS_EXENTOS.has((doc ?? "").replace(/[^0-9]/g, ""));

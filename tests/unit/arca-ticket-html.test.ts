@@ -168,7 +168,7 @@ describe("ticket fiscal a un cliente exento conocido", () => {
   it("imprime razón social, domicilio, condición de venta y rotula el local", () => {
     const h = arma();
     expect(h).toContain("Universidad Nacional de Misiones");
-    expect(h).toContain("Villa Miguel Lanús");
+    expect(h).toContain("Ruta Nac. 12 Km 7.000");
     expect(h).toContain("Condición de venta: Contado");
     expect(h).toContain("Local: Angiru Food UNAM");
   });
