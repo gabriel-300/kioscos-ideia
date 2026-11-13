@@ -34,12 +34,12 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
   const abiertos = comprobantes.filter((c) => c.estado !== "emitido");
 
   // La ventana se abre dentro del clic y se completa cuando llegan los datos (si no, el navegador bloquea el popup).
-  const reimprimir = async (id: string) => {
+  const reimprimir = async (id: string, original = false) => {
     setMsg(null);
     const abierta = await abrirTicketDespues(async () => {
       const r = await datosTicketComprobante(id);
       if (r.error || !r.ticket) { setMsg(r.error ?? "No se pudo preparar el ticket."); return null; }
-      return armarTicketHtml({ ...r.ticket, copia: esReimpresion(r.ticket.factura.emitido_en) });
+      return armarTicketHtml({ ...r.ticket, copia: !original && esReimpresion(r.ticket.factura.emitido_en) });
     });
     if (!abierta) setMsg((m) => m ?? "No se pudo abrir la ventana de impresión: revisá que el navegador permita ventanas emergentes para este sitio.");
   };
@@ -115,8 +115,12 @@ export function Panel({ emisores, sucursales, comprobantes }: { emisores: Emisor
                   <td className="px-4 py-2 tabular-nums text-xs text-neutral-500">{c.cae ?? "—"}</td>
                   <td className="px-4 py-2 text-right">
                     {c.estado === "emitido" && esFactura(c.cbte_tipo) && (
-                      <button className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
-                        title="Volver a imprimir esta factura" onClick={() => reimprimir(c.id)}>Imprimir</button>
+                      <span className="inline-flex gap-1">
+                        <button className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
+                          title="Volver a imprimir esta factura (con la marca COPIA si pasaron más de 10 minutos)" onClick={() => reimprimir(c.id)}>Imprimir</button>
+                        <button className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
+                          title="Imprimir sin la marca COPIA: para mandar la factura a un cliente o guardarla en PDF" onClick={() => reimprimir(c.id, true)}>Original</button>
+                      </span>
                     )}
                   </td>
                 </tr>
